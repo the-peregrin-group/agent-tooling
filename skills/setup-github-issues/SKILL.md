@@ -126,7 +126,19 @@ If they want an audit, check these sources in parallel:
 | `CLAUDE.md` | Read the project's CLAUDE.md; look for TODO/backlog/planned sections |
 | Memory files | Check `~/.claude/projects/*/memory/MEMORY.md` for the current project |
 | Notes vault | If the user keeps a notes or knowledge repo, look there for a matching project entry |
-| Source code | `grep -rn 'TODO\|FIXME\|HACK\|XXX' --include='*.{py,js,ts,rs,go,java,rb,sh,yml,yaml}' .` |
+| Source code | The `grep` below |
+
+```bash
+grep -rn 'TODO\|FIXME\|HACK\|XXX' \
+  --include='*.py' --include='*.js' --include='*.ts' --include='*.rs' \
+  --include='*.go' --include='*.java' --include='*.rb' --include='*.sh' \
+  --include='*.yml' --include='*.yaml' .
+```
+
+Use one `--include=` per extension: `--include` takes a glob, which has no
+brace alternation, and a quoted `'*.{py,sh}'` is never brace-expanded by the
+shell either, so that form silently matches nothing. Adjust the extension
+list to the repo's languages.
 
 After the audit, also ask: **"Want me to run a code review to surface
 additional issues (bugs, debt, improvements)? This takes longer but can catch
