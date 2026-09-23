@@ -42,6 +42,17 @@ wrappers accept, creating it if missing; the rest use a temporary directory.
 Tests must never read or write the real install targets, the real roster, or
 the network.
 
+## Issue tracking & workflow
+
+This project uses this repository's **GitHub Issues** as the single source of
+truth for work tracking. Priority lives on the repository's linked project
+board, not on labels; `ghw-orient` reports the board and its fields.
+
+**Load the `use-github` skill before filing, labeling, or prioritizing an
+issue, before writing a `TODO` comment, and before opening a PR.** It carries
+the label schema, the board fields, the `TODO(#N)` rule, and the branch/PR
+workflow. Don't improvise these conventions.
+
 ## Documentation
 
 - `README.md` is the front door and the fresh-machine bootstrap.
