@@ -1,0 +1,68 @@
+#!/usr/bin/env python3
+"""ghw-issue-close <repo> <issue#> [comment-file] -- close an issue, optionally with a reason.
+
+Its own verb, never a flag on ghw-issue-edit, so closing is independently
+grantable or withheld. The optional comment file (staging directories only,
+never inline) lets a close carry its reason in one call. Closing an
+already-closed issue is a converged no-op; in that case a supplied comment is
+NOT posted, since the close it was meant to explain did not happen here.
+
+Exit codes: 0 success (including a converged no-op), 1 gh/API failure,
+2 usage error or policy refusal.
+"""
+
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from lib import arguments, plan, staging
+from lib.github import gh
+
+_USAGE = "ghw-issue-close <owner/repo> <issue#> [comment-file]"
+
+
+def main(argv: list[str]) -> int:
+    """Entry point; the module docstring above is the CLI contract. Returns
+    the process exit code."""
+    if argv and argv[0] in ("-h", "--help"):
+        print(__doc__.strip())
+        return plan.EXIT_OK
+    if len(argv) not in (2, 3):
+        plan.usage_die("expected two or three arguments", _USAGE)
+    repository, issue_argument = argv[:2]
+    if not arguments.is_valid_repository(repository):
+        plan.usage_die(f"repo must be 'owner/name', got {repository!r}", _USAGE)
+    number = arguments.parse_issue_number(issue_argument)
+    if number is None:
+        plan.usage_die(
+            f"issue number must be a positive integer, got {issue_argument!r}", _USAGE
+        )
+    comment = staging.read_staged_body(argv[2]) if len(argv) == 3 else None
+
+    try:
+        state = gh.issue_view(repository, number, ["state"])["state"]
+        if state != "OPEN":
+            payload = {"changed": False, "note": f"issue is already {state}"}
+            if comment is not None:
+                payload["note"] += "; comment not posted"
+            plan.emit_plan("applied", repository=repository, issue=number, **payload)
+            return plan.EXIT_OK
+        gh.issue_close(repository, number, comment)
+    except gh.GhError as error:
+        gh.die(str(error), plan.EXIT_RUNTIME)
+
+    plan.emit_plan(
+        "applied",
+        repository=repository,
+        issue=number,
+        changed=True,
+        commented=comment is not None,
+    )
+    return plan.EXIT_OK
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

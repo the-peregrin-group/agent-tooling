@@ -1,0 +1,190 @@
+#!/usr/bin/env python3
+"""ghw-issue-link <repo> <add-sub|remove-sub|add-blocked-by|remove-blocked-by> <issue#> <other-issue#> -- link two issues.
+
+A thin validating shim over `gh issue edit`'s native sub-issue and dependency
+flags, which need gh >= 2.94.0; the version floor is checked at runtime and
+failing it is a loud, self-explaining error rather than gh's "unknown flag".
+
+<issue#> is always the subject: for add-sub/remove-sub it is the parent and
+<other-issue#> the sub-issue; for the blocked-by pair it is the blocked issue
+and <other-issue#> the blocker. "X blocks Y" is therefore expressed as
+`ghw-issue-link <repo> add-blocked-by Y X` -- there are deliberately no
+blocking subverbs, so one relationship has exactly one spelling.
+
+Issue numbers only, never node IDs. Idempotent: adding a link that exists, or
+removing one that does not, is a converged no-op.
+
+Exit codes: 0 success (including a converged no-op), 1 gh/API failure,
+2 usage error or policy refusal.
+"""
+
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from lib import arguments, plan
+from lib.github import gh
+
+_USAGE = (
+    "ghw-issue-link <owner/repo> "
+    "<add-sub|remove-sub|add-blocked-by|remove-blocked-by> <issue#> <other-issue#>"
+)
+_SUBVERBS = tuple(gh.DEPENDENCY_FLAGS)
+
+# gh gained --add-sub-issue/--add-blocked-by and their removals in 2.94.0.
+_MINIMUM_GH_VERSION = (2, 94, 0)
+
+# Which `gh issue view --json` field holds the edges each subverb touches.
+_STATE_FIELDS = {
+    "add-sub": "subIssues",
+    "remove-sub": "subIssues",
+    "add-blocked-by": "blockedBy",
+    "remove-blocked-by": "blockedBy",
+}
+
+
+def main(argv: list[str]) -> int:
+    """Entry point; the module docstring above is the CLI contract. Returns
+    the process exit code."""
+    if argv and argv[0] in ("-h", "--help"):
+        print(__doc__.strip())
+        return plan.EXIT_OK
+    if len(argv) != 4:
+        plan.usage_die("expected exactly four arguments", _USAGE)
+    repository, subverb, issue_argument, other_argument = argv
+    if not arguments.is_valid_repository(repository):
+        plan.usage_die(f"repo must be 'owner/name', got {repository!r}", _USAGE)
+    if subverb not in _SUBVERBS:
+        plan.usage_die(
+            f"subverb must be one of {'|'.join(_SUBVERBS)}, got {subverb!r}. "
+            "To record that X blocks Y, use: add-blocked-by Y X",
+            _USAGE,
+        )
+    number = arguments.parse_issue_number(issue_argument)
+    other = arguments.parse_issue_number(other_argument)
+    for argument, parsed in ((issue_argument, number), (other_argument, other)):
+        if parsed is None:
+            plan.usage_die(
+                f"issue numbers must be positive integers, got {argument!r}", _USAGE
+            )
+    if number == other:
+        plan.usage_die(
+            f"an issue cannot be linked to itself (both numbers are #{number})",
+            _USAGE,
+        )
+
+    try:
+        _require_gh_version()
+        linked, truncated = _edge_state(repository, number, subverb, other)
+        wanted = subverb.startswith("add-")  # add-* wants the edge to exist
+        changed = linked is not wanted
+        if changed:
+            gh.issue_edit_dependency(repository, number, subverb, other)
+    except gh.GhError as error:
+        gh.die(str(error), plan.EXIT_RUNTIME)
+
+    plan.emit_plan(
+        "applied",
+        repository=repository,
+        issue=number,
+        subverb=subverb,
+        other_issue=other,
+        changed=changed,
+    )
+    return plan.EXIT_OK
+
+
+def _require_gh_version() -> None:
+    """Raise GhError unless the local gh meets the dependency-flag floor."""
+    installed = gh.version()
+    if installed < _MINIMUM_GH_VERSION:
+        floor = ".".join(str(part) for part in _MINIMUM_GH_VERSION)
+        found = ".".join(str(part) for part in installed)
+        raise gh.GhError(
+            f"gh {floor} or newer is required for sub-issues and dependencies "
+            f"(found {found}); upgrade gh, then re-run"
+        )
+
+
+def _edge_state(repository: str, number: int, subverb: str,
+                other: int) -> tuple[bool, bool]:
+    """Whether the edge this subverb manages already exists on `number`.
+
+    Returns (linked, truncated). gh returns only the first page of edges
+    (100 sub-issues, 50 dependencies), so `truncated` says the answer to
+    "linked?" is a guess: the target could be sitting on a page nobody read.
+    Raises GhError when that guess would be acted on -- claiming a converged
+    no-op for an edge that is in fact still there is the one outcome worse
+    than failing.
+    """
+    field = _STATE_FIELDS[subverb]
+    payload = gh.issue_view(repository, number, [field]).get(field)
+    numbers = _linked_issue_numbers(payload, repository)
+    total = payload.get("totalCount") if isinstance(payload, dict) else None
+    truncated = isinstance(total, int) and total > len(_nodes(payload))
+    if truncated and other not in numbers:
+        raise gh.GhError(
+            f"cannot verify whether #{other} is already linked: issue #{number} "
+            f"has {total} {field} edges and gh returned only the first "
+            f"{len(_nodes(payload))}. Refusing to guess -- run the raw "
+            f"`gh issue edit {number} --repo {repository} "
+            f"{gh.DEPENDENCY_FLAGS[subverb]} {other}` with a human at the prompt."
+        )
+    return other in numbers, truncated
+
+
+def _nodes(payload: dict | list | None) -> list:
+    """The edge list inside a gh dependency payload, whichever shape it took."""
+    if isinstance(payload, dict):
+        payload = payload.get("nodes", [])
+    return payload if isinstance(payload, list) else []
+
+
+def _linked_issue_numbers(payload: dict | list | None, repository: str) -> set[int]:
+    """The `repository`-local issue numbers in one gh dependency payload.
+
+    gh reports subIssues/blockedBy as {"nodes": [...], "totalCount": n}; a bare
+    list is accepted too, so a future shape change degrades into a redundant
+    (idempotent) edit rather than a crash. Entries carrying another repo's
+    issue are dropped: dependencies may cross repos, and this wrapper's numbers
+    are always local, so a same-numbered foreign issue must not read as a hit.
+    """
+    numbers = set()
+    for entry in _nodes(payload):
+        if not isinstance(entry, dict) or not isinstance(entry.get("number"), int):
+            continue
+        if _entry_repository(entry) not in (None, repository):
+            continue
+        numbers.add(entry["number"])
+    return numbers
+
+
+def _entry_repository(entry: dict) -> str | None:
+    """The 'owner/name' an edge's issue belongs to, or None when the entry
+    says nothing about it (gh omits the repo on same-repo edges).
+
+    Both branches are kept though only one can fire per gh version: neither
+    the presence of `url` nor the absence of `repository` has been observed on
+    a real cross-repo edge, because none of the repos it was tested against
+    has one.
+    """
+    repository = entry.get("repository")
+    if isinstance(repository, dict):
+        owner = repository.get("owner")
+        if isinstance(owner, dict) and repository.get("name"):
+            return f"{owner.get('login')}/{repository['name']}"
+        if repository.get("nameWithOwner"):
+            return repository["nameWithOwner"]
+    url = entry.get("url")
+    if isinstance(url, str):
+        parts = url.split("/")
+        if len(parts) >= 5 and parts[-2] == "issues":
+            return f"{parts[-4]}/{parts[-3]}"
+    return None
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

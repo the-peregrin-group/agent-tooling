@@ -1,0 +1,66 @@
+#!/usr/bin/python3
+"""fjw-pr-query <owner/repo> <head-branch> -- the open-PR quad-state for a head branch.
+
+The unattended consumer's predecessor probe. Emits JSON:
+
+    {"repository": ..., "head": ..., "state": ..., "pr": <raw PR or null>}
+
+where state is one of:
+    none       -- no open PR has this head branch
+    draft      -- the open PR is a draft (mergeable is meaningless there)
+    mergeable  -- open and the conflict check has it clean
+    conflicted -- open, not a draft, and `mergeable` stayed false through a
+                  short backoff poll (~7s)
+
+"conflicted" is the best-available heuristic, not ground truth: the API's
+`mergeable` boolean conflates check-running with conflicted and no "check
+finished" signal exists. All four states exit 0 -- "none" is an answer, not
+an error. When several open PRs share the head branch, the newest is judged.
+Acts as the deployment's machine account.
+
+Exit codes: 0 success (any state), 1 unclassified API failure, 2 usage
+error, 3 repository not found, 5 auth/config failure, 6 network failure.
+"""
+
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from lib import plan
+from lib.forgejo import api, config as fjw_config, pulls
+
+_USAGE = "fjw-pr-query <owner/repo> <head-branch>"
+
+
+def main(argv: list[str]) -> int:
+    """Entry point; the module docstring above is the CLI contract. Returns
+    the process exit code."""
+    if argv and argv[0] in ("-h", "--help"):
+        print(__doc__.strip())
+        return plan.EXIT_OK
+    if len(argv) != 2:
+        plan.usage_die("expected exactly two arguments", _USAGE)
+    repository, head = argv
+    if not pulls.is_valid_repository(repository):
+        plan.usage_die(f"repo must be 'owner/name', got {repository!r}", _USAGE)
+    if not head.strip():
+        plan.usage_die("head branch name must not be empty", _USAGE)
+
+    try:
+        configuration = fjw_config.load()
+    except fjw_config.ConfigError as error:
+        api.die(str(error), plan.EXIT_AUTH)
+    try:
+        state, pr = pulls.query_state(configuration, repository, head)
+    except api.ApiError as error:
+        api.die(str(error), error.exit_code)
+
+    plan.emit({"repository": repository, "head": head, "state": state, "pr": pr})
+    return plan.EXIT_OK
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

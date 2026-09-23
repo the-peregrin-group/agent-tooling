@@ -1,0 +1,89 @@
+#!/usr/bin/env python3
+"""ghw-pr-merge <repo> <base-branch> <merge|squash> <pr#> -- merge a pull request.
+
+The merge strategy is a positional mode, not a flag, so per-repo merge policy
+is expressed by which strategy token an allowlist rule pins. Before merging,
+the wrapper verifies the PR is open, that its actual base branch equals the
+stated one (trust-but-verify), that it is not a draft, and that
+its checks are green or absent -- many repos have no branch
+protection, so `gh pr merge` on its own enforces nothing. There is no force
+or override path, ever: merging over red checks stays raw `gh` with a human
+at the prompt. Never passes --delete-branch (worktree hazard).
+
+Exit codes: 0 success, 1 gh/API failure, 2 usage error or policy refusal.
+"""
+
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from lib import arguments, plan
+from lib.github import gh, pulls
+
+_USAGE = "ghw-pr-merge <owner/repo> <base-branch> <merge|squash> <pr#>"
+
+
+def main(argv: list[str]) -> int:
+    """Entry point; the module docstring above is the CLI contract. Returns
+    the process exit code."""
+    if argv and argv[0] in ("-h", "--help"):
+        print(__doc__.strip())
+        return plan.EXIT_OK
+    if len(argv) != 4:
+        plan.usage_die("expected exactly four arguments", _USAGE)
+    repository, base, strategy, pull_argument = argv
+    if not arguments.is_valid_repository(repository):
+        plan.usage_die(f"repo must be 'owner/name', got {repository!r}", _USAGE)
+    if not base.strip():
+        plan.usage_die("base branch name must not be empty", _USAGE)
+    if strategy not in ("merge", "squash"):
+        plan.usage_die(
+            f"merge strategy must be 'merge' or 'squash', got {strategy!r}", _USAGE
+        )
+    number = arguments.parse_issue_number(pull_argument)
+    if number is None:
+        plan.usage_die(
+            f"PR number must be a positive integer, got {pull_argument!r}", _USAGE
+        )
+
+    try:
+        pull = gh.pr_view(
+            repository,
+            number,
+            ["number", "state", "isDraft", "baseRefName", "statusCheckRollup",
+             "url", "headRefOid"],
+        )
+    except gh.GhError as error:
+        gh.die(str(error), plan.EXIT_RUNTIME)
+
+    refusals = pulls.merge_refusals(pull, base)
+    if refusals:
+        gh.die(
+            f"refusing to merge {repository}#{number}:\n"
+            + "\n".join(f"  - {refusal}" for refusal in refusals),
+            plan.EXIT_USAGE,
+        )
+
+    try:
+        # Pinning the head oid closes the race between the gate checks above
+        # and the merge itself: a push in that window fails the merge loudly.
+        gh.pr_merge(repository, number, strategy, pull.get("headRefOid"))
+    except gh.GhError as error:
+        gh.die(str(error), plan.EXIT_RUNTIME)
+
+    plan.emit_plan(
+        "applied",
+        repository=repository,
+        pr=number,
+        base=base,
+        strategy=strategy,
+        url=pull.get("url"),
+    )
+    return plan.EXIT_OK
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

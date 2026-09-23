@@ -1,0 +1,213 @@
+#!/usr/bin/python3
+"""gitw-push <repo> <branch-prefix> [<name>] -- push the own branch to the authoritative remote.
+
+Bare form: push the branch checked out at cwd to the same-named ref on the
+authoritative remote, always with `--force-with-lease --force-if-includes`
+semantics: under rebase-before-merge, non-fast-forward pushes of your own
+branch are routine and structurally required, so force is not an
+escalation within the prefix scope -- while a lease failure converts
+"someone else moved my branch" into a loud exit-4 "fetch and reconcile"
+refusal, doubling as the another-agent-touched-my-branch detector.
+Deliberately no fetch first: a fetch immediately before the push would
+refresh the remote-tracking ref to whatever the remote holds, making the
+lease vacuous.
+
+Named-target form (`<name>` given): push the same branch's tip to
+`<branch-prefix><name>` on the remote instead, and set that ref as the
+branch's upstream. This is the pointer-move primitive for recurring
+jobs: a run on a fresh dated branch advances a stable
+review ref such as `reconcile/current` that no branch ever commits on. The
+lease is explicit, `--force-with-lease=<target>:<expect>`, where <expect>
+is the target's remote-tracking value in this clone (whoever last fetched
+it; the wrappers fetch with --prune, so a target deleted on the remote
+reads as absent) or empty, git's "must not exist yet", when the clone has
+never fetched it. `--force-if-includes` is not passed: git-push(1) defines
+it as a no-op next to an explicit <expect>, and its reflog check runs
+against a local branch named like the destination, which this form never
+has. The target stays inside the pinned prefix, so the grant is an exact
+row per target (`Bash(gitw-push rocket-sled reconcile/ current)`). The payload's
+`previous_target` is that <expect> value: null means "never fetched here",
+not "absent on the remote".
+
+The wrapper verifies the working copy at cwd against the roster entry
+for <repo> (~/.config/gitw/repos.toml), requires the current branch to
+match the pinned prefix, pushes only to the authoritative remote (no free
+refspecs), and sets the upstream. Structural guard: any push targeting
+the roster's authoritative default branch is refused regardless of
+prefix. Machine-local repos have nothing to push to and refuse.
+
+Exit codes: 0 success, 1 unclassified git failure, 2 usage error, 3 not
+found (label not in the roster, or the remote repository has vanished),
+4 refused (cwd/branch-prefix mismatch, default-branch push, lease
+failure -- fetch and reconcile, never blind-retry), 5 roster
+missing/malformed or auth failure, 6 network failure.
+"""
+
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from lib import plan
+from lib.git import arguments, repo, roster, run
+
+_USAGE = "gitw-push <repo> <branch-prefix> [<name>]"
+
+_LEASE_MARKERS = ("stale info", "remote ref updated since checkout")
+
+
+def main(argv: list[str]) -> int:
+    """Entry point; the module docstring above is the CLI contract. Returns
+    the process exit code."""
+    if argv and argv[0] in ("-h", "--help"):
+        print(__doc__.strip())
+        return plan.EXIT_OK
+    if len(argv) not in (2, 3):
+        plan.usage_die(
+            "expected repo label and branch prefix, optionally followed by "
+            "a target name",
+            _USAGE,
+        )
+    label, prefix = argv[:2]
+    if not arguments.is_valid_branch_prefix(prefix):
+        plan.usage_die(
+            f"branch prefix must be lowercase, single-level, and end in "
+            f"'/' (e.g. 'fix/'), got {prefix!r}",
+            _USAGE,
+        )
+    target = None
+    if len(argv) == 3:
+        name = argv[2]
+        if not arguments.is_valid_branch_name(name):
+            plan.usage_die(
+                f"target name must be alphanumerics plus ._- (no leading "
+                f"punctuation, no '..', no '.lock' suffix), got {name!r}",
+                _USAGE,
+            )
+        target = prefix + name
+    entry = roster.resolve_or_die(label, _USAGE)
+
+    try:
+        workspace = repo.resolve_workspace(entry, Path.cwd())
+        if not workspace.in_repo:
+            raise repo.RefusalError(
+                "gitw-push pushes the branch checked out at cwd; run it "
+                f"from inside a worktree of {label!r} ({entry.checkout}), "
+                "not from an operable_from path"
+            )
+        repo.verify_remote(workspace)
+        if entry.machine_local:
+            raise repo.RefusalError(
+                f"repo {label!r} is machine-local; there is no remote to "
+                "push to"
+            )
+        root = workspace.root
+        branch = repo.require_prefixed_branch(root, prefix, label)
+        for candidate in (branch, target):
+            if candidate == entry.default_branch:
+                raise repo.RefusalError(
+                    f"refusing to push the authoritative default branch "
+                    f"{candidate!r} -- trunk moves only by integration"
+                )
+        if target is None or target == branch:
+            payload = _push(workspace, branch)
+        else:
+            payload = _push_to_target(workspace, branch, target)
+    except repo.RefusalError as error:
+        run.die(str(error), plan.EXIT_REFUSED)
+    except run.GitError as error:
+        run.die(str(error), error.exit_code)
+
+    plan.emit_plan("applied", **payload)
+    return plan.EXIT_OK
+
+
+def _push(workspace: repo.Workspace, branch: str) -> dict:
+    """Bare form: push the branch to its same-named ref under the implicit
+    lease plus --force-if-includes."""
+    entry = workspace.entry
+    root = workspace.root
+    _run_push(
+        workspace,
+        branch,
+        [
+            "push",
+            "--force-with-lease",
+            "--force-if-includes",
+            "--set-upstream",
+            entry.remote,
+            f"refs/heads/{branch}:refs/heads/{branch}",
+        ],
+    )
+    return {
+        "repo": entry.label,
+        "branch": branch,
+        "remote": entry.remote,
+        "commit": repo.head_commit(root),
+        "upstream": repo.upstream_of(root, branch),
+        "worktree": str(root),
+    }
+
+
+def _push_to_target(workspace: repo.Workspace, branch: str,
+                    target: str) -> dict:
+    """Move `target` on the remote to this branch's tip under an explicit
+    lease: the target's remote-tracking value in this clone, or absence
+    when the clone never fetched it (the first push of a cycle)."""
+    entry = workspace.entry
+    root = workspace.root
+    expected = run.output(
+        ["rev-parse", "--verify", "--quiet",
+         f"refs/remotes/{entry.remote}/{target}"],
+        root,
+    )
+    _run_push(
+        workspace,
+        target,
+        [
+            "push",
+            f"--force-with-lease=refs/heads/{target}:{expected or ''}",
+            "--set-upstream",
+            entry.remote,
+            f"refs/heads/{branch}:refs/heads/{target}",
+        ],
+    )
+    return {
+        "repo": entry.label,
+        "branch": branch,
+        "target": target,
+        "previous_target": expected,
+        "remote": entry.remote,
+        "commit": repo.head_commit(root),
+        "upstream": repo.upstream_of(root, branch),
+        "worktree": str(root),
+    }
+
+
+def _run_push(workspace: repo.Workspace, ref: str,
+              arguments: list[str]) -> None:
+    entry = workspace.entry
+    root = workspace.root
+    result = run.run(
+        arguments, root, env=run.remote_environment(root), remote=True,
+    )
+    if result.returncode != 0:
+        detail = result.stderr.strip() or result.stdout.strip() or "no output"
+        lowered = detail.lower()
+        if any(marker in lowered for marker in _LEASE_MARKERS):
+            raise repo.RefusalError(
+                f"push of {ref!r} rejected by the lease: the remote ref "
+                "moved or was deleted since it was last fetched here -- "
+                "another agent or the human may have touched it. Fetch and "
+                "reconcile; never blind-retry"
+            )
+        raise run.GitError(
+            f"git push {entry.remote} {ref} failed: {detail}",
+            run.classify_remote_failure(detail),
+        )
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

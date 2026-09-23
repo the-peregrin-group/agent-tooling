@@ -1,0 +1,86 @@
+#!/usr/bin/env python3
+"""triage-update-ledger — rewrite the triage ledger issue (autonomous, target-bound).
+
+The ledger is the one free-text autonomous write in the skill. It is made safe not
+by bounding the *content* (a report body is arbitrary text) but by bounding the
+*target*: this wrapper takes no issue number. It writes only to the ledger issue
+whose number is in the profile (`ledger_issue`, required). It physically cannot
+touch any other issue, so an allowlisted invocation cannot rewrite a real issue's
+body.
+
+  --body-file PATH    new ledger body (R-LEDG-2: body = current open findings).
+                      Use '-' or omit to read the body from stdin.
+  --comment-file PATH per-pass changelog comment (R-LEDG-2: comments = events).
+  --no-body           update only the comment (leave the body unchanged).
+
+At least one of body / comment must be supplied. Pass --dry-run to preview.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import sys
+
+sys.path.insert(0, os.path.dirname(__file__))
+import lib_profile  # noqa: E402
+import lib_gh  # noqa: E402
+
+
+def _read(path: str | None) -> str | None:
+    if path is None:
+        return None
+    if path == "-":
+        return sys.stdin.read()
+    with open(path, encoding="utf-8") as f:
+        return f.read()
+
+
+def main():
+    ap = argparse.ArgumentParser(description="Rewrite the ledger issue (target-bound write).")
+    lib_profile.add_common_args(ap)
+    ap.add_argument("--body-file", default=None, help="new ledger body ('-' = stdin)")
+    ap.add_argument("--no-body", action="store_true", help="do not touch the body")
+    ap.add_argument("--comment-file", default=None, help="changelog comment to append")
+    ap.add_argument("--dry-run", action="store_true")
+    args = ap.parse_args()
+    prof = lib_profile.load_or_die(args)
+    ledger = prof.require_ledger()
+
+    body = None
+    if not args.no_body:
+        # Default to stdin when neither --body-file nor --no-body is given,
+        # but only if there is actually piped input.
+        if args.body_file is not None:
+            body = _read(args.body_file)
+        elif not sys.stdin.isatty():
+            body = sys.stdin.read()
+    comment = _read(args.comment_file)
+
+    if body is None and comment is None:
+        lib_gh.die("triage-update-ledger: nothing to write (need a body and/or a comment)", 2)
+
+    plan = {
+        "ledgerIssue": ledger,
+        "wroteBody": body is not None,
+        "bodyChars": len(body) if body is not None else 0,
+        "wroteComment": comment is not None,
+        "commentChars": len(comment) if comment is not None else 0,
+        "action": "dry-run" if args.dry_run else "applied",
+    }
+    if not args.dry_run:
+        if body is not None:
+            lib_gh.issue_edit_body(prof.repo, ledger, body)
+        if comment is not None:
+            lib_gh.issue_comment(prof.repo, ledger, comment)
+
+    json.dump(plan, sys.stdout, indent=2)
+    sys.stdout.write("\n")
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except (lib_profile.ProfileError, lib_gh.GhError) as e:
+        lib_gh.die(f"triage-update-ledger: {e}", 1)

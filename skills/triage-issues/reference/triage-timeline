@@ -1,0 +1,209 @@
+#!/usr/bin/env python3
+"""triage-timeline — per-issue meaningful-activity + linkage read (read-only).
+
+For each issue number given, fetches the noise-filtered timeline (the staleness
+allowlist), the issue's body-edit recency, and its closing-PR linkage, then emits
+the computed most-recent-meaningful-activity plus the linkage signals the skill
+needs for L-LINK / R-PARENT / R-BLOCK.
+
+Exclusions applied (per the skill's Staleness spec):
+  - ProjectV2ItemStatusChangedEvent with wasAutomated, or scoped to a foreign project
+  - any event authored by a profile-whitelisted bot account
+  - body edits whose editor is a whitelisted bot
+
+Output (JSON on stdout): { "<number>": { ...signals... }, ... }
+
+The staleness *verdict* (age vs threshold) is intentionally NOT computed here:
+it needs the issue's priority + status from the inventory. This wrapper emits the
+raw `mostRecentMeaningfulActivity`; the skill joins it with inventory data.
+
+Read-only: no mutations.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import sys
+
+sys.path.insert(0, os.path.dirname(__file__))
+import lib_profile  # noqa: E402
+import lib_gh  # noqa: E402
+
+# Every allowlisted event exposes createdAt + actor{login}; IssueComment uses
+# author; ProjectV2ItemStatusChangedEvent additionally carries the automation
+# flag + project scope used for exclusion.
+_QUERY = """
+query($owner:String!, $repo:String!, $number:Int!, $since:DateTime) {
+  repository(owner:$owner, name:$repo) {
+    issue(number:$number) {
+      lastEditedAt
+      editor { login }
+      closedByPullRequestsReferences(first:20, includeClosedPrs:true, userLinkedOnly:false) {
+        nodes { number state isDraft merged mergedAt title url }
+      }
+      timelineItems(since:$since, first:100, itemTypes:[
+        ISSUE_COMMENT, RENAMED_TITLE_EVENT,
+        LABELED_EVENT, UNLABELED_EVENT,
+        ASSIGNED_EVENT, UNASSIGNED_EVENT,
+        MILESTONED_EVENT, DEMILESTONED_EVENT,
+        CLOSED_EVENT, REOPENED_EVENT,
+        CONNECTED_EVENT, DISCONNECTED_EVENT,
+        MARKED_AS_DUPLICATE_EVENT, UNMARKED_AS_DUPLICATE_EVENT,
+        TRANSFERRED_EVENT, CONVERTED_TO_DISCUSSION_EVENT,
+        ADDED_TO_PROJECT_V2_EVENT, REMOVED_FROM_PROJECT_V2_EVENT,
+        PROJECT_V2_ITEM_STATUS_CHANGED_EVENT,
+        SUB_ISSUE_ADDED_EVENT, SUB_ISSUE_REMOVED_EVENT,
+        PARENT_ISSUE_ADDED_EVENT, PARENT_ISSUE_REMOVED_EVENT,
+        BLOCKED_BY_ADDED_EVENT, BLOCKED_BY_REMOVED_EVENT,
+        BLOCKING_ADDED_EVENT, BLOCKING_REMOVED_EVENT
+      ]) {
+        totalCount
+        nodes {
+          __typename
+          ... on IssueComment { createdAt author { login } }
+          ... on RenamedTitleEvent { createdAt actor { login } }
+          ... on LabeledEvent { createdAt actor { login } }
+          ... on UnlabeledEvent { createdAt actor { login } }
+          ... on AssignedEvent { createdAt actor { login } }
+          ... on UnassignedEvent { createdAt actor { login } }
+          ... on MilestonedEvent { createdAt actor { login } }
+          ... on DemilestonedEvent { createdAt actor { login } }
+          ... on ClosedEvent { createdAt actor { login } }
+          ... on ReopenedEvent { createdAt actor { login } }
+          ... on ConnectedEvent { createdAt actor { login } }
+          ... on DisconnectedEvent { createdAt actor { login } }
+          ... on MarkedAsDuplicateEvent { createdAt actor { login } }
+          ... on UnmarkedAsDuplicateEvent { createdAt actor { login } }
+          ... on TransferredEvent { createdAt actor { login } }
+          ... on ConvertedToDiscussionEvent { createdAt actor { login } }
+          ... on AddedToProjectV2Event { createdAt actor { login } }
+          ... on RemovedFromProjectV2Event { createdAt actor { login } }
+          ... on ProjectV2ItemStatusChangedEvent { createdAt actor { login } wasAutomated project { number } }
+          ... on SubIssueAddedEvent { createdAt actor { login } }
+          ... on SubIssueRemovedEvent { createdAt actor { login } }
+          ... on ParentIssueAddedEvent { createdAt actor { login } }
+          ... on ParentIssueRemovedEvent { createdAt actor { login } }
+          ... on BlockedByAddedEvent { createdAt actor { login } }
+          ... on BlockedByRemovedEvent { createdAt actor { login } }
+          ... on BlockingAddedEvent { createdAt actor { login } }
+          ... on BlockingRemovedEvent { createdAt actor { login } }
+        }
+      }
+    }
+  }
+}
+"""
+
+# closing-linkage keywords are surfaced by closedByPullRequestsReferences directly;
+# these classify *contributing* linkage when scanning a PR body best-effort.
+CONTRIBUTING_KEYWORDS = (
+    "furthers", "contributes to", "part of", "towards", "toward",
+    "progresses", "step toward", "builds toward",
+)
+
+
+def _actor_login(node: dict) -> str | None:
+    a = node.get("author") or node.get("actor") or {}
+    return a.get("login") if a else None
+
+
+def _meaningful_timestamps(nodes, prof) -> list[str]:
+    out = []
+    for n in nodes:
+        ca = n.get("createdAt")
+        if not ca:
+            continue
+        if n["__typename"] == "ProjectV2ItemStatusChangedEvent":
+            if n.get("wasAutomated"):
+                continue
+            pnum = (n.get("project") or {}).get("number")
+            if pnum is not None and pnum != prof.project_number:
+                continue
+        if _actor_login(n) in prof.bot_whitelist:
+            continue
+        out.append(ca)
+    return out
+
+
+def _linkage_flags(nodes) -> dict:
+    flags = {
+        "connected": [], "disconnected": [],
+        "subIssueAdded": [], "subIssueRemoved": [],
+        "parentAdded": [], "parentRemoved": [],
+        "blockedByAdded": [], "blockedByRemoved": [],
+        "blockingAdded": [], "blockingRemoved": [],
+    }
+    keymap = {
+        "ConnectedEvent": "connected", "DisconnectedEvent": "disconnected",
+        "SubIssueAddedEvent": "subIssueAdded", "SubIssueRemovedEvent": "subIssueRemoved",
+        "ParentIssueAddedEvent": "parentAdded", "ParentIssueRemovedEvent": "parentRemoved",
+        "BlockedByAddedEvent": "blockedByAdded", "BlockedByRemovedEvent": "blockedByRemoved",
+        "BlockingAddedEvent": "blockingAdded", "BlockingRemovedEvent": "blockingRemoved",
+    }
+    for n in nodes:
+        k = keymap.get(n["__typename"])
+        if k:
+            flags[k].append(n.get("createdAt"))
+    return flags
+
+
+def _process(issue: dict, prof) -> dict:
+    nodes = issue["timelineItems"]["nodes"]
+    stamps = _meaningful_timestamps(nodes, prof)
+
+    edited = issue.get("lastEditedAt")
+    editor = (issue.get("editor") or {}).get("login")
+    if edited and editor not in prof.bot_whitelist:
+        stamps.append(edited)
+
+    prs = []
+    for pr in (issue.get("closedByPullRequestsReferences") or {}).get("nodes", []):
+        prs.append({
+            "number": pr["number"], "state": pr["state"], "isDraft": pr["isDraft"],
+            "merged": pr["merged"], "mergedAt": pr.get("mergedAt"),
+            "title": pr["title"], "url": pr["url"], "linkage": "closing",
+        })
+
+    return {
+        "lastEditedAt": edited,
+        "editor": editor,
+        "mostRecentMeaningfulActivity": max(stamps) if stamps else None,
+        "meaningfulEventCount": len(stamps),
+        "timelineTotalCount": issue["timelineItems"]["totalCount"],
+        "closingPRs": prs,
+        "linkage": _linkage_flags(nodes),
+    }
+
+
+def main():
+    ap = argparse.ArgumentParser(description="Read per-issue meaningful activity + linkage (read-only).")
+    lib_profile.add_common_args(ap)
+    ap.add_argument("numbers", nargs="+", type=int, help="issue number(s)")
+    ap.add_argument("--since", default=None,
+                    help="ISO DateTime lower bound (e.g. the issue's Last Triaged); "
+                         "doubles as the skip-optimization filter")
+    args = ap.parse_args()
+    prof = lib_profile.load_or_die(args)
+
+    result = {}
+    for num in args.numbers:
+        data = lib_gh.graphql(_QUERY, {
+            "owner": prof.owner, "repo": prof.name, "number": num, "since": args.since,
+        })
+        issue = data["repository"]["issue"]
+        if issue is None:
+            result[str(num)] = {"error": "issue not found"}
+            continue
+        result[str(num)] = _process(issue, prof)
+
+    json.dump(result, sys.stdout, indent=2)
+    sys.stdout.write("\n")
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except (lib_profile.ProfileError, lib_gh.GhError) as e:
+        lib_gh.die(f"triage-timeline: {e}", 1)

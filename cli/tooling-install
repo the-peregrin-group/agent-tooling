@@ -1,0 +1,182 @@
+#!/usr/bin/env python3
+"""tooling-install {diff | apply | adopt} <source-checkout> -- ship a repo's
+agent tooling into the install targets.
+
+The installed copies are what agents actually run: skill text invokes bare
+names, PATH resolves them in the install directory, and `~/.claude/skills/`
+is where Claude Code reads skills from. Updating those directories is a
+deliberate human act (the permission prompt on `apply` is the ceremony);
+`diff` is read-only and allowlistable so an agent can report
+checkout-vs-installed drift without being able to act on it.
+
+The source checkout is an explicit argument, never inferred: an installed
+copy cannot locate "its" repo, and one installed copy serves several source
+repos. What ships and where is declared by `<source-checkout>/install.json`;
+this executable is a thin front end over lib/install.py, whose docstring
+carries the full contract (cohorts, target kinds, ownership receipts, the
+two-rename swap and its crash recovery).
+
+`apply` refuses a source whose shipping tree is dirty unless --force is
+given, in which case the receipt's commit is marked `<hash>-dirty`, never
+laundered. It also refuses a source that equals, contains, or sits inside any
+target directory -- a checkout whose own tree holds an install target is
+that case, and the swap would rename part of the source out from under the
+run.
+
+Two source repos can ship into one target directory, and the receipt records
+which repo owns what. A file -- or, for skills, a whole unit -- that another
+repo's record claims is *adopted* when the incoming copy is byte-identical to
+the installed one: ownership moves in the receipt, the bytes on disk do not
+change, and `apply` reports the names under `adopted`. When the content
+differs, `apply` refuses. It never overwrites another repo's content.
+
+    tooling-install adopt <source-checkout> <superseded-source-repo>
+
+`adopt` is how a cohort whose content changed in the move still migrates. It
+installs exactly as `apply` does, except that a collision with the *named*
+record transfers regardless of content -- the incoming copy wins, and the
+superseded checkout still has what it gave up. A collision with any other
+record refuses as always. A superseded name no receipt in the selected
+targets records is a usage error, so a typo cannot quietly turn the migration
+into an ordinary install.
+
+It is a separate verb rather than an option on `apply` so that permission
+rules, which match literal command prefixes, can grant the two differently:
+`Bash(tooling-install apply *)` never overwrites a foreign file, while
+`Bash(tooling-install adopt *)` does, and the repo being superseded is
+visible in the command line before it is approved.
+
+`diff` classifies collisions as `adoptable` and `conflicting`, and counts
+either as drift, so a pending ownership transfer never reads as in sync.
+Because `adopt` has no preview of its own, `diff` is its dry run, and three
+of its per-cohort lists are what to read before approving one:
+
+    conflicting        what `adopt` takes over -- minus any entry owned by a
+                       repo other than the one it names, which it refuses
+                       over instead
+    unowned_replaced   files no record claims, inside a unit being swapped,
+                       that the transfer destroys
+    foreign_replaced   the same for files another record claims: the outgoing
+                       owner shipped them inside the unit and the incoming
+                       owner does not
+
+`foreign_replaced` is the one to watch when two manifests' exclude lists
+disagree about a skill. `foreign_files` then means foreign and untouched by
+this run.
+
+`--cohort <name>`, repeatable on any command, restricts the run to the
+named cohorts of the manifest; without it every cohort ships. A name the
+manifest does not declare is a usage error, never an empty run. Dirtiness is
+then judged only over the selected cohorts' source directories, so an edit
+in a tree this run does not ship cannot refuse it.
+
+Exit codes: diff -- 0 in sync, 1 drift or not installed, 2 usage/environment
+error, 4 refused. apply and adopt -- 0 applied, 1 failed, 2 usage/environment
+error (including an unknown superseded repo), 4 refused (dirty source without
+--force, source/target overlap, a conflicting ownership collision, ambiguous
+crash recovery).
+"""
+
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from lib.install import (  # noqa: E402
+    EXIT_DRIFT,
+    EXIT_OK,
+    EXIT_USAGE,
+    InstallError,
+    apply,
+    diff,
+)
+from lib.plan import emit, emit_plan  # noqa: E402
+
+USAGE = (
+    "tooling-install {diff | apply} <source-checkout> [--cohort <name>]... "
+    "[--force]\n"
+    "       tooling-install adopt <source-checkout> <superseded-source-repo> "
+    "[--cohort <name>]... [--force]"
+)
+
+COMMANDS = ("diff", "apply", "adopt")
+
+
+def _die(error: InstallError) -> int:
+    print(f"tooling-install: {error}", file=sys.stderr)
+    return error.exit_code
+
+
+def _usage(message: str) -> int:
+    print(f"error: {message}\nusage: {USAGE}", file=sys.stderr)
+    return EXIT_USAGE
+
+
+def _parse_options(rest):
+    """Split the trailing options into (force, cohorts) or a usage message."""
+    force = False
+    cohorts = []
+    index = 0
+    while index < len(rest):
+        argument = rest[index]
+        if argument == "--force":
+            force = True
+        elif argument == "--cohort":
+            index += 1
+            if index >= len(rest):
+                return None, "--cohort needs a cohort name"
+            cohorts.append(rest[index])
+        elif argument.startswith("--cohort="):
+            name = argument.split("=", 1)[1]
+            if not name:
+                return None, "--cohort needs a cohort name"
+            cohorts.append(name)
+        else:
+            return None, f"unexpected argument {argument!r}"
+        index += 1
+    return (force, cohorts), None
+
+
+def main(argv) -> int:
+    if argv and argv[0] in ("-h", "--help"):
+        print(__doc__.strip())
+        return EXIT_OK
+    if len(argv) < 2 or argv[0] not in COMMANDS:
+        return _usage("expected a command and a source checkout")
+    command, source_argument, rest = argv[0], argv[1], argv[2:]
+    supersedes = None
+    if command == "adopt":
+        if not rest or rest[0].startswith("-"):
+            return _usage("adopt needs the source repo whose ownership it supersedes")
+        supersedes, rest = rest[0], rest[1:]
+    options, complaint = _parse_options(rest)
+    if complaint is not None:
+        return _usage(complaint)
+    force, cohorts = options
+    if force and command == "diff":
+        return _usage("--force applies to apply and adopt, not diff")
+
+    source = Path(source_argument).expanduser()
+    if not source.is_dir():
+        print(f"tooling-install: source checkout {source} is not a directory",
+              file=sys.stderr)
+        return EXIT_USAGE
+
+    try:
+        if command == "diff":
+            report = diff(source, cohorts=cohorts)
+            emit(report)
+            return EXIT_OK if report["status"] == "in-sync" else EXIT_DRIFT
+        emit_plan(
+            "applied",
+            **apply(source, force=force, cohorts=cohorts, supersedes=supersedes),
+        )
+        return EXIT_OK
+    except InstallError as error:
+        return _die(error)
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

@@ -1,0 +1,116 @@
+#!/usr/bin/env python3
+"""triage-apply-sync — apply an R-SYNC status correction (autonomous, policy-bound).
+
+This is the canonical example of a *policy-bound* wrapper: it does not take a
+target status from the caller. It re-reads the issue's open/closed state and its
+current Status, derives the one correction R-SYNC-1/2 sanctions, and applies only
+that. There is no way to drive it to perform a *proposed* status transition, so an
+allowlisted invocation cannot be coerced past the autonomy boundary.
+
+  R-SYNC-2: issue CLOSED but Status not terminal  -> set Done (or Rejected if the
+            issue was closed as not-planned).
+  R-SYNC-1: issue OPEN but Status terminal (Done/Rejected) -> demote to Needs Scope.
+  Anything else -> no-op (nothing to correct); exits 0 with action "none".
+
+Pass --dry-run to print the derived correction without writing.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import sys
+
+sys.path.insert(0, os.path.dirname(__file__))
+import lib_profile  # noqa: E402
+import lib_gh  # noqa: E402
+
+TERMINAL = {"Done", "Rejected"}
+
+_READ = """
+query($owner:String!, $repo:String!, $number:Int!) {
+  repository(owner:$owner, name:$repo) {
+    issue(number:$number) {
+      state stateReason
+      projectItems(first:20) {
+        nodes {
+          id
+          project { id }
+          status: fieldValueByName(name:"Status") { ... on ProjectV2ItemFieldSingleSelectValue { name } }
+        }
+      }
+    }
+  }
+}
+"""
+
+_MUTATE = """
+mutation($project:ID!, $item:ID!, $field:ID!, $opt:String!) {
+  updateProjectV2ItemFieldValue(input:{
+    projectId:$project, itemId:$item, fieldId:$field,
+    value:{ singleSelectOptionId:$opt }
+  }) { projectV2Item { id } }
+}
+"""
+
+
+def derive_correction(state: str, state_reason: str | None, status_name: str | None) -> str | None:
+    """Return the sanctioned target status, or None for no-op."""
+    if state == "CLOSED" and status_name not in TERMINAL:
+        return "Rejected" if state_reason == "NOT_PLANNED" else "Done"
+    if state == "OPEN" and status_name in TERMINAL:
+        return "Needs Scope"
+    return None
+
+
+def main():
+    ap = argparse.ArgumentParser(description="Apply the R-SYNC status correction (policy-bound).")
+    lib_profile.add_common_args(ap)
+    ap.add_argument("number", type=int, help="issue number")
+    ap.add_argument("--dry-run", action="store_true", help="print the derived correction; do not write")
+    args = ap.parse_args()
+    prof = lib_profile.load_or_die(args)
+
+    data = lib_gh.graphql(_READ, {"owner": prof.owner, "repo": prof.name, "number": args.number})
+    issue = data["repository"]["issue"]
+    if issue is None:
+        lib_gh.die(f"triage-apply-sync: issue #{args.number} not found", 1)
+
+    item = next((n for n in issue["projectItems"]["nodes"]
+                 if (n.get("project") or {}).get("id") == prof.project_node_id), None)
+    if item is None:
+        lib_gh.die(f"triage-apply-sync: #{args.number} is not on the configured project board "
+                   "(cannot sync Status; surface as 'not on board')", 1)
+
+    status_name = (item.get("status") or {}).get("name")
+    target = derive_correction(issue["state"], issue.get("stateReason"), status_name)
+
+    plan = {
+        "issue": args.number,
+        "issueState": issue["state"],
+        "stateReason": issue.get("stateReason"),
+        "currentStatus": status_name,
+        "targetStatus": target,
+        "rule": ("R-SYNC-2" if issue["state"] == "CLOSED" and target
+                 else "R-SYNC-1" if target else None),
+        "action": "none" if target is None else ("dry-run" if args.dry_run else "applied"),
+    }
+
+    if target is not None and not args.dry_run:
+        lib_gh.graphql(_MUTATE, {
+            "project": prof.project_node_id,
+            "item": item["id"],
+            "field": prof.status_field_id,
+            "opt": prof.status_option_id(target),
+        })
+
+    json.dump(plan, sys.stdout, indent=2)
+    sys.stdout.write("\n")
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except (lib_profile.ProfileError, lib_gh.GhError) as e:
+        lib_gh.die(f"triage-apply-sync: {e}", 1)

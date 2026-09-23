@@ -1,0 +1,292 @@
+#!/usr/bin/python3
+"""gitw-repo-register <label> <checkout-path> [<remote-name>] [apply] -- register a repo in the gitw roster.
+
+The one roster writer (~/.config/gitw/repos.toml; every other verb only
+reads it). Registration is an attended, ask-ruled ceremony in two
+steps: the bare form derives the entry,
+prints the exact TOML delta as a plan, and writes nothing; the trailing
+`apply` positional appends the delta to the roster (creating it mode
+0600 if missing), preserving the existing text -- including hand-written
+comments -- byte for byte.
+
+The entry is DERIVED from the named checkout, not typed: the path must
+be the primary checkout root of a git repository; its remote name/URL
+come from git config (a single remote is used as-is, several require the
+<remote-name> argument, none registers a machine-local path-only entry);
+the default branch comes from the remote's HEAD (falling back to an
+existing main/master remote-tracking ref), or from the checkout's own
+HEAD for a machine-local repo. Deriving from reality is the point: a
+typo'd URL would poison every later trust-but-verify check.
+
+Refusals are loud: a label already registered with different data, or a
+second label claiming the same checkout, is a hand-edit situation (rare
+by design; removal and exotic edits -- e.g. operable_from -- stay
+hand-edits). The word `apply` is reserved as the mode token, so a
+remote literally named "apply" is unsupported here (hand-edit it). Re-registering an identical entry is a converged no-op.
+The wrapper itself is non-interactive; the ask rule provides the human
+gate, and the plan/apply two-step puts the delta in front of the human
+between the two approvals.
+
+Exit codes: 0 success (including the converged no-op), 1 unclassified
+failure, 2 usage error, 4 refused (path is not a primary checkout root,
+remote ambiguity, conflicting registration, underivable default branch),
+5 existing roster malformed.
+"""
+
+from __future__ import annotations
+
+import os
+import sys
+import tempfile
+from dataclasses import replace
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from lib import plan
+from lib.git import arguments, repo, roster, run
+
+_USAGE = "gitw-repo-register <label> <checkout-path> [<remote-name>] [apply]"
+
+
+def main(argv: list[str]) -> int:
+    """Entry point; the module docstring above is the CLI contract. Returns
+    the process exit code."""
+    if argv and argv[0] in ("-h", "--help"):
+        print(__doc__.strip())
+        return plan.EXIT_OK
+    if len(argv) not in (2, 3, 4):
+        plan.usage_die(
+            "expected label and checkout path, then an optional remote "
+            "name and/or the 'apply' mode",
+            _USAGE,
+        )
+    apply = False
+    remote_name = None
+    if len(argv) == 4:
+        if argv[3] != "apply":
+            plan.usage_die(
+                f"the only positional mode is 'apply', got {argv[3]!r}",
+                _USAGE,
+            )
+        apply = True
+        remote_name = argv[2]
+    elif len(argv) == 3:
+        if argv[2] == "apply":
+            apply = True
+        else:
+            remote_name = argv[2]
+    label, checkout_argument = argv[:2]
+    if not arguments.is_valid_label(label):
+        plan.usage_die(
+            f"repo label must be lowercase alphanumerics plus ._- , got "
+            f"{label!r}",
+            _USAGE,
+        )
+    if remote_name is not None and not remote_name.strip():
+        plan.usage_die("remote name must not be empty", _USAGE)
+    checkout = Path(checkout_argument).expanduser()
+    if not checkout.is_absolute():
+        plan.usage_die(
+            f"checkout path must be absolute, got {checkout_argument!r}",
+            _USAGE,
+        )
+    if not checkout.is_dir():
+        # THE likely user error in this ceremony: a typo'd path. Catch it
+        # before a subprocess cwd failure turns it into a traceback.
+        plan.usage_die(
+            f"checkout path {checkout} does not exist or is not a "
+            "directory",
+            _USAGE,
+        )
+
+    try:
+        entry = _derive_entry(label, checkout, remote_name)
+        payload = _register(entry, apply)
+    except repo.RefusalError as error:
+        run.die(str(error), plan.EXIT_REFUSED)
+    except roster.RosterError as error:
+        run.die(str(error), plan.EXIT_AUTH)
+    except run.GitError as error:
+        run.die(str(error), error.exit_code)
+
+    plan.emit_plan("applied" if apply else "plan", **payload)
+    return plan.EXIT_OK
+
+
+def _derive_entry(
+    label: str, checkout: Path, remote_name: str | None
+) -> roster.Entry:
+    """Build the prospective Entry from the checkout itself."""
+    located = repo.locate_checkout(checkout.resolve())
+    if located is None:
+        raise repo.RefusalError(
+            f"{checkout} is not inside a git working tree; register the "
+            "primary checkout of a real repository"
+        )
+    toplevel, primary = located
+    if checkout.resolve() != primary or toplevel != primary:
+        raise repo.RefusalError(
+            f"{checkout} is not a primary checkout root (that is "
+            f"{primary}); register the primary root, not a subdirectory "
+            "or linked worktree"
+        )
+
+    remotes = run.must(["remote"], primary).split()
+    if remote_name is not None:
+        if remote_name not in remotes:
+            raise repo.RefusalError(
+                f"checkout {primary} has no remote named {remote_name!r} "
+                f"(it has: {', '.join(remotes) or 'none'})"
+            )
+    elif len(remotes) == 1:
+        remote_name = remotes[0]
+    elif len(remotes) > 1:
+        raise repo.RefusalError(
+            f"checkout {primary} has several remotes "
+            f"({', '.join(remotes)}); name the authoritative one "
+            "explicitly"
+        )
+
+    if remote_name is None:
+        return roster.Entry(
+            label=label,
+            checkout=primary,
+            default_branch=_local_default_branch(primary),
+        )
+    url = run.must(["remote", "get-url", remote_name], primary)
+    return roster.Entry(
+        label=label,
+        checkout=primary,
+        remote_url=url,
+        remote=remote_name,
+        default_branch=_remote_default_branch(primary, remote_name),
+    )
+
+
+def _local_default_branch(primary: Path) -> str:
+    branch = repo.current_branch(primary)
+    if branch is None:
+        raise repo.RefusalError(
+            f"cannot derive a default branch: {primary} has a detached "
+            "HEAD; check out the default branch and re-run"
+        )
+    if "/" in branch:
+        # Trunks are single-level in this model; silently pinning a
+        # prefix-shaped feature branch would poison later trunk refusals.
+        raise repo.RefusalError(
+            f"cannot derive a default branch: {primary} is on {branch!r}, "
+            "a prefix-shaped feature branch; check out the intended "
+            "default branch and re-run"
+        )
+    return branch
+
+
+def _remote_default_branch(primary: Path, remote_name: str) -> str:
+    head = run.output(
+        ["symbolic-ref", "--quiet", f"refs/remotes/{remote_name}/HEAD"],
+        primary,
+    )
+    prefix = f"refs/remotes/{remote_name}/"
+    if head is not None and head.startswith(prefix):
+        return head[len(prefix) :]
+    for candidate in ("main", "master"):
+        if repo.ref_exists(primary, prefix + candidate):
+            return candidate
+    raise repo.RefusalError(
+        f"cannot derive {remote_name}'s default branch (no "
+        f"{prefix}HEAD, no main/master tracking ref); run "
+        f"`git remote set-head {remote_name} --auto` in the checkout "
+        "and re-run"
+    )
+
+
+def _render_block(entry: roster.Entry) -> str:
+    for value in (str(entry.checkout), entry.remote_url or "", entry.remote or "",
+                  entry.default_branch):
+        if '"' in value or "\\" in value:
+            raise repo.RefusalError(
+                f"value {value!r} cannot be represented in the roster's "
+                "TOML subset (no quotes or backslashes)"
+            )
+    lines = [f"[{entry.label}]", f'checkout = "{entry.checkout}"']
+    if not entry.machine_local:
+        lines.append(f'remote_url = "{entry.remote_url}"')
+        lines.append(f'remote = "{entry.remote}"')
+    lines.append(f'default_branch = "{entry.default_branch}"')
+    return "\n".join(lines) + "\n"
+
+
+def _register(entry: roster.Entry, apply: bool) -> dict:
+    path = roster.DEFAULT_PATH.expanduser()
+    existing_text = ""
+    existing = {}
+    if path.exists():
+        # One read; the same bytes feed both the strict validation and
+        # the append base (load() would race a concurrent edit).
+        try:
+            existing_text = path.read_text(encoding="utf-8")
+        except OSError as error:
+            raise roster.RosterError(f"cannot read {path}: {error}")
+        existing = roster.validate_text(existing_text, path)
+
+    current = existing.get(entry.label)
+    if current is not None:
+        # Path comparison is resolved; a hand-added operable_from does not
+        # make the registration "different" (derivation cannot know it);
+        # everything else must be identical.
+        if (
+            current.checkout.resolve() == entry.checkout.resolve()
+            and replace(current, checkout=entry.checkout, operable_from=())
+            == entry
+        ):
+            return {
+                "repo": entry.label,
+                "roster": str(path),
+                "changed": False,
+                "delta": None,
+            }
+        raise repo.RefusalError(
+            f"label {entry.label!r} is already registered with different "
+            "data; removal and edits are deliberate hand-edits to "
+            f"{path}"
+        )
+    for other in existing.values():
+        if other.checkout.resolve() == entry.checkout.resolve():
+            raise repo.RefusalError(
+                f"checkout {entry.checkout} is already registered as "
+                f"{other.label!r}; one blessed checkout carries one label"
+            )
+
+    block = _render_block(entry)
+    separator = "" if not existing_text else (
+        "\n" if existing_text.endswith("\n") else "\n\n"
+    )
+    candidate = existing_text + separator + block
+    roster.validate_text(candidate, path)  # nothing unloadable lands on disk
+
+    if apply:
+        path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+        descriptor, temporary = tempfile.mkstemp(
+            dir=str(path.parent), prefix=".repos-", suffix=".toml"
+        )
+        try:
+            os.write(descriptor, candidate.encode("utf-8"))
+        finally:
+            os.close(descriptor)
+        os.chmod(temporary, 0o600)
+        os.replace(temporary, path)
+
+    return {
+        "repo": entry.label,
+        "roster": str(path),
+        "changed": apply,
+        # A list of lines: under the JSON indent this renders one TOML
+        # line per row, so the ask-rule ceremony's human can ratify the
+        # delta at a glance instead of parsing an escaped string.
+        "delta": block.splitlines(),
+    }
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

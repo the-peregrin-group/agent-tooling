@@ -1,0 +1,188 @@
+#!/usr/bin/env python3
+"""ghw-board-sync <repo> <project#|new> -- provision the canonical board schema.
+
+One schema is baked in for every repo: `Priority` (P0-P3), `Status` (the eight
+canonical triage states), `Size`, and `Last Triaged`. Nothing about it is
+configurable, which is what lets triage assume it.
+
+Given a project number, the board must already be linked to <repo> (a scope
+claim the wrapper verifies rather than trusts). Absent canonical fields are
+created; drift on fields that already exist is reported and never edited,
+because replacing a live single-select's options can orphan values already
+assigned to items -- that stays a human decision. A missing `Size` on an
+existing board is likewise reported, not created, matching triage's tolerance
+for boards that do not use it.
+
+Given `new`, the wrapper creates a ProjectV2, links it to <repo>, and
+provisions the full canonical schema including `Size`. The one sanctioned
+Status edit lives here: replacing the stock Todo/In progress/Done options on a
+board created seconds earlier, which by construction has no items to orphan.
+The new board is titled after the repo. `new` refuses when the repo already has
+a linked open board, so a repeated bootstrap cannot silently produce two.
+
+By convention (skill text, not enforced here) the create mode belongs to
+setup-github-issues.
+
+Exit codes: 0 success (including a converged no-op), 1 gh/API failure,
+2 usage error or policy refusal.
+"""
+
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from lib import arguments, plan
+from lib.github import board_schema, boards, gh
+from lib.schema import FIELD_STATUS, SINGLE_SELECT
+
+_USAGE = "ghw-board-sync <owner/repo> <project#|new>"
+
+
+def main(argv: list[str]) -> int:
+    """Entry point; the module docstring above is the CLI contract. Returns
+    the process exit code."""
+    if argv and argv[0] in ("-h", "--help"):
+        print(__doc__.strip())
+        return plan.EXIT_OK
+    if len(argv) != 2:
+        plan.usage_die("expected exactly two arguments", _USAGE)
+    repository, target = argv
+    if not arguments.is_valid_repository(repository):
+        plan.usage_die(f"repo must be 'owner/name', got {repository!r}", _USAGE)
+    number = None
+    if target != "new":
+        number = arguments.parse_issue_number(target)
+        if number is None:
+            plan.usage_die(
+                f"second argument must be a project number or the literal "
+                f"'new', got {target!r}",
+                _USAGE,
+            )
+
+    try:
+        if number is None:
+            result = _create_board(repository)
+        else:
+            result = _sync_board(repository, number)
+    except gh.GhError as error:
+        gh.die(str(error), plan.EXIT_RUNTIME)
+
+    board = result["board"]
+    plan.emit_plan(
+        "applied",
+        repository=repository,
+        board=board["number"],
+        board_url=board["url"],
+        created_board=result["created_board"],
+        created_fields=result["created_fields"],
+        status_options_replaced=result["status_options_replaced"],
+        changed=result["created_board"] or bool(result["created_fields"]),
+        conformance=board_schema.evaluate_conformance(board),
+    )
+    return plan.EXIT_OK
+
+
+def _sync_board(repository: str, number: int) -> dict:
+    """Provision the canonical schema on an existing linked board."""
+    linked = boards.fetch_boards(repository)
+    board = next((entry for entry in linked if entry["number"] == number), None)
+    if board is None:
+        candidates = ", ".join(
+            f"#{entry['number']} ({entry['title']})" for entry in linked
+        ) or "none"
+        gh.die(
+            f"project #{number} is not an open board linked to {repository}. "
+            f"Linked boards: {candidates}. Use 'new' to create and link one.",
+            plan.EXIT_USAGE,
+        )
+    created: list[str] = []
+    try:
+        _create_missing_fields(board, new_board=False, created=created)
+    except gh.GhError as error:
+        if not created:
+            raise
+        raise gh.GhError(f"{error}\nFields already created: {', '.join(created)}")
+    return {
+        "board": boards.fetch_board_by_node_id(board["node_id"]),
+        "created_board": False,
+        "created_fields": created,
+        "status_options_replaced": False,
+    }
+
+
+def _create_board(repository: str) -> dict:
+    """Create a board, link it to the repo, and provision the full schema."""
+    existing = boards.fetch_boards(repository)
+    if existing:
+        candidates = ", ".join(
+            f"#{entry['number']} ({entry['title']})" for entry in existing
+        )
+        gh.die(
+            f"{repository} already has linked open board(s): {candidates}. "
+            "Pass a project number instead of 'new' to sync one of them; "
+            "creating a second board is a deliberate act for a human.",
+            plan.EXIT_USAGE,
+        )
+    identity = boards.fetch_repository_identity(repository)
+    project = boards.create_project(identity["owner_node_id"],
+                                    repository.split("/", 1)[1])
+    # From here the board exists but is not yet linked, so fetch_boards (which
+    # only sees linked boards) cannot find it again. Every later failure has to
+    # name it, or a re-run creates a second orphan nobody knows about.
+    created: list[str] = []
+    try:
+        boards.link_project_to_repository(project["node_id"], identity["node_id"])
+        board = boards.fetch_board_by_node_id(project["node_id"])
+        status = board["fields"].get(FIELD_STATUS)
+        replaced = status is not None and status["data_type"] == SINGLE_SELECT
+        if replaced:
+            # The sole sanctioned Status edit: the stock Todo/In progress/Done
+            # options on a board that cannot yet have items.
+            boards.replace_single_select_options(
+                status["id"], board_schema.single_select_options(FIELD_STATUS)
+            )
+        _create_missing_fields(board, new_board=True, created=created)
+        fresh = boards.fetch_board_by_node_id(project["node_id"])
+    except gh.GhError as error:
+        landed = f"; fields created: {', '.join(created)}" if created else ""
+        raise gh.GhError(
+            f"{error}\nProject #{project['number']} WAS created "
+            f"({project['url']}) and is half-provisioned{landed}. Do not re-run "
+            f"with 'new' -- finish it with `ghw-board-sync {repository} "
+            f"{project['number']}`, or delete the project by hand."
+        )
+    return {
+        "board": fresh,
+        "created_board": True,
+        "created_fields": created,
+        "status_options_replaced": replaced,
+    }
+
+
+def _create_missing_fields(board: dict, *, new_board: bool,
+                           created: list[str]) -> None:
+    """Create the canonical fields `board` lacks, appending each name to
+    `created` as it lands.
+
+    `created` is the caller's list so a failure part-way through can still
+    report which fields exist -- the caller turns that into an error message
+    rather than exiting with an unknown board state.
+    """
+    for field_name in board_schema.fields_to_create(board, new_board=new_board):
+        specification = board_schema.FIELD_SPECS[field_name]
+        options = (
+            board_schema.single_select_options(field_name)
+            if specification["data_type"] == SINGLE_SELECT
+            else None
+        )
+        boards.create_field(
+            board["node_id"], field_name, specification["data_type"], options
+        )
+        created.append(field_name)
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

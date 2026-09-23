@@ -1,0 +1,129 @@
+#!/usr/bin/env python3
+"""ghw-issue-edit <repo> <add-label|remove-label|retitle|set-body> <issue#> <value> -- edit one facet of an issue.
+
+The subverb sits at position 2 so an allowlist grant can include label edits
+while withholding set-body. For set-body, <value> is a body *file* path from
+the staging directories, never inline text. add-label enforces
+the attachment contract: the label must exist in the repo's live registry, and
+a second type label is refused naming the incumbent -- reclassifying an issue
+is two visible calls, remove-label then add-label.
+
+Exit codes: 0 success (including a converged no-op), 1 gh/API failure,
+2 usage error or policy refusal.
+"""
+
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from lib import arguments, plan, staging
+from lib.github import boards, gh, labels
+
+_USAGE = (
+    "ghw-issue-edit <owner/repo> <add-label|remove-label|retitle|set-body> "
+    "<issue#> <value>"
+)
+_SUBVERBS = ("add-label", "remove-label", "retitle", "set-body")
+
+
+def main(argv: list[str]) -> int:
+    """Entry point; the module docstring above is the CLI contract. Returns
+    the process exit code."""
+    if argv and argv[0] in ("-h", "--help"):
+        print(__doc__.strip())
+        return plan.EXIT_OK
+    if len(argv) != 4:
+        plan.usage_die("expected exactly four arguments", _USAGE)
+    repository, subverb, issue_argument, value = argv
+    if not arguments.is_valid_repository(repository):
+        plan.usage_die(f"repo must be 'owner/name', got {repository!r}", _USAGE)
+    if subverb not in _SUBVERBS:
+        plan.usage_die(
+            f"subverb must be one of {'|'.join(_SUBVERBS)}, got {subverb!r}", _USAGE
+        )
+    number = arguments.parse_issue_number(issue_argument)
+    if number is None:
+        plan.usage_die(
+            f"issue number must be a positive integer, got {issue_argument!r}", _USAGE
+        )
+    if subverb == "set-body":
+        body = staging.read_staged_body(value)
+    elif not value.strip():
+        plan.usage_die(f"{subverb} requires a non-empty value", _USAGE)
+
+    try:
+        if subverb == "add-label":
+            changed = _add_label(repository, number, value)
+        elif subverb == "remove-label":
+            changed = _remove_label(repository, number, value)
+        elif subverb == "retitle":
+            changed = _retitle(repository, number, value)
+        else:
+            changed = _set_body(repository, number, body)
+    except labels.LabelContractError as error:
+        gh.die(str(error), plan.EXIT_USAGE)
+    except gh.GhError as error:
+        gh.die(str(error), plan.EXIT_RUNTIME)
+
+    plan.emit_plan(
+        "applied",
+        repository=repository,
+        issue=number,
+        subverb=subverb,
+        value=value,
+        changed=changed,
+    )
+    return plan.EXIT_OK
+
+
+def _current_label_names(repository: str, number: int) -> list[str]:
+    """The issue's currently attached label names, freshly fetched."""
+    issue = gh.issue_view(repository, number, ["labels"])
+    return [label["name"] for label in issue["labels"]]
+
+
+def _add_label(repository: str, number: int, label: str) -> bool:
+    """Attach `label` under the attachment contract; True when a write
+    happened, False on the converged no-op. Raises LabelContractError on a
+    registry miss or a second type label."""
+    registry = {entry["name"] for entry in boards.fetch_labels(repository)}
+    current = _current_label_names(repository, number)
+    labels.validate_label_addition(label, current, registry)
+    if label in current:
+        return False
+    gh.issue_edit_labels(repository, number, add=[label], remove=[])
+    return True
+
+
+def _remove_label(repository: str, number: int, label: str) -> bool:
+    """Detach `label`; True when a write happened, False on the converged
+    no-op (the label was already absent)."""
+    if label not in _current_label_names(repository, number):
+        return False
+    gh.issue_edit_labels(repository, number, add=[], remove=[label])
+    return True
+
+
+def _retitle(repository: str, number: int, title: str) -> bool:
+    """Retitle the issue; True when a write happened, False on the converged
+    no-op (the title already matches)."""
+    if gh.issue_view(repository, number, ["title"])["title"] == title:
+        return False
+    gh.issue_edit_title(repository, number, title)
+    return True
+
+
+def _set_body(repository: str, number: int, body: str) -> bool:
+    """Replace the issue's body; True when a write happened, False on the
+    converged no-op (the body already matches)."""
+    if gh.issue_view(repository, number, ["body"])["body"] == body:
+        return False
+    gh.issue_edit_body(repository, number, body)
+    return True
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

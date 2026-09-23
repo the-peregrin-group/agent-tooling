@@ -1,0 +1,123 @@
+#!/usr/bin/env python3
+"""ghw-pr-create <repo> <base-branch> <head-branch> <title> <body-file> [--draft] -- open a pull request.
+
+The head branch is an explicit argument, never inferred from cwd, so an agent
+standing in the wrong worktree cannot open a PR from a branch nobody meant to
+ship. Both branches are verified to exist on the remote and head must differ
+from base; when cwd's checked-out branch differs from <head-branch> the
+wrapper warns -- it does not refuse, since opening a PR for a branch you are
+not standing on is legitimate. Non-draft by default; the trailing --draft is
+the one sanctioned trailing flag here (strictly a de-escalation). The body
+comes from a staged file, never inline text. Linkage keywords are skill-text
+guidance: `Closes #N` auto-closes; furthers/part of/towards deliberately
+don't.
+
+Exit codes: 0 success, 1 gh/API failure, 2 usage error or policy refusal.
+"""
+
+from __future__ import annotations
+
+import subprocess
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from lib import arguments, plan, staging
+from lib.github import boards, gh
+
+_USAGE = (
+    "ghw-pr-create <owner/repo> <base-branch> <head-branch> <title> "
+    "<body-file> [--draft]"
+)
+
+
+def main(argv: list[str]) -> int:
+    """Entry point; the module docstring above is the CLI contract. Returns
+    the process exit code."""
+    if argv and argv[0] in ("-h", "--help"):
+        print(__doc__.strip())
+        return plan.EXIT_OK
+    if len(argv) not in (5, 6):
+        plan.usage_die(
+            "expected five positional arguments, optionally followed by --draft",
+            _USAGE,
+        )
+    draft = False
+    if len(argv) == 6:
+        if argv[5] != "--draft":
+            plan.usage_die(
+                f"only --draft may follow the positional block, got {argv[5]!r}",
+                _USAGE,
+            )
+        draft = True
+    repository, base, head, title, body_path = argv[:5]
+    if not arguments.is_valid_repository(repository):
+        plan.usage_die(f"repo must be 'owner/name', got {repository!r}", _USAGE)
+    if not base.strip() or not head.strip():
+        plan.usage_die("base and head branch names must not be empty", _USAGE)
+    if head == base:
+        plan.usage_die(f"head and base must differ, both are {base!r}", _USAGE)
+    if not title.strip():
+        plan.usage_die("title must not be empty", _USAGE)
+    body = staging.read_staged_body(body_path)
+
+    # Warn -- never refuse -- when cwd disagrees with the stated head branch.
+    current = _current_branch()
+    if current is not None and current != head:
+        print(
+            f"warning: cwd is on branch {current!r}; opening the PR from "
+            f"{head!r} anyway",
+            file=sys.stderr,
+        )
+
+    try:
+        existence = boards.fetch_branches_exist(repository, [base, head])
+    except gh.GhError as error:
+        gh.die(str(error), plan.EXIT_RUNTIME)
+    if not existence[head]:
+        gh.die(
+            f"head branch {head!r} does not exist on {repository}; push it first",
+            plan.EXIT_USAGE,
+        )
+    if not existence[base]:
+        gh.die(f"base branch {base!r} does not exist on {repository}", plan.EXIT_USAGE)
+
+    try:
+        response = gh.pr_create(repository, base, head, title, body, draft)
+    except gh.GhError as error:
+        gh.die(str(error), plan.EXIT_RUNTIME)
+
+    plan.emit_plan(
+        "applied",
+        repository=repository,
+        pr=response.get("number"),
+        url=response.get("html_url"),
+        base=base,
+        head=head,
+        draft=draft,
+    )
+    return plan.EXIT_OK
+
+
+def _current_branch() -> str | None:
+    """The cwd's checked-out branch, or None outside a git work tree (or on a
+    detached HEAD, where the mismatch warning would only mislead)."""
+    try:
+        process = subprocess.run(
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            stdin=subprocess.DEVNULL,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if process.returncode != 0:
+        return None
+    branch = process.stdout.strip()
+    return None if branch in ("", "HEAD") else branch
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

@@ -1,0 +1,52 @@
+#!/usr/bin/env python3
+"""ghw-issue-comment <repo> <issue#> <body-file> -- post a comment on an issue.
+
+The body comes from a staged file under /tmp/claude/ or
+~/.claude/jobs/<job-id>/tmp/, never inline text. For pull requests use
+ghw-pr-comment; `gh issue comment` refuses PR numbers.
+
+Exit codes: 0 success, 1 gh/API failure, 2 usage error or policy refusal.
+"""
+
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from lib import arguments, plan, staging
+from lib.github import gh
+
+_USAGE = "ghw-issue-comment <owner/repo> <issue#> <body-file>"
+
+
+def main(argv: list[str]) -> int:
+    """Entry point; the module docstring above is the CLI contract. Returns
+    the process exit code."""
+    if argv and argv[0] in ("-h", "--help"):
+        print(__doc__.strip())
+        return plan.EXIT_OK
+    if len(argv) != 3:
+        plan.usage_die("expected exactly three arguments", _USAGE)
+    repository, issue_argument, body_path = argv
+    if not arguments.is_valid_repository(repository):
+        plan.usage_die(f"repo must be 'owner/name', got {repository!r}", _USAGE)
+    number = arguments.parse_issue_number(issue_argument)
+    if number is None:
+        plan.usage_die(
+            f"issue number must be a positive integer, got {issue_argument!r}", _USAGE
+        )
+    body = staging.read_staged_body(body_path)
+
+    try:
+        gh.issue_comment(repository, number, body)
+    except gh.GhError as error:
+        gh.die(str(error), plan.EXIT_RUNTIME)
+
+    plan.emit_plan("applied", repository=repository, issue=number, changed=True)
+    return plan.EXIT_OK
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

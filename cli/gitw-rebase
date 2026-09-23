@@ -1,0 +1,282 @@
+#!/usr/bin/python3
+"""gitw-rebase <repo> <branch-prefix> [continue|abort] -- rebase the own branch onto the fresh authoritative default.
+
+Bare form: verify the working copy at cwd against the roster entry for
+<repo> (~/.config/gitw/repos.toml) and the pinned branch prefix, fetch
+the authoritative remote, then rebase the current branch onto the fetched
+authoritative default. Clean completion exits 0. A conflict leaves the
+standard git conflict state in place -- it IS the work product -- and
+exits 4 with a JSON listing of the conflicted paths.
+
+`continue`: stage the resolutions (exactly the conflicted paths, nothing
+else) and proceed; the cycle repeats per conflict (each stop exits 4
+with the fresh conflict listing). Files still carrying a full conflict
+marker triple (<<<<<<< / ======= / >>>>>>>) are refused before anything
+is staged, as is a resolution set touching a local-only file
+(settings.local.json, .env*). `abort`: restore the pre-rebase branch. Both modes require an
+in-progress rebase and verify its branch (from the rebase state's
+head-name -- HEAD is detached mid-rebase) against the pinned prefix.
+There is deliberately no `skip`: silently dropping a commit is a
+human-decision moment.
+
+A dirty worktree refuses the bare form (commit or discard explicitly).
+Unattended sessions never rebase at all -- that rule lives in skill text;
+this wrapper only enforces what is machine-checkable.
+
+Exit codes: 0 success, 1 unclassified git failure, 2 usage error, 3 not
+found (label not in the roster, or the authoritative default missing),
+4 refused (cwd/branch-prefix mismatch, dirty worktree, rebase already or
+not in progress, conflict stop, unresolved markers on continue), 5 roster
+missing/malformed or auth failure, 6 network failure.
+"""
+
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from lib import plan
+from lib.git import arguments, policy, repo, roster, run
+
+_USAGE = "gitw-rebase <repo> <branch-prefix> [continue|abort]"
+
+
+def main(argv: list[str]) -> int:
+    """Entry point; the module docstring above is the CLI contract. Returns
+    the process exit code."""
+    if argv and argv[0] in ("-h", "--help"):
+        print(__doc__.strip())
+        return plan.EXIT_OK
+    if len(argv) not in (2, 3):
+        plan.usage_die(
+            "expected repo label and branch prefix, optionally followed by "
+            "'continue' or 'abort'",
+            _USAGE,
+        )
+    mode = None
+    if len(argv) == 3:
+        if argv[2] not in ("continue", "abort"):
+            plan.usage_die(
+                f"the only positional modes are 'continue' and 'abort' "
+                f"(there is deliberately no 'skip'), got {argv[2]!r}",
+                _USAGE,
+            )
+        mode = argv[2]
+    label, prefix = argv[:2]
+    if not arguments.is_valid_branch_prefix(prefix):
+        plan.usage_die(
+            f"branch prefix must be lowercase, single-level, and end in "
+            f"'/' (e.g. 'fix/'), got {prefix!r}",
+            _USAGE,
+        )
+    entry = roster.resolve_or_die(label, _USAGE)
+
+    try:
+        workspace = repo.resolve_workspace(entry, Path.cwd())
+        if not workspace.in_repo:
+            raise repo.RefusalError(
+                "gitw-rebase rewrites the worktree at cwd; run it from "
+                f"inside a worktree of {label!r} ({entry.checkout}), not "
+                "from an operable_from path"
+            )
+        repo.verify_remote(workspace)
+        if mode == "continue":
+            payload = _continue(workspace, prefix)
+        elif mode == "abort":
+            payload = _abort(workspace, prefix)
+        else:
+            payload = _rebase(workspace, prefix)
+    except repo.RefusalError as error:
+        run.die(str(error), plan.EXIT_REFUSED)
+    except run.GitError as error:
+        run.die(str(error), error.exit_code)
+
+    plan.emit_plan("applied", **payload)
+    return plan.EXIT_OK
+
+
+def _conflict_stop(
+    workspace: repo.Workspace, branch: str, onto: str, prefix: str
+) -> None:
+    """A rebase stop is not a wrapper failure: emit the conflict listing
+    as JSON (the machine-readable work order) and exit 4, leaving the
+    standard git conflict state in place."""
+    label = workspace.entry.label
+    plan.emit_plan(
+        "conflict",
+        repo=label,
+        branch=branch,
+        onto=onto,
+        conflicts=repo.conflicted_paths(workspace.root),
+        worktree=str(workspace.root),
+        hint=(
+            f"resolve the conflicts, then `gitw-rebase {label} {prefix} "
+            f"continue`; or `gitw-rebase {label} {prefix} abort`"
+        ),
+    )
+    sys.exit(plan.EXIT_REFUSED)
+
+
+def _rebase(workspace: repo.Workspace, prefix: str) -> dict:
+    entry = workspace.entry
+    root = workspace.root
+    if repo.rebase_head_branch(root) is not None:
+        raise repo.RefusalError(
+            "a rebase is already in progress in this worktree; finish it "
+            "with 'continue' or 'abort'"
+        )
+    branch = repo.require_prefixed_branch(root, prefix, entry.label)
+    if branch == entry.default_branch:
+        raise repo.RefusalError(
+            f"refusing to rebase the authoritative default branch "
+            f"{branch!r}"
+        )
+    dirty = repo.status_counts(root)
+    if any(dirty.values()):
+        raise repo.RefusalError(
+            f"worktree {root} is dirty ({repo.describe_dirty(dirty)}); "
+            "commit or discard explicitly before rebasing"
+        )
+    if not entry.machine_local:
+        run.fetch(entry.remote, root)
+    display, refname = repo.authoritative_ref(entry)
+    if not repo.ref_exists(root, refname):
+        run.die(
+            f"authoritative default {display} not found in {root}; the "
+            "roster's default_branch may be wrong",
+            plan.EXIT_NOT_FOUND,
+        )
+    # Same TOCTOU stance as branch-start's switch: a file written during
+    # the fetch must not ride through the rebase's checkouts.
+    dirty = repo.status_counts(root)
+    if any(dirty.values()):
+        raise repo.RefusalError(
+            f"worktree {root} became dirty during the fetch; commit or "
+            "discard explicitly before rebasing"
+        )
+
+    result = run.run(["rebase", refname], root)
+    if result.returncode != 0:
+        if repo.rebase_head_branch(root) is not None:
+            _conflict_stop(workspace, branch, display, prefix)
+        detail = result.stderr.strip() or result.stdout.strip() or "no output"
+        raise run.GitError(f"git rebase failed: {detail}")
+
+    counts = repo.ahead_behind(root, "HEAD", refname)
+    return {
+        "repo": entry.label,
+        "mode": "rebase",
+        "branch": branch,
+        "onto": display,
+        "commit": repo.head_commit(root),
+        "commits_atop": counts[0] if counts else None,
+        "worktree": str(root),
+    }
+
+
+def _in_progress_branch(root: Path, prefix: str, label: str) -> str:
+    branch = repo.rebase_head_branch(root)
+    if branch is None:
+        raise repo.RefusalError(
+            "no rebase is in progress in this worktree; use the bare form "
+            "to start one"
+        )
+    if not repo.branch_matches_prefix(branch, prefix):
+        raise repo.RefusalError(
+            f"the in-progress rebase is rewriting {branch!r}, which does "
+            f"not match the pinned prefix {prefix!r} for {label!r}"
+        )
+    return branch
+
+
+def _has_marker_triple(root: Path, path: str) -> bool:
+    """True when the file still carries a full conflict-marker triple --
+    all three of <<<<<<< / ======= / >>>>>>> at line starts. Requiring
+    the triple keeps legitimate content that merely contains one marker
+    string from making the rebase permanently un-continuable."""
+    try:
+        content = (root / path).read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return False
+    found = set()
+    for line in content.splitlines():
+        for marker in ("<<<<<<<", "=======", ">>>>>>>"):
+            if line.startswith(marker):
+                found.add(marker)
+    return len(found) == 3
+
+
+def _continue(workspace: repo.Workspace, prefix: str) -> dict:
+    entry = workspace.entry
+    root = workspace.root
+    branch = _in_progress_branch(root, prefix, entry.label)
+
+    conflicts = repo.conflicted_paths(root)
+    unresolved = [
+        path for path in conflicts if _has_marker_triple(root, path)
+    ]
+    if unresolved:
+        raise repo.RefusalError(
+            "conflict markers still present in "
+            f"{', '.join(unresolved)}; resolve them before 'continue'"
+        )
+    # Second layer of the local-only sweep guard: nothing that will ride
+    # into the continued commit may be a local-only file.
+    riding = conflicts + [
+        path
+        for index_state, _, path in repo.status_entries(root)
+        if index_state not in " ?"
+    ]
+    swept = policy.local_only_matches(riding)
+    if swept:
+        raise repo.RefusalError(policy.refusal_message(
+            swept, "Gitignore them or resolve the rebase by hand."
+        ))
+
+    if conflicts:
+        # Stage exactly the resolutions -- `add -A` would sweep unrelated
+        # files dropped into the worktree since the conflict stop.
+        result = run.run(["add", "--", *conflicts], root)
+        if result.returncode != 0:
+            detail = (
+                result.stderr.strip() or result.stdout.strip() or "no output"
+            )
+            raise run.GitError(f"git add failed: {detail}")
+    result = run.run(["rebase", "--continue"], root)
+    if result.returncode != 0:
+        if repo.rebase_head_branch(root) is not None:
+            display, _ = repo.authoritative_ref(entry)
+            _conflict_stop(workspace, branch, display, prefix)
+        detail = result.stderr.strip() or result.stdout.strip() or "no output"
+        raise run.GitError(f"git rebase --continue failed: {detail}")
+
+    return {
+        "repo": entry.label,
+        "mode": "continue",
+        "branch": branch,
+        "commit": repo.head_commit(root),
+        "worktree": str(root),
+    }
+
+
+def _abort(workspace: repo.Workspace, prefix: str) -> dict:
+    entry = workspace.entry
+    root = workspace.root
+    branch = _in_progress_branch(root, prefix, entry.label)
+    result = run.run(["rebase", "--abort"], root)
+    if result.returncode != 0:
+        detail = result.stderr.strip() or result.stdout.strip() or "no output"
+        raise run.GitError(f"git rebase --abort failed: {detail}")
+    return {
+        "repo": entry.label,
+        "mode": "abort",
+        "branch": branch,
+        "commit": repo.head_commit(root),
+        "worktree": str(root),
+    }
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

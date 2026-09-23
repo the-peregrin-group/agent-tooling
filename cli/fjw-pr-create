@@ -1,0 +1,103 @@
+#!/usr/bin/python3
+"""fjw-pr-create <owner/repo> <base-branch> <head-branch> <title> <body-file> [--draft] -- open a Forgejo pull request.
+
+Acts as the deployment's machine account (~/.config/fjw/config.toml), never
+the human user. The head branch is an explicit argument, never inferred from
+cwd; both branches are verified to exist on the remote and head must differ
+from base. The body comes from a staged file. The trailing --draft is the one
+sanctioned trailing flag (strictly a de-escalation); Forgejo's create API has
+no draft field, so --draft applies the instance's WIP title prefix ("WIP: "),
+which is what makes the created PR report draft=true.
+
+Exit codes: 0 success, 1 unclassified API failure, 2 usage error,
+3 repository not found, 4 refused (an open PR for this head/base already
+exists -- query first, never retry), 5 auth/config failure, 6 network
+failure.
+"""
+
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from lib import plan, staging
+from lib.forgejo import api, config as fjw_config, pulls
+
+_USAGE = (
+    "fjw-pr-create <owner/repo> <base-branch> <head-branch> <title> "
+    "<body-file> [--draft]"
+)
+_WIP_PREFIX = "WIP: "
+
+
+def main(argv: list[str]) -> int:
+    """Entry point; the module docstring above is the CLI contract. Returns
+    the process exit code."""
+    if argv and argv[0] in ("-h", "--help"):
+        print(__doc__.strip())
+        return plan.EXIT_OK
+    if len(argv) not in (5, 6):
+        plan.usage_die(
+            "expected five positional arguments, optionally followed by --draft",
+            _USAGE,
+        )
+    draft = False
+    if len(argv) == 6:
+        if argv[5] != "--draft":
+            plan.usage_die(
+                f"only --draft may follow the positional block, got {argv[5]!r}",
+                _USAGE,
+            )
+        draft = True
+    repository, base, head, title, body_path = argv[:5]
+    if not pulls.is_valid_repository(repository):
+        plan.usage_die(f"repo must be 'owner/name', got {repository!r}", _USAGE)
+    if not base.strip() or not head.strip():
+        plan.usage_die("base and head branch names must not be empty", _USAGE)
+    if head == base:
+        plan.usage_die(f"head and base must differ, both are {base!r}", _USAGE)
+    if not title.strip():
+        plan.usage_die("title must not be empty", _USAGE)
+    body = staging.read_staged_body(body_path)
+    if draft and not title.startswith(_WIP_PREFIX):
+        title = _WIP_PREFIX + title
+
+    try:
+        configuration = fjw_config.load()
+    except fjw_config.ConfigError as error:
+        api.die(str(error), plan.EXIT_AUTH)
+
+    try:
+        if not pulls.branch_exists(configuration, repository, head):
+            api.die(
+                f"head branch {head!r} does not exist on {repository}; "
+                "push it first",
+                plan.EXIT_USAGE,
+            )
+        if not pulls.branch_exists(configuration, repository, base):
+            api.die(
+                f"base branch {base!r} does not exist on {repository}",
+                plan.EXIT_USAGE,
+            )
+        response = pulls.create_pr(
+            configuration, repository, base, head, title, body
+        )
+    except api.ApiError as error:
+        api.die(str(error), error.exit_code)
+
+    plan.emit_plan(
+        "applied",
+        repository=repository,
+        pr=response.get("number"),
+        url=response.get("html_url"),
+        base=base,
+        head=head,
+        draft=bool(response.get("draft")),
+    )
+    return plan.EXIT_OK
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

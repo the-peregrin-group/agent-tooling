@@ -1,0 +1,85 @@
+#!/usr/bin/env python3
+"""ghw-issue-create <repo> <type-label> <title> <body-file> [label ...] -- file a new issue.
+
+Validates the label attachment contract before writing: exactly one canonical
+type label (feature|improvement|bug|debt|meta), at least one 'area:' label
+among the extra labels, and every label already present in the repo's live
+label registry (ghw-label-sync is the sole label-creation path). The body
+comes from a staged file under /tmp/claude/ or ~/.claude/jobs/<job-id>/tmp/
+(never inline text). Deliberately non-idempotent: search for duplicates before
+filing, per skill-text guidance.
+
+Exit codes: 0 success, 1 gh/API failure, 2 usage error or policy refusal.
+"""
+
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from lib import arguments, plan, staging
+from lib.github import boards, gh, labels
+from lib.schema import TYPE_LABELS
+
+_USAGE = "ghw-issue-create <owner/repo> <type-label> <title> <body-file> [label ...]"
+
+
+def main(argv: list[str]) -> int:
+    """Entry point; the module docstring above is the CLI contract. Returns
+    the process exit code."""
+    if argv and argv[0] in ("-h", "--help"):
+        print(__doc__.strip())
+        return plan.EXIT_OK
+    if len(argv) < 4:
+        plan.usage_die("expected at least four arguments", _USAGE)
+    repository, type_label, title, body_path = argv[:4]
+    extra_labels = list(argv[4:])
+    if not arguments.is_valid_repository(repository):
+        plan.usage_die(f"repo must be 'owner/name', got {repository!r}", _USAGE)
+    if type_label not in TYPE_LABELS:
+        plan.usage_die(
+            f"type label must be one of {'|'.join(TYPE_LABELS)}, got {type_label!r}",
+            _USAGE,
+        )
+    if not title.strip():
+        plan.usage_die("title must not be empty", _USAGE)
+    body = staging.read_staged_body(body_path)
+
+    try:
+        registry = {label["name"] for label in boards.fetch_labels(repository)}
+    except gh.GhError as error:
+        gh.die(str(error), plan.EXIT_RUNTIME)
+
+    try:
+        labels.validate_creation_labels(type_label, extra_labels, registry)
+    except labels.LabelContractError as error:
+        gh.die(str(error), plan.EXIT_USAGE)
+
+    all_labels = [type_label, *extra_labels]
+    try:
+        url = gh.issue_create(repository, title, body, all_labels)
+    except gh.GhError as error:
+        gh.die(str(error), plan.EXIT_RUNTIME)
+
+    plan.emit_plan(
+        "applied",
+        repository=repository,
+        issue=_issue_number_from_url(url),
+        url=url,
+        title=title,
+        labels=all_labels,
+    )
+    return plan.EXIT_OK
+
+
+def _issue_number_from_url(url: str) -> int | None:
+    """Best-effort issue number from gh's created-issue URL; None when the URL
+    shape is unexpected (the URL itself is still reported either way)."""
+    tail = url.rstrip("/").rsplit("/", 1)[-1]
+    return int(tail) if tail.isdigit() else None
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

@@ -1,0 +1,58 @@
+#!/usr/bin/python3
+"""fjw-pr-comments <owner/repo> <pr#> -- a pull request's comments as raw API JSON.
+
+Read verb: emits the raw Forgejo comment objects (an array, paginated to
+exhaustion). The index is verified to name a PR before the comments are
+fetched -- comments ride the shared issue routes, and this verb must not
+become a covert issue reader. Acts as the deployment's machine account.
+
+Exit codes: 0 success (an empty array is success), 1 unclassified API
+failure, 2 usage error, 3 no such PR (or no such repository), 5 auth/config
+failure, 6 network failure.
+"""
+
+from __future__ import annotations
+
+import json
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from lib import arguments, plan
+from lib.forgejo import api, config as fjw_config, pulls
+
+_USAGE = "fjw-pr-comments <owner/repo> <pr#>"
+
+
+def main(argv: list[str]) -> int:
+    """Entry point; the module docstring above is the CLI contract. Returns
+    the process exit code."""
+    if argv and argv[0] in ("-h", "--help"):
+        print(__doc__.strip())
+        return plan.EXIT_OK
+    if len(argv) != 2:
+        plan.usage_die("expected exactly two arguments", _USAGE)
+    repository, raw_index = argv
+    if not pulls.is_valid_repository(repository):
+        plan.usage_die(f"repo must be 'owner/name', got {repository!r}", _USAGE)
+    index = arguments.parse_issue_number(raw_index)
+    if index is None:
+        plan.usage_die(f"pr# must be a positive integer, got {raw_index!r}", _USAGE)
+
+    try:
+        configuration = fjw_config.load()
+    except fjw_config.ConfigError as error:
+        api.die(str(error), plan.EXIT_AUTH)
+    try:
+        pulls.get_pr(configuration, repository, index)  # PR-ness gate
+        comments = pulls.list_comments(configuration, repository, index)
+    except api.ApiError as error:
+        api.die(str(error), error.exit_code)
+
+    print(json.dumps(comments, indent=2))
+    return plan.EXIT_OK
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

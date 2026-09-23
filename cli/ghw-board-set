@@ -1,0 +1,167 @@
+#!/usr/bin/env python3
+"""ghw-board-set <repo> <field-name> <option-name> <issue#> [--project <number>] -- set a board field on an issue.
+
+The field name sits at position 2 so an allowlist rule can grant Priority
+without Status. Adds the issue to the board first when it is missing, then
+sets the field; names resolve to IDs internally, live, per call. Idempotent:
+when the field already holds the option, nothing is written and the plan says
+changed: false.
+
+Board choice follows the canonical-board rules: the only linked board
+wins; among several, a TRIAGE.md discovered from cwd (bounded to the enclosing
+git work tree) decides if it names this repo; otherwise this wrapper refuses
+and lists the candidates. A trailing --project <number> picks a linked board
+explicitly -- trailing position is safe because it only narrows a grant
+already given.
+
+Exit codes: 0 success (including a converged no-op), 1 gh/API failure,
+2 usage error or policy refusal.
+"""
+
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from lib import arguments, plan
+from lib.github import boards, gh
+
+_USAGE = (
+    "ghw-board-set <owner/repo> <field-name> <option-name> <issue#> "
+    "[--project <number>]"
+)
+
+
+def main(argv: list[str]) -> int:
+    """Entry point; the module docstring above is the CLI contract. Returns
+    the process exit code."""
+    if argv and argv[0] in ("-h", "--help"):
+        print(__doc__.strip())
+        return plan.EXIT_OK
+    if len(argv) not in (4, 6):
+        plan.usage_die(
+            "expected four positional arguments, optionally followed by "
+            "--project <number>",
+            _USAGE,
+        )
+    repository, field_name, option_name, issue_argument = argv[:4]
+    project_override = None
+    if len(argv) == 6:
+        if argv[4] != "--project":
+            plan.usage_die(
+                f"only --project may follow the positional block, got {argv[4]!r}",
+                _USAGE,
+            )
+        project_override = arguments.parse_issue_number(argv[5])
+        if project_override is None:
+            plan.usage_die(
+                f"--project takes a positive integer, got {argv[5]!r}", _USAGE
+            )
+    if not arguments.is_valid_repository(repository):
+        plan.usage_die(f"repo must be 'owner/name', got {repository!r}", _USAGE)
+    number = arguments.parse_issue_number(issue_argument)
+    if number is None:
+        plan.usage_die(
+            f"issue number must be a positive integer, got {issue_argument!r}", _USAGE
+        )
+
+    try:
+        linked_boards = boards.fetch_boards(repository)
+    except gh.GhError as error:
+        gh.die(str(error), plan.EXIT_RUNTIME)
+
+    board = _select_board(repository, linked_boards, project_override)
+    field = board["fields"].get(field_name)
+    if field is None:
+        gh.die(
+            f"board #{board['number']} ({board['title']}) has no field "
+            f"{field_name!r}. Fields: {', '.join(sorted(board['fields']))}",
+            plan.EXIT_USAGE,
+        )
+    if field["data_type"] != "SINGLE_SELECT":
+        gh.die(
+            f"field {field_name!r} is {field['data_type']}, not SINGLE_SELECT; "
+            "only single-select fields are settable by option name",
+            plan.EXIT_USAGE,
+        )
+    option_id = field["options"].get(option_name)
+    if option_id is None:
+        gh.die(
+            f"field {field_name!r} has no option {option_name!r}. "
+            f"Options: {', '.join(field['options'])}",
+            plan.EXIT_USAGE,
+        )
+
+    try:
+        state = boards.fetch_issue_item_state(repository, number, field_name)
+        item = state["items"].get(board["node_id"])
+        if item is not None and item["option_id"] == option_id:
+            plan.emit_plan(
+                "applied",
+                repository=repository,
+                issue=number,
+                board=board["number"],
+                field=field_name,
+                option=option_name,
+                changed=False,
+            )
+            return plan.EXIT_OK
+        if item is None:
+            item_id = boards.add_item_to_board(
+                board["node_id"], state["issue_node_id"]
+            )
+        else:
+            item_id = item["item_id"]
+        boards.set_single_select_value(
+            board["node_id"], item_id, field["id"], option_id
+        )
+    except gh.GhError as error:
+        gh.die(str(error), plan.EXIT_RUNTIME)
+
+    plan.emit_plan(
+        "applied",
+        repository=repository,
+        issue=number,
+        board=board["number"],
+        field=field_name,
+        option=option_name,
+        changed=True,
+        added_to_board=item is None,
+    )
+    return plan.EXIT_OK
+
+
+def _select_board(
+    repository: str, linked_boards: list[dict], project_override: int | None
+) -> dict:
+    """Pick the target board, refusing (exit 2) when none resolves."""
+    if project_override is not None:
+        for board in linked_boards:
+            if board["number"] == project_override:
+                return board
+        candidates = ", ".join(
+            f"#{board['number']} ({board['title']})" for board in linked_boards
+        ) or "none"
+        gh.die(
+            f"project #{project_override} is not linked to {repository}. "
+            f"Linked boards: {candidates}",
+            plan.EXIT_USAGE,
+        )
+    profile = boards.find_triage_profile(Path.cwd())
+    board, rule, note = boards.resolve_canonical_board(
+        repository, linked_boards, profile
+    )
+    if board is None:
+        gh.die(
+            f"cannot resolve a canonical board ({rule}): "
+            f"{note or f'no boards linked to {repository}'}. "
+            "Pass --project <number> to choose one explicitly.",
+            plan.EXIT_USAGE,
+        )
+    return board
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

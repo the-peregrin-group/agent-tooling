@@ -1,0 +1,83 @@
+#!/usr/bin/env python3
+"""triage-bump-triaged — set an issue's Last Triaged date (autonomous, bounded).
+
+Writes only the profile's Last Triaged date field on the issue's board item. The
+value is a date (today by default), never free text. This field is the skill's own
+coverage/skip-optimization clock and emits no timeline event, so writing it last in
+a pass keeps the staleness skip-optimization clean.
+
+Pass --dry-run to print the plan without writing.
+"""
+
+from __future__ import annotations
+
+import argparse
+import datetime
+import json
+import os
+import sys
+
+sys.path.insert(0, os.path.dirname(__file__))
+import lib_profile  # noqa: E402
+import lib_gh  # noqa: E402
+
+_READ = """
+query($owner:String!, $repo:String!, $number:Int!) {
+  repository(owner:$owner, name:$repo) {
+    issue(number:$number) {
+      projectItems(first:20) { nodes { id project { id } } }
+    }
+  }
+}
+"""
+
+_MUTATE = """
+mutation($project:ID!, $item:ID!, $field:ID!, $date:Date!) {
+  updateProjectV2ItemFieldValue(input:{
+    projectId:$project, itemId:$item, fieldId:$field, value:{ date:$date }
+  }) { projectV2Item { id } }
+}
+"""
+
+
+def main():
+    ap = argparse.ArgumentParser(description="Set Last Triaged date (bounded write).")
+    lib_profile.add_common_args(ap)
+    ap.add_argument("number", type=int)
+    ap.add_argument("--date", default=None, help="YYYY-MM-DD (default: today)")
+    ap.add_argument("--dry-run", action="store_true")
+    args = ap.parse_args()
+    prof = lib_profile.load_or_die(args)
+
+    date = args.date or datetime.date.today().isoformat()
+    try:
+        datetime.date.fromisoformat(date)
+    except ValueError:
+        lib_gh.die(f"triage-bump-triaged: --date must be YYYY-MM-DD, got {date!r}", 2)
+
+    data = lib_gh.graphql(_READ, {"owner": prof.owner, "repo": prof.name, "number": args.number})
+    issue = data["repository"]["issue"]
+    if issue is None:
+        lib_gh.die(f"triage-bump-triaged: issue #{args.number} not found", 1)
+    item = next((n for n in issue["projectItems"]["nodes"]
+                 if (n.get("project") or {}).get("id") == prof.project_node_id), None)
+    if item is None:
+        lib_gh.die(f"triage-bump-triaged: #{args.number} is not on the configured board", 1)
+
+    plan = {"issue": args.number, "lastTriaged": date,
+            "action": "dry-run" if args.dry_run else "applied"}
+    if not args.dry_run:
+        lib_gh.graphql(_MUTATE, {
+            "project": prof.project_node_id, "item": item["id"],
+            "field": prof.last_triaged_field_id, "date": date,
+        })
+
+    json.dump(plan, sys.stdout, indent=2)
+    sys.stdout.write("\n")
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except (lib_profile.ProfileError, lib_gh.GhError) as e:
+        lib_gh.die(f"triage-bump-triaged: {e}", 1)

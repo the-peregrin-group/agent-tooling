@@ -1,0 +1,195 @@
+#!/usr/bin/python3
+"""gitw-commit <repo> <branch-prefix> <message-file> [<pathspec>...] -- stage and commit in one verb.
+
+The cwd-anchored working-tree verb: the wrapper resolves the target
+working tree from cwd, verifies it belongs to the roster-registered
+checkout for <repo> (~/.config/gitw/repos.toml) and that its branch
+matches the pinned prefix, then owns staging outright -- raw `git add` is
+dead and the index stops being agent-visible state.
+
+No pathspec: stage-and-commit the entire working tree (`add -A`
+semantics), leaving the tree clean by construction -- the mechanical
+enforcement of "you own getting your changes committed; no droppings".
+With pathspecs (free-form tail, no allowlist significance): stage and
+commit exactly the changes those paths cover; the JSON output then
+reports the remaining dirty/untracked state so nothing lingers silently.
+Pre-existing staged changes outside the pathspecs are refused rather than
+silently swept into the commit.
+
+Local-file sweep guard: a commit whose staged set would include a known
+local-only file (settings.local.json, .env* -- matched against every
+path component, case-folded; `.env.example`, the one sanctioned
+bootstrap-guide name, is exempt) is refused -- fix the gitignore or name
+an explicit pathspec that excludes it. Also refused: an empty commit, a
+tree with unresolved merge conflicts (finish the rebase first), and a
+pending merge/cherry-pick/revert (a plain commit would silently conclude
+it). The commit message comes from a staged message file (/tmp/claude/
+or ~/.claude/jobs/<job-id>/tmp/) and must be non-empty.
+
+Exit codes: 0 success, 1 unclassified git failure, 2 usage error
+(including an unusable or empty message file), 3 label not in the roster,
+4 refused (cwd/branch-prefix mismatch, empty commit, sweep guard,
+staged-outside-pathspec, unresolved conflicts, pending
+merge/cherry-pick/revert), 5 roster missing/malformed.
+"""
+
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from lib import plan, staging
+from lib.git import arguments, policy, repo, roster, run
+
+_USAGE = "gitw-commit <repo> <branch-prefix> <message-file> [<pathspec>...]"
+
+
+def main(argv: list[str]) -> int:
+    """Entry point; the module docstring above is the CLI contract. Returns
+    the process exit code."""
+    if argv and argv[0] in ("-h", "--help"):
+        print(__doc__.strip())
+        return plan.EXIT_OK
+    if len(argv) < 3:
+        plan.usage_die(
+            "expected repo label, branch prefix, and message file, then "
+            "optional pathspecs",
+            _USAGE,
+        )
+    label, prefix, message_path = argv[:3]
+    pathspecs = tuple(argv[3:])
+    if not arguments.is_valid_branch_prefix(prefix):
+        plan.usage_die(
+            f"branch prefix must be lowercase, single-level, and end in "
+            f"'/' (e.g. 'fix/'), got {prefix!r}",
+            _USAGE,
+        )
+    for pathspec in pathspecs:
+        if not pathspec.strip():
+            plan.usage_die("pathspecs must not be empty", _USAGE)
+    message_file = staging.resolve_staging_path(
+        message_path, description="message file"
+    )
+    message = staging.read_body(message_file, description="message file")
+    if not message.strip():
+        print(
+            f"refusing message file {message_path!r}: it is empty",
+            file=sys.stderr,
+        )
+        return plan.EXIT_USAGE
+    entry = roster.resolve_or_die(label, _USAGE)
+
+    try:
+        workspace = repo.resolve_workspace(entry, Path.cwd())
+        if not workspace.in_repo:
+            raise repo.RefusalError(
+                "gitw-commit commits the worktree at cwd; run it from "
+                f"inside a worktree of {label!r} ({entry.checkout}), not "
+                "from an operable_from path"
+            )
+        repo.verify_remote(workspace)
+        branch = repo.require_prefixed_branch(workspace.root, prefix, label)
+        payload = _commit(workspace, branch, message_file, pathspecs)
+    except repo.RefusalError as error:
+        run.die(str(error), plan.EXIT_REFUSED)
+    except run.GitError as error:
+        run.die(str(error), error.exit_code)
+
+    plan.emit_plan("applied", **payload)
+    return plan.EXIT_OK
+
+
+def _commit(
+    workspace: repo.Workspace,
+    branch: str,
+    message_file: Path,
+    pathspecs: tuple,
+) -> dict:
+    root = workspace.root
+    operation = repo.pending_operation(root)
+    if operation is not None:
+        raise repo.RefusalError(
+            f"a {operation} is in progress in this worktree; a plain "
+            "commit would silently conclude it (a merge would become a "
+            "two-parent commit) -- conclude or abort the "
+            f"{operation} explicitly first"
+        )
+    conflicts = repo.conflicted_paths(root)
+    if conflicts:
+        raise repo.RefusalError(
+            f"worktree {root} has unresolved conflicts "
+            f"({', '.join(conflicts)}); resolve them and finish the rebase "
+            "(gitw-rebase ... continue) instead of committing over them"
+        )
+
+    entries = repo.status_entries(root, pathspecs)
+    if not entries:
+        raise repo.RefusalError(
+            "nothing to commit: the pathspecs match no changes"
+            if pathspecs
+            else "nothing to commit: the working tree is clean"
+        )
+
+    swept = policy.local_only_matches(path for _, _, path in entries)
+    if swept:
+        raise repo.RefusalError(policy.refusal_message(
+            swept,
+            "Gitignore them, or commit with an explicit pathspec that "
+            "excludes them.",
+        ))
+
+    if pathspecs:
+        # The index is not agent-visible state, but a leftover staged
+        # change outside the pathspecs would ride into the commit anyway
+        # (git commits the whole index) -- refuse rather than sweep it.
+        matched = {path for _, _, path in entries}
+        outside = sorted(
+            path
+            for index_state, _, path in repo.status_entries(root)
+            if index_state not in " ?" and path not in matched
+        )
+        if outside:
+            raise repo.RefusalError(
+                "the index already holds staged changes outside the given "
+                f"pathspecs ({', '.join(outside)}); commit everything, or "
+                "widen the pathspecs to cover them"
+            )
+
+    add_arguments = ["add", "-A"]
+    if pathspecs:
+        add_arguments += ["--", *list(pathspecs)]
+    result = run.run(add_arguments, root)
+    if result.returncode != 0:
+        detail = result.stderr.strip() or result.stdout.strip() or "no output"
+        raise run.GitError(f"git add failed: {detail}")
+
+    staged = run.run(["diff", "--cached", "--quiet"], root)
+    if staged.returncode == 0:
+        raise repo.RefusalError(
+            "nothing to commit: staging produced an empty diff"
+        )
+
+    files = run.must(["diff", "--cached", "--name-only", "-z"], root)
+    file_count = len([path for path in files.split("\0") if path])
+
+    result = run.run(["commit", "--file", str(message_file)], root)
+    if result.returncode != 0:
+        detail = result.stderr.strip() or result.stdout.strip() or "no output"
+        raise run.GitError(f"git commit failed: {detail}")
+
+    remaining = repo.status_counts(root)
+    return {
+        "repo": workspace.entry.label,
+        "branch": branch,
+        "commit": repo.head_commit(root),
+        "files": file_count,
+        "worktree": str(root),
+        "remaining": remaining,
+        "clean": not any(remaining.values()),
+    }
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

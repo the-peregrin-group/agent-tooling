@@ -1,0 +1,232 @@
+#!/usr/bin/python3
+"""gitw-branch-start <repo> <branch-prefix> <name> [resume] -- start or resume a feature branch.
+
+Bare form: verify the working copy at cwd against the roster entry for
+<repo> (~/.config/gitw/repos.toml), fetch the authoritative remote, then
+create <branch-prefix><name> from the fetched authoritative default branch
+and switch the current worktree onto it. Refuses a branch that already
+exists locally or on the remote (accidental collision with in-flight
+work), and a dirty worktree (commit or discard explicitly -- changes are
+never carried silently across branches).
+
+`resume` (positional mode, the one sanctioned trailing word): requires the
+branch to exist -- locally, or on the remote, in which case a local
+tracking branch is created -- refuses if it is checked out in another
+worktree (git's one-checkout-per-branch rule doubles as the "another agent
+is live on this branch" detector) or if this worktree is dirty, switches
+onto it, and reports ahead/behind vs. both its upstream and the
+authoritative default.
+
+The branch prefix is the allowlist scope token (lowercase, single-level,
+always ending in '/'); prefix plus name is the full branch name. Runs only
+from inside a worktree of the labeled repo: cwd is the binding that names
+the worktree to switch. Machine-local entries skip the fetch and branch
+from the local default branch.
+
+Exit codes: 0 success, 1 unclassified git failure, 2 usage error, 3 not
+found (label not in the roster, branch to resume nonexistent, or the
+authoritative default branch missing), 4 refused (scope mismatch, dirty
+worktree, existing branch on create, branch checked out elsewhere on
+resume), 5 roster missing/malformed or auth failure, 6 network failure.
+"""
+
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from lib import plan
+from lib.git import arguments, repo, roster, run
+
+_USAGE = "gitw-branch-start <repo> <branch-prefix> <name> [resume]"
+
+
+def main(argv: list[str]) -> int:
+    """Entry point; the module docstring above is the CLI contract. Returns
+    the process exit code."""
+    if argv and argv[0] in ("-h", "--help"):
+        print(__doc__.strip())
+        return plan.EXIT_OK
+    if len(argv) not in (3, 4):
+        plan.usage_die(
+            "expected three positional arguments, optionally followed by "
+            "'resume'",
+            _USAGE,
+        )
+    resume = False
+    if len(argv) == 4:
+        if argv[3] != "resume":
+            plan.usage_die(
+                f"the only positional mode is 'resume', got {argv[3]!r}",
+                _USAGE,
+            )
+        resume = True
+    label, prefix, name = argv[:3]
+    if not arguments.is_valid_branch_prefix(prefix):
+        plan.usage_die(
+            f"branch prefix must be lowercase, single-level, and end in "
+            f"'/' (e.g. 'fix/'), got {prefix!r}",
+            _USAGE,
+        )
+    if not arguments.is_valid_branch_name(name):
+        plan.usage_die(
+            f"branch name must be alphanumerics plus ._- (no leading "
+            f"punctuation, no '..', no '.lock' suffix), got {name!r}",
+            _USAGE,
+        )
+    branch = prefix + name
+    entry = roster.resolve_or_die(label, _USAGE)
+
+    try:
+        workspace = repo.resolve_workspace(entry, Path.cwd())
+        if not workspace.in_repo:
+            raise repo.RefusalError(
+                "gitw-branch-start switches the worktree at cwd; run it "
+                f"from inside a worktree of {label!r} ({entry.checkout}), "
+                "not from an operable_from path"
+            )
+        repo.verify_remote(workspace)
+        _refuse_if_dirty(workspace.root)
+        if not entry.machine_local:
+            run.fetch(entry.remote, workspace.root)
+        if resume:
+            payload = _resume(workspace, branch)
+        else:
+            payload = _create(workspace, branch)
+    except repo.RefusalError as error:
+        run.die(str(error), plan.EXIT_REFUSED)
+    except run.GitError as error:
+        run.die(str(error), error.exit_code)
+
+    plan.emit_plan("applied", **payload)
+    return plan.EXIT_OK
+
+
+def _refuse_if_dirty(root: Path) -> None:
+    dirty = repo.status_counts(root)
+    if any(dirty.values()):
+        raise repo.RefusalError(
+            f"worktree {root} is dirty ({repo.describe_dirty(dirty)}); "
+            "commit or discard explicitly -- changes are never carried "
+            "across branches"
+        )
+
+
+def _switch(root: Path, switch_arguments: list[str]) -> None:
+    # Re-checked here, at the choke point, not only up front: the fetch
+    # between the two checks can take a while, and a file written during
+    # it would otherwise be carried silently onto the new branch.
+    _refuse_if_dirty(root)
+    result = run.run(["switch", "--no-guess", *switch_arguments], root)
+    if result.returncode != 0:
+        detail = result.stderr.strip() or result.stdout.strip() or "no output"
+        raise run.GitError(f"git switch failed: {detail}")
+
+
+def _create(workspace: repo.Workspace, branch: str) -> dict:
+    """Bare mode: branch from the fetched authoritative default."""
+    entry = workspace.entry
+    root = workspace.root
+    if repo.ref_exists(root, f"refs/heads/{branch}"):
+        raise repo.RefusalError(
+            f"branch {branch!r} already exists locally; resume it instead, "
+            "or pick another name"
+        )
+    if not entry.machine_local and repo.ref_exists(
+        root, f"refs/remotes/{entry.remote}/{branch}"
+    ):
+        raise repo.RefusalError(
+            f"branch {branch!r} already exists on {entry.remote} -- "
+            "in-flight work? resume it instead, or pick another name"
+        )
+    display, refname = repo.authoritative_ref(entry)
+    if not repo.ref_exists(root, refname):
+        run.die(
+            f"authoritative default {display} not found in {root}; the "
+            "roster's default_branch may be wrong",
+            plan.EXIT_NOT_FOUND,
+        )
+    # --no-track: the new branch's upstream is set by gitw-push when the
+    # branch first leaves the machine, not inherited from the default.
+    _switch(root, ["--no-track", "-c", branch, refname])
+    return {
+        "repo": entry.label,
+        "mode": "create",
+        "branch": branch,
+        "start_point": display,
+        "commit": repo.head_commit(root),
+        "worktree": str(root),
+    }
+
+
+def _resume(workspace: repo.Workspace, branch: str) -> dict:
+    """Resume mode: switch onto an existing branch, refusing one that is
+    live in another worktree."""
+    entry = workspace.entry
+    root = workspace.root
+    remote_ref = (
+        None
+        if entry.machine_local
+        else f"refs/remotes/{entry.remote}/{branch}"
+    )
+    local_exists = repo.ref_exists(root, f"refs/heads/{branch}")
+    remote_exists = remote_ref is not None and repo.ref_exists(root, remote_ref)
+    if not local_exists and not remote_exists:
+        where = (
+            "locally"
+            if entry.machine_local
+            else f"locally or on {entry.remote}"
+        )
+        run.die(
+            f"branch {branch!r} does not exist {where}; nothing to resume "
+            "(use the bare form to create it)",
+            plan.EXIT_NOT_FOUND,
+        )
+
+    if local_exists:
+        holder = repo.worktree_holding_branch(root, branch)
+        if holder is not None and holder != root.resolve():
+            raise repo.RefusalError(
+                f"branch {branch!r} is checked out in another worktree "
+                f"({holder}) -- another agent may be live on it"
+            )
+        if holder is None:
+            _switch(root, [branch])
+    else:
+        # Remote-only: create the local branch tracking its remote
+        # counterpart, so the upstream ahead/behind report is meaningful.
+        # Full refname: a local branch literally named "<remote>/x" would
+        # shadow the short form.
+        _switch(root, ["--track", "-c", branch, remote_ref])
+
+    display, refname = repo.authoritative_ref(entry)
+    ahead = behind = None
+    if repo.ref_exists(root, refname):
+        counts = repo.ahead_behind(root, "HEAD", refname)
+        if counts is not None:
+            ahead, behind = counts
+    upstream = repo.upstream_of(root, branch)
+    upstream_ahead = upstream_behind = None
+    if upstream is not None:
+        counts = repo.ahead_behind(root, "HEAD", upstream)
+        if counts is not None:
+            upstream_ahead, upstream_behind = counts
+    return {
+        "repo": entry.label,
+        "mode": "resume",
+        "branch": branch,
+        "commit": repo.head_commit(root),
+        "worktree": str(root),
+        "authoritative": display,
+        "ahead": ahead,
+        "behind": behind,
+        "upstream": upstream,
+        "upstream_ahead": upstream_ahead,
+        "upstream_behind": upstream_behind,
+    }
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

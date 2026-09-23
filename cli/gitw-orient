@@ -1,0 +1,110 @@
+#!/usr/bin/python3
+"""gitw-orient <repo> -- fetch, verify, and report a rostered repo's state.
+
+The mandated first call of any session doing git work in a repo: resolves
+<repo> as a label in the machine-local roster (~/.config/gitw/repos.toml),
+trust-but-verifies that the working copy at cwd is the registered checkout
+(or one of its linked worktrees) with the registered remote, fetches the
+authoritative remote so staleness is visible before work begins, and emits
+one JSON blob: branch, commit, dirty/untracked tallies, upstream, and
+ahead/behind vs. the fetched authoritative default branch.
+
+Read-only apart from the fetch (which touches remote-tracking refs only;
+machine-local entries skip it and measure against the local default
+branch). From a cwd under the entry's operable_from roots but outside the
+repo itself, reports on the registered primary checkout instead
+("cwd_in_repo": false).
+
+Exit codes: 0 success, 1 unclassified git failure, 2 usage error, 3 not
+found (label not in the roster, or the remote repository has vanished),
+4 refused (cwd or remote does not match the roster entry), 5 roster
+missing/malformed or auth failure, 6 network failure.
+"""
+
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from lib import plan
+from lib.git import repo, roster, run
+
+_USAGE = "gitw-orient <repo>"
+
+
+def main(argv: list[str]) -> int:
+    """Entry point; the module docstring above is the CLI contract. Returns
+    the process exit code."""
+    if argv and argv[0] in ("-h", "--help"):
+        print(__doc__.strip())
+        return plan.EXIT_OK
+    if len(argv) != 1:
+        plan.usage_die("expected exactly one argument, the repo label", _USAGE)
+    entry = roster.resolve_or_die(argv[0], _USAGE)
+
+    try:
+        workspace = repo.resolve_workspace(entry, Path.cwd())
+        repo.verify_remote(workspace)
+        if not entry.machine_local:
+            run.fetch(entry.remote, workspace.root)
+        payload = _orientation(workspace)
+    except repo.RefusalError as error:
+        run.die(str(error), plan.EXIT_REFUSED)
+    except run.GitError as error:
+        run.die(str(error), error.exit_code)
+
+    plan.emit(payload)
+    return plan.EXIT_OK
+
+
+def _orientation(workspace: repo.Workspace) -> dict:
+    """Gather the report; every read here tolerates edge states (detached
+    HEAD, unborn branch, missing authoritative ref) by reporting null
+    rather than failing -- orient exists to make odd states visible."""
+    entry = workspace.entry
+    root = workspace.root
+    branch = repo.current_branch(root)
+    commit = repo.head_commit(root)
+    display, refname = repo.authoritative_ref(entry)
+
+    ahead = behind = None
+    if commit is not None and repo.ref_exists(root, refname):
+        counts = repo.ahead_behind(root, "HEAD", refname)
+        if counts is not None:
+            ahead, behind = counts
+
+    upstream = repo.upstream_of(root, branch) if branch else None
+    upstream_ahead = upstream_behind = None
+    if upstream is not None:
+        counts = repo.ahead_behind(root, "HEAD", upstream)
+        if counts is not None:
+            upstream_ahead, upstream_behind = counts
+
+    dirty = repo.status_counts(root)
+    return {
+        "repo": entry.label,
+        "checkout": str(entry.checkout),
+        "worktree": str(root),
+        "cwd_in_repo": workspace.in_repo,
+        "remote": entry.remote,
+        "remote_url": entry.remote_url,
+        "default_branch": entry.default_branch,
+        "authoritative": display,
+        "fetched": not entry.machine_local,
+        "branch": branch,
+        "detached": branch is None and commit is not None,
+        "commit": commit,
+        "dirty": dirty,
+        "clean": not any(dirty.values()),
+        "ahead": ahead,
+        "behind": behind,
+        "upstream": upstream,
+        "upstream_ahead": upstream_ahead,
+        "upstream_behind": upstream_behind,
+    }
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

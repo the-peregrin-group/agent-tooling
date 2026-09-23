@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "source_repo": "agent-tooling",
+  "exclude": [
+    "__pycache__",
+    "*.pyc",
+    ".DS_Store",
+    ".gitattributes",
+    ".gitignore",
+    "*_test.py",
+    "*_test_support.py"
+  ],
+  "cohorts": {
+    "bin": {
+      "kind": "bin",
+      "sources": [
+        "cli"
+      ]
+    },
+    "skills": {
+      "kind": "skills",
+      "sources": [
+        "skills"
+      ],
+      "exclude": [
+        "triage-issues/handoff.md"
+      ]
+    },
+    "agents": {
+      "kind": "agents",
+      "sources": [
+        "agents"
+      ]
+    }
+  }
+}

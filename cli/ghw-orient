@@ -1,0 +1,72 @@
+#!/usr/bin/env python3
+"""ghw-orient <repo> -- one read-only JSON orientation blob for a GitHub repo.
+
+Replaces the multi-call Step-1 dance of the use-github skill: repo identity,
+the live label registry, every open linked ProjectV2 board with its field and
+option name-to-ID maps, which board is canonical (and by which rule), and
+which priority regime the repo is in ("board-field" vs "p-labels").
+
+Each board also carries a "conformance" verdict against the canonical board
+schema, naming the specific gaps (missing Status states, an absent Last
+Triaged field, and so on). The verdict is advisory: orient reports, and
+ghw-board-sync is what acts.
+
+IDs are resolved live on every call; there is no on-disk cache.
+
+Exit codes: 0 success, 1 gh/API failure, 2 usage error.
+"""
+
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from lib import arguments, plan
+from lib.github import board_schema, boards, gh
+
+_USAGE = "ghw-orient <owner/repo>"
+
+
+def main(argv: list[str]) -> int:
+    """Entry point; the module docstring above is the CLI contract. Returns
+    the process exit code."""
+    if argv and argv[0] in ("-h", "--help"):
+        print(__doc__.strip())
+        return plan.EXIT_OK
+    if len(argv) != 1:
+        plan.usage_die("expected exactly one argument", _USAGE)
+    repository = argv[0]
+    if not arguments.is_valid_repository(repository):
+        plan.usage_die(f"repo must be 'owner/name', got {repository!r}", _USAGE)
+
+    try:
+        orientation = boards.fetch_orientation(repository)
+    except gh.GhError as error:
+        gh.die(str(error), plan.EXIT_RUNTIME)
+
+    triage_profile = boards.find_triage_profile(Path.cwd())
+    canonical, rule, note = boards.resolve_canonical_board(
+        repository, orientation["boards"], triage_profile
+    )
+    for board in orientation["boards"]:
+        board["conformance"] = board_schema.evaluate_conformance(board)
+
+    plan.emit({
+        **orientation,
+        "canonical_board": canonical["number"] if canonical else None,
+        "canonical_rule": rule,
+        "canonical_note": note,
+        "priority_regime": boards.determine_priority_regime(
+            canonical, orientation["boards"]
+        ),
+        "priority_labels_present": boards.priority_labels_present(
+            orientation["labels"]
+        ),
+    })
+    return plan.EXIT_OK
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

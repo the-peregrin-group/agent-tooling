@@ -1,0 +1,65 @@
+#!/usr/bin/env python3
+"""triage-fix-label — add/remove labels (autonomous, schema-bound).
+
+Policy binding: every label to add or remove must be declared in the profile's
+label schema (a type label or an `area:*` label). Labels outside the schema are
+refused. This keeps the autonomous label-compliance work (R-LABEL-1) bounded to
+the project's known, enumerable label set — the wrapper cannot be used to invent
+or apply arbitrary labels.
+
+Pass --dry-run to print the planned change without writing.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import sys
+
+sys.path.insert(0, os.path.dirname(__file__))
+import lib_profile  # noqa: E402
+import lib_gh  # noqa: E402
+
+
+def main():
+    ap = argparse.ArgumentParser(description="Add/remove schema labels (policy-bound).")
+    lib_profile.add_common_args(ap)
+    ap.add_argument("number", type=int)
+    ap.add_argument("--add", action="append", default=[], metavar="LABEL")
+    ap.add_argument("--remove", action="append", default=[], metavar="LABEL")
+    ap.add_argument("--dry-run", action="store_true")
+    args = ap.parse_args()
+    prof = lib_profile.load_or_die(args)
+
+    if not args.add and not args.remove:
+        lib_gh.die("triage-fix-label: nothing to do (pass --add and/or --remove)", 2)
+
+    unknown = [l for l in (args.add + args.remove) if not prof.is_known_label(l)]
+    if unknown:
+        lib_gh.die(
+            "triage-fix-label: refusing labels outside the profile schema: "
+            + ", ".join(unknown)
+            + f"\n  (known type: {', '.join(prof.type_labels)})"
+            + f"\n  (known area: {', '.join(prof.area_labels)})",
+            2,
+        )
+
+    plan = {
+        "issue": args.number,
+        "add": args.add,
+        "remove": args.remove,
+        "action": "dry-run" if args.dry_run else "applied",
+    }
+    if not args.dry_run:
+        lib_gh.issue_edit_labels(prof.repo, args.number, args.add, args.remove)
+
+    json.dump(plan, sys.stdout, indent=2)
+    sys.stdout.write("\n")
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except (lib_profile.ProfileError, lib_gh.GhError) as e:
+        lib_gh.die(f"triage-fix-label: {e}", 1)

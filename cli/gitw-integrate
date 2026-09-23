@@ -1,0 +1,223 @@
+#!/usr/bin/python3
+"""gitw-integrate <repo> <base-branch> <branch-prefix> <message-file> -- direct integration: rebase-verified bubble onto the base branch.
+
+The mode-(b) verb, granted per-repo and attended contexts only (the
+allowlist carries that policy; the wrapper carries the machine-checkable
+part). After the branch has been rebased and merge-readiness has been
+validated -- validation stays entirely skill-side, this wrapper runs no
+repo validation -- it integrates the prefix-matched branch checked out at
+cwd into <base-branch> without ever checking out the base or touching the
+primary checkout:
+
+1. fetch, then verify the branch tip DESCENDS from the fetched base tip
+   (the rebase is current -- trust-but-verify; refusal means "rebase
+   first, then loop again");
+2. build the two-parent integration bubble with `git commit-tree` (tree:
+   the branch tip's tree; first parent: the fetched base tip; second
+   parent: the branch tip; message from the staged message file);
+3. push the new commit to the base branch under an exact lease --
+   `--force-with-lease=refs/heads/<base>:<fetched-tip>` -- a
+   compare-and-swap on the very tip the descendant check used. When the
+   base is where the fetch saw it, the server still just fast-forwards
+   (the plain-push semantics, tightened); when the base has moved or been
+   rewound (a plain push would silently fast-forward past the rewind,
+   since the bubble descends from the pre-rewind tip), the push rejects
+   deterministically -- the "base moved, loop again" signal (exit 4
+   with that guidance, never a blind retry). A base deleted on the
+   remote is caught earlier: the fetch prunes its tracking ref, so the
+   existence check fails with exit 3 instead of a plain push silently
+   recreating it.
+
+<base-branch> names the integration target; the allowlist pins it. It is
+deliberately not required to equal the roster's default_branch (a repo
+may carry a second integration branch), and the roster default is not
+consulted. No staging occurs -- the bubble carries the branch tip's tree
+exactly, so the commit-time sweep guard has already had its say. A dirty
+worktree refuses: the integration takes the branch tip, and uncommitted
+changes would be silently left behind as droppings. Machine-local repos
+refuse: with no remote to push to, moving a possibly-checked-out local
+base branch is exactly the primary-checkout mutation this verb exists to
+avoid.
+
+Exit codes: 0 success, 1 unclassified git failure, 2 usage error
+(including an unusable or empty message file), 3 not found (label not in
+the roster, or the base branch missing on the remote), 4 refused
+(cwd/branch-prefix mismatch, dirty worktree, branch not a descendant of
+the fetched base tip, nothing to integrate, base moved during the
+attempt, machine-local), 5 roster missing/malformed or auth failure,
+6 network failure.
+"""
+
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from lib import plan, staging
+from lib.git import arguments, repo, roster, run
+
+_USAGE = "gitw-integrate <repo> <base-branch> <branch-prefix> <message-file>"
+
+_BASE_MOVED_MARKERS = ("stale info", "non-fast-forward", "fetch first")
+
+
+def main(argv: list[str]) -> int:
+    """Entry point; the module docstring above is the CLI contract. Returns
+    the process exit code."""
+    if argv and argv[0] in ("-h", "--help"):
+        print(__doc__.strip())
+        return plan.EXIT_OK
+    if len(argv) != 4:
+        plan.usage_die(
+            "expected exactly four arguments: repo label, base branch, "
+            "branch prefix, message file",
+            _USAGE,
+        )
+    label, base, prefix, message_path = argv
+    if not arguments.is_valid_branch(base):
+        plan.usage_die(
+            f"base branch must be a plain branch name, got {base!r}", _USAGE
+        )
+    if not arguments.is_valid_branch_prefix(prefix):
+        plan.usage_die(
+            f"branch prefix must be lowercase, single-level, and end in "
+            f"'/' (e.g. 'fix/'), got {prefix!r}",
+            _USAGE,
+        )
+    message_file = staging.resolve_staging_path(
+        message_path, description="message file"
+    )
+    message = staging.read_body(message_file, description="message file")
+    if not message.strip():
+        print(
+            f"refusing message file {message_path!r}: it is empty",
+            file=sys.stderr,
+        )
+        return plan.EXIT_USAGE
+    entry = roster.resolve_or_die(label, _USAGE)
+
+    try:
+        workspace = repo.resolve_workspace(entry, Path.cwd())
+        if not workspace.in_repo:
+            raise repo.RefusalError(
+                "gitw-integrate integrates the branch checked out at cwd; "
+                f"run it from inside a worktree of {label!r} "
+                f"({entry.checkout}), not from an operable_from path"
+            )
+        repo.verify_remote(workspace)
+        if entry.machine_local:
+            raise repo.RefusalError(
+                f"repo {label!r} is machine-local; direct integration "
+                "would move a possibly-checked-out local base branch -- "
+                "exactly the primary-checkout mutation this verb avoids"
+            )
+        payload = _integrate(workspace, base, prefix, message_file)
+    except repo.RefusalError as error:
+        run.die(str(error), plan.EXIT_REFUSED)
+    except run.GitError as error:
+        run.die(str(error), error.exit_code)
+
+    plan.emit_plan("applied", **payload)
+    return plan.EXIT_OK
+
+
+def _integrate(
+    workspace: repo.Workspace, base: str, prefix: str, message_file: Path
+) -> dict:
+    entry = workspace.entry
+    root = workspace.root
+    branch = repo.require_prefixed_branch(root, prefix, entry.label)
+    if branch == base:
+        raise repo.RefusalError(
+            f"branch and base are both {base!r}; nothing to integrate into"
+        )
+    dirty = repo.status_counts(root)
+    if any(dirty.values()):
+        raise repo.RefusalError(
+            f"worktree {root} is dirty ({repo.describe_dirty(dirty)}); the "
+            "integration takes the branch tip, and uncommitted changes "
+            "would be left behind -- commit or discard explicitly first"
+        )
+
+    run.fetch(entry.remote, root)
+    base_ref = f"refs/remotes/{entry.remote}/{base}"
+    if not repo.ref_exists(root, base_ref):
+        run.die(
+            f"base branch {base!r} not found on {entry.remote} (no "
+            f"{base_ref} after fetching)",
+            plan.EXIT_NOT_FOUND,
+        )
+    base_tip = run.must(["rev-parse", "--verify", base_ref], root)
+    branch_tip = run.must(["rev-parse", "--verify", f"refs/heads/{branch}"], root)
+
+    ancestry = run.run(
+        ["merge-base", "--is-ancestor", base_tip, branch_tip], root
+    )
+    if ancestry.returncode != 0:
+        raise repo.RefusalError(
+            f"branch {branch!r} is not a descendant of the fetched "
+            f"{entry.remote}/{base} tip -- the rebase is stale. Rebase "
+            "onto the current base, re-validate, and loop again"
+        )
+    if branch_tip == base_tip:
+        raise repo.RefusalError(
+            f"branch {branch!r} is exactly the {entry.remote}/{base} tip; "
+            "nothing to integrate"
+        )
+    commits = int(
+        run.must(["rev-list", "--count", f"{base_tip}..{branch_tip}"], root)
+    )
+
+    merge_commit = run.must(
+        [
+            "commit-tree",
+            f"{branch_tip}^{{tree}}",
+            "-p", base_tip,
+            "-p", branch_tip,
+            "-F", str(message_file),
+        ],
+        root,
+    )
+
+    result = run.run(
+        [
+            "push",
+            f"--force-with-lease=refs/heads/{base}:{base_tip}",
+            entry.remote,
+            f"{merge_commit}:refs/heads/{base}",
+        ],
+        root,
+        env=run.remote_environment(root),
+        remote=True,
+    )
+    if result.returncode != 0:
+        detail = result.stderr.strip() or result.stdout.strip() or "no output"
+        lowered = detail.lower()
+        if any(marker in lowered for marker in _BASE_MOVED_MARKERS):
+            raise repo.RefusalError(
+                f"{entry.remote}/{base} moved during the attempt (the push "
+                "was not a fast-forward). Fetch, rebase, re-validate, and "
+                "loop again; never blind-retry"
+            )
+        raise run.GitError(
+            f"git push {entry.remote} {base} failed: {detail}",
+            run.classify_remote_failure(detail),
+        )
+
+    return {
+        "repo": entry.label,
+        "base": base,
+        "branch": branch,
+        "remote": entry.remote,
+        "merge_commit": merge_commit,
+        "first_parent": base_tip,
+        "second_parent": branch_tip,
+        "commits": commits,
+        "worktree": str(root),
+    }
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))
