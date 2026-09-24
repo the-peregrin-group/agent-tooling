@@ -53,7 +53,11 @@ staged rename or deletion rides `gitw-commit`'s commit-all form.
   and refuses a mismatch — a second clone of the same repo is refused even
   with the right URL. Never edit the roster by hand to make a refusal go
   away; registration is `gitw-repo-register`'s ceremony, and removals are
-  the user's hand-edits.
+  the user's hand-edits. The label is conventionally the checkout's
+  directory name: run `gitw-orient <that name>`, and treat exit 3 (unknown
+  label) as a question for the user — the repo may be registered under
+  another label, or not at all (see Orient First). Never read the roster
+  file to discover a label.
 - **Exit codes are a contract** — branch on them, especially unattended:
   - `0` success, including a converged no-op.
   - `1` unclassified git failure.
