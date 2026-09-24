@@ -50,8 +50,13 @@ names only `BEADS_ACTOR`. Setting both covers either reading.
 Beads hook worth having is the commit trailer, and a hook that rewrites the
 message would compete with `gitw-commit` for ownership of it. So
 `gitw-commit` appends `Executed-By: <actor>` itself, from the same
-derivation, using `git interpret-trailers --if-exists doNothing`. That leaves
-trailer-block placement to git and never adds a second trailer. It writes the
+derivation, using `git interpret-trailers --if-exists replace`. That leaves
+trailer-block placement to git. It also applies the shim's override rule
+(identity comes from the environment, not the caller): a caller-written
+`Executed-By:` trailer is replaced by the derived actor. git's `replace`
+deletes only one existing trailer, so a message carrying several is refused
+(exit 4) rather than committed with a caller value beside the derived one.
+Every commit ends up with exactly one `Executed-By:` trailer. It writes the
 result to a private temporary file, leaves the caller's staged message file
 untouched, and reports the actor as `executed_by` in its JSON.
 
@@ -59,10 +64,12 @@ untouched, and reports the actor as `executed_by` in its JSON.
 
 - Agents call `bdw`, never `bd`. Permission rules should allow `bdw` and keep
   bare `bd` behind ask or deny.
-- Every `gitw-commit` commit names its session. The trailer is not
-  authenticated: a message that already carries `Executed-By:` keeps it
-  unchanged (the `doNothing` policy). The trailer is an audit aid, not proof
-  of who made the commit.
+- Every `gitw-commit` commit names its session, and a caller can't set that
+  name through the message: a caller's `Executed-By:` is replaced, and several
+  are refused. The trailer is still not authenticated. It is only as reliable
+  as the environment it was derived from, and a commit made outside
+  `gitw-commit` can carry any trailer. So it is an audit aid, not proof of
+  who made the commit.
 - If a background job loses `CLAUDE_JOB_DIR`, its actions show up as
   `attended-…`, which is easy to spot in the audit trail.
 - Rejected: exporting the actor once per session, since each Bash call is a

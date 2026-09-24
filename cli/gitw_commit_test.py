@@ -406,7 +406,7 @@ class GitwCommitExecutedByTest(_CommitFixtureTest):
             "Executed-By: claude-job-ae218998\n\n",
         )
 
-    def test_existing_executed_by_trailer_is_not_duplicated(self):
+    def test_caller_executed_by_trailer_is_replaced(self):
         Path(self.message_path).write_text(
             "subject\n\nbody\n\nExecuted-By: someone-else\n"
         )
@@ -414,7 +414,28 @@ class GitwCommitExecutedByTest(_CommitFixtureTest):
         self.commit_with_environ(
             self._JOB_ENVIRON, "proj", "fix/", self.message_path
         )
-        self.assertEqual(self.head_trailers("Executed-By"), ["someone-else"])
+        self.assertEqual(
+            self.head_trailers("Executed-By"), ["claude-job-ae218998"]
+        )
+        self.assertNotIn("someone-else", self.head_message())
+
+    def test_several_caller_executed_by_trailers_are_refused(self):
+        # git's replace deletes only one; refusing beats leaving a caller
+        # value beside the derived one.
+        Path(self.message_path).write_text(
+            "subject\n\nExecuted-By: a\nRefs: x\nexecuted-by: b\n"
+        )
+        (self.clone / "new.txt").write_text("new\n")
+        with mock.patch.dict(os.environ, self._JOB_ENVIRON):
+            stderr = self.commit_expecting_exit(
+                4, "proj", "fix/", self.message_path
+            )
+        self.assertIn("2 Executed-By trailers", stderr)
+        # Refused before staging: nothing was added to the index.
+        staged = gitw_test_support.git(
+            self.clone, "diff", "--cached", "--name-only"
+        ).stdout
+        self.assertEqual(staged, "")
 
     def test_message_file_on_disk_is_unchanged(self):
         before = Path(self.message_path).read_bytes()

@@ -29,18 +29,22 @@ or ~/.claude/jobs/<job-id>/tmp/) and must be non-empty.
 Executed-By trailer: every commit carries a git trailer
 `Executed-By: <actor>`, the session actor from lib.actor.derive_actor
 (`claude-job-<job-id>` in a background job, `attended-<user>` otherwise).
-It is added with `git interpret-trailers --if-exists doNothing`, so git's
-own trailer-block rules apply and a message that already carries an
-Executed-By trailer keeps it unchanged. The trailered message goes to a
-private temporary file; the staged message file is never modified. The
-JSON output reports the actor as `executed_by`. See
+It is added with `git interpret-trailers --if-exists replace`, so git's
+own trailer-block rules apply, and identity comes from the environment,
+not the caller: a caller-written Executed-By trailer is replaced by the
+derived actor. A message whose trailer block already holds more than one
+Executed-By trailer is refused (git's replace removes only one, so the
+result would not be a single trustworthy trailer). The trailered message
+goes to a private temporary file; the staged message file is never
+modified. The JSON output reports the actor as `executed_by`. See
 docs/adr/0001-beads-identity.md.
 
 Exit codes: 0 success, 1 unclassified git failure, 2 usage error
 (including an unusable or empty message file), 3 label not in the roster,
 4 refused (cwd/branch-prefix mismatch, empty commit, sweep guard,
 staged-outside-pathspec, unresolved conflicts, pending
-merge/cherry-pick/revert), 5 roster missing/malformed.
+merge/cherry-pick/revert, more than one caller-written Executed-By
+trailer), 5 roster missing/malformed.
 """
 
 from __future__ import annotations
@@ -222,17 +226,34 @@ def _commit(
 
 def _with_executed_by(message_file: Path, actor: str, root: Path) -> str:
     """The message in `message_file` with an `Executed-By: <actor>`
-    trailer appended by git's own trailer machinery: joined to an existing
-    trailer block, or after a blank line when there is none, and not added
-    at all when an Executed-By trailer is already present. --no-divider
-    because a commit message is not a patch: a `---` line in it must not
-    end the message for trailer placement. Reads the file; never writes
-    it."""
+    trailer placed by git's own trailer machinery: joined to an existing
+    trailer block, or after a blank line when there is none. A caller's
+    Executed-By trailer is replaced (identity comes from the environment,
+    not the caller). git's replace deletes only the one trailer closest to
+    the insertion point, so a block holding several Executed-By trailers
+    is refused rather than left with a caller value beside the derived
+    one. --no-divider because a commit message is not a patch: a `---`
+    line in it must not end the message for trailer placement. Reads the
+    file; never writes it."""
+    trailers = run.must(
+        ["interpret-trailers", "--no-divider", "--parse", str(message_file)],
+        root,
+    )
+    existing = [
+        line for line in trailers.splitlines()
+        if line.split(":", 1)[0].strip().lower() == "executed-by"
+    ]
+    if len(existing) > 1:
+        raise repo.RefusalError(
+            f"the message carries {len(existing)} Executed-By trailers; "
+            "gitw-commit writes that trailer itself from the session "
+            "environment -- remove them from the message file"
+        )
     return run.must(
         [
             "interpret-trailers",
             "--no-divider",
-            "--if-exists", "doNothing",
+            "--if-exists", "replace",
             "--trailer", f"Executed-By: {actor}",
             str(message_file),
         ],
