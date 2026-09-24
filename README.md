@@ -132,3 +132,7 @@ History in this repository begins fresh on 2026-09-22. The code was extracted
 from a private configuration repository, whose history stays there; the
 extracted tree was scrubbed of deployment-specific names and paths before its
 first commit here.
+
+## License
+
+MIT; see [LICENSE](LICENSE).
