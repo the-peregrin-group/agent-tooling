@@ -146,7 +146,13 @@ class GitwCommitAllTest(_CommitFixtureTest):
         body = gitw_test_support.git(
             self.clone, "log", "-1", "--format=%B"
         ).stdout
-        self.assertEqual(body.strip(), "test commit\n\nbody line".strip())
+        # The message, then the Executed-By trailer block (the trailer's
+        # value depends on the ambient session; GitwCommitExecutedByTest
+        # pins it).
+        self.assertTrue(
+            body.startswith("test commit\n\nbody line\n\nExecuted-By: "),
+            body,
+        )
 
     def test_clean_tree_is_an_empty_commit_refusal(self):
         stderr = self.commit_expecting_exit(4, "proj", "fix/", self.message_path)
@@ -341,6 +347,85 @@ class GitwCommitPathspecTest(_CommitFixtureTest):
         )
         self.assertIn("outside the given pathspecs", stderr)
         self.assertIn("other.txt", stderr)
+
+
+class GitwCommitExecutedByTest(_CommitFixtureTest):
+    _JOB_ENVIRON = {"CLAUDE_JOB_DIR": "/Users/x/.claude/jobs/ae218998",
+                    "USER": "dan"}
+
+    def commit_with_environ(self, environ: dict, *arguments: str) -> dict:
+        # Pin the session identity: the developer running the suite may
+        # well be inside a background job with CLAUDE_JOB_DIR set.
+        with mock.patch.dict(os.environ, environ):
+            if "CLAUDE_JOB_DIR" not in environ:
+                os.environ.pop("CLAUDE_JOB_DIR", None)
+            return self.commit(*arguments)
+
+    def head_message(self) -> str:
+        return gitw_test_support.git(
+            self.clone, "log", "-1", "--format=%B"
+        ).stdout
+
+    def head_trailers(self, key: str) -> list:
+        return gitw_test_support.git(
+            self.clone, "log", "-1",
+            f"--format=%(trailers:key={key},valueonly)",
+        ).stdout.split()
+
+    def test_job_dir_actor_is_the_trailer(self):
+        (self.clone / "new.txt").write_text("new\n")
+        payload = self.commit_with_environ(
+            self._JOB_ENVIRON, "proj", "fix/", self.message_path
+        )
+        self.assertEqual(
+            self.head_message(),
+            "test commit\n\nbody line\n\n"
+            "Executed-By: claude-job-ae218998\n\n",
+        )
+        self.assertEqual(payload["executed_by"], "claude-job-ae218998")
+
+    def test_attended_fallback_is_the_trailer(self):
+        (self.clone / "new.txt").write_text("new\n")
+        payload = self.commit_with_environ(
+            {"USER": "dan"}, "proj", "fix/", self.message_path
+        )
+        self.assertEqual(self.head_trailers("Executed-By"), ["attended-dan"])
+        self.assertEqual(payload["executed_by"], "attended-dan")
+
+    def test_trailer_joins_an_existing_trailer_block(self):
+        Path(self.message_path).write_text(
+            "subject\n\nbody\n\nRefs: abc-1\n"
+        )
+        (self.clone / "new.txt").write_text("new\n")
+        self.commit_with_environ(
+            self._JOB_ENVIRON, "proj", "fix/", self.message_path
+        )
+        self.assertEqual(
+            self.head_message(),
+            "subject\n\nbody\n\nRefs: abc-1\n"
+            "Executed-By: claude-job-ae218998\n\n",
+        )
+
+    def test_existing_executed_by_trailer_is_not_duplicated(self):
+        Path(self.message_path).write_text(
+            "subject\n\nbody\n\nExecuted-By: someone-else\n"
+        )
+        (self.clone / "new.txt").write_text("new\n")
+        self.commit_with_environ(
+            self._JOB_ENVIRON, "proj", "fix/", self.message_path
+        )
+        self.assertEqual(self.head_trailers("Executed-By"), ["someone-else"])
+
+    def test_message_file_on_disk_is_unchanged(self):
+        before = Path(self.message_path).read_bytes()
+        (self.clone / "new.txt").write_text("new\n")
+        self.commit_with_environ(
+            self._JOB_ENVIRON, "proj", "fix/", self.message_path
+        )
+        self.assertEqual(Path(self.message_path).read_bytes(), before)
+        self.assertIn(
+            "Executed-By: claude-job-ae218998", self.head_message()
+        )
 
 
 if __name__ == "__main__":

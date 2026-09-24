@@ -26,6 +26,16 @@ pending merge/cherry-pick/revert (a plain commit would silently conclude
 it). The commit message comes from a staged message file (/tmp/claude/
 or ~/.claude/jobs/<job-id>/tmp/) and must be non-empty.
 
+Executed-By trailer: every commit carries a git trailer
+`Executed-By: <actor>`, the session actor from lib.actor.derive_actor
+(`claude-job-<job-id>` in a background job, `attended-<user>` otherwise).
+It is added with `git interpret-trailers --if-exists doNothing`, so git's
+own trailer-block rules apply and a message that already carries an
+Executed-By trailer keeps it unchanged. The trailered message goes to a
+private temporary file; the staged message file is never modified. The
+JSON output reports the actor as `executed_by`. See
+docs/adr/0001-beads-identity.md.
+
 Exit codes: 0 success, 1 unclassified git failure, 2 usage error
 (including an unusable or empty message file), 3 label not in the roster,
 4 refused (cwd/branch-prefix mismatch, empty commit, sweep guard,
@@ -35,12 +45,15 @@ merge/cherry-pick/revert), 5 roster missing/malformed.
 
 from __future__ import annotations
 
+import os
 import sys
+import tempfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from lib import plan, staging
+from lib.actor import derive_actor
 from lib.git import arguments, policy, repo, roster, run
 
 _USAGE = "gitw-commit <repo> <branch-prefix> <message-file> [<pathspec>...]"
@@ -91,7 +104,10 @@ def main(argv: list[str]) -> int:
             )
         repo.verify_remote(workspace)
         branch = repo.require_prefixed_branch(workspace.root, prefix, label)
-        payload = _commit(workspace, branch, message_file, pathspecs)
+        payload = _commit(
+            workspace, branch, message_file, pathspecs,
+            derive_actor(os.environ),
+        )
     except repo.RefusalError as error:
         run.die(str(error), plan.EXIT_REFUSED)
     except run.GitError as error:
@@ -106,6 +122,7 @@ def _commit(
     branch: str,
     message_file: Path,
     pathspecs: tuple,
+    actor: str,
 ) -> dict:
     root = workspace.root
     operation = repo.pending_operation(root)
@@ -157,6 +174,9 @@ def _commit(
                 "widen the pathspecs to cover them"
             )
 
+    # Before staging, so a trailer failure leaves the index untouched.
+    message = _with_executed_by(message_file, actor, root)
+
     add_arguments = ["add", "-A"]
     if pathspecs:
         add_arguments += ["--", *list(pathspecs)]
@@ -174,7 +194,15 @@ def _commit(
     files = run.must(["diff", "--cached", "--name-only", "-z"], root)
     file_count = len([path for path in files.split("\0") if path])
 
-    result = run.run(["commit", "--file", str(message_file)], root)
+    handle, trailered_path = tempfile.mkstemp(
+        prefix="gitw-commit-", suffix=".txt"
+    )
+    try:
+        with os.fdopen(handle, "w", encoding="utf-8") as trailered:
+            trailered.write(message + "\n")
+        result = run.run(["commit", "--file", trailered_path], root)
+    finally:
+        os.unlink(trailered_path)
     if result.returncode != 0:
         detail = result.stderr.strip() or result.stdout.strip() or "no output"
         raise run.GitError(f"git commit failed: {detail}")
@@ -188,7 +216,28 @@ def _commit(
         "worktree": str(root),
         "remaining": remaining,
         "clean": not any(remaining.values()),
+        "executed_by": actor,
     }
+
+
+def _with_executed_by(message_file: Path, actor: str, root: Path) -> str:
+    """The message in `message_file` with an `Executed-By: <actor>`
+    trailer appended by git's own trailer machinery: joined to an existing
+    trailer block, or after a blank line when there is none, and not added
+    at all when an Executed-By trailer is already present. --no-divider
+    because a commit message is not a patch: a `---` line in it must not
+    end the message for trailer placement. Reads the file; never writes
+    it."""
+    return run.must(
+        [
+            "interpret-trailers",
+            "--no-divider",
+            "--if-exists", "doNothing",
+            "--trailer", f"Executed-By: {actor}",
+            str(message_file),
+        ],
+        root,
+    )
 
 
 if __name__ == "__main__":
