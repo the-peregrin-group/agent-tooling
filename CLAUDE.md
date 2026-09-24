@@ -44,14 +44,30 @@ the network.
 
 ## Issue tracking & workflow
 
-This project uses this repository's **GitHub Issues** as the single source of
-truth for work tracking. Priority lives on the repository's linked project
-board, not on labels; `ghw-orient` reports the board and its fields.
+**Trial freeze, from 2026-09-24:** work tracking lives in **Beads** (`bd`,
+embedded Dolt under `.beads/`, local to this machine) for the duration of the
+Beads trial. GitHub Issues are frozen: the open issues were imported into
+Beads once, one way, and no GitHub issue is filed, edited, relabeled,
+reprioritized, or closed while the freeze holds. There is no sync in either
+direction. Pinned issue #18 says the same for humans.
 
-**Load the `use-github` skill before filing, labeling, or prioritizing an
-issue, before writing a `TODO` comment, and before opening a PR.** It carries
-the label schema, the board fields, the `TODO(#N)` rule, and the branch/PR
-workflow. Don't improvise these conventions.
+- Loop: `bd prime` at session start, `bd ready` to find work, `bd update <id>
+  --claim` before touching code, `bd create --deps=discovered-from:<id>` for
+  anything you find along the way, `bd close <id>` when done, and close or
+  unclaim everything you hold before the session ends.
+- Imported beads carry the GitHub issue URL as their external reference; a
+  `TODO` comment cites the bead ID (`TODO(agent-tooling-xyz)`), not `#N`.
+- Which `bd` subcommands an agent may run is policy in `.claude/settings.json`
+  (allow, ask, deny), not judgment. A denied call is the policy working; do
+  not look for another spelling of it.
+- Ignore `bd prime` where it contradicts the harness or `use-git`: memory
+  stays in the harness's memory files, and feature branches are pushed and
+  reviewed as usual.
+
+Pull requests are unaffected. **Load the `use-github` skill before opening a
+PR**; its issue-filing and board conventions are suspended for the trial, and a
+PR body names the bead it lands (`Lands agent-tooling-xyz`) instead of
+`Closes #N`.
 
 ## Documentation
 
