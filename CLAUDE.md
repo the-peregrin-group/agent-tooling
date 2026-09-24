@@ -44,24 +44,38 @@ the network.
 
 ## Issue tracking & workflow
 
-**Trial freeze, from 2026-09-24:** work tracking lives in **Beads** (`bd`,
-embedded Dolt under `.beads/`, local to this machine) for the duration of the
-Beads trial. GitHub Issues are frozen: the open issues were imported into
-Beads once, one way, and no GitHub issue is filed, edited, relabeled,
-reprioritized, or closed while the freeze holds. There is no sync in either
-direction. Pinned issue #18 says the same for humans.
+**Trial freeze, from 2026-09-24 until the go/no-go recorded on pinned issue
+#18:** work tracking lives in **Beads** (`bd`). The committed `.beads/` files
+are config only; the database is local to the maintainer's machine. GitHub
+Issues are frozen: the open issues were imported into Beads once, one way,
+and no GitHub issue is filed, edited, relabeled, reprioritized, or closed
+while the freeze holds. There is no sync in either direction. ADR 0001 has
+the reasons.
 
-- Loop: `bd prime` at session start, `bd ready` to find work, `bd update <id>
-  --claim` before touching code, `bd create --deps=discovered-from:<id>` for
-  anything you find along the way, `bd close <id>` when done, and close or
-  unclaim everything you hold before the session ends.
-- Imported beads carry the GitHub issue URL as their external reference; a
+Agents run Beads through `bdw`, the shim in `cli/` that derives the session's
+actor from its environment and execs `bd` with the arguments untouched
+(landing in its own PR). Reads may use either name. Writes go through `bdw`;
+a raw `bd` write prompts by design, and until the shim is installed every
+write prompts.
+
+The loop, every session:
+
+1. `bdw prime` at session start.
+2. `bdw ready` to find work, `bdw show <id>` to read it.
+3. `bdw update <id> --claim` before touching code.
+4. `bdw create --deps=discovered-from:<id> ...` for anything found along the
+   way.
+5. `bdw close <id>` when done.
+6. Land the plane: close or unclaim everything you hold before the session
+   ends.
+
+- Imported beads carry the GitHub issue URL as their external reference. A
   `TODO` comment cites the bead ID (`TODO(agent-tooling-xyz)`), not `#N`.
-- Which `bd` subcommands an agent may run is policy in `.claude/settings.json`
-  (allow, ask, deny), not judgment. A denied call is the policy working; do
-  not look for another spelling of it.
-- Ignore `bd prime` where it contradicts the harness or `use-git`: memory
-  stays in the harness's memory files, and feature branches are pushed and
+- Which subcommands may run is policy in `.claude/settings.json` (allow, ask,
+  deny), not judgment; `cli/repo_policy_test.py` is that file's spec. A
+  denied call is the policy working; do not look for another spelling of it.
+- Ignore `bd prime` where it contradicts Claude Code or `use-git`: memory
+  stays in Claude Code's memory files, and feature branches are pushed and
   reviewed as usual.
 
 Pull requests are unaffected. **Load the `use-github` skill before opening a
