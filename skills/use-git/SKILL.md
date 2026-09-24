@@ -220,7 +220,8 @@ message written to a staged file first. A **local-file sweep guard**
 refuses staged sets touching `settings.local.json` or `.env*`; its
 refusal message is self-documenting (including the one sanctioned
 `.env.example` exception) — fix the gitignore or narrow the pathspec,
-and beyond that it's the user's call.
+and beyond that it's the user's call. The wrapper appends an
+`Executed-By:` trailer derived from the session environment.
 
 ```bash
 gitw-rebase <repo> <branch-prefix> [continue|abort]
