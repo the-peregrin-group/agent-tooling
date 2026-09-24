@@ -72,6 +72,7 @@
 # - github.token    → use GITHUB_TOKEN env var instead
 
 # sync.remote: "git+ssh://git@github.com/the-peregrin-group/agent-tooling.git"
+
 # Trial policy: backups stay on this machine; never push backup data over git.
 backup:
   git-push: false

@@ -55,8 +55,10 @@ the reasons.
 Agents run Beads through `bdw`, the shim in `cli/` that derives the session's
 actor from its environment and execs `bd` with the arguments untouched
 (landing in its own PR). Reads may use either name. Writes go through `bdw`;
-a raw `bd` write prompts by design, and until the shim is installed every
-write prompts.
+a raw `bd` write prompts by design. Until `bdw` is on PATH, run the loop
+below with `bd` and expect a prompt on every write. Put the verb first and
+global flags such as `--json` after it: the command policy denies flag-first
+spellings whose arguments happen to contain a denied word.
 
 The loop, every session:
 
@@ -71,9 +73,11 @@ The loop, every session:
 
 - Imported beads carry the GitHub issue URL as their external reference. A
   `TODO` comment cites the bead ID (`TODO(agent-tooling-xyz)`), not `#N`.
-- Which subcommands may run is policy in `.claude/settings.json` (allow, ask,
-  deny), not judgment; `cli/repo_policy_test.py` is that file's spec. A
-  denied call is the policy working; do not look for another spelling of it.
+- Which subcommands may run is the command policy in `.claude/settings.json`
+  (allow, ask, deny), not judgment; `cli/repo_policy_test.py` is that file's
+  spec. A denied call is the policy working; do not look for another
+  spelling of it. The policy is prefix rules, so it is not safe in auto mode
+  until the parsed-command deny hook lands.
 - Ignore `bd prime` where it contradicts Claude Code or `use-git`: memory
   stays in Claude Code's memory files, and feature branches are pushed and
   reviewed as usual.

@@ -137,7 +137,8 @@ _Avoid_: agent (alone; an agent is a running session, this is its definition)
 - Every mutating `gitw-*` **Verb** takes exactly one **Roster label** and one
   **Branch prefix**, and reports through the **Exit-code contract**.
 - A **Shim** derives one **Actor** per invocation and records it on the
-  **Tracker**; `gitw-commit` records the same **Actor** on every commit.
+  **Tracker**; `gitw-commit` records the same **Actor** on every commit
+  (both land with the shim PR).
 - A **Source repo** declares one or more **Cohorts**; each **Cohort**
   installs into exactly one **Target** and leaves a **Receipt** there.
 - A **Tracker** holds many **Beads**; a **Bead** has exactly one **Bead ID**,

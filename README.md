@@ -102,7 +102,8 @@ token: `gh auth refresh -s project`.
     the verbs each repo uses; `skills/use-git/SKILL.md` ("Allowlisting a
     Consumer") shows the rule shape. This repo also ships its own project
     `.claude/settings.json`, the command policy for its tracker (see below);
-    it applies only to sessions in this checkout.
+    it applies only to sessions launched from a checkout whose checked-out
+    branch contains it.
 7. Check it all: `tooling-install diff <checkout>` exits 0, and
    `gitw-orient <label>` reports the repo.
 

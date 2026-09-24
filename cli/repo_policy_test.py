@@ -11,9 +11,13 @@ regenerate the JSON from them, and let the test confirm the two agree.
 
 Rule grammar (Claude Code permissions): deny beats ask beats allow; `*`
 matches at the start, middle, or end of a pattern; a single trailing
-space-star also matches the bare command; deny and ask rules match past a
-leading environment assignment and inside compound commands; a bare-name
-rule never matches the same program invoked by path.
+space-star also matches the bare command (docs; not yet observed from a
+session that provably enforces this file, hence the bare rows for the verbs
+that act with no arguments); deny and ask rules match past a leading
+environment assignment and inside compound commands; `command` is stripped
+before matching; a bare-name rule never matches the same program invoked by
+path. The project file only applies to sessions launched from a checkout
+whose checked-out branch contains it.
 """
 
 import json
@@ -22,7 +26,12 @@ from pathlib import Path
 
 POLICY = Path(__file__).resolve().parents[1] / ".claude" / "settings.json"
 
-BINARIES = ("bd", "bdw")
+# The names the binary answers to: Homebrew links both `bd` and `beads`
+# beside each other, and `bdw` is this repo's shim. Reads and reversible
+# writes are granted on `bd` and `bdw` only; `beads` is denied and asked for
+# so that it cannot be the unguarded spelling in auto mode.
+GRANTED_BINARIES = ("bd", "bdw")
+GUARDED_BINARIES = ("bd", "bdw", "beads")
 
 # Never run by an agent. Each verb gets two spellings per binary: the
 # subcommand-first form (which also matches the bare call) and the
@@ -47,6 +56,7 @@ DENY_VERBS = (
     "init",
     "jira",
     "linear",
+    "mail",
     "metrics on",
     "migrate",
     "migrate-personal",
@@ -56,8 +66,10 @@ DENY_VERBS = (
     "remember",
     "rename",
     "rename-prefix",
+    "repo",
     "serve",
     "setup",
+    "ship",
     "sql",
     "sync",
     "upgrade",
@@ -66,20 +78,37 @@ DENY_VERBS = (
 )
 DENY_SHAPES = ("Bash({b} {v} *)", "Bash({b} -* {v}*)")
 
+# Verbs that act with no arguments at all, given an exact bare row as well,
+# so that a deny does not depend on the space-star-matches-bare rule.
+BARE_DENY_VERBS = (
+    "compact",
+    "flatten",
+    "gc",
+    "init",
+    "migrate",
+    "prune",
+    "purge",
+    "sync",
+    "upgrade",
+)
+BARE_DENY_SHAPE = "Bash({b} {v})"
+
 # Invocation by install path, which a bare-name rule cannot see. Kept to the
 # install locations so reading the shim's source (cli/bdw) is not denied.
 PATH_DENY_ROWS = (
     "Bash(*/bin/bd)",
     "Bash(*/bin/bd *)",
+    "Bash(*/bin/beads)",
+    "Bash(*/bin/beads *)",
     "Bash(*libexec/agent-tooling/bdw)",
     "Bash(*libexec/agent-tooling/bdw *)",
 )
 
 # Shell wrappers that would hide a verb from prefix matching. A prompt on
 # these is cheaper than one deny row per verb per wrapper, and it holds in
-# auto mode, where only ask and deny rows do.
+# auto mode, where only ask and deny rows do. The list is enumerative and
+# cannot be complete; the parsed-command deny hook is the real fix.
 WRAPPER_ASK_ROWS = (
-    "Bash(command *)",
     "Bash(exec *)",
     "Bash(env *)",
     "Bash(sh -c *)",
@@ -89,10 +118,10 @@ WRAPPER_ASK_ROWS = (
     "Bash(eval *)",
 )
 
-# Human gate on top of an allow, for both binaries: flags that delete,
-# override another actor's claim, write files, or send data off the machine,
-# and configuration or backup-destination changes.
-ASK_BOTH = (
+# Human gate on top of an allow: flags that delete, override another actor's
+# claim, write files, or send data off the machine, and configuration or
+# backup-destination changes.
+ASK_FLAGS = (
     "Bash({b} update *--force*)",
     "Bash({b} update *--no-history*)",
     "Bash({b} close *--force*)",
@@ -128,7 +157,8 @@ ASK_BOTH = (
     "Bash({b} restore *)",
 )
 
-# Reads, for both binaries. A read needs no actor, so either name may run it.
+# Reads, granted on bd and bdw. A read needs no actor, so either name may
+# run it. `metrics off` is the one write here: it only turns telemetry off.
 ALLOW_READS = (
     "Bash({b})",
     "Bash({b} --help)",
@@ -187,7 +217,7 @@ ALLOW_READS = (
 )
 
 # Reversible writes. Allowed through the shim, which carries the actor, and
-# asked for on the bare binary, so a raw write prompts even in auto mode.
+# asked for on the bare names, so a raw write prompts even in auto mode.
 WRITE_VERBS = (
     "create *",
     "q *",
@@ -216,29 +246,34 @@ WRITE_VERBS = (
     "todo *",
 )
 # `ready --claim` is a write hiding under the `ready *` read.
-ASK_BD_ONLY_EXTRA = ("Bash(bd ready *--claim*)",)
+RAW_WRITE_EXTRA = ("Bash({b} ready *--claim*)",)
+RAW_BINARIES = tuple(b for b in GUARDED_BINARIES if b != "bdw")
 
 
 def expected_deny() -> set:
     rows = set(PATH_DENY_ROWS)
-    for binary in BINARIES:
+    for binary in GUARDED_BINARIES:
         for verb in DENY_VERBS:
             for shape in DENY_SHAPES:
                 rows.add(shape.format(b=binary, v=verb))
+        for verb in BARE_DENY_VERBS:
+            rows.add(BARE_DENY_SHAPE.format(b=binary, v=verb))
     return rows
 
 
 def expected_ask() -> set:
-    rows = set(WRAPPER_ASK_ROWS) | set(ASK_BD_ONLY_EXTRA)
-    for binary in BINARIES:
-        rows.update(row.format(b=binary) for row in ASK_BOTH)
-    rows.update("Bash(bd {v})".format(v=verb) for verb in WRITE_VERBS)
+    rows = set(WRAPPER_ASK_ROWS)
+    for binary in GUARDED_BINARIES:
+        rows.update(row.format(b=binary) for row in ASK_FLAGS)
+    for binary in RAW_BINARIES:
+        rows.update("Bash({b} {v})".format(b=binary, v=verb) for verb in WRITE_VERBS)
+        rows.update(row.format(b=binary) for row in RAW_WRITE_EXTRA)
     return rows
 
 
 def expected_allow() -> set:
     rows = set()
-    for binary in BINARIES:
+    for binary in GRANTED_BINARIES:
         rows.update(row.format(b=binary) for row in ALLOW_READS)
     rows.update("Bash(bdw {v})".format(v=verb) for verb in WRITE_VERBS)
     return rows
@@ -280,27 +315,43 @@ class RepoPolicyTest(unittest.TestCase):
         for name, rows in self.lists.items():
             self.assertEqual(rows, sorted(rows), name)
 
-    def test_allow_rows_start_with_a_bare_binary_and_a_literal_verb(self) -> None:
+    def test_allow_rows_start_with_a_granted_binary_and_a_literal_verb(self) -> None:
         for row in self.lists["allow"]:
             self.assertTrue(row.startswith("Bash("), row)
             body = row[len("Bash("):-1]
             tokens = body.split(" ")
-            self.assertIn(tokens[0], BINARIES, row)
+            self.assertIn(tokens[0], GRANTED_BINARIES, row)
             if len(tokens) > 1:
                 self.assertNotIn("*", tokens[1], row)
 
-    def test_every_forgetting_verb_is_denied_for_both_binaries(self) -> None:
+    def test_the_beads_name_is_never_granted(self) -> None:
+        for row in self.lists["allow"]:
+            self.assertFalse(row.startswith("Bash(beads"), row)
+
+    def test_every_forgetting_verb_is_denied_for_every_guarded_binary(self) -> None:
         deny = set(self.lists["deny"])
-        for binary in BINARIES:
+        for binary in GUARDED_BINARIES:
             for verb in ("admin", "prune", "gc", "compact"):
                 self.assertIn(f"Bash({binary} {verb} *)", deny)
                 self.assertIn(f"Bash({binary} -* {verb}*)", deny)
 
-    def test_nothing_that_leaves_the_machine_is_allowed(self) -> None:
+    def test_nothing_that_leaves_the_machine_is_anything_but_denied(self) -> None:
+        deny = set(self.lists["deny"])
+        granted = set(self.lists["allow"]) | set(self.lists["ask"])
+        for binary in GUARDED_BINARIES:
+            for verb in ("github", "sync", "dolt", "federation", "mail", "ship", "metrics on"):
+                self.assertIn(f"Bash({binary} {verb} *)", deny)
+                self.assertIn(f"Bash({binary} -* {verb}*)", deny)
+                self.assertNotIn(f"Bash({binary} {verb} *)", granted)
+
+    def test_every_raw_write_verb_is_asked_for_and_only_the_shim_is_allowed(self) -> None:
+        ask = set(self.lists["ask"])
         allow = set(self.lists["allow"])
-        for binary in BINARIES:
-            for verb in ("github", "sync", "dolt", "federation", "metrics on"):
-                self.assertNotIn(f"Bash({binary} {verb} *)", allow)
+        for verb in WRITE_VERBS:
+            for binary in RAW_BINARIES:
+                self.assertIn(f"Bash({binary} {verb})", ask)
+                self.assertNotIn(f"Bash({binary} {verb})", allow)
+            self.assertIn(f"Bash(bdw {verb})", allow)
 
 
 if __name__ == "__main__":
