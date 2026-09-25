@@ -9,11 +9,11 @@ per-repo tracker. Every term below is implicitly an agent-tooling term.
 ### Wrappers
 
 **Wrapper**:
-A small executable that performs one kind of git, forge, or tracker
-operation under enforced policy, so that permission rules can grant it by
-literal command prefix instead of granting the raw tool. `bdw` is the Beads
-wrapper: it passes its arguments through to `bd` unchanged except the actor
-flag, which it refuses.
+A small executable that stands between an agent and one raw tool (git, a
+forge CLI, or the tracker) and enforces policy on the call, so that
+permission rules can grant it by literal command prefix instead of granting
+the raw tool. `bdw` is the Beads wrapper: it passes its arguments through to
+`bd` unchanged except bd's own `--actor` flag, which it refuses.
 _Avoid_: script, helper, alias, shim
 
 **Verb**:
@@ -128,13 +128,12 @@ _Avoid_: agent (alone; an agent is a running session, this is its definition)
 
 ## Relationships
 
-- A **Wrapper family** contains one or more **Verbs**; the Beads **Wrapper**
-  `bdw` belongs to no family and has exactly one raw tool behind it.
+- A **Wrapper family** contains one or more **Verbs**; `bdw` is a **Wrapper**
+  in no family.
 - Every mutating `gitw-*` **Verb** takes exactly one **Roster label** and one
   **Branch prefix**, and reports through the **Exit-code contract**.
-- The Beads **Wrapper** derives one **Actor** per invocation and records it
-  on the **Tracker**; `gitw-commit` records the same **Actor** on every
-  commit.
+- `bdw` derives one **Actor** per invocation and records it on the
+  **Tracker**; `gitw-commit` records the same **Actor** on every commit.
 - A **Source repo** declares one or more **Cohorts**; each **Cohort**
   installs into exactly one **Target** and leaves a **Receipt** there.
 - A **Tracker** holds many **Beads**; a **Bead** has exactly one **Bead ID**,
@@ -151,7 +150,7 @@ _Avoid_: agent (alone; an agent is a running session, this is its definition)
 > **Bead** with a **Discovered-from** link to `w7p.2`. Its **Bead ID** is what
 > the commit and the PR body cite."
 > **Dev:** "And who does the tracker say did it?"
-> **Maintainer:** "The **Actor** the Beads **Wrapper** derived for that session, the
+> **Maintainer:** "The **Actor** `bdw` derived for that session, the
 > job-derived one if it was a background job. The same **Actor** is on the
 > commit's `Executed-By` trailer."
 > **Dev:** "Can the agent prune closed beads to keep things tidy?"
@@ -161,9 +160,8 @@ _Avoid_: agent (alone; an agent is a running session, this is its definition)
 ## Flagged ambiguities
 
 - "shim" was used for `bdw` beside "wrapper" for the `gitw-*`/`ghw-*`/`fjw-*`
-  verbs, on the strength of `bdw` passing its arguments through; resolved:
-  one term, **Wrapper**, since `bdw` already inspects its arguments and
-  phase two adds a verb, so the distinction earned no second term.
+  verbs; resolved: one term, **Wrapper**, since `bdw` inspects its arguments
+  too and pass-through distinguished nothing.
 - "allowlist" was used for both the wrappers' literal permission rows and the
   tracker's policy; resolved: **Command policy** for the tracker, and
   "permission rows" for what a consumer repo grants a verb.

@@ -9,7 +9,7 @@ Shared tooling for Claude Code agents:
   the session actor to every commit.
 - **The Beads wrapper** (`cli/bdw`): runs the real `bd` with `BD_ACTOR` and
   `BEADS_ACTOR` set to the session actor, and passes the arguments through
-  unchanged except bd's own actor flag, which it refuses. See
+  unchanged except bd's own `--actor` flag, which it refuses. See
   [ADR 0002](docs/adr/0002-beads-identity.md).
 - **Six skills** (`skills/`): `use-git`, `use-github`, `use-forgejo`,
   `setup-github-issues`, `triage-issues`, `refine-state-doc`.

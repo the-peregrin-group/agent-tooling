@@ -53,8 +53,9 @@ while the freeze holds. There is no sync in either direction. ADR 0001 has
 the reasons.
 
 Agents run Beads through `bdw`, the Beads wrapper in `cli/`, which derives
-the session's actor from its environment and execs `bd` with the arguments
-untouched, refusing only bd's own actor flag. Reads may use either name.
+the session's actor from its environment, refuses bd's own `--actor` flag,
+and otherwise execs `bd` with the arguments untouched. Reads may use either
+name.
 Writes go through `bdw`; a raw `bd` write prompts by design. Put the verb
 first and global flags such as `--json` after it: the command policy denies
 flag-first spellings whose arguments happen to contain a denied word.

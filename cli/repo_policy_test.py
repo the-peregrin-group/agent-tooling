@@ -94,7 +94,7 @@ BARE_DENY_VERBS = (
 BARE_DENY_SHAPE = "Bash({b} {v})"
 
 # bd's own --actor flag would let a caller name the actor, defeating the
-# wrapper's rule that identity comes from the environment. Denied in first
+# bdw's rule that identity comes from the environment. Denied in first
 # position and after anything.
 ACTOR_FLAG_DENY_SHAPES = ("Bash({b} --actor*)", "Bash({b} * --actor*)")
 
@@ -109,11 +109,11 @@ PATH_DENY_ROWS = (
     "Bash(*libexec/agent-tooling/bdw *)",
 )
 
-# Shell wrappers that would hide a verb from prefix matching. A prompt on
-# these is cheaper than one deny row per verb per wrapper, and it holds in
+# Shell indirections that would hide a verb from prefix matching. A prompt on
+# these is cheaper than one deny row per verb per indirection, and it holds in
 # auto mode, where only ask and deny rows do. The list is enumerative and
 # cannot be complete; the parsed-command deny hook is the real fix.
-WRAPPER_ASK_ROWS = (
+INDIRECTION_ASK_ROWS = (
     "Bash(exec *)",
     "Bash(env *)",
     "Bash(sh -c *)",
@@ -221,7 +221,7 @@ ALLOW_READS = (
     "Bash({b} metrics example *)",
 )
 
-# Reversible writes. Allowed through the wrapper, which carries the actor, and
+# Reversible writes. Allowed through bdw, which carries the actor, and
 # asked for on the bare names, so a raw write prompts even in auto mode.
 WRITE_VERBS = (
     "create *",
@@ -269,7 +269,7 @@ def expected_deny() -> set:
 
 
 def expected_ask() -> set:
-    rows = set(WRAPPER_ASK_ROWS)
+    rows = set(INDIRECTION_ASK_ROWS)
     for binary in GUARDED_BINARIES:
         rows.update(row.format(b=binary) for row in ASK_FLAGS)
     for binary in RAW_BINARIES:
