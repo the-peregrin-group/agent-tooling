@@ -81,6 +81,7 @@ The loop, every session:
 - Ignore `bd prime` where it contradicts Claude Code or `use-git`: memory
   stays in Claude Code's memory files, and feature branches are pushed and
   reviewed as usual.
+- Initializing Beads in another repo: follow `docs/beads-init.md`.
 
 Pull requests are unaffected. **Load the `use-github` skill before opening a
 PR**; its issue-filing and board conventions are suspended for the trial, and a
