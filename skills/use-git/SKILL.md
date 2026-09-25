@@ -329,19 +329,18 @@ prefixes; the trailing slash on the prefix is the token boundary:
 "Bash(gitw-orient rocket-sled)",
 "Bash(gitw-branch-start rocket-sled fix/ *)",
 "Bash(gitw-commit rocket-sled fix/ *)",
-"Bash(gitw-rebase rocket-sled fix/)",
 "Bash(gitw-rebase rocket-sled fix/ *)",
 "Bash(gitw-push rocket-sled fix/)"
 ```
 
-Exact and starred forms are distinct in the rule grammar, and a
-space-star rule requires at least a trailing space after its last
-literal token — it never matches the bare call. So fixed-arity calls
-(`gitw-push`'s bare form; `gitw-rebase`'s bare form) carry the starless
-exact rule, and starred forms remain for calls with trailing variable
-arguments (`gitw-rebase`'s `continue`/`abort` modes, message files,
-pathspecs). `gitw-push`'s named-target form is granted as its own exact
-row naming the target (`"Bash(gitw-push rocket-sled reconcile/ current)"`),
+A rule ending in a space and a star, with no other star, also matches
+the bare call (Wildcard patterns, code.claude.com/docs/en/permissions),
+so one starred row covers `gitw-rebase`'s bare form and its
+`continue`/`abort` modes, and a starless twin beside it is redundant.
+`gitw-push`'s bare form keeps an exact row because a star there would
+also grant its named-target form for every name. That named-target form
+is granted as its own exact row naming the target
+(`"Bash(gitw-push rocket-sled reconcile/ current)"`),
 never as a star: the set of refs a consumer may move is a deliberate
 enumeration.
 
