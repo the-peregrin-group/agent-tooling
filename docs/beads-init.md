@@ -20,10 +20,10 @@ procedure: agents are denied `init` and every `dolt` subcommand, and
 - [ ] Undo init's commit, before any `config.yaml` edit, because a reset
   after the edits discards them. Init commits `.beads/README.md`, the three
   config files, and root `.gitignore` patterns (five on 1.3.0) straight to
-  the current branch. Reset that commit away, mixed or soft, never hard,
-  and land only the three config files by PR; drop the README and every
-  root pattern init added (`.beads/.gitignore` covers what lives under
-  `.beads/`; the gate lock gets its own root line, next item).
+  the current branch. Reset that commit away, mixed or soft, and land only
+  the three config files by PR; drop the README and every root pattern
+  init added (`.beads/.gitignore` covers what lives under `.beads/`; the
+  gate lock gets its own root line, next item).
 
   ```sh
   git reset --mixed HEAD~1
@@ -49,7 +49,7 @@ procedure: agents are denied `init` and every `dolt` subcommand, and
   bd dolt remote remove origin
   ```
 
-  Run here by the maintainer on 2026-09-25 (the epic's session-one note
+  Run here by the maintainer in the trial's first session (the epic's note
   records it); agents are denied every `dolt` subcommand, so it was not
   checked against `bd dolt --help`. Untested: `bd config --help` lists
   `dolt.local-only`, a `config.yaml` key that skips wiring the remote at
