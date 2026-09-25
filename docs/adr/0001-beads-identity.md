@@ -19,10 +19,10 @@ the message comes from a staged file and the wrapper performs the commit.
 
 **A shim, `bdw`, derives the actor on every call.** `cli/bdw` computes the
 actor from its own environment, sets it in the child environment, and
-`execve`s the first `bd` on PATH with the arguments untouched. It does no
-parsing and captures no output, and `bd`'s exit code is the shim's. When no
-`bd` is on PATH, or the only one found is the shim itself, it exits 3 (the
-wrappers' not-found code).
+`execve`s the first `bd` on PATH. Apart from the `--actor` refusal below, it
+passes the arguments through untouched. It captures no output, and `bd`'s
+exit code is the shim's. When no `bd` is on PATH, or the only one found is the
+shim itself, it exits 3 (the wrappers' not-found code).
 
 **The shim is `bdw`, not a `bd` placed earlier on PATH.** Permission rules
 match literal command strings, so `bdw ...` and `bd ...` are two distinct,
@@ -46,6 +46,20 @@ caller-supplied value of either variable is replaced. Beads 1.3.0 honours
 `BD_ACTOR`: issues created under it show it in `created_by`. Its help text
 names only `BEADS_ACTOR`. Setting both covers either reading.
 
+`bd`'s own `--actor` flag takes precedence over both variables, so two
+separate guards close that route:
+
+- **The shim refuses `--actor`.** Any argument equal to `--actor`, or starting
+  with `--actor=`, in any position (including after `--`, since `bd` still
+  sees it there), gets exit 4 before the exec. This is an equality test on
+  each argument, not argument parsing, and every other argument still passes
+  through untouched. The shim needs its own guard because it installs
+  machine-wide and will run in repos that have no command policy yet.
+- **The repo command policy in `.claude/settings.json`, added by PR #19, also
+  denies the flag in any position.**
+
+Both guards exist on purpose, and neither is enough alone.
+
 **Beads hooks stay off, and the trailer moves into `gitw-commit`.** The only
 Beads hook worth having is the commit trailer, and a hook that rewrites the
 message would compete with `gitw-commit` for ownership of it. So
@@ -56,14 +70,23 @@ trailer-block placement to git. It also applies the shim's override rule
 `Executed-By:` trailer is replaced by the derived actor. git's `replace`
 deletes only one existing trailer, so a message carrying several is refused
 (exit 4) rather than committed with a caller value beside the derived one.
-Every commit ends up with exactly one `Executed-By:` trailer. It writes the
-result to a private temporary file, leaves the caller's staged message file
-untouched, and reports the actor as `executed_by` in its JSON.
+Every commit ends up with exactly one `Executed-By:` trailer. The wrapper
+copies the message to a private temporary file, adding a final newline if
+it lacks one, because `interpret-trailers` would otherwise glue the trailer
+onto the last line. It adds the trailer to that copy and commits from it,
+so the caller's staged message file is never modified. The JSON output
+reports the actor as `executed_by`.
 
 ## Consequences
 
-- Agents call `bdw`, never `bd`. Permission rules should allow `bdw` and keep
-  bare `bd` behind ask or deny.
+- Agents call `bdw` for anything that writes. The permission policy treats
+  the two names differently by verb class:
+  - reads are allowed on either name;
+  - reversible writes are allowed on `bdw` and asked for on bare `bd`;
+  - destructive and outward verbs are denied on every name.
+
+  `.claude/settings.json` and `cli/repo_policy_test.py` hold the rules; this
+  ADR does not repeat them.
 - Every `gitw-commit` commit names its session, and a caller can't set that
   name through the message: a caller's `Executed-By:` is replaced, and several
   are refused. The trailer is still not authenticated. It is only as reliable
