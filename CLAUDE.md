@@ -44,14 +44,48 @@ the network.
 
 ## Issue tracking & workflow
 
-This project uses this repository's **GitHub Issues** as the single source of
-truth for work tracking. Priority lives on the repository's linked project
-board, not on labels; `ghw-orient` reports the board and its fields.
+**Trial freeze, from 2026-09-24 until the go/no-go recorded on pinned issue
+#18:** work tracking lives in **Beads** (`bd`). The committed `.beads/` files
+are config only; the database is local to the maintainer's machine. GitHub
+Issues are frozen: the open issues were imported into Beads once, one way,
+and no GitHub issue is filed, edited, relabeled, reprioritized, or closed
+while the freeze holds. There is no sync in either direction. ADR 0001 has
+the reasons.
 
-**Load the `use-github` skill before filing, labeling, or prioritizing an
-issue, before writing a `TODO` comment, and before opening a PR.** It carries
-the label schema, the board fields, the `TODO(#N)` rule, and the branch/PR
-workflow. Don't improvise these conventions.
+Agents run Beads through `bdw`, the shim in `cli/` that derives the session's
+actor from its environment and execs `bd` with the arguments untouched
+(landing in its own PR). Reads may use either name. Writes go through `bdw`;
+a raw `bd` write prompts by design. Until `bdw` is on PATH, run the loop
+below with `bd` and expect a prompt on every write. Put the verb first and
+global flags such as `--json` after it: the command policy denies flag-first
+spellings whose arguments happen to contain a denied word.
+
+The loop, every session:
+
+1. `bdw prime` at session start.
+2. `bdw ready` to find work, `bdw show <id>` to read it.
+3. `bdw update <id> --claim` before touching code.
+4. `bdw create --deps=discovered-from:<id> ...` for anything found along the
+   way.
+5. `bdw close <id>` when done.
+6. Land the plane: close or unclaim everything you hold before the session
+   ends.
+
+- Imported beads carry the GitHub issue URL as their external reference. A
+  `TODO` comment cites the bead ID (`TODO(agent-tooling-xyz)`), not `#N`.
+- Which subcommands may run is the command policy in `.claude/settings.json`
+  (allow, ask, deny), not judgment; `cli/repo_policy_test.py` is that file's
+  spec. A denied call is the policy working; do not look for another
+  spelling of it. The policy is prefix rules, so it is not safe in auto mode
+  until the parsed-command deny hook lands.
+- Ignore `bd prime` where it contradicts Claude Code or `use-git`: memory
+  stays in Claude Code's memory files, and feature branches are pushed and
+  reviewed as usual.
+
+Pull requests are unaffected. **Load the `use-github` skill before opening a
+PR**; its issue-filing and board conventions are suspended for the trial, and a
+PR body names the bead it lands (`Lands agent-tooling-xyz`) instead of
+`Closes #N`.
 
 ## Documentation
 

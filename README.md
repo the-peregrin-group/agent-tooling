@@ -100,7 +100,10 @@ token: `gh auth refresh -s project`.
     path, so agents must be able to write there. Create it with
     `mkdir -p /tmp/claude` (and again after a reboot clears `/tmp`). Then grant
     the verbs each repo uses; `skills/use-git/SKILL.md` ("Allowlisting a
-    Consumer") shows the rule shape.
+    Consumer") shows the rule shape. This repo also ships its own project
+    `.claude/settings.json`, the command policy for its tracker (see below);
+    it applies only to sessions launched from a checkout whose checked-out
+    branch contains it.
 7. Check it all: `tooling-install diff <checkout>` exits 0, and
    `gitw-orient <label>` reports the repo.
 
@@ -125,6 +128,12 @@ create it if it is missing, so `/tmp/claude/` must be creatable and writable
 by you; the rest use a temporary directory.
 
 `CONTEXT.md` is the vocabulary. `docs/adr/` holds the design decisions.
+
+Work on this repo is tracked in Beads (`bd` 1.3.0) during a trial, with
+GitHub Issues frozen; `CLAUDE.md` has the rules and ADR 0001 the reasons.
+You need `bd` to contribute, not to use the tooling. A fresh clone gets the
+`.beads/` config but no issue data: the database is local to the
+maintainer's machine, and nothing in it syncs anywhere.
 
 ## Provenance
 
