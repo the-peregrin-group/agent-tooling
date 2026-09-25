@@ -378,6 +378,11 @@ class GitwCommitExecutedByTest(_CommitFixtureTest):
         ).stdout
         return [line for line in output.splitlines() if line]
 
+    def head_subject(self) -> str:
+        return gitw_test_support.git(
+            self.clone, "log", "-1", "--format=%s"
+        ).stdout.rstrip("\n")
+
     def test_job_dir_actor_is_the_trailer(self):
         (self.clone / "new.txt").write_text("new\n")
         payload = self.commit_with_environ(
@@ -459,11 +464,6 @@ class GitwCommitExecutedByTest(_CommitFixtureTest):
             self.clone, "diff", "--cached", "--name-only"
         ).stdout
         self.assertEqual(staged, "")
-
-    def head_subject(self) -> str:
-        return gitw_test_support.git(
-            self.clone, "log", "-1", "--format=%s"
-        ).stdout.rstrip("\n")
 
     def test_message_without_final_newline_still_gets_a_trailer(self):
         # interpret-trailers glues a trailer onto an unterminated last

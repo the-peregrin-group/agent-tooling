@@ -38,7 +38,7 @@ result would not be a single trustworthy trailer). The message is copied,
 with a guaranteed final newline, to a private temporary file; the trailer
 is added there and the commit is made from it, so the staged message file
 is never modified. The JSON output reports the actor as `executed_by`. See
-docs/adr/0001-beads-identity.md.
+docs/adr/0002-beads-identity.md.
 
 Exit codes: 0 success, 1 unclassified git failure, 2 usage error
 (including an unusable or empty message file), 3 label not in the roster,

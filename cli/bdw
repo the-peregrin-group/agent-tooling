@@ -32,7 +32,7 @@ on stderr. 4 when an argument is `--actor` or `--actor=...`, with
 stderr. 1 when bd is found but the exec fails (a broken interpreter line,
 say).
 
-Design record: docs/adr/0001-beads-identity.md.
+Design record: docs/adr/0002-beads-identity.md.
 """
 
 from __future__ import annotations

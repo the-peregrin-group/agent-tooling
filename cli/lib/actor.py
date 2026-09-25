@@ -22,7 +22,7 @@ reads the process environment itself, which keeps it testable and makes
 every caller's source of identity explicit.
 
 Consumers: `bdw` (the Beads shim) and `gitw-commit` (the `Executed-By:`
-trailer). See docs/adr/0001-beads-identity.md.
+trailer). See docs/adr/0002-beads-identity.md.
 """
 
 from __future__ import annotations
