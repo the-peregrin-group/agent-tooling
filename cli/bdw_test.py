@@ -1,10 +1,10 @@
-"""Tests for the bdw executable (the Beads shim).
+"""Tests for the bdw executable (the Beads wrapper).
 
 Each test builds a throwaway directory holding a fake `bd` shell script that
 prints BD_ACTOR, BEADS_ACTOR, and then its arguments one per line, and runs
 the real `cli/bdw` as a subprocess with a fully controlled environment whose
 PATH is only that directory -- so no test depends on, or reaches, a real
-`bd` or the developer's environment. The shim's shebang pins
+`bd` or the developer's environment. bdw's shebang pins
 /usr/bin/python3 and the fake bd's pins /bin/sh, both by absolute path, so
 PATH needs nothing else.
 

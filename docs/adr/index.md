@@ -34,5 +34,5 @@ lines, only for alternatives that took real reasoning to rule out.
 
 - [0001](0001-adopt-beads-for-the-tracker-trial.md): Adopt Beads as the sole
   work tracker for a local-only trial
-- [0002](0002-beads-identity.md): Beads identity: the bdw shim and the
+- [0002](0002-beads-identity.md): Beads identity: the bdw wrapper and the
   Executed-By trailer

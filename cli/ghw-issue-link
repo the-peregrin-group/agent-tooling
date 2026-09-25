@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """ghw-issue-link <repo> <add-sub|remove-sub|add-blocked-by|remove-blocked-by> <issue#> <other-issue#> -- link two issues.
 
-A thin validating shim over `gh issue edit`'s native sub-issue and dependency
+A thin validating wrapper over `gh issue edit`'s native sub-issue and dependency
 flags, which need gh >= 2.94.0; the version floor is checked at runtime and
 failing it is a loud, self-explaining error rather than gh's "unknown flag".
 

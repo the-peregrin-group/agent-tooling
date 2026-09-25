@@ -21,7 +21,7 @@ The caller passes the mapping (normally `os.environ`); this module never
 reads the process environment itself, which keeps it testable and makes
 every caller's source of identity explicit.
 
-Consumers: `bdw` (the Beads shim) and `gitw-commit` (the `Executed-By:`
+Consumers: `bdw` (the Beads wrapper) and `gitw-commit` (the `Executed-By:`
 trailer). See docs/adr/0002-beads-identity.md.
 """
 
