@@ -93,9 +93,12 @@ class _PushFixtureTest(unittest.TestCase):
         entries = {"proj": self.entry} if entries is None else entries
         with mock.patch.object(_MODULE.roster, "load", return_value=entries), \
                 gitw_test_support.chdir(cwd or self.clone), \
-                contextlib.redirect_stdout(io.StringIO()) as stdout:
+                contextlib.redirect_stdout(io.StringIO()) as stdout, \
+                contextlib.redirect_stderr(io.StringIO()) as stderr:
             code = _MODULE.main(list(arguments))
         self.assertEqual(code, 0)
+        # git's relayed push output, for tests that assert on it.
+        self.last_stderr = stderr.getvalue()
         return json.loads(stdout.getvalue())
 
     def push_expecting_exit(self, code: int, *arguments: str,
@@ -228,6 +231,106 @@ class GitwPushBehaviorTest(_PushFixtureTest):
             4, "proj", "fix/", cwd=elsewhere, entries={"proj": entry}
         )
         self.assertIn("worktree of", stderr)
+
+
+class GitwPushHookTest(_PushFixtureTest):
+    """A local pre-push hook: its output reaches the caller whether it
+    passes or refuses, and a refusal is exit 4, never the retryable 6."""
+
+    def install_hook(self, body: str) -> None:
+        hook = self.clone / ".git" / "hooks" / "pre-push"
+        hook.write_text("#!/bin/sh\n" + body)
+        hook.chmod(0o755)
+
+    def test_hook_refusal_is_exit_4_with_the_hook_output_verbatim(self):
+        self.install_hook(
+            'echo "pre-push: refused: work.txt line 1 names a secret"\n'
+            'echo "pre-push: refused: work.txt line 3 names a path" >&2\n'
+            "exit 1\n"
+        )
+        stderr = self.push_expecting_exit(4, "proj", "fix/")
+        self.assertIn(
+            "pre-push: refused: work.txt line 1 names a secret\n", stderr
+        )
+        self.assertIn(
+            "pre-push: refused: work.txt line 3 names a path\n", stderr
+        )
+        self.assertIn("refused by the local pre-push hook (exit 1)", stderr)
+        self.assertIsNone(self.remote_tip("fix/topic"))
+
+    def test_hook_refusal_keeps_the_hook_exit_code(self):
+        self.install_hook('echo "nope"\nexit 7\n')
+        stderr = self.push_expecting_exit(4, "proj", "fix/", "current")
+        self.assertIn("pre-push hook (exit 7)", stderr)
+        self.assertIsNone(self.remote_tip("fix/current"))
+
+    def test_passing_hook_output_reaches_the_caller(self):
+        self.install_hook(
+            'echo "pre-push: fix/topic tree clean, messages clean"\n'
+            'echo "pre-push: warning: large file" >&2\n'
+            "exit 0\n"
+        )
+        payload = self.push("proj", "fix/")
+        self.assertEqual(self.remote_tip("fix/topic"), payload["commit"])
+        self.assertIn(
+            "pre-push: fix/topic tree clean, messages clean\n",
+            self.last_stderr,
+        )
+        self.assertIn("pre-push: warning: large file\n", self.last_stderr)
+
+    def test_lease_failure_with_a_passing_hook_is_still_the_lease(self):
+        self.install_hook("exit 0\n")
+        self.push("proj", "fix/")
+        gitw_test_support.git(self.seed, "fetch", "origin")
+        gitw_test_support.git(self.seed, "switch", "fix/topic")
+        gitw_test_support.commit_on(
+            self.seed, "their.txt", "t\n", "their work"
+        )
+        gitw_test_support.git(self.seed, "push", "origin", "fix/topic")
+        gitw_test_support.commit_on(self.clone, "mine.txt", "m\n", "my work")
+        stderr = self.push_expecting_exit(4, "proj", "fix/")
+        self.assertIn("rejected by the lease", stderr)
+
+    def test_unreachable_remote_is_still_network(self):
+        # Loopback port 9 (discard) with nothing listening: connection
+        # refused at once, no traffic leaves the machine. The hook never
+        # runs, because git runs it only after reaching the remote.
+        url = "http://127.0.0.1:9/proj.git"
+        gitw_test_support.git(self.clone, "remote", "set-url", "origin", url)
+        self.install_hook('echo "hook ran"\nexit 1\n')
+        entry = Entry(
+            label="proj",
+            checkout=self.clone,
+            remote_url=url,
+            remote="origin",
+            default_branch="main",
+        )
+        stderr = self.push_expecting_exit(
+            6, "proj", "fix/", entries={"proj": entry}
+        )
+        self.assertIn("unable to access", stderr)
+        self.assertNotIn("hook ran", stderr)
+
+    def test_trace_parser_ignores_a_passing_or_foreign_hook(self):
+        trace = self.base / "trace.json"
+        events = [
+            {"event": "child_start", "sid": "a", "child_id": 0,
+             "child_class": "hook", "hook_name": "pre-push"},
+            {"event": "child_exit", "sid": "a", "child_id": 0, "code": 0},
+            {"event": "child_start", "sid": "a", "child_id": 1,
+             "child_class": "hook", "hook_name": "reference-transaction"},
+            {"event": "child_exit", "sid": "a", "child_id": 1, "code": 1},
+            # Same child_id in another process's session is a different
+            # child: this failing transport must not match sid a's hook.
+            {"event": "child_exit", "sid": "b", "child_id": 0, "code": 128},
+        ]
+        trace.write_text(
+            "\n".join(json.dumps(event) for event in events) + "\nnot json\n"
+        )
+        self.assertIsNone(_MODULE._pre_push_hook_failure(trace))
+        self.assertIsNone(
+            _MODULE._pre_push_hook_failure(self.base / "missing.json")
+        )
 
 
 class GitwPushNamedTargetTest(_PushFixtureTest):
