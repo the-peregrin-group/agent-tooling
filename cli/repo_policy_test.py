@@ -93,6 +93,11 @@ BARE_DENY_VERBS = (
 )
 BARE_DENY_SHAPE = "Bash({b} {v})"
 
+# bd's own --actor flag would let a caller name the actor, defeating the
+# shim's rule that identity comes from the environment. Denied in first
+# position and after anything.
+ACTOR_FLAG_DENY_SHAPES = ("Bash({b} --actor*)", "Bash({b} * --actor*)")
+
 # Invocation by install path, which a bare-name rule cannot see. Kept to the
 # install locations so reading the shim's source (cli/bdw) is not denied.
 PATH_DENY_ROWS = (
@@ -258,6 +263,8 @@ def expected_deny() -> set:
                 rows.add(shape.format(b=binary, v=verb))
         for verb in BARE_DENY_VERBS:
             rows.add(BARE_DENY_SHAPE.format(b=binary, v=verb))
+        for shape in ACTOR_FLAG_DENY_SHAPES:
+            rows.add(shape.format(b=binary))
     return rows
 
 
@@ -343,6 +350,12 @@ class RepoPolicyTest(unittest.TestCase):
                 self.assertIn(f"Bash({binary} {verb} *)", deny)
                 self.assertIn(f"Bash({binary} -* {verb}*)", deny)
                 self.assertNotIn(f"Bash({binary} {verb} *)", granted)
+
+    def test_the_actor_flag_is_denied_in_any_position_for_every_guarded_binary(self) -> None:
+        deny = set(self.lists["deny"])
+        for binary in GUARDED_BINARIES:
+            self.assertIn(f"Bash({binary} --actor*)", deny)
+            self.assertIn(f"Bash({binary} * --actor*)", deny)
 
     def test_every_raw_write_verb_is_asked_for_and_only_the_shim_is_allowed(self) -> None:
         ask = set(self.lists["ask"])
