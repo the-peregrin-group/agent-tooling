@@ -35,7 +35,7 @@ class DeriveActorTest(unittest.TestCase):
 
     def test_job_basename_with_disallowed_characters_falls_through(self):
         for job_dir in ("/jobs/ae 218", "/jobs/ae$218", "/jobs/a:b",
-                        "/jobs/..", "/jobs/.", "/"):
+                        "/jobs/..", "/jobs/.", "/", "/x/jobs/ae1\n"):
             with self.subTest(job_dir=job_dir):
                 self.assertEqual(
                     derive_actor({"CLAUDE_JOB_DIR": job_dir, "USER": "dan"}),
@@ -52,7 +52,8 @@ class DeriveActorTest(unittest.TestCase):
         self.assertEqual(derive_actor({"USER": "dan.o_1-x"}), "attended-dan.o_1-x")
 
     def test_no_job_dir_and_no_usable_user_is_unknown(self):
-        for environ in ({}, {"USER": ""}, {"USER": "bad user"}):
+        for environ in ({}, {"USER": ""}, {"USER": "bad user"},
+                        {"USER": "dan\n"}):
             with self.subTest(environ=environ):
                 self.assertEqual(derive_actor(environ), "attended-unknown")
 

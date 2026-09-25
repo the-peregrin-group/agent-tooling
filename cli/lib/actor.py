@@ -27,10 +27,12 @@ trailer). See docs/adr/0001-beads-identity.md.
 
 from __future__ import annotations
 
+import os
 import re
 from typing import Mapping
 
-_SAFE_TOKEN = re.compile(r"^[A-Za-z0-9._-]+$")
+# Used with fullmatch: `$` would also match before a final newline.
+_SAFE_TOKEN = re.compile(r"[A-Za-z0-9._-]+")
 
 JOB_PREFIX = "claude-job-"
 ATTENDED_PREFIX = "attended-"
@@ -42,14 +44,14 @@ def _safe_token(value: str | None) -> str | None:
     or `..`, else None."""
     if not value or value in (".", ".."):
         return None
-    return value if _SAFE_TOKEN.match(value) else None
+    return value if _SAFE_TOKEN.fullmatch(value) else None
 
 
 def derive_actor(environ: Mapping[str, str]) -> str:
     """The actor string for the session described by `environ`; the module
     docstring is the contract."""
     job_dir = environ.get("CLAUDE_JOB_DIR", "")
-    job_id = _safe_token(job_dir.rstrip("/").rsplit("/", 1)[-1])
+    job_id = _safe_token(os.path.basename(job_dir.rstrip("/")))
     if job_id is not None:
         return JOB_PREFIX + job_id
     user = _safe_token(environ.get("USER"))
