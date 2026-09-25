@@ -52,13 +52,12 @@ and no GitHub issue is filed, edited, relabeled, reprioritized, or closed
 while the freeze holds. There is no sync in either direction. ADR 0001 has
 the reasons.
 
-Agents run Beads through `bdw`, the shim in `cli/` that derives the session's
-actor from its environment and execs `bd` with the arguments untouched
-(landing in its own PR). Reads may use either name. Writes go through `bdw`;
-a raw `bd` write prompts by design. Until `bdw` is on PATH, run the loop
-below with `bd` and expect a prompt on every write. Put the verb first and
-global flags such as `--json` after it: the command policy denies flag-first
-spellings whose arguments happen to contain a denied word.
+Agents run Beads through `bdw`, the Beads wrapper in `cli/`, which derives
+the session's actor from its environment and execs `bd` with the arguments
+untouched, refusing only bd's own actor flag. Reads may use either name.
+Writes go through `bdw`; a raw `bd` write prompts by design. Put the verb
+first and global flags such as `--json` after it: the command policy denies
+flag-first spellings whose arguments happen to contain a denied word.
 
 The loop, every session:
 

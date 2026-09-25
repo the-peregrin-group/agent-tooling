@@ -27,7 +27,7 @@ from pathlib import Path
 POLICY = Path(__file__).resolve().parents[1] / ".claude" / "settings.json"
 
 # The names the binary answers to: Homebrew links both `bd` and `beads`
-# beside each other, and `bdw` is this repo's shim. Reads and reversible
+# beside each other, and `bdw` is the Beads wrapper. Reads and reversible
 # writes are granted on `bd` and `bdw` only; `beads` is denied and asked for
 # so that it cannot be the unguarded spelling in auto mode.
 GRANTED_BINARIES = ("bd", "bdw")
@@ -94,12 +94,12 @@ BARE_DENY_VERBS = (
 BARE_DENY_SHAPE = "Bash({b} {v})"
 
 # bd's own --actor flag would let a caller name the actor, defeating the
-# shim's rule that identity comes from the environment. Denied in first
+# wrapper's rule that identity comes from the environment. Denied in first
 # position and after anything.
 ACTOR_FLAG_DENY_SHAPES = ("Bash({b} --actor*)", "Bash({b} * --actor*)")
 
 # Invocation by install path, which a bare-name rule cannot see. Kept to the
-# install locations so reading the shim's source (cli/bdw) is not denied.
+# install locations so reading the wrapper's source (cli/bdw) is not denied.
 PATH_DENY_ROWS = (
     "Bash(*/bin/bd)",
     "Bash(*/bin/bd *)",
@@ -221,7 +221,7 @@ ALLOW_READS = (
     "Bash({b} metrics example *)",
 )
 
-# Reversible writes. Allowed through the shim, which carries the actor, and
+# Reversible writes. Allowed through the wrapper, which carries the actor, and
 # asked for on the bare names, so a raw write prompts even in auto mode.
 WRITE_VERBS = (
     "create *",
@@ -357,7 +357,7 @@ class RepoPolicyTest(unittest.TestCase):
             self.assertIn(f"Bash({binary} --actor*)", deny)
             self.assertIn(f"Bash({binary} * --actor*)", deny)
 
-    def test_every_raw_write_verb_is_asked_for_and_only_the_shim_is_allowed(self) -> None:
+    def test_every_raw_write_verb_is_asked_for_and_only_the_wrapper_is_allowed(self) -> None:
         ask = set(self.lists["ask"])
         allow = set(self.lists["allow"])
         for verb in WRITE_VERBS:

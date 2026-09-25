@@ -12,17 +12,17 @@ so any argument equal to `--actor` or starting with `--actor=` is refused,
 wherever it appears (bd sees an `--actor` after `--` too). That is an
 equality test on each argument, not argument parsing; everything else
 passes through untouched. No flag rewriting, no output capture: bd's own
-exit code is the shim's.
+exit code is bdw's.
 
 Beads records who acted from an environment variable, and every harness
 Bash call is a fresh shell, so nothing exported once survives to the next
-call. A shim that derives identity from its own environment on every
+call. A wrapper that derives identity from its own environment on every
 invocation is the minimum that makes the actor reliable. Beads 1.3.0
 honours BD_ACTOR (its created_by field shows it) although its help names
 only BEADS_ACTOR, so both are set.
 
 The self-exec guard compares realpaths: a `bd` on PATH that resolves to
-this very file counts as absent, but a byte copy of the shim installed as
+this very file counts as absent, but a byte copy of this file installed as
 `bd` is not caught.
 
 Exit codes: bd's own once the exec succeeds. 3 when no `bd` is on PATH (or
