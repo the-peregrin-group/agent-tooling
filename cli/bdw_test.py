@@ -5,7 +5,8 @@ prints BD_ACTOR, BEADS_ACTOR, and then its arguments one per line, and runs
 the real `cli/bdw` as a subprocess with a fully controlled environment whose
 PATH is only that directory -- so no test depends on, or reaches, a real
 `bd` or the developer's environment. The shim's shebang pins
-/usr/bin/python3 by absolute path, so PATH needs nothing else.
+/usr/bin/python3 and the fake bd's pins /bin/sh, both by absolute path, so
+PATH needs nothing else.
 
 Run from the cli/ directory:
     python3 -m unittest discover -s . -p '*_test.py'
@@ -104,6 +105,41 @@ class BdwTest(unittest.TestCase):
         self.install_fake_bd()
         result = self.run_bdw("list", USER="dan", FAKE_BD_EXIT="7")
         self.assertEqual(result.returncode, 7)
+
+    def test_actor_flag_is_refused_in_any_position(self):
+        self.install_fake_bd()
+        for arguments in (
+            ("--actor", "impostor", "create", "x"),
+            ("--actor=impostor", "create", "x"),
+            ("create", "x", "--actor", "impostor"),
+            ("create", "--", "--actor=impostor"),
+            ("create", "--", "--actor", "impostor"),
+        ):
+            with self.subTest(arguments=arguments):
+                result = self.run_bdw(*arguments, USER="dan")
+                self.assertEqual(result.returncode, 4)
+                self.assertEqual(
+                    result.stderr.strip(),
+                    "bdw: refusing --actor: the actor comes from the "
+                    "session environment",
+                )
+                self.assertEqual(result.stdout, "")  # bd never ran
+
+    def test_look_alike_arguments_still_pass_through(self):
+        self.install_fake_bd()
+        arguments = ["create", "--actors", "--title", "--actor is a flag",
+                     "x--actor=y"]
+        result = self.run_bdw(*arguments, USER="dan")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.splitlines()[2:], arguments)
+
+    def test_exec_failure_exits_1(self):
+        broken = self.bin / "bd"
+        broken.write_text("#!/nonexistent/interp\n")
+        broken.chmod(0o755)
+        result = self.run_bdw("list", USER="dan")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("cannot exec", result.stderr)
 
     def test_a_bd_that_is_this_script_is_treated_as_absent(self):
         os.symlink(str(_SCRIPT), str(self.bin / "bd"))
