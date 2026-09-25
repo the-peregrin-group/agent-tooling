@@ -1,10 +1,11 @@
 # Beads post-init checklist
 
 What to undo after initializing Beads 1.3.0 in a new repo, so the tracker
-stays local-only and only its config lands in git. Each item is one side
-effect of init and its reversal.
+stays local-only and only its config lands in git. This is a maintainer
+procedure: agents are denied `init` and every `dolt` subcommand, and
+`bd backup init` asks.
 
-## After init
+## Checklist
 
 - [ ] Initialize without hooks or agent files:
 
@@ -12,54 +13,25 @@ effect of init and its reversal.
   bd init --skip-hooks --skip-agents
   ```
 
-  The command policy denies `init`, including its help, so the maintainer
-  runs it. The command is as recorded in this repo's init commit; it was
-  not re-verified against its help.
+  The command policy denies `init` to agents, so the maintainer runs it.
+  Not checked against `bd init --help`; the flags are the ones in this
+  repo's init commit.
 
-- [ ] Remove the sync remote. Init sets `sync.remote` to the git origin
-  without being asked. Delete the `sync.remote` line from
-  `.beads/config.yaml` (agent-tooling keeps it commented out as a record).
-  The Dolt repo keeps its own copy of the remote, so separately, as the
-  maintainer in the primary checkout (agents are denied every `dolt`
-  subcommand; not verified against its help for the same reason):
-
-  ```sh
-  bd dolt remote remove origin
-  ```
-
-  Untried alternative: `bd config --help` lists a `dolt.local-only` key
-  that skips wiring the sync remote during init. Whether it can be set
-  before init has not been tested.
-
-- [ ] Move the backup out of the repo. Auto-backup turns itself on in
-  embedded mode whenever a git remote exists, and the first backup lands in
-  `.beads/backup/` inside the repo. Point it at a local directory outside
-  the repo, then move or remove the in-repo copy by hand:
+- [ ] Undo init's commit, before any `config.yaml` edit, because a reset
+  after the edits discards them. Init commits `.beads/README.md`, the three
+  config files, and root `.gitignore` patterns (five on 1.3.0) straight to
+  the current branch. Reset that commit away, mixed or soft, never hard,
+  and land only the three config files by PR; drop the README and every
+  root pattern init added (`.beads/.gitignore` covers what lives under
+  `.beads/`; the gate lock gets its own root line, next item).
 
   ```sh
-  bd backup init <local-path-outside-the-repo>
-  bd backup sync
+  git reset --mixed HEAD~1
   ```
 
-  Pin git push of backups off in `.beads/config.yaml`, so the rule is in
-  the tracked file rather than a default:
-
-  ```yaml
-  backup:
-    git-push: false
-  ```
-
-- [ ] Turn usage metrics off (on by default after init):
-
-  ```sh
-  bd metrics off
-  ```
-
-- [ ] Undo init's commit. Init makes a raw commit on the current branch
-  adding `.beads/README.md` and five root `.gitignore` patterns. The
-  maintainer resets it off that branch so the files land by PR instead.
-  On the PR branch, drop `.beads/README.md` and the five root patterns
-  (`.beads/.gitignore` already covers everything under `.beads/`).
+  Never hard: the commit contains the three tracked config files, and
+  with `metadata.json` gone from the working tree bd silently switches to
+  an empty database (see the last item).
 
 - [ ] Ignore the gate lock. Init keeps `.beads.gate.lock` at the repo root,
   beside `.beads/`, not inside it. Add one root `.gitignore` line:
@@ -68,24 +40,75 @@ effect of init and its reversal.
   /.beads.gate.lock*
   ```
 
-- [ ] Keep `.beads/dolt-backup.json` out of git. It records the backup
-  destination as an absolute home path and must never be committed. It is
-  untracked; make sure `.beads/.gitignore` lists it and its sibling:
+- [ ] Remove the sync remote. Init sets `sync.remote` in
+  `.beads/config.yaml` to the git origin; delete the line (this repo keeps
+  it commented out as a record). The Dolt repo holds its own copy, so the
+  maintainer also runs, in the primary checkout:
+
+  ```sh
+  bd dolt remote remove origin
+  ```
+
+  Run here by the maintainer on 2026-09-25 (the epic's session-one note
+  records it); agents are denied every `dolt` subcommand, so it was not
+  checked against `bd dolt --help`. Untested: `bd config --help` lists
+  `dolt.local-only`, a `config.yaml` key that skips wiring the remote at
+  init; the open question is whether init overwrites a `config.yaml`
+  written before it.
+
+- [ ] Move the backup out of the repo. Init enables auto-backup because a
+  git remote exists, and the first backup lands in `.beads/backup/` inside
+  the repo. It is already ignored, so this is disk hygiene (no backups of
+  backups), not git hygiene. Point it at a local directory outside the
+  repo:
+
+  ```sh
+  bd backup init <local-path-outside-the-repo>
+  bd backup sync
+  ```
+
+  Then delete the in-repo `.beads/backup/`. Alternatively, setting
+  `enabled: false` under `backup:` in `config.yaml` (documented in that
+  file's own comment block) skips backups entirely; this repo kept them,
+  to a local path, per the trial plan.
+
+- [ ] Pin `git-push: false` under `backup:` in `config.yaml`. It is the
+  default, but stating it in the tracked file keeps backups on the machine
+  in every clone:
+
+  ```yaml
+  backup:
+    git-push: false
+  ```
+
+- [ ] Turn usage metrics off, once per machine: `bd metrics off`; check
+  with `bd metrics`. The setting lives in `~/.config/bd/config.yaml`, so a
+  second repo on the same machine inherits it.
+
+- [ ] Ignore the backup destination records. `.beads/dolt-backup.json`
+  stores the absolute path of the machine-local backup destination and
+  must never be committed; a fresh init does not ignore it. Add these two
+  lines to `.beads/.gitignore`:
 
   ```gitignore
   dolt-backup.json
   dolt-backup-state.json
   ```
 
-- [ ] Never delete the tracked `.beads/` config files, even briefly (to let
-  a pull restore them, say). With `metadata.json` absent, bd warns and
-  silently falls back to a database named `beads`, creating an empty one on
-  the first read, and writes then miss the real database.
+- [ ] Allow the Dolt database name through the pre-push lint.
+  `metadata.json` names the Dolt database as the issue prefix with
+  underscores (`agent_tooling` here). A pre-push lint that flags
+  respellings of the repo name must allow that string; this repo's did not
+  until 2026-09-24.
+
+- [ ] Never delete the tracked `.beads/` files, even to let a pull restore
+  them. With `metadata.json` absent, bd prints a warning, falls back to a
+  database named `beads`, creates it empty on the first read, and later
+  writes miss the real database.
 
 ## The committed footprint
 
-Three files under `.beads/`, plus the one root ignore line for the gate
-lock:
+Three files under `.beads/`:
 
 ```text
 .beads/.gitignore
@@ -93,10 +116,6 @@ lock:
 .beads/metadata.json
 ```
 
-Everything else under `.beads/` is local state and stays ignored. Two
-notes for the command policy: Homebrew links the binary as both `bd` and
-`beads`, so every policy row must guard both names; and a project
-`.claude/settings.json` applies only to sessions launched from a checkout
-whose checked-out branch contains it, so the policy is not enforced until
-its PR merges. The reasons behind the trial's shape are in
+Everything else under `.beads/` is local state and stays ignored. The
+reasons behind the trial's shape are in
 [ADR 0001](adr/0001-adopt-beads-for-the-tracker-trial.md).
