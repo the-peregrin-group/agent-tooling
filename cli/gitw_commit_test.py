@@ -437,6 +437,37 @@ class GitwCommitExecutedByTest(_CommitFixtureTest):
         ).stdout
         self.assertEqual(staged, "")
 
+    def head_subject(self) -> str:
+        return gitw_test_support.git(
+            self.clone, "log", "-1", "--format=%s"
+        ).stdout.rstrip("\n")
+
+    def test_message_without_final_newline_still_gets_a_trailer(self):
+        # interpret-trailers glues a trailer onto an unterminated last
+        # line; the wrapper must terminate the message first.
+        cases = (
+            ("subject\n\nbody",
+             "subject\n\nbody\n\nExecuted-By: claude-job-ae218998\n\n"),
+            ("subject",
+             "subject\n\nExecuted-By: claude-job-ae218998\n\n"),
+        )
+        for index, (content, expected) in enumerate(cases):
+            with self.subTest(content=content):
+                Path(self.message_path).write_bytes(content.encode())
+                (self.clone / f"new{index}.txt").write_text("new\n")
+                self.commit_with_environ(
+                    self._JOB_ENVIRON, "proj", "fix/", self.message_path
+                )
+                self.assertEqual(
+                    self.head_trailers("Executed-By"),
+                    ["claude-job-ae218998"],
+                )
+                self.assertEqual(self.head_subject(), "subject")
+                self.assertEqual(self.head_message(), expected)
+                self.assertEqual(
+                    Path(self.message_path).read_bytes(), content.encode()
+                )
+
     def test_message_file_on_disk_is_unchanged(self):
         before = Path(self.message_path).read_bytes()
         (self.clone / "new.txt").write_text("new\n")

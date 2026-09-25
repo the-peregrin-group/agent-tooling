@@ -34,9 +34,10 @@ own trailer-block rules apply, and identity comes from the environment,
 not the caller: a caller-written Executed-By trailer is replaced by the
 derived actor. A message whose trailer block already holds more than one
 Executed-By trailer is refused (git's replace removes only one, so the
-result would not be a single trustworthy trailer). The trailered message
-goes to a private temporary file; the staged message file is never
-modified. The JSON output reports the actor as `executed_by`. See
+result would not be a single trustworthy trailer). The message is copied,
+with a guaranteed final newline, to a private temporary file; the trailer
+is added there and the commit is made from it, so the staged message file
+is never modified. The JSON output reports the actor as `executed_by`. See
 docs/adr/0001-beads-identity.md.
 
 Exit codes: 0 success, 1 unclassified git failure, 2 usage error
@@ -109,7 +110,7 @@ def main(argv: list[str]) -> int:
         repo.verify_remote(workspace)
         branch = repo.require_prefixed_branch(workspace.root, prefix, label)
         payload = _commit(
-            workspace, branch, message_file, pathspecs,
+            workspace, branch, message, pathspecs,
             derive_actor(os.environ),
         )
     except repo.RefusalError as error:
@@ -124,7 +125,7 @@ def main(argv: list[str]) -> int:
 def _commit(
     workspace: repo.Workspace,
     branch: str,
-    message_file: Path,
+    message: str,
     pathspecs: tuple,
     actor: str,
 ) -> dict:
@@ -178,32 +179,41 @@ def _commit(
                 "widen the pathspecs to cover them"
             )
 
-    # Before staging, so a trailer failure leaves the index untouched.
-    message = _with_executed_by(message_file, actor, root)
-
-    add_arguments = ["add", "-A"]
-    if pathspecs:
-        add_arguments += ["--", *list(pathspecs)]
-    result = run.run(add_arguments, root)
-    if result.returncode != 0:
-        detail = result.stderr.strip() or result.stdout.strip() or "no output"
-        raise run.GitError(f"git add failed: {detail}")
-
-    staged = run.run(["diff", "--cached", "--quiet"], root)
-    if staged.returncode == 0:
-        raise repo.RefusalError(
-            "nothing to commit: staging produced an empty diff"
-        )
-
-    files = run.must(["diff", "--cached", "--name-only", "-z"], root)
-    file_count = len([path for path in files.split("\0") if path])
-
+    # The message is copied to a private file, never edited in place. The
+    # guaranteed final newline matters: interpret-trailers glues a trailer
+    # onto an unterminated last line instead of starting a new one.
+    # mkstemp's default temp dir is intentional: the trailered copy must not
+    # land in the caller's staging dir.
     handle, trailered_path = tempfile.mkstemp(
         prefix="gitw-commit-", suffix=".txt"
     )
     try:
         with os.fdopen(handle, "w", encoding="utf-8") as trailered:
-            trailered.write(message + "\n")
+            if not message.endswith("\n"):
+                message += "\n"
+            trailered.write(message)
+        # Before staging, so a trailer failure leaves the index untouched.
+        _add_executed_by(Path(trailered_path), actor, root)
+
+        add_arguments = ["add", "-A"]
+        if pathspecs:
+            add_arguments += ["--", *list(pathspecs)]
+        result = run.run(add_arguments, root)
+        if result.returncode != 0:
+            detail = (
+                result.stderr.strip() or result.stdout.strip() or "no output"
+            )
+            raise run.GitError(f"git add failed: {detail}")
+
+        staged = run.run(["diff", "--cached", "--quiet"], root)
+        if staged.returncode == 0:
+            raise repo.RefusalError(
+                "nothing to commit: staging produced an empty diff"
+            )
+
+        files = run.must(["diff", "--cached", "--name-only", "-z"], root)
+        file_count = len([path for path in files.split("\0") if path])
+
         result = run.run(["commit", "--file", trailered_path], root)
     finally:
         os.unlink(trailered_path)
@@ -224,17 +234,17 @@ def _commit(
     }
 
 
-def _with_executed_by(message_file: Path, actor: str, root: Path) -> str:
-    """The message in `message_file` with an `Executed-By: <actor>`
-    trailer placed by git's own trailer machinery: joined to an existing
-    trailer block, or after a blank line when there is none. A caller's
-    Executed-By trailer is replaced (identity comes from the environment,
-    not the caller). git's replace deletes only the one trailer closest to
-    the insertion point, so a block holding several Executed-By trailers
-    is refused rather than left with a caller value beside the derived
-    one. --no-divider because a commit message is not a patch: a `---`
-    line in it must not end the message for trailer placement. Reads the
-    file; never writes it."""
+def _add_executed_by(message_file: Path, actor: str, root: Path) -> None:
+    """Add an `Executed-By: <actor>` trailer to `message_file` in place (a
+    private copy of the caller's message, which must end in a newline), by
+    git's own trailer machinery: joined to an existing trailer block, else
+    as a new paragraph after the message. A caller's Executed-By trailer
+    is replaced (identity comes from the environment, not the caller).
+    git's replace deletes only the one trailer closest to the insertion
+    point, so a block holding several Executed-By trailers is refused
+    rather than left with a caller value beside the derived one.
+    --no-divider because a commit message is not a patch: a `---`
+    line in it must not end the message for trailer placement."""
     trailers = run.must(
         ["interpret-trailers", "--no-divider", "--parse", str(message_file)],
         root,
@@ -249,9 +259,10 @@ def _with_executed_by(message_file: Path, actor: str, root: Path) -> str:
             "gitw-commit writes that trailer itself from the session "
             "environment -- remove them from the message file"
         )
-    return run.must(
+    run.must(
         [
             "interpret-trailers",
+            "--in-place",
             "--no-divider",
             "--if-exists", "replace",
             "--trailer", f"Executed-By: {actor}",
