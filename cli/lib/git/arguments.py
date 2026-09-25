@@ -11,7 +11,7 @@ from __future__ import annotations
 import re
 
 # Repo labels are the short stable literals allowlist rules pin
-# (`Bash(gitw-push <label> <prefix> *)`). Single token, lowercase, no
+# (`Bash(gitw-commit <label> <prefix> *)`). Single token, lowercase, no
 # slash: the slash is the branch-prefix terminator, and keeping it out of
 # labels keeps the two token kinds visually unmistakable in a rule.
 _LABEL_PATTERN = re.compile(r"^[a-z0-9][a-z0-9._-]*$")
