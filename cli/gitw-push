@@ -38,17 +38,29 @@ prefix. Machine-local repos have nothing to push to and refuse.
 
 Output: git's own push output (stdout, then stderr, verbatim) is relayed
 to stderr on success and failure alike, so whatever a pre-push hook
-prints -- a verdict, warnings, per-file detail -- reaches the caller. The
-JSON plan on stdout is unchanged.
+prints -- a verdict, warnings, per-file detail -- reaches the caller. On
+failure the wrapper's own error line points at that relayed output
+rather than repeating it. The JSON plan on stdout is unchanged.
 
 Pre-push hook refusal: git reports a failing pre-push hook with nothing
 of its own beyond the hook's output and the generic "error: failed to
 push some refs to '<url>'", which other failures print too. So the
-wrapper reads git's trace2 event stream instead (GIT_TRACE2_EVENT
-pointed at a private temporary file): a nonzero `child_exit` for a
-`child_start` whose `child_class` is "hook" and `hook_name` is
-"pre-push" is a hook refusal, exit 4. A git that emits no trace2 hook
-events falls back to the text classification.
+wrapper reads git's trace2 event stream instead (lib.git.run's
+traced_push): a nonzero `child_exit` for a `child_start` whose
+`child_class` is "hook" and `hook_name` is "pre-push" is a hook
+refusal, exit 4. The wrapper sets GIT_TRACE2_EVENT for the push's one
+git and its children, so a caller's own trace2 setting does not apply
+to it. Fallback: the git binaries in use (2.43 Homebrew, Apple 2.50)
+all emit the hook events, and any git old enough to lack them also
+lacks --force-if-includes, so the live trigger is an unwritable trace
+path. There the classification is text-only, a hook refusal still reads
+as the retryable exit 6, and the error line says "(trace2 unavailable;
+classification is text-only)".
+
+A stale lease plus a refusing hook reports the hook: git still runs the
+hook after a stale-lease rejection (with empty stdin), and the hook's
+failure then leaves no "stale info" text. Both are exit 4; the stale
+lease surfaces on the next push.
 
 Exit codes: 0 success, 1 unclassified git failure, 2 usage error, 3 not
 found (label not in the roster, or the remote repository has vanished),
@@ -60,9 +72,7 @@ missing/malformed or auth failure, 6 network failure.
 
 from __future__ import annotations
 
-import json
 import sys
-import tempfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -210,12 +220,9 @@ def _run_push(workspace: repo.Workspace, ref: str,
     refusal (4), else the shared remote classification."""
     entry = workspace.entry
     root = workspace.root
-    environment = run.remote_environment(root)
-    with tempfile.TemporaryDirectory(prefix="gitw-push-") as scratch:
-        trace = Path(scratch) / "trace2.json"
-        environment["GIT_TRACE2_EVENT"] = str(trace)
-        result = run.run(arguments, root, env=environment, remote=True)
-        hook_code = _pre_push_hook_failure(trace)
+    result, hook_code, traced = run.traced_push(
+        arguments, root, run.remote_environment(root),
+    )
     _relay(result.stdout)
     _relay(result.stderr)
     if result.returncode == 0:
@@ -235,48 +242,22 @@ def _run_push(workspace: repo.Workspace, ref: str,
             f"{hook_code}); its output is relayed above. Fix what it "
             "reported; never retry unchanged"
         )
+    fallback = "" if traced else (
+        " (trace2 unavailable; classification is text-only)"
+    )
     raise run.GitError(
         f"git push {entry.remote} {ref} failed (git's output is relayed "
-        "above)",
+        f"above){fallback}",
         run.classify_remote_failure(detail),
     )
 
 
 def _relay(text: str) -> None:
-    """Pass one of git's output streams through to stderr unchanged."""
+    """Pass one of git's output streams through to stderr verbatim,
+    newline-terminated so the wrapper's own error line starts fresh."""
     if text:
         sys.stderr.write(text if text.endswith("\n") else text + "\n")
         sys.stderr.flush()
-
-
-def _pre_push_hook_failure(trace: Path) -> int | None:
-    """The nonzero exit code of a pre-push hook recorded in a trace2 event
-    file, or None when no pre-push hook failed or the trace is unreadable.
-
-    Events are keyed by (sid, child_id): child git processes inherit the
-    environment and append to the same file under their own session id."""
-    try:
-        lines = trace.read_text(errors="replace").splitlines()
-    except OSError:
-        return None
-    hooks = set()
-    for line in lines:
-        try:
-            event = json.loads(line)
-        except ValueError:
-            continue
-        if not isinstance(event, dict):
-            continue
-        key = (event.get("sid"), event.get("child_id"))
-        kind = event.get("event")
-        if (kind == "child_start" and event.get("child_class") == "hook"
-                and event.get("hook_name") == "pre-push"):
-            hooks.add(key)
-        elif kind == "child_exit" and key in hooks:
-            code = event.get("code")
-            if code != 0:
-                return code if isinstance(code, int) else -1
-    return None
 
 
 if __name__ == "__main__":
