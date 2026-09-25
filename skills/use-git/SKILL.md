@@ -334,15 +334,15 @@ prefixes; the trailing slash on the prefix is the token boundary:
 ```
 
 A rule ending in a space and a star, with no other star, also matches
-the bare call (Wildcard patterns, code.claude.com/docs/en/permissions),
-so one starred row covers `gitw-rebase`'s bare form and its
-`continue`/`abort` modes, and a starless twin beside it is redundant.
-`gitw-push`'s bare form keeps an exact row because a star there would
-also grant its named-target form for every name. That named-target form
-is granted as its own exact row naming the target
-(`"Bash(gitw-push rocket-sled reconcile/ current)"`),
-never as a star: the set of refs a consumer may move is a deliberate
-enumeration.
+the bare call (see Wildcard patterns, code.claude.com/docs/en/permissions),
+so the starred `gitw-rebase` row covers its bare form and its
+`continue`/`abort` modes. A harness that does not honour the rule makes
+the bare call prompt rather than run, so an allow row fails closed; a
+deny row would fail open, which is why agent-tooling's own policy spec
+carries exact deny rows as well. `gitw-push` never takes a star: the set
+of refs a consumer may move is a deliberate enumeration, so its bare
+form is one exact row and each named target is its own exact row
+(`"Bash(gitw-push rocket-sled reconcile/ current)"`).
 
 Grant only the verbs and prefixes the consumer exercises;
 `gitw-integrate` is granted per-repo, deliberately, and only where direct
