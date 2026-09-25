@@ -146,7 +146,13 @@ class GitwCommitAllTest(_CommitFixtureTest):
         body = gitw_test_support.git(
             self.clone, "log", "-1", "--format=%B"
         ).stdout
-        self.assertEqual(body.strip(), "test commit\n\nbody line".strip())
+        # The message, then the Executed-By trailer block (the trailer's
+        # value depends on the ambient session; GitwCommitExecutedByTest
+        # pins it).
+        self.assertTrue(
+            body.startswith("test commit\n\nbody line\n\nExecuted-By: "),
+            body,
+        )
 
     def test_clean_tree_is_an_empty_commit_refusal(self):
         stderr = self.commit_expecting_exit(4, "proj", "fix/", self.message_path)
@@ -341,6 +347,160 @@ class GitwCommitPathspecTest(_CommitFixtureTest):
         )
         self.assertIn("outside the given pathspecs", stderr)
         self.assertIn("other.txt", stderr)
+
+
+class GitwCommitExecutedByTest(_CommitFixtureTest):
+    _JOB_ENVIRON = {"CLAUDE_JOB_DIR": "/Users/x/.claude/jobs/ae218998",
+                    "USER": "dan"}
+
+    def commit_with_environ(self, environ: dict, *arguments: str,
+                            expecting_exit: int | None = None):
+        """Commit with the session identity pinned to `environ` (the
+        developer running the suite may well be inside a background job
+        with CLAUDE_JOB_DIR set). Returns the JSON payload, or the stderr
+        text when `expecting_exit` names the refusal code."""
+        with mock.patch.dict(os.environ, environ):
+            if "CLAUDE_JOB_DIR" not in environ:
+                os.environ.pop("CLAUDE_JOB_DIR", None)
+            if expecting_exit is not None:
+                return self.commit_expecting_exit(expecting_exit, *arguments)
+            return self.commit(*arguments)
+
+    def head_message(self) -> str:
+        return gitw_test_support.git(
+            self.clone, "log", "-1", "--format=%B"
+        ).stdout
+
+    def head_trailers(self, key: str) -> list:
+        output = gitw_test_support.git(
+            self.clone, "log", "-1",
+            f"--format=%(trailers:key={key},valueonly)",
+        ).stdout
+        return [line for line in output.splitlines() if line]
+
+    def head_subject(self) -> str:
+        return gitw_test_support.git(
+            self.clone, "log", "-1", "--format=%s"
+        ).stdout.rstrip("\n")
+
+    def test_job_dir_actor_is_the_trailer(self):
+        (self.clone / "new.txt").write_text("new\n")
+        payload = self.commit_with_environ(
+            self._JOB_ENVIRON, "proj", "fix/", self.message_path
+        )
+        self.assertEqual(
+            self.head_message(),
+            "test commit\n\nbody line\n\n"
+            "Executed-By: claude-job-ae218998\n\n",
+        )
+        self.assertEqual(payload["executed_by"], "claude-job-ae218998")
+
+    def test_attended_fallback_is_the_trailer(self):
+        (self.clone / "new.txt").write_text("new\n")
+        payload = self.commit_with_environ(
+            {"USER": "dan"}, "proj", "fix/", self.message_path
+        )
+        self.assertEqual(self.head_trailers("Executed-By"), ["attended-dan"])
+        self.assertEqual(payload["executed_by"], "attended-dan")
+
+    def test_trailer_joins_an_existing_trailer_block(self):
+        Path(self.message_path).write_text(
+            "subject\n\nbody\n\nRefs: abc-1\n"
+        )
+        (self.clone / "new.txt").write_text("new\n")
+        self.commit_with_environ(
+            self._JOB_ENVIRON, "proj", "fix/", self.message_path
+        )
+        self.assertEqual(
+            self.head_message(),
+            "subject\n\nbody\n\nRefs: abc-1\n"
+            "Executed-By: claude-job-ae218998\n\n",
+        )
+
+    def test_caller_executed_by_trailer_is_replaced(self):
+        for index, key in enumerate(("Executed-By", "executed-by")):
+            with self.subTest(key=key):
+                Path(self.message_path).write_text(
+                    f"subject\n\nbody\n\n{key}: someone-else\n"
+                )
+                (self.clone / f"new{index}.txt").write_text("new\n")
+                self.commit_with_environ(
+                    self._JOB_ENVIRON, "proj", "fix/", self.message_path
+                )
+                self.assertEqual(
+                    self.head_trailers("Executed-By"),
+                    ["claude-job-ae218998"],
+                )
+                self.assertNotIn("someone-else", self.head_message())
+
+    def test_pathspec_commit_gets_the_trailer_and_reports_the_rest(self):
+        (self.clone / "README.md").write_text("modified\n")
+        (self.clone / "other.txt").write_text("o\n")
+        payload = self.commit_with_environ(
+            self._JOB_ENVIRON, "proj", "fix/", self.message_path, "README.md"
+        )
+        self.assertEqual(
+            self.head_trailers("Executed-By"), ["claude-job-ae218998"]
+        )
+        self.assertEqual(payload["executed_by"], "claude-job-ae218998")
+        self.assertEqual(payload["files"], 1)
+        self.assertEqual(payload["remaining"]["untracked"], 1)
+        self.assertFalse(payload["clean"])
+
+    def test_several_caller_executed_by_trailers_are_refused(self):
+        # git's replace deletes only one; refusing beats leaving a caller
+        # value beside the derived one.
+        Path(self.message_path).write_text(
+            "subject\n\nExecuted-By: a\nRefs: x\nexecuted-by: b\n"
+        )
+        (self.clone / "new.txt").write_text("new\n")
+        stderr = self.commit_with_environ(
+            self._JOB_ENVIRON, "proj", "fix/", self.message_path,
+            expecting_exit=4,
+        )
+        self.assertIn("2 Executed-By trailers", stderr)
+        # Refused before staging: nothing was added to the index.
+        staged = gitw_test_support.git(
+            self.clone, "diff", "--cached", "--name-only"
+        ).stdout
+        self.assertEqual(staged, "")
+
+    def test_message_without_final_newline_still_gets_a_trailer(self):
+        # interpret-trailers glues a trailer onto an unterminated last
+        # line; the wrapper must terminate the message first.
+        cases = (
+            ("subject\n\nbody",
+             "subject\n\nbody\n\nExecuted-By: claude-job-ae218998\n\n"),
+            ("subject",
+             "subject\n\nExecuted-By: claude-job-ae218998\n\n"),
+        )
+        for index, (content, expected) in enumerate(cases):
+            with self.subTest(content=content):
+                Path(self.message_path).write_bytes(content.encode())
+                (self.clone / f"new{index}.txt").write_text("new\n")
+                self.commit_with_environ(
+                    self._JOB_ENVIRON, "proj", "fix/", self.message_path
+                )
+                self.assertEqual(
+                    self.head_trailers("Executed-By"),
+                    ["claude-job-ae218998"],
+                )
+                self.assertEqual(self.head_subject(), "subject")
+                self.assertEqual(self.head_message(), expected)
+                self.assertEqual(
+                    Path(self.message_path).read_bytes(), content.encode()
+                )
+
+    def test_message_file_on_disk_is_unchanged(self):
+        before = Path(self.message_path).read_bytes()
+        (self.clone / "new.txt").write_text("new\n")
+        self.commit_with_environ(
+            self._JOB_ENVIRON, "proj", "fix/", self.message_path
+        )
+        self.assertEqual(Path(self.message_path).read_bytes(), before)
+        self.assertIn(
+            "Executed-By: claude-job-ae218998", self.head_message()
+        )
 
 
 if __name__ == "__main__":

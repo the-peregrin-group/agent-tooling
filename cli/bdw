@@ -1,0 +1,92 @@
+#!/usr/bin/python3
+"""bdw [<bd-argument>...] -- run the real Beads `bd` with the session actor.
+
+Derives the session actor from its own environment
+(lib.actor.derive_actor: `claude-job-<job-id>` in a background job,
+`attended-<user>` otherwise), sets both BD_ACTOR and BEADS_ACTOR to it in
+the child environment -- unconditionally, overriding any value the caller
+supplied, because identity comes from the harness environment and not from
+the caller -- then replaces itself (execve) with the first `bd` on PATH.
+The one argument check: bd's own `--actor` flag wins over the environment,
+so any argument equal to `--actor` or starting with `--actor=` is refused,
+wherever it appears (bd sees an `--actor` after `--` too). That is an
+equality test on each argument, not argument parsing; everything else
+passes through untouched. No flag rewriting, no output capture: bd's own
+exit code is the shim's.
+
+Beads records who acted from an environment variable, and every harness
+Bash call is a fresh shell, so nothing exported once survives to the next
+call. A shim that derives identity from its own environment on every
+invocation is the minimum that makes the actor reliable. Beads 1.3.0
+honours BD_ACTOR (its created_by field shows it) although its help names
+only BEADS_ACTOR, so both are set.
+
+The self-exec guard compares realpaths: a `bd` on PATH that resolves to
+this very file counts as absent, but a byte copy of the shim installed as
+`bd` is not caught.
+
+Exit codes: bd's own once the exec succeeds. 3 when no `bd` is on PATH (or
+the only match is this script itself), with `bdw: bd not found on PATH`
+on stderr. 4 when an argument is `--actor` or `--actor=...`, with
+`bdw: refusing --actor: the actor comes from the session environment` on
+stderr. 1 when bd is found but the exec fails (a broken interpreter line,
+say).
+
+Design record: docs/adr/0002-beads-identity.md.
+"""
+
+from __future__ import annotations
+
+import os
+import shutil
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from lib import plan
+from lib.actor import derive_actor
+
+
+def _find_bd() -> str | None:
+    """The real bd on PATH, or None -- including when PATH's `bd` is this
+    very script (a defensive guard against a future rename that would
+    otherwise exec itself forever)."""
+    found = shutil.which("bd")
+    if found is None:
+        return None
+    if os.path.realpath(found) == os.path.realpath(__file__):
+        return None
+    return found
+
+
+def _sets_actor(argument: str) -> bool:
+    return argument == "--actor" or argument.startswith("--actor=")
+
+
+def main(argv: list[str]) -> int:
+    if any(_sets_actor(argument) for argument in argv):
+        print(
+            "bdw: refusing --actor: the actor comes from the session "
+            "environment",
+            file=sys.stderr,
+        )
+        return plan.EXIT_REFUSED
+    bd = _find_bd()
+    if bd is None:
+        print("bdw: bd not found on PATH", file=sys.stderr)
+        return plan.EXIT_NOT_FOUND
+    actor = derive_actor(os.environ)
+    environment = dict(os.environ)
+    environment["BD_ACTOR"] = actor
+    environment["BEADS_ACTOR"] = actor
+    try:
+        os.execve(bd, ["bd", *argv], environment)
+    except OSError as error:
+        print(f"bdw: cannot exec {bd}: {error}", file=sys.stderr)
+        return plan.EXIT_RUNTIME
+    return plan.EXIT_RUNTIME  # unreachable: execve does not return on success
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

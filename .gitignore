@@ -9,3 +9,6 @@ __pycache__/
 
 # Beads keeps its workspace gate lock beside .beads/, not inside it (bd 1.3.0)
 /.beads.gate.lock*
+
+# The harness creates agent worktrees inside the checkout when an agent enters one
+/.claude/worktrees/

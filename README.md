@@ -5,7 +5,11 @@ Shared tooling for Claude Code agents:
 - **A wrapper CLI** (`cli/`): the `gitw-*` verbs for git, `ghw-*` for GitHub, and
   `fjw-*` for Forgejo. Every mutating operation an agent performs goes through a
   wrapper, so permission rules can grant narrow, literal command prefixes instead
-  of raw `git` or `gh`.
+  of raw `git` or `gh`. `gitw-commit` appends an `Executed-By:` trailer naming
+  the session actor to every commit.
+- **The Beads shim** (`cli/bdw`): runs the real `bd` with `BD_ACTOR` and
+  `BEADS_ACTOR` set to the session actor, and passes the arguments through
+  unchanged. See [ADR 0002](docs/adr/0002-beads-identity.md).
 - **Six skills** (`skills/`): `use-git`, `use-github`, `use-forgejo`,
   `setup-github-issues`, `triage-issues`, `refine-state-doc`.
 - **One agent** (`agents/`): `code-reviewer`.
@@ -45,8 +49,9 @@ is in the docstring of `cli/lib/install.py`.
 
 Prerequisites: `git`; a system `/usr/bin/python3` of 3.9 or later, which some
 executables' shebangs pin; a `python3` of 3.9 or later on PATH, which the
-others (including `tooling-install`) resolve through `/usr/bin/env`; and `gh`,
-authenticated, if you use the `ghw-*` wrappers. On macOS, `/usr/bin/python3`
+others (including `tooling-install`) resolve through `/usr/bin/env`; `gh`,
+authenticated, if you use the `ghw-*` wrappers; and Beads' `bd` on PATH if
+you use `bdw`. On macOS, `/usr/bin/python3`
 comes with the Xcode Command Line Tools (`xcode-select --install`). Use the
 system interpreter, not your usual Homebrew, pyenv, or conda one: macOS grants
 OS-level permissions (privacy prompts such as Local Network access) to the

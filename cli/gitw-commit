@@ -26,21 +26,39 @@ pending merge/cherry-pick/revert (a plain commit would silently conclude
 it). The commit message comes from a staged message file (/tmp/claude/
 or ~/.claude/jobs/<job-id>/tmp/) and must be non-empty.
 
+Executed-By trailer: every commit carries a git trailer
+`Executed-By: <actor>`, the session actor from lib.actor.derive_actor
+(`claude-job-<job-id>` in a background job, `attended-<user>` otherwise).
+It is added with `git interpret-trailers --if-exists replace`, so git's
+own trailer-block rules apply, and identity comes from the environment,
+not the caller: a caller-written Executed-By trailer is replaced by the
+derived actor. A message whose trailer block already holds more than one
+Executed-By trailer is refused (git's replace removes only one, so the
+result would not be a single trustworthy trailer). The message is copied,
+with a guaranteed final newline, to a private temporary file; the trailer
+is added there and the commit is made from it, so the staged message file
+is never modified. The JSON output reports the actor as `executed_by`. See
+docs/adr/0002-beads-identity.md.
+
 Exit codes: 0 success, 1 unclassified git failure, 2 usage error
 (including an unusable or empty message file), 3 label not in the roster,
 4 refused (cwd/branch-prefix mismatch, empty commit, sweep guard,
 staged-outside-pathspec, unresolved conflicts, pending
-merge/cherry-pick/revert), 5 roster missing/malformed.
+merge/cherry-pick/revert, more than one caller-written Executed-By
+trailer), 5 roster missing/malformed.
 """
 
 from __future__ import annotations
 
+import os
 import sys
+import tempfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from lib import plan, staging
+from lib.actor import derive_actor
 from lib.git import arguments, policy, repo, roster, run
 
 _USAGE = "gitw-commit <repo> <branch-prefix> <message-file> [<pathspec>...]"
@@ -91,7 +109,10 @@ def main(argv: list[str]) -> int:
             )
         repo.verify_remote(workspace)
         branch = repo.require_prefixed_branch(workspace.root, prefix, label)
-        payload = _commit(workspace, branch, message_file, pathspecs)
+        payload = _commit(
+            workspace, branch, message, pathspecs,
+            derive_actor(os.environ),
+        )
     except repo.RefusalError as error:
         run.die(str(error), plan.EXIT_REFUSED)
     except run.GitError as error:
@@ -104,8 +125,9 @@ def main(argv: list[str]) -> int:
 def _commit(
     workspace: repo.Workspace,
     branch: str,
-    message_file: Path,
+    message: str,
     pathspecs: tuple,
+    actor: str,
 ) -> dict:
     root = workspace.root
     operation = repo.pending_operation(root)
@@ -157,24 +179,44 @@ def _commit(
                 "widen the pathspecs to cover them"
             )
 
-    add_arguments = ["add", "-A"]
-    if pathspecs:
-        add_arguments += ["--", *list(pathspecs)]
-    result = run.run(add_arguments, root)
-    if result.returncode != 0:
-        detail = result.stderr.strip() or result.stdout.strip() or "no output"
-        raise run.GitError(f"git add failed: {detail}")
+    # The message is copied to a private file, never edited in place. The
+    # guaranteed final newline matters: interpret-trailers glues a trailer
+    # onto an unterminated last line instead of starting a new one.
+    # mkstemp's default temp dir is intentional: the trailered copy must not
+    # land in the caller's staging dir.
+    handle, trailered_path = tempfile.mkstemp(
+        prefix="gitw-commit-", suffix=".txt"
+    )
+    try:
+        with os.fdopen(handle, "w", encoding="utf-8") as trailered:
+            if not message.endswith("\n"):
+                message += "\n"
+            trailered.write(message)
+        # Before staging, so a trailer failure leaves the index untouched.
+        _add_executed_by(Path(trailered_path), actor, root)
 
-    staged = run.run(["diff", "--cached", "--quiet"], root)
-    if staged.returncode == 0:
-        raise repo.RefusalError(
-            "nothing to commit: staging produced an empty diff"
-        )
+        add_arguments = ["add", "-A"]
+        if pathspecs:
+            add_arguments += ["--", *list(pathspecs)]
+        result = run.run(add_arguments, root)
+        if result.returncode != 0:
+            detail = (
+                result.stderr.strip() or result.stdout.strip() or "no output"
+            )
+            raise run.GitError(f"git add failed: {detail}")
 
-    files = run.must(["diff", "--cached", "--name-only", "-z"], root)
-    file_count = len([path for path in files.split("\0") if path])
+        staged = run.run(["diff", "--cached", "--quiet"], root)
+        if staged.returncode == 0:
+            raise repo.RefusalError(
+                "nothing to commit: staging produced an empty diff"
+            )
 
-    result = run.run(["commit", "--file", str(message_file)], root)
+        files = run.must(["diff", "--cached", "--name-only", "-z"], root)
+        file_count = len([path for path in files.split("\0") if path])
+
+        result = run.run(["commit", "--file", trailered_path], root)
+    finally:
+        os.unlink(trailered_path)
     if result.returncode != 0:
         detail = result.stderr.strip() or result.stdout.strip() or "no output"
         raise run.GitError(f"git commit failed: {detail}")
@@ -188,7 +230,46 @@ def _commit(
         "worktree": str(root),
         "remaining": remaining,
         "clean": not any(remaining.values()),
+        "executed_by": actor,
     }
+
+
+def _add_executed_by(message_file: Path, actor: str, root: Path) -> None:
+    """Add an `Executed-By: <actor>` trailer to `message_file` in place (a
+    private copy of the caller's message, which must end in a newline), by
+    git's own trailer machinery: joined to an existing trailer block, else
+    as a new paragraph after the message. A caller's Executed-By trailer
+    is replaced (identity comes from the environment, not the caller).
+    git's replace deletes only the one trailer closest to the insertion
+    point, so a block holding several Executed-By trailers is refused
+    rather than left with a caller value beside the derived one.
+    --no-divider because a commit message is not a patch: a `---`
+    line in it must not end the message for trailer placement."""
+    trailers = run.must(
+        ["interpret-trailers", "--no-divider", "--parse", str(message_file)],
+        root,
+    )
+    existing = [
+        line for line in trailers.splitlines()
+        if line.split(":", 1)[0].strip().lower() == "executed-by"
+    ]
+    if len(existing) > 1:
+        raise repo.RefusalError(
+            f"the message carries {len(existing)} Executed-By trailers; "
+            "gitw-commit writes that trailer itself from the session "
+            "environment -- remove them from the message file"
+        )
+    run.must(
+        [
+            "interpret-trailers",
+            "--in-place",
+            "--no-divider",
+            "--if-exists", "replace",
+            "--trailer", f"Executed-By: {actor}",
+            str(message_file),
+        ],
+        root,
+    )
 
 
 if __name__ == "__main__":
