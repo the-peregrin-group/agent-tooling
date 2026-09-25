@@ -353,12 +353,17 @@ class GitwCommitExecutedByTest(_CommitFixtureTest):
     _JOB_ENVIRON = {"CLAUDE_JOB_DIR": "/Users/x/.claude/jobs/ae218998",
                     "USER": "dan"}
 
-    def commit_with_environ(self, environ: dict, *arguments: str) -> dict:
-        # Pin the session identity: the developer running the suite may
-        # well be inside a background job with CLAUDE_JOB_DIR set.
+    def commit_with_environ(self, environ: dict, *arguments: str,
+                            expecting_exit: int | None = None):
+        """Commit with the session identity pinned to `environ` (the
+        developer running the suite may well be inside a background job
+        with CLAUDE_JOB_DIR set). Returns the JSON payload, or the stderr
+        text when `expecting_exit` names the refusal code."""
         with mock.patch.dict(os.environ, environ):
             if "CLAUDE_JOB_DIR" not in environ:
                 os.environ.pop("CLAUDE_JOB_DIR", None)
+            if expecting_exit is not None:
+                return self.commit_expecting_exit(expecting_exit, *arguments)
             return self.commit(*arguments)
 
     def head_message(self) -> str:
@@ -367,10 +372,11 @@ class GitwCommitExecutedByTest(_CommitFixtureTest):
         ).stdout
 
     def head_trailers(self, key: str) -> list:
-        return gitw_test_support.git(
+        output = gitw_test_support.git(
             self.clone, "log", "-1",
             f"--format=%(trailers:key={key},valueonly)",
-        ).stdout.split()
+        ).stdout
+        return [line for line in output.splitlines() if line]
 
     def test_job_dir_actor_is_the_trailer(self):
         (self.clone / "new.txt").write_text("new\n")
@@ -407,17 +413,34 @@ class GitwCommitExecutedByTest(_CommitFixtureTest):
         )
 
     def test_caller_executed_by_trailer_is_replaced(self):
-        Path(self.message_path).write_text(
-            "subject\n\nbody\n\nExecuted-By: someone-else\n"
-        )
-        (self.clone / "new.txt").write_text("new\n")
-        self.commit_with_environ(
-            self._JOB_ENVIRON, "proj", "fix/", self.message_path
+        for index, key in enumerate(("Executed-By", "executed-by")):
+            with self.subTest(key=key):
+                Path(self.message_path).write_text(
+                    f"subject\n\nbody\n\n{key}: someone-else\n"
+                )
+                (self.clone / f"new{index}.txt").write_text("new\n")
+                self.commit_with_environ(
+                    self._JOB_ENVIRON, "proj", "fix/", self.message_path
+                )
+                self.assertEqual(
+                    self.head_trailers("Executed-By"),
+                    ["claude-job-ae218998"],
+                )
+                self.assertNotIn("someone-else", self.head_message())
+
+    def test_pathspec_commit_gets_the_trailer_and_reports_the_rest(self):
+        (self.clone / "README.md").write_text("modified\n")
+        (self.clone / "other.txt").write_text("o\n")
+        payload = self.commit_with_environ(
+            self._JOB_ENVIRON, "proj", "fix/", self.message_path, "README.md"
         )
         self.assertEqual(
             self.head_trailers("Executed-By"), ["claude-job-ae218998"]
         )
-        self.assertNotIn("someone-else", self.head_message())
+        self.assertEqual(payload["executed_by"], "claude-job-ae218998")
+        self.assertEqual(payload["files"], 1)
+        self.assertEqual(payload["remaining"]["untracked"], 1)
+        self.assertFalse(payload["clean"])
 
     def test_several_caller_executed_by_trailers_are_refused(self):
         # git's replace deletes only one; refusing beats leaving a caller
@@ -426,10 +449,10 @@ class GitwCommitExecutedByTest(_CommitFixtureTest):
             "subject\n\nExecuted-By: a\nRefs: x\nexecuted-by: b\n"
         )
         (self.clone / "new.txt").write_text("new\n")
-        with mock.patch.dict(os.environ, self._JOB_ENVIRON):
-            stderr = self.commit_expecting_exit(
-                4, "proj", "fix/", self.message_path
-            )
+        stderr = self.commit_with_environ(
+            self._JOB_ENVIRON, "proj", "fix/", self.message_path,
+            expecting_exit=4,
+        )
         self.assertIn("2 Executed-By trailers", stderr)
         # Refused before staging: nothing was added to the index.
         staged = gitw_test_support.git(
