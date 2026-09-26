@@ -279,13 +279,15 @@ integrate. The wrapper verifies your branch tip descends from the freshly
 fetched base tip, builds the two-parent bubble without ever checking out
 the base, and pushes it under an exact lease. Both refusals — "not a
 descendant" and "moved during the attempt" — mean the same thing: **the
-base moved; loop again from the rebase.** As with `gitw-push`, git's
-push output, including the local pre-push hook's, is relayed to stderr,
-and a hook refusal is a third exit-4 refusal that does not mean the base
-moved: fix what the hook reported on the branch, then loop again.
-Afterwards your worktree is
-still on the (now-integrated) feature branch; leave local trunk syncing
-and branch cleanup to the harness and the human.
+base moved; loop again from the rebase.** As with `gitw-push`, the
+wrapper relays git's own push output to stderr beside the JSON,
+including whatever the local pre-push hook prints; a local hook that
+refuses the push is an exit-4 refusal too, but it does not mean the base
+moved — fix what it reported on the branch, then loop again from the
+rebase; never retry unchanged. A rejection by the remote's own hooks is
+still reported as exit 6 today (bead agent-tooling-h3c). Afterwards your
+worktree is still on the (now-integrated) feature branch; leave local
+trunk syncing and branch cleanup to the harness and the human.
 
 ```bash
 gitw-repo-register <label> <checkout-path> [<remote-name>] [apply]
