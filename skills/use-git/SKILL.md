@@ -309,8 +309,9 @@ hand-edit, not yours.
 - **Disclose conflicts you resolved unattended**, naming every file (the
   union of each stop's `conflicts` list) in the PR body, or in a PR
   comment (`ghw-pr-comment` / `fjw-pr-comment`) when the PR already
-  exists, so the reviewer checks those resolutions. A conflict you cannot resolve with confidence is still a
-  stop: `abort`, push what you have, and say so in the same place.
+  exists, so the reviewer checks those resolutions. A conflict you
+  cannot resolve with confidence is still a stop: `abort`, push what you
+  have, and say so in the same place.
 - **Merge and integration follow the project.** Its CLAUDE.md and
   settings rule; where they are silent, never run `ghw-pr-merge` or
   `gitw-integrate` unattended — push-and-PR is the default ceiling.
