@@ -1,9 +1,11 @@
 ---
 name: handoff
 description: >
-  Impart a portion (or all) of your context to a future agent (or human). Can be used proactively whenever there are still loose ends to tie up but the session is ending (or a task is being
-  put down and left to a future agent). The user may also use this skill explicitly when they need
-  a handoff artifact to share themselves.
+  Impart a portion (or all) of your context to a future agent (or human). Can
+  be used proactively whenever there are still loose ends to tie up but the
+  session is ending (or a task is being put down and left to a future agent).
+  The user may also use this skill explicitly when they need a handoff
+  artifact to share themselves.
 argument-hint: add specific guidance on how to produce the handoff here
 ---
 
