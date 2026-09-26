@@ -1,9 +1,10 @@
 #!/usr/bin/python3
 """gitw-integrate <repo> <base-branch> <branch-prefix> <message-file> -- direct integration: rebase-verified bubble onto the base branch.
 
-The mode-(b) verb, granted per-repo and attended contexts only (the
-allowlist carries that policy; the wrapper carries the machine-checkable
-part). After the branch has been rebased and merge-readiness has been
+The mode-(b) verb, granted per-repo; attended when the base is trunk or a
+protected branch, on the repo's own terms into an integration branch it
+designates (the allowlist carries that policy; the wrapper carries the
+machine-checkable part). After the branch has been rebased and merge-readiness has been
 validated -- validation stays entirely skill-side, this wrapper runs no
 repo validation -- it integrates the prefix-matched branch checked out at
 cwd into <base-branch> without ever checking out the base or touching the
