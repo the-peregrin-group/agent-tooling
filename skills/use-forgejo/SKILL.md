@@ -94,6 +94,8 @@ wrapper verifies). `--draft` is the one sanctioned trailing flag (strictly a
 de-escalation); Forgejo has no draft field at create time, so it applies the
 `WIP: ` title prefix, which is what makes the forge mark the PR draft. An
 open PR for the same head/base already existing is exit 4 — query first.
+If an unattended rebase hit conflicts you resolved, the body says so and
+names the files (see `use-git`).
 
 ```bash
 fjw-pr-list <owner/repo>          # open PRs, raw JSON array
