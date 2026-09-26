@@ -249,9 +249,9 @@ first (Steps 2–4) and use its number. When an issue closes, grep for
   auto-closes the issue on merge. For work that advances an issue without
   finishing it, use contributing language instead — `furthers #42`,
   `part of #42`, `towards #42` — which links without auto-closing.
-- **Disclose unattended conflict resolutions in the PR body:** if an
-  unattended rebase hit conflicts you resolved, say so and name the files
-  (see `use-git`).
+- **Disclose unattended conflict resolutions.** If an unattended rebase
+  hit conflicts you resolved, the body (or, for an existing PR, a
+  comment) says so and names every file (see `use-git`).
 - **Respond to review feedback:**
   `ghw-pr-comment <owner/repo> <pr#> <body-file>` (PRs aren't issues to `gh`,
   so `ghw-issue-comment` won't work on them).
