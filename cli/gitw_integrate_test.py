@@ -107,9 +107,11 @@ class _IntegrateFixtureTest(unittest.TestCase):
         entries = {"proj": self.entry} if entries is None else entries
         with mock.patch.object(_MODULE.roster, "load", return_value=entries), \
                 gitw_test_support.chdir(cwd or self.clone), \
-                contextlib.redirect_stdout(io.StringIO()) as stdout:
+                contextlib.redirect_stdout(io.StringIO()) as stdout, \
+                contextlib.redirect_stderr(io.StringIO()) as stderr:
             code = _MODULE.main(list(arguments))
         self.assertEqual(code, 0)
+        self.last_stderr = stderr.getvalue()
         return json.loads(stdout.getvalue())
 
     def integrate_expecting_exit(self, code: int, *arguments: str,
@@ -342,6 +344,140 @@ class GitwIntegrateBehaviorTest(_IntegrateFixtureTest):
             cwd=elsewhere, entries={"proj": entry},
         )
         self.assertIn("checked out at cwd", stderr)
+
+
+class GitwIntegrateHookTest(_IntegrateFixtureTest):
+    """A local pre-push hook on the bubble's push: its output reaches the
+    caller whether it passes or refuses, and a refusal is exit 4, never
+    the retryable 6."""
+
+    def setUp(self):
+        super().setUp()
+        self.old_main = self.remote_git("rev-parse", "refs/heads/main")
+
+    def install_hook(self, body: str) -> None:
+        hook = self.clone / ".git" / "hooks" / "pre-push"
+        hook.write_text("#!/bin/sh\n" + body)
+        hook.chmod(0o755)
+
+    def test_hook_refusal_is_exit_4_with_the_hook_output_verbatim(self):
+        # The nested git writes its own trace2 session into the same
+        # file, exercising the parser's (sid, child_id) keying.
+        self.install_hook(
+            "git rev-parse HEAD >/dev/null\n"
+            'echo "pre-push: refused: work.txt line 1 names a secret"\n'
+            'echo "pre-push: refused: work.txt line 3 names a path" >&2\n'
+            "exit 1\n"
+        )
+        stderr = self.integrate_expecting_exit(
+            4, "proj", "main", "fix/", self.message_path
+        )
+        self.assertIn(
+            "pre-push: refused: work.txt line 1 names a secret\n", stderr
+        )
+        self.assertIn(
+            "pre-push: refused: work.txt line 3 names a path\n", stderr
+        )
+        self.assertIn("refused by the local pre-push hook (exit 1)", stderr)
+        self.assertNotIn("moved during the attempt", stderr)
+        self.assertEqual(
+            self.remote_git("rev-parse", "refs/heads/main"), self.old_main
+        )
+
+    def test_hook_refusal_keeps_the_hook_exit_code(self):
+        self.install_hook('echo "nope"\nexit 7\n')
+        stderr = self.integrate_expecting_exit(
+            4, "proj", "main", "fix/", self.message_path
+        )
+        self.assertIn("pre-push hook (exit 7)", stderr)
+
+    def test_passing_hook_output_reaches_the_caller(self):
+        self.install_hook(
+            'echo "pre-push: bubble tree clean"\n'
+            'echo "pre-push: warning: large file" >&2\n'
+            "exit 0\n"
+        )
+        payload = self.integrate("proj", "main", "fix/", self.message_path)
+        self.assertEqual(
+            self.remote_git("rev-parse", "refs/heads/main"),
+            payload["merge_commit"],
+        )
+        self.assertIn("pre-push: bubble tree clean\n", self.last_stderr)
+        self.assertIn("pre-push: warning: large file\n", self.last_stderr)
+
+    def test_base_moved_with_a_passing_hook_is_still_base_moved(self):
+        self.install_hook("exit 0\n")
+
+        def frozen_fetch(remote, cwd):
+            gitw_test_support.advance_remote(self.seed)
+        with mock.patch.object(_MODULE.run, "fetch", side_effect=frozen_fetch):
+            stderr = self.integrate_expecting_exit(
+                4, "proj", "main", "fix/", self.message_path
+            )
+        self.assertIn("moved during the attempt", stderr)
+
+    def test_base_moved_with_a_refusing_hook_reports_the_hook(self):
+        # git still runs the hook after the lease rejection, and the
+        # hook's failure leaves no base-moved text: the hook is what is
+        # reported, still exit 4. The moved base surfaces on the next try.
+        self.install_hook('echo "nope"\nexit 1\n')
+
+        def frozen_fetch(remote, cwd):
+            gitw_test_support.advance_remote(self.seed)
+        with mock.patch.object(_MODULE.run, "fetch", side_effect=frozen_fetch):
+            stderr = self.integrate_expecting_exit(
+                4, "proj", "main", "fix/", self.message_path
+            )
+        self.assertIn("refused by the local pre-push hook", stderr)
+
+    def test_unreachable_remote_is_still_network(self):
+        # Loopback port 9 (discard) with nothing listening: connection
+        # refused at once, no traffic leaves the machine. The fetch is
+        # frozen so the push itself is what meets the dead remote; the
+        # hook never runs, because git runs it only after reaching the
+        # remote.
+        url = "http://127.0.0.1:9/proj.git"
+        gitw_test_support.git(self.clone, "remote", "set-url", "origin", url)
+        self.install_hook('echo "hook ran"\nexit 1\n')
+        entry = Entry(
+            label="proj",
+            checkout=self.clone,
+            remote_url=url,
+            remote="origin",
+            default_branch="main",
+        )
+        # Pin proxies off so a machine with one configured cannot send the
+        # request off-host.
+        no_proxy = {
+            "no_proxy": "*",
+            "NO_PROXY": "*",
+            "GIT_CONFIG_COUNT": "1",
+            "GIT_CONFIG_KEY_0": "http.proxy",
+            "GIT_CONFIG_VALUE_0": "",
+        }
+        with mock.patch.dict("os.environ", no_proxy), \
+                mock.patch.object(_MODULE.run, "fetch",
+                                  side_effect=lambda *a: None):
+            stderr = self.integrate_expecting_exit(
+                6, "proj", "main", "fix/", self.message_path,
+                entries={"proj": entry},
+            )
+        self.assertIn("unable to access", stderr)
+        self.assertNotIn("hook ran", stderr)
+        self.assertNotIn("trace2 unavailable", stderr)
+
+    def test_hook_refusal_without_trace2_falls_back_visibly(self):
+        self.install_hook('echo "nope"\nexit 1\n')
+        with mock.patch.object(
+            _MODULE.run, "parse_push_trace", return_value=(False, None)
+        ):
+            stderr = self.integrate_expecting_exit(
+                6, "proj", "main", "fix/", self.message_path
+            )
+        self.assertIn("nope\n", stderr)
+        self.assertIn(
+            "(trace2 unavailable; classification is text-only)", stderr
+        )
 
 
 if __name__ == "__main__":

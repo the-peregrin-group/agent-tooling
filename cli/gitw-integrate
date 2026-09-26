@@ -39,13 +39,26 @@ refuse: with no remote to push to, moving a possibly-checked-out local
 base branch is exactly the primary-checkout mutation this verb exists to
 avoid.
 
+Output: git's own push output (stdout, then stderr, verbatim) is relayed
+to stderr on success and failure alike, so whatever the local pre-push
+hook prints reaches the caller; the JSON plan on stdout is unchanged.
+The push runs through lib.git.run's traced_push, which reads git's
+trace2 events to tell a pre-push hook refusal from other failures that
+print the same generic "failed to push some refs" (gitw-push's
+docstring has the detail). The base-moved check runs first; a base that
+moved plus a refusing hook reports the hook (git still runs the hook
+after the lease rejection), and both are exit 4. With no trace2 events
+(an unwritable trace path) the classification is text-only, a hook
+refusal reads as exit 6, and the error line says so.
+
 Exit codes: 0 success, 1 unclassified git failure, 2 usage error
 (including an unusable or empty message file), 3 not found (label not in
 the roster, or the base branch missing on the remote), 4 refused
 (cwd/branch-prefix mismatch, dirty worktree, branch not a descendant of
 the fetched base tip, nothing to integrate, base moved during the
-attempt, machine-local), 5 roster missing/malformed or auth failure,
-6 network failure.
+attempt, machine-local, or a pre-push hook refusal: fix what the hook
+reported, never retry unchanged), 5 roster missing/malformed or auth
+failure, 6 network failure.
 """
 
 from __future__ import annotations
@@ -181,30 +194,7 @@ def _integrate(
         root,
     )
 
-    result = run.run(
-        [
-            "push",
-            f"--force-with-lease=refs/heads/{base}:{base_tip}",
-            entry.remote,
-            f"{merge_commit}:refs/heads/{base}",
-        ],
-        root,
-        env=run.remote_environment(root),
-        remote=True,
-    )
-    if result.returncode != 0:
-        detail = result.stderr.strip() or result.stdout.strip() or "no output"
-        lowered = detail.lower()
-        if any(marker in lowered for marker in _BASE_MOVED_MARKERS):
-            raise repo.RefusalError(
-                f"{entry.remote}/{base} moved during the attempt (the push "
-                "was not a fast-forward). Fetch, rebase, re-validate, and "
-                "loop again; never blind-retry"
-            )
-        raise run.GitError(
-            f"git push {entry.remote} {base} failed: {detail}",
-            run.classify_remote_failure(detail),
-        )
+    _push_bubble(workspace, base, base_tip, merge_commit)
 
     return {
         "repo": entry.label,
@@ -217,6 +207,53 @@ def _integrate(
         "commits": commits,
         "worktree": str(root),
     }
+
+
+def _push_bubble(workspace: repo.Workspace, base: str, base_tip: str,
+                 merge_commit: str) -> None:
+    """Push the bubble to the base under the exact lease, with git's trace2
+    events captured; relay git's output to stderr verbatim and classify a
+    failure: base moved (4), pre-push hook refusal (4), else the shared
+    remote classification."""
+    entry = workspace.entry
+    root = workspace.root
+    result, hook_code, traced = run.traced_push(
+        [
+            "push",
+            f"--force-with-lease=refs/heads/{base}:{base_tip}",
+            entry.remote,
+            f"{merge_commit}:refs/heads/{base}",
+        ],
+        root,
+        run.remote_environment(root),
+    )
+    run.relay(result.stdout)
+    run.relay(result.stderr)
+    if result.returncode == 0:
+        return
+    detail = result.stderr.strip() or result.stdout.strip() or "no output"
+    lowered = detail.lower()
+    if any(marker in lowered for marker in _BASE_MOVED_MARKERS):
+        raise repo.RefusalError(
+            f"{entry.remote}/{base} moved during the attempt (the push "
+            "was not a fast-forward). Fetch, rebase, re-validate, and "
+            "loop again; never blind-retry"
+        )
+    if hook_code is not None:
+        raise repo.RefusalError(
+            f"push of the bubble to {base!r} refused by the local pre-push "
+            f"hook (exit {hook_code}); its output is relayed above. Fix "
+            "what it reported on the branch, then loop again from the "
+            "rebase; never retry unchanged"
+        )
+    fallback = "" if traced else (
+        " (trace2 unavailable; classification is text-only)"
+    )
+    raise run.GitError(
+        f"git push {entry.remote} {base} failed (git's output is relayed "
+        f"above){fallback}",
+        run.classify_remote_failure(detail),
+    )
 
 
 if __name__ == "__main__":
