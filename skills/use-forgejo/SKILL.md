@@ -74,6 +74,9 @@ needs attention; do not retry and do not go looking for credentials.
   job ID typed out literally — never `$CLAUDE_JOB_DIR`, which the harness
   blocks as shell expansion. No heredocs, no inline bodies, no command
   substitution.
+- **Disclose unattended conflict resolutions.** If an unattended rebase
+  hit conflicts you resolved, the body (or, for an existing PR, a
+  comment) says so and names every file (see `use-git`).
 - Read verbs print raw Forgejo API JSON (objects/arrays); write verbs print
   a JSON plan with `"action": "applied"`.
 - A permission prompt on a wrapper call is normal in a repo whose settings

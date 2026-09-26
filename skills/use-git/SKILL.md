@@ -136,9 +136,11 @@ Three operating modes, escalating in required trust:
   absent a repo-CLAUDE.md exemption. The only trunk-affecting act is
   pushing your own branch and opening a PR (forge skills take it from
   there).
-- **(b) Worktree + feature branch, attended direct integration.** Only
-  where the repo's CLAUDE.md grants it, attended only: rebase onto current
-  trunk, run the full merge-readiness loop, then `gitw-integrate`. No PR.
+- **(b) Worktree + feature branch, direct integration.** Only where the
+  repo's CLAUDE.md grants it; attended when the base is trunk or a
+  protected branch, on the repo's own terms into an integration branch it
+  designates. Rebase onto current trunk, run the full merge-readiness
+  loop, then `gitw-integrate`. No PR.
 - **(c) Work directly on the default branch.** Very rare: repo exemption
   + attended + the user's explicit assurance of zero parallel agents for
   the session's duration. Sync the branch to its authoritative instance
@@ -272,7 +274,9 @@ never reaches the remote in this form.
 gitw-integrate <repo> <base-branch> <branch-prefix> <message-file>
 ```
 
-Mode (b) only — attended, and only where the repo grants it. The loop:
+Mode (b) only — only where the repo grants it; attended when the base is
+trunk or a protected branch, on the repo's own terms into an integration
+branch it designates. The loop:
 `gitw-rebase`, then the full merge-readiness validation (skill-side,
 driven by the repo's own CLAUDE.md — the wrapper runs no validation), then
 integrate. The wrapper verifies your branch tip descends from the freshly
@@ -302,12 +306,20 @@ hand-edit, not yours.
 
 ## Unattended Sessions
 
-- **Never rebase unattended.** A branch that needs rebasing is a stop:
-  push what you have and say so, or follow the consumer's own
-  close-and-regenerate procedure. A conflicted rebase is a
-  judgment-call-class stop, never something to power through.
-- Merge and integration are attended-only acts, full stop. Pushing your
-  own branch and opening a PR is the unattended ceiling.
+- **Rebase your own branch freely**, attended or not, conflicts included.
+  Your own branch is one you started, or resumed on the user's say-so; a
+  branch another author pushed is shared history, behind the rewrite
+  boundary. `gitw-rebase` never reaches the trunk.
+- **Disclose conflicts you resolved unattended**, naming every file (the
+  union of each stop's `conflicts` list) in the PR body, or in a PR
+  comment when the PR already exists, so the reviewer checks those
+  resolutions. A conflict you cannot resolve with confidence is still a
+  stop: `abort`, push what you have, and say so in the same place.
+- **Trunk advances only with a human in the loop.** Integrating into the
+  default branch, or any branch the project protects, is attended,
+  always. A project may designate its own integration branches and let
+  `gitw-integrate` land there unattended; its CLAUDE.md and settings
+  rule. Where they are silent, push-and-PR is the unattended ceiling.
 
 ## Cross-Repo Work
 
