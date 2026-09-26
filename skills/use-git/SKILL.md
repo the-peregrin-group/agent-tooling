@@ -66,8 +66,9 @@ staged rename or deletion rides `gitw-commit`'s commit-all form.
     probes this is an answer, not an error.
   - `4` refused: the call violated wrapper-enforced policy (identity or
     prefix mismatch, dirty worktree, stale rebase, lease failure, sweep
-    guard). A caller bug — **never retry unchanged, never work around it
-    with raw git.** The refusal is the contract doing its job.
+    guard, local pre-push hook refusal). A caller bug — **never retry
+    unchanged, never work around it with raw git.** The refusal is the
+    contract doing its job.
   - `5` roster/auth failure: abort and flag the deployment. Never retry.
   - `6` network failure: the one retryable class.
 - **Commit and merge messages always go through a staged file.** Write the
@@ -248,6 +249,11 @@ pushes of your own branch are routine, and a lease failure converts
 "someone else moved my branch" into a loud exit-4 refusal — fetch and
 reconcile, never blind-retry. **Do not fetch immediately before pushing**:
 refreshing the remote-tracking ref is exactly what would blind the lease.
+The wrapper relays git's own push output to stderr beside the JSON,
+including whatever the local pre-push hook prints; a local hook that
+refuses the push is an exit-4 refusal too — fix what it reported, never
+retry unchanged. A rejection by the remote's own hooks is still
+reported as exit 6 today (bead agent-tooling-h3c).
 Pushing the trunk is structurally refused regardless of prefix; the push
 of your own branch is the handoff, and the forge skills own what happens
 next.

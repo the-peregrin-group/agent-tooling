@@ -7,6 +7,7 @@ Run from the cli/ directory:
 
 from __future__ import annotations
 
+import json
 import os
 import shutil
 import subprocess
@@ -165,6 +166,54 @@ class RunHelpersTest(unittest.TestCase):
             with self.assertRaises(run.GitError) as caught:
                 run.fetch("origin", self.repository)
         self.assertEqual(caught.exception.exit_code, plan.EXIT_NOT_FOUND)
+
+
+def _trace(*events: dict) -> str:
+    return "".join(json.dumps(event) + "\n" for event in events)
+
+
+_VERSION = {"event": "version", "sid": "a", "evt": "3", "exe": "2.43.0"}
+_PRE_PUSH_START = {"event": "child_start", "sid": "a", "child_id": 0,
+                   "child_class": "hook", "hook_name": "pre-push"}
+
+
+class ParsePushTraceTest(unittest.TestCase):
+    """Direct calls on run.parse_push_trace, the trace2 half of
+    traced_push."""
+
+    def test_matches_only_a_failing_pre_push_hook_in_its_own_session(self):
+        text = _trace(
+            _VERSION,
+            _PRE_PUSH_START,
+            {"event": "child_exit", "sid": "a", "child_id": 0, "code": 0},
+            {"event": "child_start", "sid": "a", "child_id": 1,
+             "child_class": "hook", "hook_name": "reference-transaction"},
+            {"event": "child_exit", "sid": "a", "child_id": 1, "code": 1},
+            # Same child_id in another process's session is a different
+            # child: this failing transport must not match sid a's hook.
+            {"event": "child_exit", "sid": "b", "child_id": 0, "code": 128},
+        ) + "not json\n"
+        self.assertEqual(run.parse_push_trace(text), (True, None))
+        failing = _trace(
+            _VERSION,
+            _PRE_PUSH_START,
+            {"event": "child_exit", "sid": "a", "child_id": 0, "code": 7},
+        )
+        self.assertEqual(run.parse_push_trace(failing), (True, 7))
+
+    def test_non_integer_exit_code_is_no_signal(self):
+        for code in (None, "1", 1.0, True):
+            with self.subTest(code=code):
+                exit_event = {"event": "child_exit", "sid": "a",
+                              "child_id": 0}
+                if code is not None:
+                    exit_event["code"] = code
+                text = _trace(_VERSION, _PRE_PUSH_START, exit_event)
+                self.assertEqual(run.parse_push_trace(text), (True, None))
+
+    def test_empty_trace_reports_trace2_unavailable(self):
+        # traced_push reads a missing or unwritable trace file as "".
+        self.assertEqual(run.parse_push_trace(""), (False, None))
 
 
 if __name__ == "__main__":

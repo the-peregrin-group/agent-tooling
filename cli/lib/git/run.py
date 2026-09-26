@@ -16,11 +16,13 @@ unclassified runtime (1) unless a verb reclassifies them.
 
 from __future__ import annotations
 
+import json
 import os
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
-from typing import NoReturn
+from typing import NamedTuple, NoReturn, Optional, Tuple
 
 from lib import plan
 
@@ -144,6 +146,74 @@ def classify_remote_failure(detail: str) -> int:
     if any(marker in lowered for marker in _NOT_FOUND_MARKERS):
         return plan.EXIT_NOT_FOUND
     return plan.EXIT_NETWORK
+
+
+class TracedPush(NamedTuple):
+    """A push run under trace2: git's result, the nonzero exit code of a
+    local pre-push hook that refused (None when none did), and whether
+    trace2 produced any events at all (False means the hook verdict is
+    unknown, not negative)."""
+
+    result: subprocess.CompletedProcess
+    hook_code: Optional[int]
+    traced: bool
+
+
+def traced_push(arguments: list[str], cwd: Path, env: dict) -> TracedPush:
+    """Run `git <arguments>` (a push) as a remote call with
+    GIT_TRACE2_EVENT pointed at a private file in a temporary directory,
+    then read the local pre-push hook's verdict from the trace.
+
+    git gives a failing pre-push hook no message of its own -- only the
+    hook's output and the generic "failed to push some refs", which other
+    failures print too -- so the trace is the reliable signal. The
+    variable is set for this one git and its children only; a caller's
+    own trace2 setting does not apply to it."""
+    environment = dict(env)
+    with tempfile.TemporaryDirectory(prefix="gitw-push-") as scratch:
+        trace = Path(scratch) / "trace2.json"
+        environment["GIT_TRACE2_EVENT"] = str(trace)
+        result = run(arguments, cwd, env=environment, remote=True)
+        try:
+            text = trace.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            text = ""
+    traced, hook_code = parse_push_trace(text)
+    return TracedPush(result, hook_code, traced)
+
+
+def parse_push_trace(text: str) -> Tuple[bool, Optional[int]]:
+    """Parse trace2 event lines: (whether any "version" event appeared,
+    the nonzero integer exit code of a failed pre-push hook or None).
+
+    A hook is a `child_start` with child_class "hook" and hook_name
+    "pre-push"; its verdict is the `child_exit` with the same key. Events
+    are keyed by (sid, child_id): child git processes inherit the
+    environment and append to the same file under their own session id,
+    each numbering its children from 0. A `child_exit` whose code is
+    missing or not an integer is no signal."""
+    traced = False
+    hooks = set()
+    for line in text.splitlines():
+        try:
+            event = json.loads(line)
+        except ValueError:
+            continue
+        if not isinstance(event, dict):
+            continue
+        kind = event.get("event")
+        key = (event.get("sid"), event.get("child_id"))
+        if kind == "version":
+            traced = True
+        elif (kind == "child_start" and event.get("child_class") == "hook"
+                and event.get("hook_name") == "pre-push"):
+            hooks.add(key)
+        elif kind == "child_exit" and key in hooks:
+            code = event.get("code")
+            if isinstance(code, int) and not isinstance(code, bool) \
+                    and code != 0:
+                return traced, code
+    return traced, None
 
 
 def fetch(remote: str, cwd: Path) -> None:
