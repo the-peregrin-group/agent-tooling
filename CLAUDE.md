@@ -55,10 +55,9 @@ the reasons.
 Agents run Beads through `bdw`, the Beads wrapper in `cli/`, which derives
 the session's actor from its environment, refuses bd's own `--actor` flag,
 and otherwise execs `bd` with the arguments untouched. Reads may use either
-name.
-Writes go through `bdw`; a raw `bd` write prompts by design. Put the verb
-first and global flags such as `--json` after it: the command policy denies
-flag-first spellings whose arguments happen to contain a denied word.
+name. Writes go through `bdw`; a raw `bd` write prompts by design. Put the
+verb first and global flags such as `--json` after it: the command policy
+denies flag-first spellings whose arguments happen to contain a denied word.
 
 The loop, every session:
 
@@ -93,3 +92,5 @@ PR body names the bead it lands (`Lands agent-tooling-xyz`) instead of
 - `CONTEXT.md` is the vocabulary. Use its terms.
 - Design decisions are ADRs in `docs/adr/`, numbered from 0001, indexed in
   `docs/adr/index.md`, which describes the format.
+- `docs/beads-init.md` is the maintainer's checklist for initializing Beads
+  in another repo.
