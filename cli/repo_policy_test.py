@@ -63,6 +63,11 @@ DENY_VERBS = (
     "notion",
     "prune",
     "purge",
+    # The lease reaper: it reverts every claim whose lease has expired to
+    # open. A lapsed lease is inert until reclaim runs, and our sessions sit
+    # for hours waiting on a human, so a reclaim would rob live work. Denied
+    # rather than asked for, by the user's ruling of 2026-09-25.
+    "reclaim",
     "remember",
     "rename",
     "rename-prefix",
@@ -88,6 +93,7 @@ BARE_DENY_VERBS = (
     "migrate",
     "prune",
     "purge",
+    "reclaim",
     "sync",
     "upgrade",
 )
@@ -150,7 +156,6 @@ ASK_FLAGS = (
     "Bash({b} backup add *)",
     "Bash({b} backup restore *)",
     "Bash({b} backup remove *)",
-    "Bash({b} reclaim *)",
     "Bash({b} assign *)",
     "Bash({b} supersede *)",
     "Bash({b} duplicate *)",
@@ -356,6 +361,15 @@ class RepoPolicyTest(unittest.TestCase):
         for binary in GUARDED_BINARIES:
             self.assertIn(f"Bash({binary} --actor*)", deny)
             self.assertIn(f"Bash({binary} * --actor*)", deny)
+
+    def test_reclaim_is_denied_and_never_asked_for_on_every_guarded_binary(self) -> None:
+        deny = set(self.lists["deny"])
+        granted = set(self.lists["allow"]) | set(self.lists["ask"])
+        for binary in GUARDED_BINARIES:
+            self.assertIn(f"Bash({binary} reclaim)", deny)
+            self.assertIn(f"Bash({binary} reclaim *)", deny)
+            self.assertIn(f"Bash({binary} -* reclaim*)", deny)
+            self.assertNotIn(f"Bash({binary} reclaim *)", granted)
 
     def test_every_raw_write_verb_is_asked_for_and_only_the_wrapper_is_allowed(self) -> None:
         ask = set(self.lists["ask"])
