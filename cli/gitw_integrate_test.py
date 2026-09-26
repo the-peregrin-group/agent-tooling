@@ -126,6 +126,18 @@ class _IntegrateFixtureTest(unittest.TestCase):
         self.assertEqual(caught.exception.code, code)
         return stderr.getvalue()
 
+    def base_moves_after_the_fetch(self):
+        """Patch the wrapper's fetch so that, instead of fetching, it
+        advances the remote's main from the seed clone: the descendant
+        check then passes against the stale tracking ref, and the push
+        meets a base that moved. Returns the patcher, for use as a context
+        manager."""
+        def advance_instead(remote, cwd):
+            gitw_test_support.advance_remote(self.seed)
+        return mock.patch.object(
+            _MODULE.run, "fetch", side_effect=advance_instead
+        )
+
     def remote_git(self, *arguments: str) -> str:
         return gitw_test_support.git(self.remote, *arguments).stdout.strip()
 
@@ -200,9 +212,7 @@ class GitwIntegrateBehaviorTest(_IntegrateFixtureTest):
         # Freeze the wrapper's fetch, then move the remote: the descendant
         # check passes against the stale tracking ref and the push itself
         # is the non-fast-forward tripwire.
-        def frozen_fetch(remote, cwd):
-            gitw_test_support.advance_remote(self.seed)
-        with mock.patch.object(_MODULE.run, "fetch", side_effect=frozen_fetch):
+        with self.base_moves_after_the_fetch():
             stderr = self.integrate_expecting_exit(
                 4, "proj", "main", "fix/", self.message_path
             )
@@ -351,19 +361,12 @@ class GitwIntegrateHookTest(_IntegrateFixtureTest):
     caller whether it passes or refuses, and a refusal is exit 4, never
     the retryable 6."""
 
-    def setUp(self):
-        super().setUp()
-        self.old_main = self.remote_git("rev-parse", "refs/heads/main")
-
-    def install_hook(self, body: str) -> None:
-        hook = self.clone / ".git" / "hooks" / "pre-push"
-        hook.write_text("#!/bin/sh\n" + body)
-        hook.chmod(0o755)
-
     def test_hook_refusal_is_exit_4_with_the_hook_output_verbatim(self):
         # The nested git writes its own trace2 session into the same
         # file, exercising the parser's (sid, child_id) keying.
-        self.install_hook(
+        old_main = self.remote_git("rev-parse", "refs/heads/main")
+        gitw_test_support.add_pre_push_hook(
+            self.clone,
             "git rev-parse HEAD >/dev/null\n"
             'echo "pre-push: refused: work.txt line 1 names a secret"\n'
             'echo "pre-push: refused: work.txt line 3 names a path" >&2\n'
@@ -381,21 +384,28 @@ class GitwIntegrateHookTest(_IntegrateFixtureTest):
         self.assertIn("refused by the local pre-push hook (exit 1)", stderr)
         self.assertNotIn("moved during the attempt", stderr)
         self.assertEqual(
-            self.remote_git("rev-parse", "refs/heads/main"), self.old_main
+            self.remote_git("rev-parse", "refs/heads/main"), old_main
         )
 
     def test_hook_refusal_keeps_the_hook_exit_code(self):
-        self.install_hook('echo "nope"\nexit 7\n')
+        old_main = self.remote_git("rev-parse", "refs/heads/main")
+        gitw_test_support.add_pre_push_hook(
+            self.clone, 'echo "nope"\nexit 7\n'
+        )
         stderr = self.integrate_expecting_exit(
             4, "proj", "main", "fix/", self.message_path
         )
         self.assertIn("pre-push hook (exit 7)", stderr)
+        self.assertEqual(
+            self.remote_git("rev-parse", "refs/heads/main"), old_main
+        )
 
     def test_hook_output_with_a_base_moved_marker_is_still_the_hook(self):
         # A refusing hook ends the push before git prints any ref status,
         # so marker text in the output is the hook's own: reporting it as
         # "base moved" would send the caller looping against the hook.
-        self.install_hook(
+        gitw_test_support.add_pre_push_hook(
+            self.clone,
             'echo "pre-push: refusing: this looks like a non-fast-forward '
             'push, fetch first" >&2\n'
             "exit 1\n"
@@ -407,7 +417,8 @@ class GitwIntegrateHookTest(_IntegrateFixtureTest):
         self.assertNotIn("moved during the attempt", stderr)
 
     def test_passing_hook_output_reaches_the_caller(self):
-        self.install_hook(
+        gitw_test_support.add_pre_push_hook(
+            self.clone,
             'echo "pre-push: bubble tree clean"\n'
             'echo "pre-push: warning: large file" >&2\n'
             "exit 0\n"
@@ -421,11 +432,8 @@ class GitwIntegrateHookTest(_IntegrateFixtureTest):
         self.assertIn("pre-push: warning: large file\n", self.last_stderr)
 
     def test_base_moved_with_a_passing_hook_is_still_base_moved(self):
-        self.install_hook("exit 0\n")
-
-        def frozen_fetch(remote, cwd):
-            gitw_test_support.advance_remote(self.seed)
-        with mock.patch.object(_MODULE.run, "fetch", side_effect=frozen_fetch):
+        gitw_test_support.add_pre_push_hook(self.clone, "exit 0\n")
+        with self.base_moves_after_the_fetch():
             stderr = self.integrate_expecting_exit(
                 4, "proj", "main", "fix/", self.message_path
             )
@@ -435,11 +443,10 @@ class GitwIntegrateHookTest(_IntegrateFixtureTest):
         # git still runs the hook after the lease rejection, and the
         # hook's failure leaves no base-moved text: the hook is what is
         # reported, still exit 4. The moved base surfaces on the next try.
-        self.install_hook('echo "nope"\nexit 1\n')
-
-        def frozen_fetch(remote, cwd):
-            gitw_test_support.advance_remote(self.seed)
-        with mock.patch.object(_MODULE.run, "fetch", side_effect=frozen_fetch):
+        gitw_test_support.add_pre_push_hook(
+            self.clone, 'echo "nope"\nexit 1\n'
+        )
+        with self.base_moves_after_the_fetch():
             stderr = self.integrate_expecting_exit(
                 4, "proj", "main", "fix/", self.message_path
             )
@@ -453,7 +460,9 @@ class GitwIntegrateHookTest(_IntegrateFixtureTest):
         # remote.
         url = "http://127.0.0.1:9/proj.git"
         gitw_test_support.git(self.clone, "remote", "set-url", "origin", url)
-        self.install_hook('echo "hook ran"\nexit 1\n')
+        gitw_test_support.add_pre_push_hook(
+            self.clone, 'echo "hook ran"\nexit 1\n'
+        )
         entry = Entry(
             label="proj",
             checkout=self.clone,
@@ -461,18 +470,8 @@ class GitwIntegrateHookTest(_IntegrateFixtureTest):
             remote="origin",
             default_branch="main",
         )
-        # Pin proxies off so a machine with one configured cannot send the
-        # request off-host.
-        no_proxy = {
-            "no_proxy": "*",
-            "NO_PROXY": "*",
-            "GIT_CONFIG_COUNT": "1",
-            "GIT_CONFIG_KEY_0": "http.proxy",
-            "GIT_CONFIG_VALUE_0": "",
-        }
-        with mock.patch.dict("os.environ", no_proxy), \
-                mock.patch.object(_MODULE.run, "fetch",
-                                  side_effect=lambda *a: None):
+        with gitw_test_support.proxies_off(), \
+                mock.patch.object(_MODULE.run, "fetch"):
             stderr = self.integrate_expecting_exit(
                 6, "proj", "main", "fix/", self.message_path,
                 entries={"proj": entry},
@@ -482,7 +481,9 @@ class GitwIntegrateHookTest(_IntegrateFixtureTest):
         self.assertNotIn("trace2 unavailable", stderr)
 
     def test_hook_refusal_without_trace2_falls_back_visibly(self):
-        self.install_hook('echo "nope"\nexit 1\n')
+        gitw_test_support.add_pre_push_hook(
+            self.clone, 'echo "nope"\nexit 1\n'
+        )
         with mock.patch.object(
             _MODULE.run, "parse_push_trace", return_value=(False, None)
         ):
