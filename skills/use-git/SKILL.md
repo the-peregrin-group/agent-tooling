@@ -302,12 +302,19 @@ hand-edit, not yours.
 
 ## Unattended Sessions
 
-- **Never rebase unattended.** A branch that needs rebasing is a stop:
-  push what you have and say so, or follow the consumer's own
-  close-and-regenerate procedure. A conflicted rebase is a
-  judgment-call-class stop, never something to power through.
-- Merge and integration are attended-only acts, full stop. Pushing your
-  own branch and opening a PR is the unattended ceiling.
+- **Rebase your own branch freely**, attended or not. `gitw-rebase` moves
+  only the branch you stand on, only onto the authoritative default; the
+  trunk is out of its reach by construction.
+- **Conflicts resolved unattended are disclosed.** You may resolve a
+  conflicted rebase unattended; the PR body then says conflicts were
+  resolved and names every file, so the human merging reviews those
+  resolutions rather than trusting the diff blind. A conflict you cannot
+  resolve with confidence is still a stop: `abort`, push what you have,
+  and say so.
+- **Push-and-PR is the unattended ceiling.** Merge and integration are
+  human acts: `ghw-pr-merge` runs only when the user has said to
+  (`use-github`), and `gitw-integrate` only in attended mode (b), where a
+  repo grants it.
 
 ## Cross-Repo Work
 

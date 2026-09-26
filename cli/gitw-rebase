@@ -20,8 +20,9 @@ There is deliberately no `skip`: silently dropping a commit is a
 human-decision moment.
 
 A dirty worktree refuses the bare form (commit or discard explicitly).
-Unattended sessions never rebase at all -- that rule lives in skill text;
-this wrapper only enforces what is machine-checkable.
+Rebasing is fine unattended; disclosing conflicts resolved unattended in
+the PR body is skill-text discipline -- this wrapper only enforces what
+is machine-checkable.
 
 Exit codes: 0 success, 1 unclassified git failure, 2 usage error, 3 not
 found (label not in the roster, or the authoritative default missing),
