@@ -302,15 +302,15 @@ hand-edit, not yours.
 
 ## Unattended Sessions
 
-- **Rebase your own branch freely**, attended or not. `gitw-rebase` moves
-  only the branch you stand on, only onto the authoritative default; the
-  trunk is out of its reach by construction.
-- **Conflicts resolved unattended are disclosed.** You may resolve a
-  conflicted rebase unattended; the PR body then says conflicts were
-  resolved and names every file, so the human merging reviews those
-  resolutions rather than trusting the diff blind. A conflict you cannot
-  resolve with confidence is still a stop: `abort`, push what you have,
-  and say so.
+- **Rebase your own branch freely**, attended or not, conflicts included.
+  Your own branch is one you started, or resumed on the user's say-so; a
+  branch another author pushed is shared history, behind the rewrite
+  boundary. `gitw-rebase` never reaches the trunk.
+- **Disclose conflicts you resolved unattended**, naming every file (the
+  union of each stop's `conflicts` list) in the PR body, or in a PR
+  comment (`ghw-pr-comment` / `fjw-pr-comment`) when the PR already
+  exists, so the reviewer checks those resolutions. A conflict you cannot resolve with confidence is still a
+  stop: `abort`, push what you have, and say so in the same place.
 - **Merge and integration follow the project.** Its CLAUDE.md and
   settings rule; where they are silent, never run `ghw-pr-merge` or
   `gitw-integrate` unattended — push-and-PR is the default ceiling.
