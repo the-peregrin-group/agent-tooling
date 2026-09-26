@@ -311,10 +311,9 @@ hand-edit, not yours.
   resolutions rather than trusting the diff blind. A conflict you cannot
   resolve with confidence is still a stop: `abort`, push what you have,
   and say so.
-- **Push-and-PR is the unattended ceiling.** Merge and integration are
-  human acts: `ghw-pr-merge` runs only when the user has said to
-  (`use-github`), and `gitw-integrate` only in attended mode (b), where a
-  repo grants it.
+- **Merge and integration follow the project.** Its CLAUDE.md and
+  settings rule; where they are silent, never run `ghw-pr-merge` or
+  `gitw-integrate` unattended — push-and-PR is the default ceiling.
 
 ## Cross-Repo Work
 
