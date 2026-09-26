@@ -289,6 +289,28 @@ class GitwPushHookTest(_PushFixtureTest):
         stderr = self.push_expecting_exit(4, "proj", "fix/")
         self.assertIn("rejected by the lease", stderr)
 
+    def test_hook_output_with_a_lease_marker_is_still_the_hook(self):
+        # A refusing hook ends the push before git prints any ref status,
+        # so marker text in the output is the hook's own, never the lease.
+        self.install_hook(
+            'echo "pre-push: refusing: stale info about fix/topic" >&2\n'
+            "exit 1\n"
+        )
+        stderr = self.push_expecting_exit(4, "proj", "fix/")
+        self.assertIn("refused by the local pre-push hook (exit 1)", stderr)
+        self.assertNotIn("rejected by the lease", stderr)
+
+    def test_stale_lease_with_a_refusing_hook_reports_the_hook(self):
+        # git still runs the hook after the local stale-lease rejection,
+        # and the hook's failure leaves no lease text: the hook is what
+        # is reported, still exit 4. The stale lease surfaces next push.
+        self.push("proj", "fix/")
+        self.another_actor_moves_topic()
+        gitw_test_support.commit_on(self.clone, "mine.txt", "m\n", "my work")
+        self.install_hook('echo "nope"\nexit 1\n')
+        stderr = self.push_expecting_exit(4, "proj", "fix/")
+        self.assertIn("refused by the local pre-push hook", stderr)
+
     def test_unreachable_remote_is_still_network(self):
         # Loopback port 9 (discard) with nothing listening: connection
         # refused at once, no traffic leaves the machine. The hook never

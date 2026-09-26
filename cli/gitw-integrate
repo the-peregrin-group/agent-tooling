@@ -45,9 +45,14 @@ hook prints reaches the caller; the JSON plan on stdout is unchanged.
 The push runs through lib.git.run's traced_push, which reads git's
 trace2 events to tell a pre-push hook refusal from other failures that
 print the same generic "failed to push some refs" (gitw-push's
-docstring has the detail). The base-moved check runs first; a base that
-moved plus a refusing hook reports the hook (git still runs the hook
-after the lease rejection), and both are exit 4. With no trace2 events
+docstring has the detail). The hook verdict is checked before the
+base-moved text: git runs the pre-push hook before sending anything, and
+a refusing hook ends the push before git prints any ref status
+(transport.c, transport_push), so when the hook refused, a base-moved
+marker phrase in the output can only be the hook's own. A base that
+moved plus a refusing hook therefore reports the hook (git still runs
+the hook after the local lease rejection); both are exit 4, and the
+moved base surfaces on the next attempt. With no trace2 events
 (an unwritable trace path) the classification is text-only, a hook
 refusal reads as exit 6, and the error line says so.
 
@@ -213,7 +218,7 @@ def _push_bubble(workspace: repo.Workspace, base: str, base_tip: str,
                  merge_commit: str) -> None:
     """Push the bubble to the base under the exact lease, with git's trace2
     events captured; relay git's output to stderr verbatim and classify a
-    failure: base moved (4), pre-push hook refusal (4), else the shared
+    failure: pre-push hook refusal (4), base moved (4), else the shared
     remote classification."""
     entry = workspace.entry
     root = workspace.root
@@ -231,6 +236,15 @@ def _push_bubble(workspace: repo.Workspace, base: str, base_tip: str,
     run.relay(result.stderr)
     if result.returncode == 0:
         return
+    # The hook verdict comes first: when the hook refused, git printed no
+    # ref status, so any base-moved marker in the text is the hook's own.
+    if hook_code is not None:
+        raise repo.RefusalError(
+            f"push of the bubble to {base!r} refused by the local pre-push "
+            f"hook (exit {hook_code}); its output is relayed above. Fix "
+            "what it reported on the branch, then loop again from the "
+            "rebase; never retry unchanged"
+        )
     detail = result.stderr.strip() or result.stdout.strip() or "no output"
     lowered = detail.lower()
     if any(marker in lowered for marker in _BASE_MOVED_MARKERS):
@@ -238,13 +252,6 @@ def _push_bubble(workspace: repo.Workspace, base: str, base_tip: str,
             f"{entry.remote}/{base} moved during the attempt (the push "
             "was not a fast-forward). Fetch, rebase, re-validate, and "
             "loop again; never blind-retry"
-        )
-    if hook_code is not None:
-        raise repo.RefusalError(
-            f"push of the bubble to {base!r} refused by the local pre-push "
-            f"hook (exit {hook_code}); its output is relayed above. Fix "
-            "what it reported on the branch, then loop again from the "
-            "rebase; never retry unchanged"
         )
     fallback = "" if traced else (
         " (trace2 unavailable; classification is text-only)"

@@ -391,6 +391,21 @@ class GitwIntegrateHookTest(_IntegrateFixtureTest):
         )
         self.assertIn("pre-push hook (exit 7)", stderr)
 
+    def test_hook_output_with_a_base_moved_marker_is_still_the_hook(self):
+        # A refusing hook ends the push before git prints any ref status,
+        # so marker text in the output is the hook's own: reporting it as
+        # "base moved" would send the caller looping against the hook.
+        self.install_hook(
+            'echo "pre-push: refusing: this looks like a non-fast-forward '
+            'push, fetch first" >&2\n'
+            "exit 1\n"
+        )
+        stderr = self.integrate_expecting_exit(
+            4, "proj", "main", "fix/", self.message_path
+        )
+        self.assertIn("refused by the local pre-push hook (exit 1)", stderr)
+        self.assertNotIn("moved during the attempt", stderr)
+
     def test_passing_hook_output_reaches_the_caller(self):
         self.install_hook(
             'echo "pre-push: bubble tree clean"\n'
