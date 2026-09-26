@@ -7,6 +7,8 @@ Run from the cli/ directory:
 
 from __future__ import annotations
 
+import contextlib
+import io
 import json
 import os
 import shutil
@@ -175,6 +177,16 @@ def _trace(*events: dict) -> str:
 _VERSION = {"event": "version", "sid": "a", "evt": "3", "exe": "2.43.0"}
 _PRE_PUSH_START = {"event": "child_start", "sid": "a", "child_id": 0,
                    "child_class": "hook", "hook_name": "pre-push"}
+
+
+class RelayTest(unittest.TestCase):
+    def test_relay_passes_text_through_newline_terminated(self):
+        cases = (("", ""), ("a", "a\n"), ("a\n", "a\n"), ("a\nb", "a\nb\n"))
+        for text, expected in cases:
+            with self.subTest(text=text):
+                with contextlib.redirect_stderr(io.StringIO()) as stderr:
+                    run.relay(text)
+                self.assertEqual(stderr.getvalue(), expected)
 
 
 class ParsePushTraceTest(unittest.TestCase):
