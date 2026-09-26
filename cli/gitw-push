@@ -223,8 +223,8 @@ def _run_push(workspace: repo.Workspace, ref: str,
     result, hook_code, traced = run.traced_push(
         arguments, root, run.remote_environment(root),
     )
-    _relay(result.stdout)
-    _relay(result.stderr)
+    run.relay(result.stdout)
+    run.relay(result.stderr)
     if result.returncode == 0:
         return
     detail = result.stderr.strip() or result.stdout.strip() or "no output"
@@ -250,14 +250,6 @@ def _run_push(workspace: repo.Workspace, ref: str,
         f"above){fallback}",
         run.classify_remote_failure(detail),
     )
-
-
-def _relay(text: str) -> None:
-    """Pass one of git's output streams through to stderr verbatim,
-    newline-terminated so the wrapper's own error line starts fresh."""
-    if text:
-        sys.stderr.write(text if text.endswith("\n") else text + "\n")
-        sys.stderr.flush()
 
 
 if __name__ == "__main__":

@@ -182,6 +182,14 @@ def traced_push(arguments: list[str], cwd: Path, env: dict) -> TracedPush:
     return TracedPush(result, hook_code, traced)
 
 
+def relay(text: str) -> None:
+    """Pass one of git's output streams through to stderr verbatim,
+    newline-terminated so the wrapper's own error line starts fresh."""
+    if text:
+        sys.stderr.write(text if text.endswith("\n") else text + "\n")
+        sys.stderr.flush()
+
+
 def parse_push_trace(text: str) -> Tuple[bool, Optional[int]]:
     """Parse trace2 event lines: (whether any "version" event appeared,
     the nonzero integer exit code of a failed pre-push hook or None).
