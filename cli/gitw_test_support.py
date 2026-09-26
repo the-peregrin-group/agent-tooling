@@ -13,6 +13,7 @@ import os
 import subprocess
 from contextlib import contextmanager
 from pathlib import Path
+from unittest import mock
 
 _ISOLATED_CONFIG = {
     "GIT_CONFIG_GLOBAL": os.devnull,
@@ -89,6 +90,32 @@ def advance_remote(seed: Path, filename: str = "advance.txt") -> None:
     """Move the remote's main forward by one commit, via the seed clone."""
     commit_on(seed, filename, "advance\n", "advance main")
     git(seed, "push", "origin", "main")
+
+
+def add_pre_push_hook(repository: Path, body: str) -> None:
+    """Install an executable sh pre-push hook in a non-bare fixture repo;
+    `body` follows the shebang line."""
+    hook = repository / ".git" / "hooks" / "pre-push"
+    hook.write_text("#!/bin/sh\n" + body)
+    hook.chmod(0o755)
+
+
+def proxies_off():
+    """Patch os.environ so a push to a loopback URL cannot be sent
+    off-host by a proxy configured on the machine: no_proxy for the
+    environment variables, and an empty http.proxy through command-line
+    config (GIT_CONFIG_COUNT, git 2.31+). Returns the patcher, for use as
+    a context manager."""
+    return mock.patch.dict(
+        "os.environ",
+        {
+            "no_proxy": "*",
+            "NO_PROXY": "*",
+            "GIT_CONFIG_COUNT": "1",
+            "GIT_CONFIG_KEY_0": "http.proxy",
+            "GIT_CONFIG_VALUE_0": "",
+        },
+    )
 
 
 @contextmanager

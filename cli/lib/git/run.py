@@ -55,6 +55,14 @@ def die(message: str, code: int) -> NoReturn:
     sys.exit(code)
 
 
+def relay(text: str) -> None:
+    """Pass one of git's output streams through to stderr verbatim,
+    newline-terminated so the wrapper's own error line starts fresh."""
+    if text:
+        sys.stderr.write(text if text.endswith("\n") else text + "\n")
+        sys.stderr.flush()
+
+
 def base_environment() -> dict:
     """The environment every git subprocess gets: no terminal prompts, no
     editor, no pager, no askpass (a configured GUI askpass would stall to
@@ -170,7 +178,7 @@ def traced_push(arguments: list[str], cwd: Path, env: dict) -> TracedPush:
     variable is set for this one git and its children only; a caller's
     own trace2 setting does not apply to it."""
     environment = dict(env)
-    with tempfile.TemporaryDirectory(prefix="gitw-push-") as scratch:
+    with tempfile.TemporaryDirectory(prefix="gitw-traced-push-") as scratch:
         trace = Path(scratch) / "trace2.json"
         environment["GIT_TRACE2_EVENT"] = str(trace)
         result = run(arguments, cwd, env=environment, remote=True)

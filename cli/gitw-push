@@ -57,10 +57,14 @@ path. There the classification is text-only, a hook refusal still reads
 as the retryable exit 6, and the error line says "(trace2 unavailable;
 classification is text-only)".
 
-A stale lease plus a refusing hook reports the hook: git still runs the
-hook after a stale-lease rejection (with empty stdin), and the hook's
-failure then leaves no "stale info" text. Both are exit 4; the stale
-lease surfaces on the next push.
+The hook verdict is checked before the lease text: git runs the
+pre-push hook before sending anything, and a refusing hook ends the push
+before git prints any ref status (transport.c, transport_push), so when
+the hook refused, a lease marker phrase in the output can only be the
+hook's own. A stale lease plus a refusing hook therefore reports the
+hook: git still runs the hook after a local stale-lease rejection (with
+empty stdin). Both are exit 4; the stale lease surfaces on the next
+push.
 
 Exit codes: 0 success, 1 unclassified git failure, 2 usage error, 3 not
 found (label not in the roster, or the remote repository has vanished),
@@ -216,17 +220,25 @@ def _push_to_target(workspace: repo.Workspace, branch: str,
 def _run_push(workspace: repo.Workspace, ref: str,
               arguments: list[str]) -> None:
     """Run the push with git's trace2 events captured, relay git's output
-    to stderr verbatim, and classify a failure: lease (4), pre-push hook
-    refusal (4), else the shared remote classification."""
+    to stderr verbatim, and classify a failure: pre-push hook refusal (4),
+    lease (4), else the shared remote classification."""
     entry = workspace.entry
     root = workspace.root
     result, hook_code, traced = run.traced_push(
         arguments, root, run.remote_environment(root),
     )
-    _relay(result.stdout)
-    _relay(result.stderr)
+    run.relay(result.stdout)
+    run.relay(result.stderr)
     if result.returncode == 0:
         return
+    # The hook verdict comes first: when the hook refused, git printed no
+    # ref status, so any lease marker in the text is the hook's own.
+    if hook_code is not None:
+        raise repo.RefusalError(
+            f"push of {ref!r} refused by the local pre-push hook (exit "
+            f"{hook_code}); its output is relayed above. Fix what it "
+            "reported; never retry unchanged"
+        )
     detail = result.stderr.strip() or result.stdout.strip() or "no output"
     lowered = detail.lower()
     if any(marker in lowered for marker in _LEASE_MARKERS):
@@ -236,12 +248,6 @@ def _run_push(workspace: repo.Workspace, ref: str,
             "another agent or the human may have touched it. Fetch and "
             "reconcile; never blind-retry"
         )
-    if hook_code is not None:
-        raise repo.RefusalError(
-            f"push of {ref!r} refused by the local pre-push hook (exit "
-            f"{hook_code}); its output is relayed above. Fix what it "
-            "reported; never retry unchanged"
-        )
     fallback = "" if traced else (
         " (trace2 unavailable; classification is text-only)"
     )
@@ -250,14 +256,6 @@ def _run_push(workspace: repo.Workspace, ref: str,
         f"above){fallback}",
         run.classify_remote_failure(detail),
     )
-
-
-def _relay(text: str) -> None:
-    """Pass one of git's output streams through to stderr verbatim,
-    newline-terminated so the wrapper's own error line starts fresh."""
-    if text:
-        sys.stderr.write(text if text.endswith("\n") else text + "\n")
-        sys.stderr.flush()
 
 
 if __name__ == "__main__":

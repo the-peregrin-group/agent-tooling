@@ -236,16 +236,12 @@ class GitwPushHookTest(_PushFixtureTest):
     """A local pre-push hook: its output reaches the caller whether it
     passes or refuses, and a refusal is exit 4, never the retryable 6."""
 
-    def install_hook(self, body: str) -> None:
-        hook = self.clone / ".git" / "hooks" / "pre-push"
-        hook.write_text("#!/bin/sh\n" + body)
-        hook.chmod(0o755)
-
     def test_hook_refusal_is_exit_4_with_the_hook_output_verbatim(self):
         # The nested git writes its own trace2 session (numbering its
         # children from 0) into the same file, exercising the parser's
         # (sid, child_id) keying end to end.
-        self.install_hook(
+        gitw_test_support.add_pre_push_hook(
+            self.clone,
             "git rev-parse HEAD >/dev/null\n"
             'echo "pre-push: refused: work.txt line 1 names a secret"\n'
             'echo "pre-push: refused: work.txt line 3 names a path" >&2\n'
@@ -262,13 +258,16 @@ class GitwPushHookTest(_PushFixtureTest):
         self.assertIsNone(self.remote_tip("fix/topic"))
 
     def test_hook_refusal_keeps_the_hook_exit_code(self):
-        self.install_hook('echo "nope"\nexit 7\n')
+        gitw_test_support.add_pre_push_hook(
+            self.clone, 'echo "nope"\nexit 7\n'
+        )
         stderr = self.push_expecting_exit(4, "proj", "fix/", "current")
         self.assertIn("pre-push hook (exit 7)", stderr)
         self.assertIsNone(self.remote_tip("fix/current"))
 
     def test_passing_hook_output_reaches_the_caller(self):
-        self.install_hook(
+        gitw_test_support.add_pre_push_hook(
+            self.clone,
             'echo "pre-push: fix/topic tree clean, messages clean"\n'
             'echo "pre-push: warning: large file" >&2\n'
             "exit 0\n"
@@ -282,12 +281,37 @@ class GitwPushHookTest(_PushFixtureTest):
         self.assertIn("pre-push: warning: large file\n", self.last_stderr)
 
     def test_lease_failure_with_a_passing_hook_is_still_the_lease(self):
-        self.install_hook("exit 0\n")
+        gitw_test_support.add_pre_push_hook(self.clone, "exit 0\n")
         self.push("proj", "fix/")
         self.another_actor_moves_topic()
         gitw_test_support.commit_on(self.clone, "mine.txt", "m\n", "my work")
         stderr = self.push_expecting_exit(4, "proj", "fix/")
         self.assertIn("rejected by the lease", stderr)
+
+    def test_hook_output_with_a_lease_marker_is_still_the_hook(self):
+        # A refusing hook ends the push before git prints any ref status,
+        # so marker text in the output is the hook's own, never the lease.
+        gitw_test_support.add_pre_push_hook(
+            self.clone,
+            'echo "pre-push: refusing: stale info about fix/topic" >&2\n'
+            "exit 1\n"
+        )
+        stderr = self.push_expecting_exit(4, "proj", "fix/")
+        self.assertIn("refused by the local pre-push hook (exit 1)", stderr)
+        self.assertNotIn("rejected by the lease", stderr)
+
+    def test_stale_lease_with_a_refusing_hook_reports_the_hook(self):
+        # git still runs the hook after the local stale-lease rejection,
+        # and the hook's failure leaves no lease text: the hook is what
+        # is reported, still exit 4. The stale lease surfaces next push.
+        self.push("proj", "fix/")
+        self.another_actor_moves_topic()
+        gitw_test_support.commit_on(self.clone, "mine.txt", "m\n", "my work")
+        gitw_test_support.add_pre_push_hook(
+            self.clone, 'echo "nope"\nexit 1\n'
+        )
+        stderr = self.push_expecting_exit(4, "proj", "fix/")
+        self.assertIn("refused by the local pre-push hook", stderr)
 
     def test_unreachable_remote_is_still_network(self):
         # Loopback port 9 (discard) with nothing listening: connection
@@ -295,7 +319,9 @@ class GitwPushHookTest(_PushFixtureTest):
         # runs, because git runs it only after reaching the remote.
         url = "http://127.0.0.1:9/proj.git"
         gitw_test_support.git(self.clone, "remote", "set-url", "origin", url)
-        self.install_hook('echo "hook ran"\nexit 1\n')
+        gitw_test_support.add_pre_push_hook(
+            self.clone, 'echo "hook ran"\nexit 1\n'
+        )
         entry = Entry(
             label="proj",
             checkout=self.clone,
@@ -303,17 +329,7 @@ class GitwPushHookTest(_PushFixtureTest):
             remote="origin",
             default_branch="main",
         )
-        # Pin proxies off so a machine with one configured cannot send the
-        # request off-host: no_proxy for the environment variables, and an
-        # empty http.proxy through command-line config (git 2.31+).
-        no_proxy = {
-            "no_proxy": "*",
-            "NO_PROXY": "*",
-            "GIT_CONFIG_COUNT": "1",
-            "GIT_CONFIG_KEY_0": "http.proxy",
-            "GIT_CONFIG_VALUE_0": "",
-        }
-        with mock.patch.dict("os.environ", no_proxy):
+        with gitw_test_support.proxies_off():
             stderr = self.push_expecting_exit(
                 6, "proj", "fix/", entries={"proj": entry}
             )
@@ -324,7 +340,9 @@ class GitwPushHookTest(_PushFixtureTest):
     def test_hook_refusal_without_trace2_falls_back_visibly(self):
         # An unwritable trace path leaves no events: the refusal then
         # reads as the retryable 6, and the error line must say why.
-        self.install_hook('echo "nope"\nexit 1\n')
+        gitw_test_support.add_pre_push_hook(
+            self.clone, 'echo "nope"\nexit 1\n'
+        )
         with mock.patch.object(
             _MODULE.run, "parse_push_trace", return_value=(False, None)
         ):
