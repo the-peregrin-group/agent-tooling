@@ -122,7 +122,8 @@ In this order:
 ### Entry format
 
 ```md
-**Permissions Grant**: The authority an Account holds to act on a resource.
+**Permissions Grant**: The authority an Account holds to act on something it
+does not own (e.g., another Account's Posts).
 ...
 - _Invariants_: never outlives the Account that holds it; ...
 - _Avoid_: permission, role
@@ -177,8 +178,8 @@ video, audio, polls).
 - _Invariants_: never changes its publishing Account
 - _Avoid_: tweet, share
 
-**Permissions Grant**: The authority an Account holds to act on a resource
-beyond its own (e.g., to moderate another Account's Posts).
+**Permissions Grant**: The authority an Account holds to act on something it
+does not own (e.g., another Account's Posts).
 - _Invariants_: never outlives the Account that holds it; held by exactly one
   Account
 - _Avoid_: permission, role
@@ -231,14 +232,14 @@ so that some Accounts can moderate other Accounts' Posts.
 - First turn: "This needs a term. Moderation work will refer to it
   constantly, and no industry term fits: a role is a bundle of authority
   given to many Accounts, and this is one Account's authority. Core identity:
-  the authority an Account holds to act on a resource beyond its own. Agree?"
+  the authority an Account holds to act on something it does not own. Agree?"
   The user agrees. Nothing is named yet.
-- Next turn: "Candidates: Permissions Grant (recommended: it names both the
-  authority and the act of conferring it), Access Grant, Capability,
-  Permission. Collisions: none with an entry, an Avoid word, or a retired
-  term. Since you said 'role' and 'permission' for it, both go in its Avoid
-  list." The user ratifies Permissions Grant. Write its entry (see the worked
-  example) and its relationship at once.
+- Next turn: "Candidates: Permissions Grant (recommended: 'grant' says the
+  authority is conferred, not inherent), Access Grant, Authority Grant.
+  Collisions: none with an entry, an Avoid word, or a retired term. Since you
+  said 'role' and 'permission' for it, both go in its Avoid list." The user
+  picks Permissions Grant. Draft the entry (as in the worked example); when
+  the user ratifies it, write it and its relationship at once.
 
 ### C. Propose a term (unattended)
 
@@ -250,9 +251,9 @@ for a proposal.
    output of `date +%s`.
    - For a new term: answer the naming questions (procedure B) and choose the
      name. `<slug>` is the proposed term in lowercase kebab-case. The file
-     holds the draft entry in the format above, your answers to the naming
-     questions, and where the name is used in code (file paths). Use the
-     proposed name in code.
+     holds the draft entry and any new relationships in the format above,
+     your answers to the naming questions, and where the name is used in
+     code (file paths). Use the proposed name in code.
    - For a change to an existing entry: `<slug>` is the existing term in
      lowercase kebab-case. The file holds the revised entry in the format
      above, the reason for the change, and the evidence (file:line). The
@@ -269,19 +270,23 @@ unattended session that chose a different name. The file is
 
 ## Draft entry
 
-**Access Grant**: The authority an Account holds to act on a resource beyond
-its own (e.g., to moderate another Account's Posts).
+**Access Grant**: The authority an Account holds to act on something it does
+not own (e.g., another Account's Posts).
 - _Invariants_: never outlives the Account that holds it; held by exactly one
   Account
+
+## Relationships
+
+- An Account can hold many Access Grants.
 
 ## Naming questions
 
 1. Why a term: the moderation feature refers to it throughout, and no
    industry term fits (a role is a bundle given to many Accounts).
-2. Core identity: the authority an Account holds to act on a resource beyond
-   its own.
+2. Core identity: the authority an Account holds to act on something it does
+   not own.
 3. Candidates: Access Grant (chosen: short, and names what it confers),
-   Permissions Grant, Capability, Permission.
+   Permissions Grant, Authority Grant.
 4. Collisions: none with an entry, an Avoid word, or a retired term.
 
 ## In code
@@ -289,6 +294,8 @@ its own (e.g., to moderate another Account's Posts).
 - src/grants/model.py (`AccessGrant`)
 - src/moderation/service.py (`AccessGrant`)
 ```
+
+Commit it with the motivating code; list it in the final report.
 
 ### D. Review proposals
 
@@ -300,17 +307,19 @@ its own (e.g., to moderate another Account's Posts).
 4. Ratify:
    - If the ratified change renames, merges, splits, or retires an existing
      lexicon term, follow procedure E, steps 2-6.
-   - Otherwise write the ratified entry to `LEXICON.md`.
+   - Otherwise write the ratified entry and its relationships to
+     `LEXICON.md`.
    - If the ratified name differs from the proposed name, rename the proposed
      name in code and state documents; this is mechanical. Add no Retired
      terms line: the proposed name was never a lexicon term.
 5. Every outcome deletes the group's proposal files.
 
 Example: the access-grant group holds the file from procedure C's example.
-Present it in one turn. The user alters then ratifies it, as Permissions
-Grant. Write the Permissions Grant entry to `LEXICON.md`. Rename `AccessGrant`
-to `PermissionsGrant` in both listed files, and "Access Grant" in any state
-document: mechanical, no question asked. Add no Retired terms line, since
+Present it in one turn. The user alters then ratifies it as Permissions
+Grant, adding Avoid: permission, role. Write the Permissions Grant entry and
+its relationship to `LEXICON.md`. Rename `AccessGrant` to `PermissionsGrant`
+in both listed files, and "Access Grant" in any state document: mechanical,
+no question asked. Add no Retired terms line, since
 Access Grant was never a lexicon term. Delete the proposal file.
 
 ### E. Rename or retire a term
@@ -322,8 +331,8 @@ Access Grant was never a lexicon term. Delete the proposal file.
 3. Update the lexicon mechanically. First change the entry itself: rename it;
    for a merge, delete the merged entries and write Y, or update it if it
    already exists; for a split, delete X and write Y and Z; for a removal,
-   delete it. Then update every definition, invariant,
-   relationship, and example that uses the old name.
+   delete it. Then update every definition, invariant, relationship, and
+   example that uses the old name.
 4. In the same change, update state documents (README, CLAUDE.md, design
    docs, plans, skills) that use the old name. Never rewrite stream documents
    (ADRs, logs, changelogs, commit messages).
@@ -337,7 +346,8 @@ Example: the user finds that a Profile and an Account are one concept.
 
 1. The naming discussion keeps the name Account and agrees its merged
    definition.
-2. Retired terms gains `Profile: merged into Account 2026-09-27`.
+2. Retired terms gains `Profile: merged into Account 2026-09-27`; "profile"
+   leaves Account's Avoid list.
 3. Delete the Profile entry, write the agreed Account definition, and delete
    the relationship "An Account has one Profile".
 4. Replace "Profile" in the README and design docs; the ADRs keep it.
@@ -371,8 +381,8 @@ Unattended:
   for a duplicate first; if one exists, reference it or add your evidence to
   it); if you cannot, report it in your final deliverable.
 
-Example: Permissions Grant says it never outlives the Account that holds it,
-but the grants table's foreign key to accounts does not cascade on delete
-(db/schema.sql:40). That settles it; read no further. Present the invariant
-and the schema line. The user rules the code wrong, then chooses to file it
-for later: search the tracker for a duplicate, find none, and file it.
+Example: Permissions Grant says it is held by exactly one Account, but the
+grants table's account_id column is nullable (db/schema.sql:40), so a grant
+can exist with no holder. That settles it; read no further. Present the
+invariant and the schema line. The user rules the code wrong, then chooses to
+file it for later: search the tracker for a duplicate, find none, and file it.
