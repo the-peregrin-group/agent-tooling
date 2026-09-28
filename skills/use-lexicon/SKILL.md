@@ -109,7 +109,8 @@ This applies to the user's language and to yours.
 5. When the user asserts a concept's definition or relationships, check the
    definitive evidence before accepting the claim (the scope set in procedure
    F: stop at the first clear answer). If the evidence contradicts the claim,
-   say so, with file:line.
+   say so, with file:line. If the evidence also contradicts the lexicon,
+   follow procedure F.
 
 Unattended: skip step 2; in step 3, write a proposal (procedure C) instead of
 suggesting a discussion.

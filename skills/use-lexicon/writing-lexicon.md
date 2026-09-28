@@ -55,7 +55,7 @@ asynchronous loading do not belong.
 ### Named instances
 
 A named instance gets an entry only when it is itself a domain concept. E.g.,
-the gitw, ghw, and bdw wrapper families are concepts, and individual commands
+the gitw, ghw, and bdw wrappers are concepts, and individual commands
 like `gitw-commit` are not: a generic Wrapper entry defines what they share,
 and thin entries for gitw, ghw, and bdw reference it.
 
@@ -283,6 +283,6 @@ Unattended:
 
 - If the lexicon is likely stale, write a proposal (procedure C).
 - If the code is likely wrong, fix it if the fix is within your task's scope.
-  Otherwise file it in the project's tracker (search for a duplicate first; if
-  one exists, reference it or add your evidence to it), or report it in your
-  final deliverable.
+  Otherwise, if you can write to the project's tracker, file it there (search
+  for a duplicate first; if one exists, reference it or add your evidence to
+  it); if you cannot, report it in your final deliverable.
