@@ -1,4 +1,4 @@
-"""The spec for .claude/settings.json, this repo's Beads command policy.
+"""The spec for .claude/settings.json, this repo's permission rules for Beads.
 
 The file under test is repo-level, one directory up; the test lives here so
 the existing discover command finds it without a second test root. The

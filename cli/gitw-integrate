@@ -57,7 +57,7 @@ moved base surfaces on the next attempt. With no trace2 events
 (an unwritable trace path) the classification is text-only, a hook
 refusal reads as exit 6, and the error line says so. A rejection by
 the remote's own hooks (branch protection on the base, for one) is
-still reported as exit 6 today (bead agent-tooling-h3c).
+still reported as exit 6 today (issue agent-tooling-h3c).
 
 Exit codes: 0 success, 1 unclassified git failure, 2 usage error
 (including an unusable or empty message file), 3 not found (label not in

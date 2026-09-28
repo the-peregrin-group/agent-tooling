@@ -20,7 +20,7 @@ Shared tooling for Claude Code agents:
 ## The install model
 
 Nothing runs from a checkout. The checkout is source; `tooling-install` copies it
-into fixed install targets, and agents only ever use the installed copies:
+into fixed Install Targets, and agents only ever use the installed copies:
 
 | Cohort | Source | Installed to |
 |---|---|---|
@@ -28,11 +28,11 @@ into fixed install targets, and agents only ever use the installed copies:
 | `skills` | `skills/` | `~/.claude/skills/` |
 | `agents` | `agents/` | `~/.claude/agents/` |
 
-`install.json` at the repo root declares the cohorts and what each excludes
-(tests, bytecode, OS droppings). Each target gets an `install-receipt.json`
-recording which source repo installed which file, from which commit, with a
-sha256 per file. Several source repos can install into the same target; each
-one's receipt record covers only its own files.
+`install.json` at the repo root declares the Cohorts and what each excludes
+(tests, bytecode, OS droppings). Each Install Target gets an
+`install-receipt.json` recording which Source repo installed which file, from
+which commit, with a sha256 per file. Several Source repos can install into
+the same Install Target; each one's Receipt record covers only its own files.
 
 ```sh
 python3 cli/tooling-install diff  <checkout>   # read-only: installed vs. source
@@ -40,11 +40,11 @@ python3 cli/tooling-install apply <checkout>   # install; refuses a dirty source
 ```
 
 `diff` exits 0 when in sync and 1 on drift. `apply` refuses a dirty source tree
-unless given `--force`, and it never overwrites a file another source repo's
-receipt claims unless the bytes are identical. `adopt <checkout> <other-repo>` is
+unless given `--force`, and it never overwrites a file another Source repo's
+Receipt claims unless the bytes are identical. `adopt <checkout> <other-repo>` is
 the explicit takeover of files that the named repo installed earlier. Run `diff`
 first and read its `conflicting`, `unowned_replaced`, and `foreign_replaced`
-lists. `--cohort <name>` restricts any command to one cohort. The full contract
+lists. `--cohort <name>` restricts any command to one Cohort. The full contract
 is in the docstring of `cli/lib/install.py`.
 
 ## Bootstrap on a fresh machine
@@ -108,9 +108,9 @@ token: `gh auth refresh -s project`.
     `mkdir -p /tmp/claude` (and again after a reboot clears `/tmp`). Then grant
     the verbs each repo uses; `skills/use-git/SKILL.md` ("Allowlisting a
     Consumer") shows the rule shape. This repo also ships its own project
-    `.claude/settings.json`, the command policy for its tracker (see below);
-    it applies only to sessions launched from a checkout whose checked-out
-    branch contains it.
+    `.claude/settings.json`, the permission rules for its Issue Tracker (see
+    below); it applies only to sessions launched from a checkout whose
+    checked-out branch contains it.
 7. Check it all: `tooling-install diff <checkout>` exits 0, and
    `gitw-orient <label>` reports the repo.
 
@@ -129,12 +129,12 @@ copies. Run the tests from `cli/`:
 cd cli && /usr/bin/python3 -m unittest discover -s . -p '*_test.py'
 ```
 
-Tests never touch the real install targets or the network. Many write their
+Tests never touch the real Install Targets or the network. Many write their
 fixtures under `/tmp/claude/` (the staging root the wrappers accept). They
 create it if it is missing, so `/tmp/claude/` must be creatable and writable
 by you; the rest use a temporary directory.
 
-`CONTEXT.md` is the vocabulary. `docs/adr/` holds the design decisions.
+`LEXICON.md` is the vocabulary. `docs/adr/` holds the design decisions.
 
 Work on this repo is tracked in Beads (`bd` 1.3.0) during a trial, with
 GitHub Issues frozen; `CLAUDE.md` has the rules and ADR 0001 the reasons.
