@@ -255,7 +255,7 @@ The wrapper relays git's own push output to stderr beside the JSON,
 including whatever the local pre-push hook prints; a local hook that
 refuses the push is an exit-4 refusal too — fix what it reported, never
 retry unchanged. A rejection by the remote's own hooks is still
-reported as exit 6 today (bead agent-tooling-h3c).
+reported as exit 6 today (issue agent-tooling-h3c).
 Pushing the trunk is structurally refused regardless of prefix; the push
 of your own branch is the boundary, and the forge skills own what happens
 next.
@@ -289,7 +289,7 @@ including whatever the local pre-push hook prints; a local hook that
 refuses the push is an exit-4 refusal too, but it does not mean the base
 moved — fix what it reported on the branch, then loop again from the
 rebase; never retry unchanged. A rejection by the remote's own hooks is
-still reported as exit 6 today (bead agent-tooling-h3c). Afterwards your
+still reported as exit 6 today (issue agent-tooling-h3c). Afterwards your
 worktree is still on the (now-integrated) feature branch; leave local
 trunk syncing and branch cleanup to the harness and the human.
 

@@ -20,7 +20,7 @@ Shared tooling for Claude Code agents:
 ## The install model
 
 Nothing runs from a checkout. The checkout is source; `tooling-install` copies it
-into fixed install targets, and agents only ever use the installed copies:
+into fixed Install Targets, and agents only ever use the installed copies:
 
 | Cohort | Source | Installed to |
 |---|---|---|
@@ -29,10 +29,10 @@ into fixed install targets, and agents only ever use the installed copies:
 | `agents` | `agents/` | `~/.claude/agents/` |
 
 `install.json` at the repo root declares the cohorts and what each excludes
-(tests, bytecode, OS droppings). Each target gets an `install-receipt.json`
-recording which source repo installed which file, from which commit, with a
-sha256 per file. Several source repos can install into the same target; each
-one's receipt record covers only its own files.
+(tests, bytecode, OS droppings). Each Install Target gets an
+`install-receipt.json` recording which source repo installed which file, from
+which commit, with a sha256 per file. Several source repos can install into
+the same Install Target; each one's receipt record covers only its own files.
 
 ```sh
 python3 cli/tooling-install diff  <checkout>   # read-only: installed vs. source
@@ -108,9 +108,9 @@ token: `gh auth refresh -s project`.
     `mkdir -p /tmp/claude` (and again after a reboot clears `/tmp`). Then grant
     the verbs each repo uses; `skills/use-git/SKILL.md` ("Allowlisting a
     Consumer") shows the rule shape. This repo also ships its own project
-    `.claude/settings.json`, the command policy for its tracker (see below);
-    it applies only to sessions launched from a checkout whose checked-out
-    branch contains it.
+    `.claude/settings.json`, the permission rules for its Issue Tracker (see
+    below); it applies only to sessions launched from a checkout whose
+    checked-out branch contains it.
 7. Check it all: `tooling-install diff <checkout>` exits 0, and
    `gitw-orient <label>` reports the repo.
 
@@ -129,7 +129,7 @@ copies. Run the tests from `cli/`:
 cd cli && /usr/bin/python3 -m unittest discover -s . -p '*_test.py'
 ```
 
-Tests never touch the real install targets or the network. Many write their
+Tests never touch the real Install Targets or the network. Many write their
 fixtures under `/tmp/claude/` (the staging root the wrappers accept). They
 create it if it is missing, so `/tmp/claude/` must be creatable and writable
 by you; the rest use a temporary directory.

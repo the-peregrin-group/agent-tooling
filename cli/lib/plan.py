@@ -15,8 +15,8 @@ and migrate opportunistically.
 
 Write wrappers emit a JSON plan to stdout with "action": "plan" |
 "applied" | "conflict" -- the last for a write that stopped partway
-leaving deliberate resumable state (a gitw-rebase conflict stop), so the
-whole family shares one discriminator vocabulary.
+leaving deliberate resumable state (a gitw-rebase conflict stop), so
+every Wrapper shares one discriminator vocabulary.
 """
 
 from __future__ import annotations

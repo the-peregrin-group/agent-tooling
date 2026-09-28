@@ -1,7 +1,7 @@
 # Beads post-init checklist
 
-What to undo after initializing Beads 1.3.0 in a new repo, so the tracker
-stays local-only and only its config lands in git. This is a maintainer
+What to undo after initializing Beads 1.3.0 in a new repo, so the Issue
+Tracker stays local-only and only its config lands in git. This is a maintainer
 procedure: agents are denied `init` and every `dolt` subcommand, and
 `bd backup init` asks.
 
@@ -13,7 +13,7 @@ procedure: agents are denied `init` and every `dolt` subcommand, and
   bd init --skip-hooks --skip-agents
   ```
 
-  The command policy denies `init` to agents, so the maintainer runs it.
+  The permission rules deny `init` to agents, so the maintainer runs it.
   Not checked against `bd init --help`; the flags are the ones in this
   repo's init commit.
 
