@@ -143,7 +143,8 @@ Each line takes one of these fixed forms, and no other:
 
 - `X: removed YYYY-MM-DD`
 - `X: renamed to Y YYYY-MM-DD`
-- `A, B: merged into Y YYYY-MM-DD`
+- `A[, B]: merged into Y YYYY-MM-DD` (one or more merged terms; Y may be new
+  or existing)
 - `X: split into Y and Z YYYY-MM-DD`
 
 The date is when the change was ratified: a stream document written before
@@ -319,8 +320,9 @@ Access Grant was never a lexicon term. Delete the proposal file.
 2. Add the term's line to Retired terms, in its fixed form. Remove the old name
    from every Avoid list.
 3. Update the lexicon mechanically. First change the entry itself: rename it;
-   for a merge, delete A and B and write Y; for a split, delete X and write Y
-   and Z; for a removal, delete it. Then update every definition, invariant,
+   for a merge, delete the merged entries and write Y, or update it if it
+   already exists; for a split, delete X and write Y and Z; for a removal,
+   delete it. Then update every definition, invariant,
    relationship, and example that uses the old name.
 4. In the same change, update state documents (README, CLAUDE.md, design
    docs, plans, skills) that use the old name. Never rewrite stream documents
