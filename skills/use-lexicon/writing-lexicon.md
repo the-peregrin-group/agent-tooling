@@ -319,8 +319,8 @@ Present it in one turn. The user alters then ratifies it as Permissions
 Grant, adding Avoid: permission, role. Write the Permissions Grant entry and
 its relationship to `LEXICON.md`. Rename `AccessGrant` to `PermissionsGrant`
 in both listed files, and "Access Grant" in any state document: mechanical,
-no question asked. Add no Retired terms line, since
-Access Grant was never a lexicon term. Delete the proposal file.
+no question asked. Add no Retired terms line, since Access Grant was never a
+lexicon term. Delete the proposal file.
 
 ### E. Rename or retire a term
 
