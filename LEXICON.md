@@ -1,129 +1,146 @@
 # agent-tooling
 
-The vocabulary for a repo that ships policy-enforcing wrappers, skills, and
-agent definitions for Claude Code sessions, and that tracks its own work in a
-per-repo tracker.
+A repo that ships policy-enforcing Wrappers, Skills, and Agent definitions for
+agents.
 
 ## Entries
 
 ### Wrappers
 
-**Wrapper**: A small executable that stands between an agent and one raw tool
-(git, a forge CLI, or the tracker) and enforces policy on the call, so that
-permission rules can grant it by literal command prefix instead of granting
-the raw tool. `bdw` is the Beads wrapper: it passes its arguments through to
-`bd` unchanged except bd's own `--actor` flag, which it refuses.
+**Wrapper**: A facade over one raw tool or service (e.g., git, a forge, the
+Issue Tracker) that restricts the surface available to agents, makes that
+surface grantable by Permission rules without granting the raw tool, and
+encodes the project's conventions in code instead of leaving them to agent
+judgment.
 - _Avoid_: script, helper, alias, shim
 
-**Verb**: One wrapper, named `<family>-<verb>`, invoked by bare name on PATH.
-- _Avoid_: command, subcommand (those belong to the raw tools)
+**gitw**: The Wrapper over git; every allowed mutating git operation goes
+through it.
 
-**Wrapper family**: The set of verbs for one target: `gitw-*` for git, `ghw-*`
-for GitHub, `fjw-*` for Forgejo.
+**ghw**: The Wrapper over GitHub; every allowed GitHub write goes through it.
+
+**fjw**: The Wrapper over a Forgejo forge; every allowed Forgejo write goes
+through it.
+
+**bdw**: The Wrapper over Beads; every allowed Beads write goes through it.
+
+**Verb**: One operation a Wrapper offers agents. Verbs are an editorial choice
+and need not mirror the raw tool's operations one to one: each is shaped by
+the journey the Wrapper supports and the restrictions it imposes (e.g., gitw's
+integrate runs several git operations while allowing few git capabilities
+during integration).
+- _Avoid_: command, subcommand
+
+**Exit-code contract**: The fixed meaning of a Verb's exit status (e.g.,
+success, refused by policy, network failure, etc.) that callers branch on.
+
+**Actor**: The session identity a Wrapper derives from its own environment and
+records on the writes it attributes: one per background job, and a visibly
+distinct fallback for attended sessions. An Actor is a session, never a
+person.
+- _Avoid_: user, author, assignee
+
+### Repos and branches
 
 **Roster**: The machine-local registry that pins, per repo, the one blessed
 checkout, its authoritative remote, and its default branch.
 
-**Roster label**: A repo's short name in the roster and the first argument of
-every `gitw-*` verb; repo identity comes from the label, never from a path or
-the cwd.
+**Roster label**: A repo's short name in the Roster, by which tools (e.g.,
+gitw) identify the repo.
+- _Invariants_: repo identity comes from the Roster label, never from a path
+  or the working directory
 - _Avoid_: repo name, slug
 
-**Branch prefix**: The `fix/`-style token (lowercase, one level, trailing
-slash) that scopes a mutating verb and that allowlist rules pin.
+**Branch prefix**: The token naming a class of branches (e.g., fix/) that
+scopes a mutating gitw Verb, and that Permission rules pin when granting it.
 
-**Exit-code contract**: The fixed meaning of a verb's exit status (success,
-unclassified failure, usage, not found, refused by policy, roster or auth
-failure, network) that callers branch on.
+### Agentic systems
 
-**Actor**: The session identity a wrapper derives from its own environment and
-records on every write it makes: a job-derived actor for background-job
-sessions, a visibly distinct attended fallback otherwise.
-- _Avoid_: user, author, assignee (an actor is a session, not a person)
+**Skill**: A package, compliant with the agentskills.io standard, that teaches
+agents an additional capability.
+
+**Agent definition**: A package that defines a specialized agent (e.g., its
+role, instructions, and permitted capabilities) that another agent can spawn
+to carry out a delegated task. An agent is the running session; an Agent
+definition is what it is spawned from.
+- _Avoid_: agent
+
+**Permission rule**: A declared rule that decides whether an agent may take an
+action on its own, only with a human's approval, or never.
+- _Invariants_: enforced programmatically, never left to agent judgment
+- _Avoid_: allowlist, permission row
 
 ### Installing
 
-**Source repo**: A checkout with an `install.json` at its root, named by that
-file's `source_repo` field; several source repos can ship into the same
-targets.
+**Install Target**: A directory into which agent tooling is installed. Not all
+tooling need be installed into the same Install Target.
+- _Invariants_: never edited directly; only the Installer writes it
 
-**Cohort**: One named section of `install.json`: a set of source directories
-that installs into one target, with its own excludes.
+**Installer**: The component that installs Source repos' tooling into Install
+Targets, and the only writer of Install Targets and their Receipts.
+- _Invariants_: never overwrites content another Source repo owns, except by
+  Adoption; never replaces content no Receipt claims without reporting it
 
-**Target**: The directory a cohort installs into, fixed by the cohort's kind.
+**Install Manifest**: A Source repo's declaration of the tooling that can be
+installed from it: the repo's name, and which tooling installs into which
+Install Target, with any exclusions.
+- _Invariants_: one per Source repo; the Installer installs only what an
+  Install Manifest declares
 
-**Unit**: One skill directory; skills install and swap a whole unit at a time,
-while `bin` and `agents` install file by file.
+**Source repo**: A repo that contains an Install Manifest, which declares the
+tooling that can be installed from it; the tooling of several Source repos can
+be installed into the same Install Target.
 
-**Receipt**: The record in each target of what each source repo installed
-there: the commit and a hash for every file or unit it owns.
+**Cohort**: A set of a Source repo's tooling, declared in its Install
+Manifest, that installs into one Install Target (e.g., "the skills Cohort");
+the Installer can install Cohorts selectively.
+- _Invariants_: a Source repo has exactly one Cohort for each Install Target
+  it uses
 
-**Foreign / unowned**: A file in a target that another source repo's receipt
-claims is foreign; a file no receipt claims is unowned. Installs preserve both
-and report them.
+**Receipt**: The ownership record in an Install Target that lets the Installer
+keep one Source repo's tooling from overwriting another's: which Source repo's
+tooling each installed file came from (a Skill counts as one whole), and from
+which source revision.
+- _Invariants_: each installed file or Skill has at most one owning Source
+  repo; the Installer removes from an Install Target only what its Receipt
+  shows a Source repo installed
 
-**diff / apply / adopt**: The installer's three commands: `diff` compares
-installed against source and changes nothing; `apply` installs, refusing to
-overwrite foreign content; `adopt` installs and takes over the files one named
-source repo owned.
+**Adoption**: The transfer, within a Receipt, of ownership of installed
+tooling from one Source repo to another.
+- _Invariants_: happens without an explicit request only when the incoming
+  content is identical to what is installed
 
-### Tracking
+### Tracking Work
 
-**Tracker**: The one system of record for this repo's work; during the trial
-it is Beads, and GitHub Issues is frozen.
-- _Avoid_: backlog, board, issues (as a system name)
+**Issue Tracker**: The one system of record (e.g., Beads, GitHub Issues) for
+this repo's actionable work: each unit of work is an Issue, tracked from filed
+to done.
+- _Avoid_: backlog, board
 
-**Bead**: One tracked item of work in Beads, with a status, a type, an actor
-history, and dependencies on other beads.
-- _Avoid_: issue, ticket, task (as a system-level noun; `task` is a bead type)
+**Issue**: One tracked unit of actionable work in the Issue Tracker (e.g., a
+bug, a feature, a task), with a status and dependencies on other Issues.
+- _Avoid_: ticket
 
-**Bead ID**: A bead's stable identifier, prefixed with this repo's issue
-prefix; the only way code, commits, and PR bodies refer to a bead.
-- _Avoid_: `#N` (that is a GitHub issue number)
-
-**External reference**: The pointer a bead carries to the record it was
-imported from, here a GitHub issue URL; it identifies provenance and never
-implies sync.
-
-**Discovered-from**: The dependency recorded from a bead to the bead whose
-work surfaced it.
-
-**Trial freeze**: The state in which GitHub Issues stays readable but is
-neither written nor synced, so that the tracker is the only source of truth
-for the trial.
-
-**Command policy**: The allow, ask, and deny rules that decide which tracker
-subcommands an agent may run without a human, with a human, or never; policy,
-not judgment.
-- _Avoid_: allowlist (ambiguous between this and the wrappers' permission
-  rows)
-
-### Claude Code
-
-**Harness**: Claude Code as the environment agents run in: the permission
-rules, hooks, worktree isolation, and memory files that surround a session.
-
-**Skill**: A directory with a `SKILL.md` that the harness loads on demand; the
-instructions an agent follows for one kind of task.
-
-**Agent definition**: A subagent definition in `agents/`, a Markdown file with
-frontmatter that the harness can spawn for a delegated task.
-- _Avoid_: agent (alone; an agent is a running session, this is its
-  definition)
+**Issue ID**: An Issue's stable identifier in the Issue Tracker: unambiguous,
+but opaque to humans.
+- _Invariants_: every reference to an Issue includes its Issue ID
 
 ## Relationships
 
-- A Wrapper family contains one or more Verbs; `bdw` is a Wrapper in no
-  family.
-- Every mutating `gitw-*` Verb takes exactly one Roster label and one Branch
-  prefix, and reports through the Exit-code contract.
-- `bdw` derives one Actor per invocation and records it on the Tracker;
-  `gitw-commit` records the same Actor on every commit.
-- A Source repo declares one or more Cohorts; each Cohort installs into
-  exactly one Target and leaves a Receipt there.
-- A Tracker holds many Beads; a Bead has exactly one Bead ID, at most one
-  External reference, and any number of Discovered-from links.
-- The Command policy governs every Tracker write; the Trial freeze governs the
-  frozen system, not the Tracker.
+- gitw, ghw, fjw, and bdw are Wrappers; each Wrapper offers one or more Verbs.
+- Every mutating gitw Verb is scoped by exactly one Roster label and one
+  Branch prefix.
+- gitw, ghw, and fjw Verbs report through the Exit-code contract.
+- bdw and gitw record the Actor on the writes they attribute: bdw on the Issue
+  Tracker, gitw on its commits.
+- A Source repo contains exactly one Install Manifest, which declares one or
+  more Cohorts.
+- A Cohort holds one or more tools, and a tool may belong to more than one
+  Cohort; each Cohort installs into exactly one Install Target.
+- An Install Target holds exactly one Receipt, which records what each Source
+  repo's tooling owns there.
+- The Installer is the only writer of Install Targets and Receipts; an
+  Adoption moves ownership between two Source repos within one Receipt.
+- The Issue Tracker holds many Issues; an Issue has exactly one Issue ID.
 
 ## Retired terms
