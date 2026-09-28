@@ -6,7 +6,7 @@
 - Edit here, then install with `tooling-install apply <this-checkout>`. The
   installed copies under `~/.local/libexec/agent-tooling/`, `~/.claude/skills/`,
   and `~/.claude/agents/` are outputs. Never edit them directly: the next install
-  overwrites a hot patch, and the receipt hashes stop matching.
+  overwrites a hot patch, and the Receipt hashes stop matching.
 - `tooling-install diff <this-checkout>` is read-only and shows what an install
   would change. Run it before asking the user to approve an `apply` or `adopt`.
 - `install.json` declares what ships. A new file under `cli/`, `skills/`, or

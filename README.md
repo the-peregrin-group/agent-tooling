@@ -28,11 +28,11 @@ into fixed Install Targets, and agents only ever use the installed copies:
 | `skills` | `skills/` | `~/.claude/skills/` |
 | `agents` | `agents/` | `~/.claude/agents/` |
 
-`install.json` at the repo root declares the cohorts and what each excludes
+`install.json` at the repo root declares the Cohorts and what each excludes
 (tests, bytecode, OS droppings). Each Install Target gets an
-`install-receipt.json` recording which source repo installed which file, from
-which commit, with a sha256 per file. Several source repos can install into
-the same Install Target; each one's receipt record covers only its own files.
+`install-receipt.json` recording which Source repo installed which file, from
+which commit, with a sha256 per file. Several Source repos can install into
+the same Install Target; each one's Receipt record covers only its own files.
 
 ```sh
 python3 cli/tooling-install diff  <checkout>   # read-only: installed vs. source
@@ -40,11 +40,11 @@ python3 cli/tooling-install apply <checkout>   # install; refuses a dirty source
 ```
 
 `diff` exits 0 when in sync and 1 on drift. `apply` refuses a dirty source tree
-unless given `--force`, and it never overwrites a file another source repo's
-receipt claims unless the bytes are identical. `adopt <checkout> <other-repo>` is
+unless given `--force`, and it never overwrites a file another Source repo's
+Receipt claims unless the bytes are identical. `adopt <checkout> <other-repo>` is
 the explicit takeover of files that the named repo installed earlier. Run `diff`
 first and read its `conflicting`, `unowned_replaced`, and `foreign_replaced`
-lists. `--cohort <name>` restricts any command to one cohort. The full contract
+lists. `--cohort <name>` restricts any command to one Cohort. The full contract
 is in the docstring of `cli/lib/install.py`.
 
 ## Bootstrap on a fresh machine
