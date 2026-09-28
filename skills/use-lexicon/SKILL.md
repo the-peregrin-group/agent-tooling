@@ -99,7 +99,8 @@ term's line names what replaced it; use that.
 This applies to the user's language and to yours.
 
 1. A known concept under the wrong name: use the correct term once, inline, in
-   your reply. Do not ask the user to rephrase.
+   your reply. Do not ask the user to rephrase. E.g., the user says "a
+   user's Posts"; you say "that Account's Posts (the User is the human)".
 2. The same wrong name again after that correction: ask once whether the
    lexicon's name should change. If the user says yes, follow procedure E.
 3. A concept the lexicon lacks: apply the naming tests (it will be used often;

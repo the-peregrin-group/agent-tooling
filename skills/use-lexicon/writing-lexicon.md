@@ -43,6 +43,14 @@ Example: a "Home Screen" entry says what that screen is, what it is for, and
 what it means to users. Today's visual design, its Tailwind styling, and its
 asynchronous loading do not belong.
 
+Example invariants for Permissions Grant (defined in the worked example
+below):
+
+- Pass: "never outlives the Account that holds it"; "held by exactly one
+  Account". Each survives any change of storage or topology.
+- Fail: "stored in the grants table" (a schema); "checked by the API gateway"
+  (a topology); "expires after 90 days" (a configuration value).
+
 ### Examples in entries
 
 - Mark every example "e.g.".
@@ -117,7 +125,7 @@ In this order:
 **Permissions Grant**: The authority an Account holds to act on a resource.
 ...
 - _Invariants_: never outlives the Account that holds it; ...
-- _Avoid_: permission, ACL, role
+- _Avoid_: permission, role
 ```
 
 - The term in bold, then a colon, then the definition sentences.
@@ -168,13 +176,23 @@ video, audio, polls).
 - _Invariants_: never changes its publishing Account
 - _Avoid_: tweet, share
 
+**Permissions Grant**: The authority an Account holds to act on a resource
+beyond its own (e.g., to moderate another Account's Posts).
+- _Invariants_: never outlives the Account that holds it; held by exactly one
+  Account
+- _Avoid_: permission, role
+
 ## Relationships
 
 - A User has one or more Accounts.
 - An Account can publish many Posts.
+- An Account can hold many Permissions Grants.
 
 ## Retired terms
 
+- Person: split into User and Account 2026-06-02
+- Status: renamed to Post 2026-07-14
+- Like: removed 2026-08-30
 - Profile: merged into Account 2026-09-27
 ```
 
@@ -206,6 +224,21 @@ Steps:
    `LEXICON.md` at once, with any new relationships. If the user says "park
    it", write a proposal (procedure C, steps 1-2) instead.
 
+Example: the user asks for "a moderator role, or permission, or something"
+so that some Accounts can moderate other Accounts' Posts.
+
+- First turn: "This needs a term. Moderation work will refer to it
+  constantly, and no industry term fits: a role is a bundle of authority
+  given to many Accounts, and this is one Account's authority. Core identity:
+  the authority an Account holds to act on a resource beyond its own. Agree?"
+  The user agrees. Nothing is named yet.
+- Next turn: "Candidates: Permissions Grant (recommended: it names both the
+  authority and the act of conferring it), Access Grant, Capability,
+  Permission. Collisions: none with an entry, an Avoid word, or a retired
+  term. Since you said 'role' and 'permission' for it, both go in its Avoid
+  list." The user ratifies Permissions Grant. Write its entry (see the worked
+  example) and its relationship at once.
+
 ### C. Propose a term (unattended)
 
 Never edit `LEXICON.md` in an unattended session. Never file a tracker issue
@@ -226,6 +259,36 @@ for a proposal.
 2. Commit the proposal file with the code that motivated it, if any.
 3. List each proposal file you wrote in your final report, one line each.
 
+Example: the moderation concept from procedure B's example, met instead in an
+unattended session that chose a different name. The file is
+`lexicon-proposals/access-grant--1790562646.md`:
+
+```md
+# Proposal: Access Grant
+
+## Draft entry
+
+**Access Grant**: The authority an Account holds to act on a resource beyond
+its own (e.g., to moderate another Account's Posts).
+- _Invariants_: never outlives the Account that holds it; held by exactly one
+  Account
+
+## Naming questions
+
+1. Why a term: the moderation feature refers to it throughout, and no
+   industry term fits (a role is a bundle given to many Accounts).
+2. Core identity: the authority an Account holds to act on a resource beyond
+   its own.
+3. Candidates: Access Grant (chosen: short, and names what it confers),
+   Permissions Grant, Capability, Permission.
+4. Collisions: none with an entry, an Avoid word, or a retired term.
+
+## In code
+
+- src/grants/model.py (`AccessGrant`)
+- src/moderation/service.py (`AccessGrant`)
+```
+
 ### D. Review proposals
 
 1. Group the files in `<root>/lexicon-proposals/` by slug. Present one group
@@ -241,6 +304,13 @@ for a proposal.
      name in code and state documents; this is mechanical. Add no Retired
      terms line: the proposed name was never a lexicon term.
 5. Every outcome deletes the group's proposal files.
+
+Example: the access-grant group holds the file from procedure C's example.
+Present it in one turn. The user alters then ratifies it, as Permissions
+Grant. Write the Permissions Grant entry to `LEXICON.md`. Rename `AccessGrant`
+to `PermissionsGrant` in both listed files, and "Access Grant" in any state
+document: mechanical, no question asked. Add no Retired terms line, since
+Access Grant was never a lexicon term. Delete the proposal file.
 
 ### E. Rename or retire a term
 
@@ -260,6 +330,18 @@ for a proposal.
    deliberately.
 6. If Retired terms now exceeds 20 lines, move its lines to
    `LEXICON-RETIRED.md` (see Retired terms above).
+
+Example: the user finds that a Profile and an Account are one concept.
+
+1. The naming discussion keeps the name Account and agrees its merged
+   definition.
+2. Retired terms gains `Profile: merged into Account 2026-09-27`.
+3. Delete the Profile entry, write the agreed Account definition, and delete
+   the relationship "An Account has one Profile".
+4. Replace "Profile" in the README and design docs; the ADRs keep it.
+5. Ask: "Code still says Profile: `Profile` (src/models/profile.py:8),
+   `profile_id` (src/models/post.py:21). Rename now, file the rename for
+   later, or keep them deliberately?"
 
 ### F. Resolve a code-vs-lexicon conflict
 
@@ -286,3 +368,9 @@ Unattended:
   Otherwise, if you can write to the project's tracker, file it there (search
   for a duplicate first; if one exists, reference it or add your evidence to
   it); if you cannot, report it in your final deliverable.
+
+Example: Permissions Grant says it never outlives the Account that holds it,
+but the grants table's foreign key to accounts does not cascade on delete
+(db/schema.sql:40). That settles it; read no further. Present the invariant
+and the schema line. The user rules the code wrong, then chooses to file it
+for later: search the tracker for a duplicate, find none, and file it.
