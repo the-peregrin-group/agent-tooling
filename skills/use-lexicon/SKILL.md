@@ -1,58 +1,129 @@
 ---
 name: use-lexicon
 description: >
-  Establishes, extends, or refines rigorous DDD-style domain language within a project. Use this skill proactively any time new
-  concepts, features, entities, etc. are being discussed so that they are properly catalogued in the project's language.
+  Maintain a project's LEXICON.md, the canonical definitions of its domain
+  terms, and hold all work to those terms. Load when a concept needs a name;
+  when a term is coined, renamed, retired, or disputed; when code and lexicon
+  disagree; when lexicon proposals await review; or when a project has no
+  LEXICON.md but needs one or has a glossary to convert. Triggers: "what do
+  we call...", "add to the lexicon", "is X the same as Y", "rename X",
+  "review lexicon proposals", "convert CONTEXT.md". EXCLUDE: generic
+  industry vocabulary, API or reference docs, implementation documentation.
 ---
 
 # Use Lexicon
 
-This skill defines and executes the practice of maintaining consistent domain language within a project.
+A project's `LEXICON.md` holds the canonical definitions of its domain terms:
+what each concept is, not how it is implemented. Humans, agents, documents,
+and code all use those terms to mean those things. "Lexicon" (from
+linguistics: a language's inventory of lexemes) stresses that it catalogs
+concepts, not implementation.
 
-The key artifact is a `LEXICON.md` file at the project's root which aims to contain _high-level_ definitions for all _concepts_ used in the project. We use the term "lexicon" (from formal linguistics, i.e., "collection of lexemes") to emphasize the conceptual nature of this list.
+## Ground rules
 
-**Always read `LEXICON.md` in its entirety.**
+- One lexicon per repo: `LEXICON.md` at the root (procedure A defines the
+  root). Never create a lexicon in a subdirectory.
+- The user ratifies every change to the lexicon except mechanical ones.
+  Mechanical changes include fixing a typo, fixing a stale example,
+  applying an already-ratified rename or retirement through the lexicon
+  (procedure E, steps 2-3, including removing the old name from Avoid lists),
+  the mechanical steps of conversion (below), and moving Retired terms lines
+  to `LEXICON-RETIRED.md`. Rewording and tightening need ratification. Write
+  each ratified change at once; never batch changes for later.
+- A session is unattended only if its prompt says "unattended"; otherwise it
+  is attended. Never edit the lexicon in an unattended session: write a
+  proposal instead (procedure C).
+- Use lexicon terms exactly, everywhere: conversation, documents, code,
+  commit messages, PRs. Coin a term only through procedure B or C.
+- Before running any of procedures B-F, read `writing-lexicon.md` (bundled
+  with this skill). It holds the content rules, the format, and those
+  procedures.
 
-This skill was designed for use in software projects, but remains very useful in other settings. If working outside of software, please extend the metaphor into the project domain as best you can. Ask the user for guidance if unclear.
+Outside software, map the terms of this skill onto the project:
 
-## If no `LEXICON.md` exists
+- code: the project's artifacts
+- implementation: how a concept is currently realized
+- code identifiers: names used in those artifacts
+- commits and PRs: the project's change records
+- git top-level: the root rule in procedure A, step 1
 
-Create one by copying in the `./lexicon-template.md` bundled with this skill and renaming it accordingly. Delete the sections of the new copied lexicon doc that are marked `--delete on copy--`.
+## A. Find the lexicon
 
-## How to write `LEXICON.md`
+1. Find the root: the git top-level (`git rev-parse --show-toplevel`). Outside
+   a git repo, the nearest ancestor of the working directory that contains a
+   `.claude/` directory, not counting the user-level `~/.claude`. Failing
+   both, the working directory.
+2. If `<root>/LEXICON.md` exists, read it in full, unless its full content is
+   already in your context. Go to step 5.
+3. If there is no `LEXICON.md`, but the project's CLAUDE.md or README names a
+   glossary file as the project's vocabulary:
+   - Attended: offer conversion (below), once per session. If the user
+     declines, use that file as the lexicon for this session: for the rest of
+     the session, `LEXICON.md` in every procedure means that file. Write new
+     or changed entries in the lexicon format (this skill's), not the file's
+     old format.
+   - Unattended: use that file as the lexicon. Make no offer.
 
-All edits to `LEXICON.md` should follow the guidelines laid out in `./writing-lexicon.md`.
+   Go to step 5.
+4. If there is neither: attended, create `<root>/LEXICON.md` from
+   `lexicon-template.md` (bundled with this skill) without asking permission
+   to create it. Fill in the project name and its one-sentence description,
+   and present the sentence to the user for ratification. Remove the
+   placeholder entry, or replace it with the first ratified entry.
+   Unattended, create nothing; proposals still go to
+   `<root>/lexicon-proposals/`.
+5. Attended: if `<root>/lexicon-proposals/` contains files, say so once this
+   session and offer to review them (procedure D).
 
-## Make changes immediately
+Whenever you look up a term that is not among the entries, check Retired
+terms, then `LEXICON-RETIRED.md` if Retired terms links to it. A retired
+term's line names what replaced it; use that.
 
-Changes to `LEXICON.md` should always come with the user decisions that motivate them. Do not accumulate changes and batch them into single edits at a later time. By delaying/batching you risk loss or misrepresentation of decisions on context bloat or unexpected session end.
+**Conversion** is one change, made in this order:
 
-## High-level concepts, not implementation, not history
+1. Rewrite the old file's content into `LEXICON.md` in the format of
+   `writing-lexicon.md`. Reformatting is mechanical; definition text carries
+   over verbatim. A standalone invariants section moves onto its entries.
+   Terms named in a resolved-ambiguity note may move into the relevant Avoid
+   list. Drop example dialogue. Any change to definition text, including
+   folding an ambiguity's resolution into a definition, needs ratification,
+   one entry per turn, after the conversion lands. An open ambiguity becomes a
+   naming discussion (procedure B) after the conversion.
+2. Delete the old file.
+3. Update every reference to the old file in state documents (CLAUDE.md,
+   README, docs, skills) to point to `LEXICON.md`. Never rewrite stream
+   documents (ADRs, logs, changelogs, commit messages).
 
-An entry in the lexicon should change only when we've decided to change its _conceptual identity_, not its implementation. Therefore, lexical entries _should not describe or reference "internal implementation"_, i.e., anything that is not core to the entry's identity.
+## G. Correct drift in language
 
-Example: If defining a "Home Screen" for an application, the focus is on what that screen is conceptually, what its purpose is, what it means to users, etc. It does not matter what it looks like in today's visual design, or that it is styled using Tailwind, or that it loads asynchronously.
+This applies to the user's language and to yours.
 
-Include _only current state and definitions_, never the change history. It is tempting to explain amendments in the lexicon itself, annotate dates and rationales for changes, etc. This is verbose, confusing, and ultimately harmful.
+1. A known concept under the wrong name: use the correct term once, inline, in
+   your reply. Do not ask the user to rephrase.
+2. The same wrong name again after that correction: ask once whether the
+   lexicon's name should change. If the user says yes, follow procedure E.
+3. A concept the lexicon lacks: apply the naming tests (it will be used often;
+   no clear industry term exists to adopt). Suggest a naming discussion
+   (procedure B) only if it passes both.
+4. Never correct everyday words used in their everyday sense.
+5. When the user asserts a concept's definition or relationships, check the
+   definitive evidence before accepting the claim (the scope set in procedure
+   F: stop at the first clear answer). If the evidence contradicts the claim,
+   say so, with file:line. If the evidence also contradicts the lexicon,
+   follow procedure F.
 
-## Apply the terminology yourself
+Unattended: skip step 2; in step 3, write a proposal (procedure C) instead of
+suggesting a discussion.
 
-Use the precise, correct terminology in all settings: documents, code, discussions with the user and other agents, commit messages, PRs, etc. Don't make up new terms that have not yet been officially incorporated.
+## B-F. In `writing-lexicon.md`
 
-## Hold user accountable
-
-If the user is imprecise in their language or uses the wrong terms to describe known concepts, clarify and ask that they use proper lexical entries.
-
-Similarly, if the user makes claims about a concept's definition and relationships to other concepts (especially in software), explore the project data (e.g., source code) to confirm or deny the user's claims. Remember that you are looking for truth about the _concept_ and _identity_ (e.g., "Users and Accounts are actually one-to-many, not one-to-one!"), not implementation (e.g., "Users are authenticated with OAuth2").
-
-## Vet new concepts
-
-As new concepts arise, consider them against the lexicon and ensure that they are both compatible (they don't conflict) and consistent (they relate intuitively) with the existing entries.
-
-## Don't capture generic concepts
-
-Only add entries for concepts that are specific to the project and not de facto givens in industry. For instance, in a software project, it is unnecessary to establish entries for well-understood software terms like "object-oriented programming," "semaphore," "schema," etc.
-
-## Bootstrapping from `CONTEXT.md`
-
-For projects that declare a `CONTEXT.md` but no `LEXICON.md`, on first encounter, parse `CONTEXT.md` and rewrite as a sibling `LEXICON.md` in [the proper format](#how-to-write-lexiconmd). Ask the user if they want to delete `CONTEXT.md`, or, if the session is unattended, leave it.
+- **B. Name a concept (attended):** a concept needs a name, or the user asks
+  to add one to the lexicon.
+- **C. Propose a term (unattended):** a concept needs a name or an entry needs
+  changing in an unattended session, or the user says "park it".
+- **D. Review proposals:** the user accepts the review offer or asks to
+  review lexicon proposals.
+- **E. Rename or retire a term:** a term needs a new name, or must be removed,
+  merged, or split.
+- **F. Resolve a code-vs-lexicon conflict:** code violates an entry's
+  invariant or relationship, or uses a term with a different meaning.

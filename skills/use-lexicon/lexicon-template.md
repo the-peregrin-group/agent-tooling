@@ -1,13 +1,13 @@
-# [project name]
+# [Project]
 
-[A single sentence describing the context of the project. Link to README or similar if more is required.]
+[One sentence describing the project's context.]
 
 ## Entries
 
-**TODO:**
-TODO description
-_Avoid: TODO_
+**[Term]**: [Definition.]
+- _Invariants_: [invariant]; [invariant]
+- _Avoid_: [word], [word]
 
-## Entry Relationships
+## Relationships
 
-- TODO
+## Retired terms
