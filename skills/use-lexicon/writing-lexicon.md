@@ -184,48 +184,63 @@ video, audio, polls).
 
 ### B. Name a concept (attended)
 
-1. Raise the need as an overt discussion, one concept per turn. Never slip an
-   unratified term into conversation, documents, or code.
-2. Pose and answer these yourself, then present them:
-   1. Why a term: it will be used often, and no clear industry term exists to
-      adopt. If an industry term fits, use it; it needs no entry.
-   2. Core identity: what the concept is, independent of implementation.
-   3. Candidates: the top 3-5 names, and why the chosen one is best.
-   4. Collisions: whether any candidate fully or partially overlaps an entry,
-      an Avoid list word, or a retired term.
-3. Agree on the concept's core identity with the user first; name it only
-   after that.
+The naming questions, which you pose and answer yourself:
+
+1. Why a term: it will be used often, and no clear industry term exists to
+   adopt. If an industry term fits, use it; it needs no entry.
+2. Core identity: what the concept is, independent of implementation.
+3. Candidates: the top 3-5 names, and why your recommendation is best.
+4. Collisions: whether any candidate fully or partially overlaps an entry, an
+   Avoid list word, or a retired term.
+
+Steps:
+
+1. Raise the need as an overt discussion, one concept per turn. Never use a
+   term that is neither ratified nor proposed (procedure C).
+2. First turn: present your answers to naming questions 1 and 2. Get the
+   user's agreement on the concept's core identity before naming it.
+3. Next turn: present your answers to naming questions 3 and 4: the
+   candidates, your recommendation, and the collision check.
 4. Push back with specific concerns wherever you have them. The user decides.
 5. Draft the entry in the format above. When the user ratifies it, write it to
    `LEXICON.md` at once, with any new relationships. If the user says "park
-   it", write a proposal (procedure C, steps 2-4) instead.
+   it", write a proposal (procedure C, steps 1-2) instead.
 
 ### C. Propose a term (unattended)
 
 Never edit `LEXICON.md` in an unattended session. Never file a tracker issue
 for a proposal.
 
-1. Answer the questions of procedure B, step 2, yourself, and choose the name.
-2. Write one proposal per file at
-   `<root>/lexicon-proposals/<slug>--<epoch>.md`: `<slug>` is the term in
-   lowercase kebab-case, `<epoch>` is the output of `date +%s`. It contains:
-   - the draft entry, in the format above
-   - your answers to the naming questions
-   - where the name is used in code (file paths)
-3. Use the proposed name in code.
-4. Commit the proposal file together with the code that motivated it.
-5. List each proposal file you wrote in your final report, one line each.
+1. Write one proposal per file at
+   `<root>/lexicon-proposals/<slug>--<epoch>.md`, where `<epoch>` is the
+   output of `date +%s`.
+   - For a new term: answer the naming questions (procedure B) and choose the
+     name. `<slug>` is the proposed term in lowercase kebab-case. The file
+     holds the draft entry in the format above, your answers to the naming
+     questions, and where the name is used in code (file paths). Use the
+     proposed name in code.
+   - For a change to an existing entry: `<slug>` is the existing term in
+     lowercase kebab-case. The file holds the revised entry in the format
+     above, the reason for the change, and the evidence (file:line). The
+     naming questions and using the name in code do not apply.
+2. Commit the proposal file with the code that motivated it, if any.
+3. List each proposal file you wrote in your final report, one line each.
 
 ### D. Review proposals
 
 1. Group the files in `<root>/lexicon-proposals/` by slug. Present one group
-   per turn: its draft entries and answers.
+   per turn: its entries and their answers, reasons, and evidence.
 2. The user chooses one outcome for the group: discard, ratify as-is, or alter
    then ratify.
-3. On ratification, write the entry to `LEXICON.md`. If the ratified entry
-   renames a term, or its name differs from the proposed name the code uses,
-   continue with procedure E, steps 2-6.
-4. Every outcome deletes the group's proposal files.
+3. Discard: nothing else changes. A proposed name left in code earns no entry.
+4. Ratify:
+   - If the ratified change renames, merges, splits, or retires an existing
+     lexicon term, follow procedure E, steps 2-6.
+   - Otherwise write the ratified entry to `LEXICON.md`.
+   - If the ratified name differs from the proposed name, rename the proposed
+     name in code and state documents; this is mechanical. Add no Retired
+     terms line: the proposed name was never a lexicon term.
+5. Every outcome deletes the group's proposal files.
 
 ### E. Rename or retire a term
 
@@ -233,8 +248,10 @@ for a proposal.
    discussion (procedure B); a removal needs the user's ratification.
 2. Add the term's line to Retired terms, in its fixed form. Remove the old name
    from every Avoid list.
-3. Update the lexicon mechanically: every definition, invariant, relationship,
-   and example that uses the old name.
+3. Update the lexicon mechanically. First change the entry itself: rename it;
+   for a merge, delete A and B and write Y; for a split, delete X and write Y
+   and Z; for a removal, delete it. Then update every definition, invariant,
+   relationship, and example that uses the old name.
 4. In the same change, update state documents (README, CLAUDE.md, design
    docs, plans, skills) that use the old name. Never rewrite stream documents
    (ADRs, logs, changelogs, commit messages).
@@ -257,8 +274,10 @@ Attended:
 
 1. Present the conflict: the entry, and the code with file:line.
 2. The user rules which side is right.
-3. Ask whether to fix it now or file it for later. A fix to the lexicon is a
-   change the user ratifies; a rename follows procedure E.
+3. Ask whether to fix it now or file it for later. A lexicon fix now is a
+   change the user ratifies; a rename follows procedure E. Filing a lexicon
+   change for later means a proposal (procedure C); filing a code change
+   means the project's tracker (search for a duplicate first).
 
 Unattended:
 
