@@ -65,6 +65,12 @@ to carry out a delegated task. An agent is the running session; an Agent
 definition is what it is spawned from.
 - _Avoid_: agent
 
+**Handoff**: A self-contained brief with which an agent passes work to
+another agent or a human, so the recipient can carry it on without the
+sender's conversation.
+- _Invariants_: readable without the sender's conversation; states what done
+  means and how to verify it; never contains a secret
+
 **Permission rule**: A declared rule that decides whether an agent may take an
 action on its own, only with a human's approval, or never.
 - _Invariants_: enforced programmatically, never left to agent judgment
