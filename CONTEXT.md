@@ -126,6 +126,12 @@ A subagent definition in `agents/`, a Markdown file with frontmatter that the
 harness can spawn for a delegated task.
 _Avoid_: agent (alone; an agent is a running session, this is its definition)
 
+**Handoff**: A self-contained brief with which an agent passes work to
+another agent or a human, so the recipient can carry it on without the
+sender's conversation.
+- _Invariants_: readable without the sender's conversation; states what done
+  means and how to verify it; never contains a secret.
+
 ## Relationships
 
 - A **Wrapper family** contains one or more **Verbs**; `bdw` is a **Wrapper**
