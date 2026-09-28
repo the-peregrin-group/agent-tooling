@@ -74,10 +74,10 @@ The loop, every session:
   `TODO` comment cites the Issue ID (`TODO(agent-tooling-xyz)`), not `#N`.
 - Which subcommands may run is set by the permission rules in
   `.claude/settings.json` (allow, ask, deny), not judgment;
-  `cli/repo_policy_test.py` is that file's spec. A denied call is the
-  policy working; do not look for another spelling of it. The policy is
-  prefix rules, so it is not safe in auto mode
-  until the parsed-command deny hook lands.
+  `cli/repo_policy_test.py` is that file's spec. A denied call is the policy
+  working; do not look for another spelling of it. The policy is prefix
+  rules, so it is not safe in auto mode until the parsed-command deny hook
+  lands.
 - Ignore `bd prime` where it contradicts Claude Code or `use-git`: memory
   stays in Claude Code's memory files, and feature branches are pushed and
   reviewed as usual.
