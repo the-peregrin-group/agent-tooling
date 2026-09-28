@@ -25,7 +25,7 @@ context this repo addresses.
 - Tradeoff rationale (that belongs in an ADR).
 - Operational state: deployment dates, current status, who owns what.
 - Change history: amendment notes, dates, rationale for changes. Retired
-  terms is the one place old names live.
+  terms is the one place old names and their dates live.
 - A flagged-ambiguities section. A resolved ambiguity goes into a definition
   or an Avoid list; an open one becomes a naming discussion (procedure B) or a
   proposal (procedure C).
@@ -134,9 +134,12 @@ In this order:
 Each line takes one of these fixed forms, and no other:
 
 - `X: removed YYYY-MM-DD`
-- `X: renamed to Y`
-- `A, B: merged into Y`
-- `X: split into Y and Z`
+- `X: renamed to Y YYYY-MM-DD`
+- `A, B: merged into Y YYYY-MM-DD`
+- `X: split into Y and Z YYYY-MM-DD`
+
+The date is when the change was ratified: a stream document written before
+it uses the old term.
 
 Pruning a line needs ratification. When the section exceeds 20 lines, move
 its lines to the end of `LEXICON-RETIRED.md` next to `LEXICON.md`, and leave
@@ -172,7 +175,7 @@ video, audio, polls).
 
 ## Retired terms
 
-- Profile: merged into Account
+- Profile: merged into Account 2026-09-27
 ```
 
 ## Procedures
@@ -211,6 +214,7 @@ for a proposal.
    - where the name is used in code (file paths)
 3. Use the proposed name in code.
 4. Commit the proposal file together with the code that motivated it.
+5. List each proposal file you wrote in your final report, one line each.
 
 ### D. Review proposals
 

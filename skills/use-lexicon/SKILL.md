@@ -74,12 +74,13 @@ Outside software, map the terms of this skill onto the project:
 **Conversion** is one change, made in this order:
 
 1. Rewrite the old file's content into `LEXICON.md` in the format of
-   `writing-lexicon.md`. Carry definitions over as written: rewording needs
-   ratification, one entry per turn, after the conversion lands. A resolved
-   ambiguity goes into the entry's definition or Avoid list; an open one
-   becomes a naming discussion (procedure B) after the conversion. A
-   standalone invariants section moves onto its entries. Drop example
-   dialogue.
+   `writing-lexicon.md`. Reformatting is mechanical; definition text carries
+   over verbatim. A standalone invariants section moves onto its entries.
+   Terms named in a resolved-ambiguity note may move into the relevant Avoid
+   list. Drop example dialogue. Any change to definition text, including
+   folding an ambiguity's resolution into a definition, needs ratification,
+   one entry per turn, after the conversion lands. An open ambiguity becomes a
+   naming discussion (procedure B) after the conversion.
 2. Delete the old file.
 3. Update every reference to the old file in state documents (CLAUDE.md,
    README, docs, skills) to point to `LEXICON.md`. Never rewrite stream
