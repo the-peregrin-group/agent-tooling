@@ -257,7 +257,7 @@ refuses the push is an exit-4 refusal too — fix what it reported, never
 retry unchanged. A rejection by the remote's own hooks is still
 reported as exit 6 today (bead agent-tooling-h3c).
 Pushing the trunk is structurally refused regardless of prefix; the push
-of your own branch is the handoff, and the forge skills own what happens
+of your own branch is the boundary, and the forge skills own what happens
 next.
 
 Named-target form: push the same branch's tip to `<branch-prefix><name>`
@@ -334,7 +334,7 @@ rather than relocating.
 
 ## What This Skill Does Not Cover
 
-**The push is the handoff.** Everything up to and including getting
+**The push is the boundary.** Everything up to and including getting
 commits onto the authoritative remote lives here; everything that happens
 to a pushed branch — PRs, review flow, forge merge — belongs to
 `use-forgejo` / `use-github`. Commit *messages* are this skill's floor;
