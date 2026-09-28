@@ -89,7 +89,7 @@ PR body names the bead it lands (`Lands agent-tooling-xyz`) instead of
 ## Documentation
 
 - `README.md` is the front door and the fresh-machine bootstrap.
-- `CONTEXT.md` is the vocabulary. Use its terms.
+- `LEXICON.md` is the vocabulary. Use its terms.
 - Design decisions are ADRs in `docs/adr/`, numbered from 0001, indexed in
   `docs/adr/index.md`, which describes the format.
 - `docs/beads-init.md` is the maintainer's checklist for initializing Beads

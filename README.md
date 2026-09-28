@@ -134,7 +134,7 @@ fixtures under `/tmp/claude/` (the staging root the wrappers accept). They
 create it if it is missing, so `/tmp/claude/` must be creatable and writable
 by you; the rest use a temporary directory.
 
-`CONTEXT.md` is the vocabulary. `docs/adr/` holds the design decisions.
+`LEXICON.md` is the vocabulary. `docs/adr/` holds the design decisions.
 
 Work on this repo is tracked in Beads (`bd` 1.3.0) during a trial, with
 GitHub Issues frozen; `CLAUDE.md` has the rules and ADR 0001 the reasons.
