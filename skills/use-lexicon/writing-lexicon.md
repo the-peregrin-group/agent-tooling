@@ -43,6 +43,14 @@ Example: a "Home Screen" entry says what that screen is, what it is for, and
 what it means to users. Today's visual design, its Tailwind styling, and its
 asynchronous loading do not belong.
 
+Example invariants for Permissions Grant (defined in the worked example
+below):
+
+- Pass: "never outlives the Account that holds it"; "held by exactly one
+  Account". Each survives any change of storage or topology.
+- Fail: "stored in the grants table" (a schema); "checked by the API gateway"
+  (a topology); "expires after 90 days" (a configuration value).
+
 ### Examples in entries
 
 - Mark every example "e.g.".
@@ -114,10 +122,11 @@ In this order:
 ### Entry format
 
 ```md
-**Permissions Grant**: The authority an Account holds to act on a resource.
+**Permissions Grant**: The authority an Account holds to act on something it
+does not own (e.g., another Account's Posts).
 ...
 - _Invariants_: never outlives the Account that holds it; ...
-- _Avoid_: permission, ACL, role
+- _Avoid_: permission, role
 ```
 
 - The term in bold, then a colon, then the definition sentences.
@@ -135,7 +144,8 @@ Each line takes one of these fixed forms, and no other:
 
 - `X: removed YYYY-MM-DD`
 - `X: renamed to Y YYYY-MM-DD`
-- `A, B: merged into Y YYYY-MM-DD`
+- `A[, B]: merged into Y YYYY-MM-DD` (one or more merged terms; Y may be new
+  or existing)
 - `X: split into Y and Z YYYY-MM-DD`
 
 The date is when the change was ratified: a stream document written before
@@ -168,13 +178,23 @@ video, audio, polls).
 - _Invariants_: never changes its publishing Account
 - _Avoid_: tweet, share
 
+**Permissions Grant**: The authority an Account holds to act on something it
+does not own (e.g., another Account's Posts).
+- _Invariants_: never outlives the Account that holds it; held by exactly one
+  Account
+- _Avoid_: permission, role
+
 ## Relationships
 
 - A User has one or more Accounts.
 - An Account can publish many Posts.
+- An Account can hold many Permissions Grants.
 
 ## Retired terms
 
+- Person: split into User and Account 2026-06-02
+- Status: renamed to Post 2026-07-14
+- Like: removed 2026-08-30
 - Profile: merged into Account 2026-09-27
 ```
 
@@ -206,6 +226,21 @@ Steps:
    `LEXICON.md` at once, with any new relationships. If the user says "park
    it", write a proposal (procedure C, steps 1-2) instead.
 
+Example: the user asks for "a moderator role, or permission, or something"
+so that some Accounts can moderate other Accounts' Posts.
+
+- First turn: "This needs a term. Moderation work will refer to it
+  constantly, and no industry term fits: a role is a bundle of authority
+  given to many Accounts, and this is one Account's authority. Core identity:
+  the authority an Account holds to act on something it does not own. Agree?"
+  The user agrees. Nothing is named yet.
+- Next turn: "Candidates: Permissions Grant (recommended: 'grant' says the
+  authority is conferred, not inherent), Access Grant, Authority Grant.
+  Collisions: none with an entry, an Avoid word, or a retired term. Since you
+  said 'role' and 'permission' for it, both go in its Avoid list." The user
+  picks Permissions Grant. Draft the entry (as in the worked example); when
+  the user ratifies it, write it and its relationship at once.
+
 ### C. Propose a term (unattended)
 
 Never edit `LEXICON.md` in an unattended session. Never file a tracker issue
@@ -216,15 +251,51 @@ for a proposal.
    output of `date +%s`.
    - For a new term: answer the naming questions (procedure B) and choose the
      name. `<slug>` is the proposed term in lowercase kebab-case. The file
-     holds the draft entry in the format above, your answers to the naming
-     questions, and where the name is used in code (file paths). Use the
-     proposed name in code.
+     holds the draft entry and any new relationships in the format above,
+     your answers to the naming questions, and where the name is used in
+     code (file paths). Use the proposed name in code.
    - For a change to an existing entry: `<slug>` is the existing term in
      lowercase kebab-case. The file holds the revised entry in the format
      above, the reason for the change, and the evidence (file:line). The
      naming questions and using the name in code do not apply.
 2. Commit the proposal file with the code that motivated it, if any.
 3. List each proposal file you wrote in your final report, one line each.
+
+Example: the moderation concept from procedure B's example, met instead in an
+unattended session that chose a different name. The file is
+`lexicon-proposals/access-grant--1790562646.md`:
+
+```md
+# Proposal: Access Grant
+
+## Draft entry
+
+**Access Grant**: The authority an Account holds to act on something it does
+not own (e.g., another Account's Posts).
+- _Invariants_: never outlives the Account that holds it; held by exactly one
+  Account
+
+## Relationships
+
+- An Account can hold many Access Grants.
+
+## Naming questions
+
+1. Why a term: the moderation feature refers to it throughout, and no
+   industry term fits (a role is a bundle given to many Accounts).
+2. Core identity: the authority an Account holds to act on something it does
+   not own.
+3. Candidates: Access Grant (chosen: short, and names what it confers),
+   Permissions Grant, Authority Grant.
+4. Collisions: none with an entry, an Avoid word, or a retired term.
+
+## In code
+
+- src/grants/model.py (`AccessGrant`)
+- src/moderation/service.py (`AccessGrant`)
+```
+
+Commit it with the motivating code; list it in the final report.
 
 ### D. Review proposals
 
@@ -236,11 +307,20 @@ for a proposal.
 4. Ratify:
    - If the ratified change renames, merges, splits, or retires an existing
      lexicon term, follow procedure E, steps 2-6.
-   - Otherwise write the ratified entry to `LEXICON.md`.
+   - Otherwise write the ratified entry and its relationships to
+     `LEXICON.md`.
    - If the ratified name differs from the proposed name, rename the proposed
      name in code and state documents; this is mechanical. Add no Retired
      terms line: the proposed name was never a lexicon term.
 5. Every outcome deletes the group's proposal files.
+
+Example: the access-grant group holds the file from procedure C's example.
+Present it in one turn. The user alters then ratifies it as Permissions
+Grant, adding Avoid: permission, role. Write the Permissions Grant entry and
+its relationship to `LEXICON.md`. Rename `AccessGrant` to `PermissionsGrant`
+in both listed files, and "Access Grant" in any state document: mechanical,
+no question asked. Add no Retired terms line, since Access Grant was never a
+lexicon term. Delete the proposal file.
 
 ### E. Rename or retire a term
 
@@ -249,9 +329,10 @@ for a proposal.
 2. Add the term's line to Retired terms, in its fixed form. Remove the old name
    from every Avoid list.
 3. Update the lexicon mechanically. First change the entry itself: rename it;
-   for a merge, delete A and B and write Y; for a split, delete X and write Y
-   and Z; for a removal, delete it. Then update every definition, invariant,
-   relationship, and example that uses the old name.
+   for a merge, delete the merged entries and write Y, or update it if it
+   already exists; for a split, delete X and write Y and Z; for a removal,
+   delete it. Then update every definition, invariant, relationship, and
+   example that uses the old name.
 4. In the same change, update state documents (README, CLAUDE.md, design
    docs, plans, skills) that use the old name. Never rewrite stream documents
    (ADRs, logs, changelogs, commit messages).
@@ -260,6 +341,19 @@ for a proposal.
    deliberately.
 6. If Retired terms now exceeds 20 lines, move its lines to
    `LEXICON-RETIRED.md` (see Retired terms above).
+
+Example: the user finds that a Profile and an Account are one concept.
+
+1. The naming discussion keeps the name Account and agrees its merged
+   definition.
+2. Retired terms gains `Profile: merged into Account 2026-09-27`; "profile"
+   leaves Account's Avoid list.
+3. Delete the Profile entry, write the agreed Account definition, and delete
+   the relationship "An Account has one Profile".
+4. Replace "Profile" in the README and design docs; the ADRs keep it.
+5. Ask: "Code still says Profile: `Profile` (src/models/profile.py:8),
+   `profile_id` (src/models/post.py:21). Rename now, file the rename for
+   later, or keep them deliberately?"
 
 ### F. Resolve a code-vs-lexicon conflict
 
@@ -286,3 +380,9 @@ Unattended:
   Otherwise, if you can write to the project's tracker, file it there (search
   for a duplicate first; if one exists, reference it or add your evidence to
   it); if you cannot, report it in your final deliverable.
+
+Example: Permissions Grant says it is held by exactly one Account, but the
+grants table's account_id column is nullable (db/schema.sql:40), so a grant
+can exist with no holder. That settles it; read no further. Present the
+invariant and the schema line. The user rules the code wrong, then chooses to
+file it for later: search the tracker for a duplicate, find none, and file it.
