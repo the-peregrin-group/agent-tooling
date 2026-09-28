@@ -232,7 +232,7 @@ first (Steps 2–4) and use its number. When an issue closes, grep for
 
 - **Git discipline — branching, committing, rebasing, pushing — lives in
   the `use-git` skill**; load it before any of that. This step begins where
-  that skill's "push is the handoff" boundary ends: the head branch is
+  that skill's "push is the boundary" line ends: the head branch is
   already on the remote.
 - **Open the PR:**
 
