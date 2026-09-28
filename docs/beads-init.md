@@ -1,9 +1,9 @@
 # Beads post-init checklist
 
 What to undo after initializing Beads 1.3.0 in a new repo, so the Issue
-Tracker stays local-only and only its config lands in git. This is a maintainer
-procedure: agents are denied `init` and every `dolt` subcommand, and
-`bd backup init` asks.
+Tracker stays local-only and only its config lands in git. This is a
+maintainer procedure: agents are denied `init` and every `dolt` subcommand,
+and `bd backup init` asks.
 
 ## Checklist
 
