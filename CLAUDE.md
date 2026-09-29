@@ -1,5 +1,7 @@
 # agent-tooling: agent instructions
 
+Load `use-lexicon` and `use-adrs` for this project.
+
 ## Install model
 
 - This checkout is source only. Nothing runs from it.
@@ -90,8 +92,5 @@ PR body names the issue it lands (`Lands agent-tooling-xyz`) instead of
 ## Documentation
 
 - `README.md` is the front door and the fresh-machine bootstrap.
-- `LEXICON.md` is the vocabulary. Use its terms.
-- Design decisions are ADRs in `docs/adr/`, numbered from 0001, indexed in
-  `docs/adr/index.md`, which describes the format.
 - `docs/beads-init.md` is the maintainer's checklist for initializing Beads
   in another repo.
