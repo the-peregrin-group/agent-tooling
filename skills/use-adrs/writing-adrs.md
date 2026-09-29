@@ -1,46 +1,56 @@
-# How to format an ADR
+# How to write an ADR
 
-This guide is canon and _supersedes any observed contradictory conventions in existing ADRs_. If in doubt, follow this guide, not the project conventions.
+This guide is canon. Where an existing ADR or a project convention disagrees
+with it, follow this guide.
 
 ## Template
 
 ```md
 ---
-date: [YYYY-MM-DD]
-status: ["current" or "superseded by ADR-XXXX"]
+date: [YYYY-MM-DD, the day the decision was made]
+status: [current | superseded]
 ---
 
 # [decision title]
 
-**Context:** [the problem statement, trigger for needing a decision; max 3 sentences]
+**Context:** [the problem and what triggered the decision; max 3 sentences]
 
 **Decision:** [what was decided, concretely; max 1 sentence]
 
-**Rationale:** [why was the decision made; max 1 sentence]
+**Rationale:** [why; max 1 sentence]
 
-## [optional] Consequences
+## Consequences
 
-- [Consequence 1; max 1 sentence]
-- ...
+[optional: high-impact downstream effects only, one bullet and one sentence each]
 
-## [optional] Alternatives Considered
+## Alternatives Considered
 
-### [Name of option N]
+[optional: only alternatives that took real reasoning to rule out, so nobody relitigates them; one ### per option]
 
-**Description:** [concise description of alternative approach; max 1 sentence]
-**Rejection rationale:** [concise description of rejection rationale; max 3 sentences]
+### [Name of option]
 
-[repeat ### sections as needed, one per option]
+**Description:** [max 1 sentence]
+**Rejection rationale:** [the trade-off that ruled it out; max 3 sentences]
+
+## Superseded by
+
+[only if superseded; one line per superseding ADR, appended in order, scope first]
+
+- [ADR-XXXX](XXXX-slug.md): [entirely, or partially; what it overturned or corrected in this ADR; max 1 sentence]
 ```
 
-These sections should be as concise as possible while still meeting our "Why ADRs?" goal. There is no _minimum_ length per section; each can be a sentence fragment _if sufficient_.
+No section has a minimum length; a fragment that does the job is enough. If
+Rationale wants a second sentence, the overflow is usually a rejected
+alternative (move it to Alternatives Considered) or a constraint (move it to
+Context).
 
-If more than one sentence is required for `Rationale`, you should probably instead liste alternatives considered (see below)
+## Status and supersession
 
-## Consequences (optional)
-
-If applicable, record _high-impact_ downstream consequences of this decision, one bullet, one sentence each.
-
-## Alternatives considered (optional)
-
-When the rejected alternatives are seemingly good solutions that required non-trivial exploration and reasoning to rule out; the goal is to prevent pointless relitigation. Focus the rejection rationale on the meaningful engineering trade-offs considered.
+An ADR's body is never edited once the decision lands, beyond typo fixes. A
+decision stays current until another decision supersedes it, even after its
+rationale has aged; there is no retired or deprecated state. A changed or
+corrected decision is a new ADR that names the old one in its Context. The
+old ADR then gets `status: superseded` and a `## Superseded by` line naming
+the new ADR and its scope, because a supersession is often partial and the
+new title alone rarely says which part. Those two edits are the only
+sanctioned ones. Cite ADRs as `ADR-XXXX`, pointing at the sibling filename.

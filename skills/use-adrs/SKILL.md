@@ -1,65 +1,83 @@
 ---
 name: use-adrs
 description: >
-  TODO
+  Read and write Architecture Decision Records (ADRs): where a project keeps
+  them, numbering and file naming, the three-part gate for what deserves one
+  (several real options, costly to reverse, surprising without context), the
+  Context/Decision/Rationale format, and the optional Consequences and
+  Alternatives Considered sections. Load before creating or editing anything
+  under an ADR directory, when a design or project decision is being made or
+  revisited, when a proposed change contradicts a recorded decision, and when
+  the user asks why something was decided. Triggers: "write an ADR", "record
+  this decision", "should this be an ADR", "why did we decide", "supersede
+  ADR", "what did we decide about". Applies to non-code repos too (knowledge
+  vaults, business and project decisions). EXCLUDE: general documentation,
+  design docs, and plans (state docs, see refine-state-doc), vocabulary
+  (use-lexicon), and issue tracking.
 ---
 
 # Use ADRs
 
-**ADR stands for "Architecture Decision Record"**
+An ADR, Architecture Decision Record, is one decision and its why, recorded
+at the time it was made. This skill covers when to read and write them.
 
-This skill explains how and when to read and write ADRs into your current project.
+ADRs live in `meta_docs/adr/` when the project has a `meta_docs/` directory
+(docs about the project, kept apart from user-facing `docs/`), otherwise in
+`docs/adr/`. Create the directory if it is missing. If ADRs already exist
+somewhere else, ask before creating a second home; do not adapt to their
+format.
 
-ADRs are stored in the `docs/adr/` directory in your project, or, if the project has both `docs` and `meta_docs` directories, in the `meta_docs/adr/` directory.
+ADRs are numbered in the order they were written, from `0001`, zero-padded
+to four digits. A new ADR takes the highest existing number plus one; gaps
+are never backfilled and ADRs are never renumbered. Filenames are
+`XXXX-kebab-case-slug.md`.
 
-ADRs are indexed chronologically in order starting with `0001`. Each new ADR should be given the index corresponding to the next-lowest unused positive number, padding with zeroes as needed to achieve a four-character representation.
+## Why and when
 
-ADR filenames are formated `IIII-descriptive_slug_snake_case.md`, where "IIII" is the four-character index representation described above.
+ADRs preserve *why* a decision was made, so that later decisions stay
+consistent with it, settled questions are not relitigated, and an obsolete
+decision can be recognized as such. Anything that does not serve that goal is
+cut, including the ADR itself.
 
-## Why ADRs?
+Offer to write one only when all three hold. If unsure whether they do, offer
+anyway and name the criterion in doubt. Never create one unasked.
+Unattended, a gate-passing decision you had to make yourself gets a draft ADR
+in the same change, called out for the reviewer; the review is the
+ratification.
 
-The primary purpose of ADRs is _to preserve context on **why** past decisions were made_ so that:
+1. There were several compelling options. One decent option is no decision.
+2. Reversing it later would be expensive. Cheap to change means not worth recording.
+3. It would surprise a reader without the background.
 
-- Future decisions can be informed by and consistent with past decisions
-- We don't relitigate past decisions unnecessarily
-- We can accurately discern when a past decision is obsolete and _should_ be changed
+## Reading ADRs
 
-Litmus test: if what you are adding does not materially serve this goal, drop it. That includes skipping the ADR altogether.
+Skim the ADR titles before design work in an area they may cover, and read
+the ones that apply. Before proposing anything that contradicts a recorded
+decision, cite the ADR and propose a superseding one rather than diverging
+silently. When asked why the project does something, look here first.
 
 ## ADRs are not _the_ documentation
 
-Do not confuse ADRs with the project's core documentation. ADRs are a stream format, with each ADR being an append-only near-immutable record of a decision made at a point in time. _They are the wrong tool for the job when it comes to general documentation_. Do not coerce ADRs into serving this purpose!
-
-Instead, keep them short, and keep them focused on the decision and the reasoning for the decision. Let proper documentation capture the rest.
+An ADR is a stream doc: one decision, one point in time, never rewritten.
+Everything else, including what the decision produced and how it works today,
+belongs in the project's state docs.
 
 ## ADRs in non-code repos
 
-You should still use ADRs in non-code repos (e.g., a pure-markdown knowledge vault). Think of ADRs as figurative and applying to major non-code design, project, execution, and life decisions as well.
-
-## When to write an ADR
-
-You should offer to the user to capture an ADR only when ***all*** of the following are true. If you're unsure, err on the side of offering.
-
-1. There are multiple compelling choices. If there was only one decent option, there's no meaningful decision to document.
-2. A wrong decision has significant cost to unwind later. If it's easy to change, it's not worth documenting.
-3. The decision seems non-obvious or even counter-intuitive without sufficient background.
-
-If these are not all true, resist the temptation and _do not create an ADR_.
+The same gate and format apply in non-code repos, a knowledge vault for
+instance, to project, business, and life decisions.
 
 ## Examples of ADR-worthy decisions
 
-- Rejecting the seemingly-obvious choice
-  - "we're only going to sell our products to our US customer base in exchange for Swiss Francs."
-- Deciding based on non-obvious constraints
-  - "We shouldn't choose S-corp tax election despite everybody's advice because we hold many appreciating assets (taxed unfavorably in an S-Corp)."
-- Fundamental, identity decisions
-  - "We writing this in golang"
-  - "We're rejecting SQL in favor of a graph DB."
-  - "We're going to be a non-profit."
-- Vendor lock-in:
-  - "We're building everything natively into AWS's Elastic Container Service, not Kubernetes."
-- Removing capabilities
-  - "Cameras will not be allowed to send any traffic to the internet at all."
+- Rejecting the obvious choice
+  - "We price in Swiss Francs even though every customer is in the US."
+- A non-obvious constraint
+  - "No S-corp election, despite the standard advice, because we hold appreciating assets."
+- An identity decision
+  - "This is written in Go."
+  - "We are a non-profit."
+- Removing a capability
+  - "Cameras get no internet access at all."
 
 ## How to write an ADR
 
