@@ -1,7 +1,7 @@
 # home-in: design
 
-State as of 2026-09-30. Draft: the skill is not yet written, and the names
-marked as working names in Open items are not yet ratified.
+State as of 2026-09-30. Draft: the skill itself is not yet written; see
+Open items for what remains.
 
 `/home-in` is a user-invoked Skill for arriving at an opinion. The user
 names a problem and a desired outcome ("I have X and want to home in on
@@ -25,7 +25,8 @@ which were merely mentioned.
 The skill applies to any domain where an opinion must be reached and
 defended: a product's next move, a software design, a career decision, an
 essay's thesis, a review of someone else's proposal. Everything below is
-domain-agnostic; the domain enters only through the angle tree.
+domain-agnostic; the domain enters only through the tree of Lines of
+Inquiry.
 
 ## Success
 
@@ -41,7 +42,9 @@ without the user having to steer the process itself.
 
 ### Attended only
 
-home-in is live collaboration and has no unattended form. The skill's
+home-in is live collaboration and has no unattended form (see
+[ADR 0004](../../adr/0004-home-in-is-attended-only.md), which records the
+decision and the rejected unattended-over-a-brief alternative). The skill's
 frontmatter sets `disable-model-invocation: true`, so only the user can
 start it; the body states attended-only, because the flag cannot stop a
 user from typing `/home-in` into an unattended job. None of the downstream
@@ -66,8 +69,8 @@ Before the first question, the agent:
    so the user can accept in a word, but writes nothing until the user
    answers. Project conventions inform this proposal only; they do not
    alter the skill's rules.
-5. Sketches the angle tree for this domain one level deep, a dozen lines
-   or so, for the user to prune or extend before it is walked.
+5. Sketches the tree of Lines of Inquiry for this domain one level deep, a
+   dozen lines or so, for the user to prune or extend before it is walked.
 
 ### Three sub-processes, interleaved
 
@@ -80,33 +83,34 @@ sequence:
   gathering verifies the user's account against the record, not only fills
   gaps. A discrepancy comes back to the user plainly, with its source,
   before the interrogation continues. Gathering that no immediate question
-  depends on is ledgered and cleared at the next natural pause, because a
-  subagent between every turn destroys conversational momentum. Every
-  pause is narrated in one line.
+  depends on goes on the Resolution Queue and is cleared at the next
+  natural pause, because a subagent between every turn destroys
+  conversational momentum. Every pause is narrated in one line.
 - **Interrogate.** One question per turn, always. Each question belongs to
-  a node of the angle tree, and a subtree is walked to the bottom before
-  the next is entered.
+  a node of the tree of Lines of Inquiry, and a Line of Inquiry is walked
+  to the bottom before the next is entered.
 - **Pressure-test.** Always on. The adversary targets the strongest
   current proposition: the premises when nothing is on the table yet, the
   user's proposal when one arrived with the invocation, and the agent's
   own emerging recommendation once one forms, with equal vigor. Every
   adversarial question names the assumption it tests, and that assumption
-  goes in the ledger. Devil's advocacy with no named assumption is not
-  allowed.
+  goes on the Resolution Queue. Devil's advocacy with no named assumption
+  is not allowed.
 
 There are no modes. The invocations differ only in what is already on the
 table when the session opens.
 
-### The angle tree
+### The tree of Lines of Inquiry
 
-The skill ships ten root angles, each the root of a subtree that the agent
-expands into the domain from its own knowledge. The skill encodes the roots
-and the expansion rule, never the domain trees, which are unbounded and
-differ completely between a software design, a kitchen remodel, and an
-essay. One example expansion is included to calibrate depth, labeled as one
-domain's tree and not a template.
+A Line of Inquiry (LOI) is one line of questioning that must be examined
+before an opinion is defensible. The skill ships ten root LOIs, each the
+root of a subtree that the agent expands into the domain from its own
+knowledge. The skill encodes the roots and the expansion rule, never the
+domain trees, which are unbounded and differ completely between a software
+design, a kitchen remodel, and an essay. One example expansion is included
+to calibrate depth, labeled as one domain's tree and not a template.
 
-The root angles:
+The root Lines of Inquiry:
 
 1. **Trigger.** Why this, why now, and what happens if nothing changes.
 2. **Success.** What good looks like and how the user would know.
@@ -125,46 +129,53 @@ The root angles:
 10. **Disconfirmation.** What evidence would change the user's mind, and
     whether any of it already exists.
 
-A root angle is a subtree, not a question. Twenty questions on Success is
-expected. Every angle is considered and not every angle is asked: each is
+A root LOI is a subtree, not a question. Twenty questions on Success is
+expected. Every LOI is considered and not every LOI is asked: each is
 either explored to the depth the problem warrants or set aside with a
 one-line reason. Expansion is lazy (a subtree expands when entered) and
 depth-first. The agent's coverage report is the tree's frontier: exhausted,
 in progress, untouched, set aside.
 
-### Checkpoints and capture
+The ten roots are a taxonomy under test. At each Line of Inquiry Exit the
+agent surfaces any question it wanted to ask that fit no root, so the
+roots can be refined against use rather than trusted.
 
-A checkpoint is the exit from a subtree. It is the only moment at which the
-formal capture machinery runs, so the interrogation is never derailed by
-ceremony. At a checkpoint the agent:
+### Line of Inquiry Exits and capture
 
-1. Reports the frontier and the ledger.
-2. Runs the capture pass over the ledger's candidates from that subtree:
-   the lexicon naming procedure for each candidate term, one concept per
-   turn; the ADR gate for each candidate decision, drafting those that
-   pass.
-3. Rewrites the artifact in place.
+A Line of Inquiry Exit (LOI Exit) is the event of leaving a LOI, exhausted
+or set aside. It is the only moment at which the formal capture machinery
+runs, so the interrogation is never derailed by ceremony (see
+[ADR 0003](../../adr/0003-capture-at-line-of-inquiry-exits.md), which
+records the decision to capture at exits rather than inline or at
+wrap-up). At a LOI Exit the agent:
 
-Between checkpoints, capture is deferred but definition is not. When a
+1. Reports the frontier and the Resolution Queue.
+2. Surfaces questions that fit no root LOI.
+3. Drains the Resolution Queue's items from that LOI: the lexicon naming
+   procedure for each candidate term, one concept per turn; the ADR gate
+   for each candidate decision, drafting those that pass.
+4. Rewrites the artifact in place.
+
+Between exits, capture is deferred but definition is not. When a
 discussion cannot proceed without a concept, the agent runs the identity
 step of the lexicon naming procedure inline ("what is this, independent of
 how it is built?") and gives the concept a working name, marked as such in
-prose the first time it appears and in the ledger. A working name is spent,
-not chosen: the plainest available description, with no candidate
-generation, so nobody grows attached to it. Every working name must be
-resolved (ratified, renamed, or dropped) at the next capture pass; none
-survives into the artifact unratified, and one that crosses a checkpoint
-unresolved is a failure the checkpoint report calls out. Provisional
-decisions ("assume X for now") work the same way and need no extra rule.
+prose the first time it appears and on the Resolution Queue. A working
+name is spent, not chosen: the plainest available description, with no
+candidate generation, so nobody grows attached to it. Every working name
+must be resolved (ratified, renamed, or dropped) at the next LOI Exit;
+none survives into the artifact unratified, and one that crosses an exit
+unresolved is a failure the exit report calls out. Provisional decisions
+("assume X for now") work the same way and need no extra rule.
 
-### The ledger
+### The Resolution Queue
 
-The ledger is the agent's running record of what awaits capture: candidate
-terms with their working names, candidate decisions, assumptions under
-test, and gathering not yet done. It appears at the foot of the agent's
-replies and lives in the artifact's open-items section between checkpoints,
-so it survives a dropped session. An empty ledger is one of the conditions
-for done.
+The Resolution Queue is the set of everything raised during the
+interrogation that awaits formal resolution: candidate terms with their
+working names, candidate decisions, assumptions under test, and gathering
+not yet done. It appears at the foot of the agent's replies and lives in
+the artifact's open-items section between exits, so it survives a dropped
+session. It must be empty before the session is done.
 
 ### The artifact
 
@@ -173,22 +184,24 @@ when the user has no format in mind, is a state doc in the sense of
 `refine-state-doc`: a coherent picture as of the wrap-up, with context,
 problem, success criteria, recommendation, rationale, and rejected paths.
 It never preserves the conversation's turn order or who said what; the
-transcript is `save-log`'s job. It is drafted at the first checkpoint and
-rewritten in place at every checkpoint after, so the wrap-up is a final
-rewrite rather than a big-bang authoring step, the user can catch a
-misreading early, and the ledger has a durable home.
+transcript is `save-log`'s job. It is drafted at the first LOI Exit and
+rewritten in place at every exit after, so the wrap-up is a final rewrite
+rather than a big-bang authoring step, the user can catch a misreading
+early, and the Resolution Queue has a durable home.
 
 ### ADRs and the artifact
 
-ADRs and the artifact overlap on purpose. An ADR is a stream doc, a minute
-of the meeting: it snapshots a decision's context, rationale, and
-alternatives at the moment of decision, and it must carry them itself,
-because the artifact that motivated it is a state doc that may be rewritten
-later. The artifact is where the full analysis lives, and it is the source
-of truth for the design going forward. Neither points at the other instead
-of stating its own content; the artifact refers to every ADR it touches
-with an inline summary plus a link ("because we already decided X (see
-[ADR 0019](path))"), never a bare code. There is no deduplication policy.
+ADRs and the artifact overlap on purpose (see
+[ADR 0006](../../adr/0006-adrs-duplicate-their-motivating-document.md),
+which records the decision against deduplication and the rejected
+two-tier alternative). An ADR is a stream doc, a minute of the meeting: it
+snapshots a decision's context, rationale, and alternatives at the moment
+of decision, and it must carry them itself, because the artifact that
+motivated it is a state doc that may be rewritten later. The artifact is
+where the full analysis lives, and it is the source of truth for the
+design going forward. Neither points at the other instead of stating its
+own content; the artifact refers to every ADR it touches with an inline
+summary plus a link, never a bare code. There is no deduplication policy.
 
 An ADR's core (Context, Decision, Rationale) has fixed limits in every case.
 Alternatives Considered is never omitted, since the gate guarantees
@@ -196,13 +209,13 @@ alternatives existed, and it is the one section that flexes: one sentence
 per description and rejection rationale when a state doc holds the
 analysis and Context links it; unbounded rejection rationale, cut to what
 prevents relitigation, when the ADR stands alone. The same rule is being
-written into `use-adrs`; see Deliverables.
+written into `use-adrs`; see Deliverables of this design.
 
 ### Wrap-up
 
 Done is the user's to declare. Before agreeing, the agent reports the
-frontier and the ledger, both expected empty; the user can overrule with a
-word. It then offers, and runs only on request:
+frontier and the Resolution Queue, both expected empty; the user can
+overrule with a word. It then offers, and runs only on request:
 
 - **A cold read.** A subagent is given the artifact alone and asked to
   state the problem, the success criteria, the recommendation, and why the
@@ -214,16 +227,20 @@ word. It then offers, and runs only on request:
   conclusion, or offer a counterproposal. Its brief is a verdict, not
   polish. It writes the opinion to a file, and the authoring agent relays
   it verbatim with the path, adding its own response only under a separate
-  heading. The reviewer never sees the conversation or the ledger; its
-  blindness to the path is what makes the verdict cold.
+  heading. The reviewer never sees the conversation or the Resolution
+  Queue; its blindness to the path is what makes the verdict cold (see
+  [ADR 0005](../../adr/0005-independent-review-delivered-unfiltered.md),
+  which records why the reviewer is separate and unfiltered and the
+  rejected self-review and polish-loop alternatives).
 - **Both.**
 
 The offer names the risk it addresses in one line, and the agent recommends
-both when the session ran past a handful of checkpoints.
+both when the session ran past a handful of LOI Exits.
 
-Early exit is a normal outcome. "Park it" triggers a checkpoint rewrite,
-leaves the frontier and ledger in the artifact's open-items section, and
-offers `/handoff`. Resuming is "/home-in, continue from `<artifact>`."
+Early exit is a normal outcome. "Park it" triggers a LOI Exit rewrite,
+leaves the frontier and Resolution Queue in the artifact's open-items
+section, and offers `/handoff`. Resuming is "/home-in, continue from
+`<artifact>`."
 
 ### Two rules that must be written in
 
@@ -245,13 +262,24 @@ wrap-up says so in one line rather than omitting it silently.
 ## Deliverables of this design
 
 - `skills/home-in/SKILL.md`, with bundled reference files beside it on the
-  pattern of `use-adrs`: the root angles with one example expansion, and
-  the wrap-up procedures.
+  pattern of `use-adrs`: the root Lines of Inquiry with one example
+  expansion, and the wrap-up procedures. Not yet written.
 - This document.
-- ADRs in `docs/adr/` for the decisions that pass the gate, and entries in
-  this repo's `LEXICON.md` for the terms that pass the lexicon bar.
+- Lexicon entries in this repo's `LEXICON.md`, written: Line of Inquiry,
+  Line of Inquiry Exit, Resolution Queue. The independent reviewer's
+  opinion was judged not to need a term: it is mentioned rarely and
+  "judicial opinion" already names it.
+- ADRs in `docs/adr/`, written: capture at Line of Inquiry Exits
+  ([ADR 0003](../../adr/0003-capture-at-line-of-inquiry-exits.md));
+  attended-only ([ADR 0004](../../adr/0004-home-in-is-attended-only.md));
+  independent review delivered unfiltered
+  ([ADR 0005](../../adr/0005-independent-review-delivered-unfiltered.md));
+  ADRs duplicate their motivating document
+  ([ADR 0006](../../adr/0006-adrs-duplicate-their-motivating-document.md)).
+  The no-modes decision was judged not to pass the gate and is recorded
+  under Rejected paths instead.
 - Four edits to `skills/use-adrs/writing-adrs.md`, in their own commit,
-  each closing a gap this design exposed:
+  each closing a gap this design exposed. Not yet made.
   1. A paragraph stating that an ADR is a self-contained snapshot and
      duplicates its motivating document's context on purpose, because that
      document is state and may change.
@@ -267,12 +295,13 @@ wrap-up says so in one line rather than omitting it silently.
 ## Rejected paths
 
 Each of these looked right at some point in the design and is recorded so
-it is not relitigated.
+it is not relitigated. Where an ADR exists, its Alternatives Considered
+holds the same rejection in snapshot form.
 
 - **Capture inline, as concepts and decisions arise.** The lexicon naming
   procedure takes two turns per term and an ADR can only be written once a
   decision has landed, so inline capture derails every insight into
-  ceremony. Rejected for capture at checkpoints with inline identity and
+  ceremony. Rejected for capture at LOI Exits with inline identity and
   working names.
 - **Three modes (exploration, synthesis from sources, adversarial
   review).** They differ only in the starting state, not the process:
@@ -304,29 +333,27 @@ it is not relitigated.
   project is overridable at invocation and local policy decides whether
   the override succeeds; the skill needs no notion of any particular
   repo. Rejected as out of scope.
+- **Naming the formal capture step.** It is simply what happens at a Line
+  of Inquiry Exit; the lexicon defines the event, and the skill prescribes
+  the behavior. Rejected as a term.
 
 ## Open items
 
-Frontier and ledger as of 2026-09-30, carried between sessions.
+Frontier and Resolution Queue as of 2026-09-30, carried between sessions.
 
 ### Frontier
 
 - Exhausted: capture timing; the sub-processes; destinations; the
-  artifact's nature; the ADR relationship; the angle tree; termination.
+  artifact's nature; the ADR relationship; the tree of Lines of Inquiry;
+  termination.
 - Untouched: the invocation grammar (on Y; in a project; continue from an
   artifact); the skill's file layout; the exact text of the one-question
   and no-oblique-reference rules; the example domain expansion.
 - Set aside: stakeholders beyond the author, since the skill's other users
   are agents and the design addresses them directly.
 
-### Ledger
+### Resolution Queue
 
-Working names, all unratified, used throughout this draft: **angle** (a
-node of the tree), **root angle** (one of the ten), **checkpoint** (a
-subtree exit), **capture pass** (the formal lexicon and ADR step at a
-checkpoint), **ledger** (the running record of what awaits capture), and
-the reviewer's **opinion**.
-
-Candidate decisions expected to pass the ADR gate, pending the actual
-check: capture at checkpoints rather than inline; attended-only; no modes;
-independent review delivered unfiltered.
+- Entering a Line of Inquiry is also an event (that is when a subtree
+  expands one level). "LOI Entry" is the implied name if the skill text
+  turns out to refer to it more than once; decide when the text exists.

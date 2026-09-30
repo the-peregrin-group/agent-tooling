@@ -76,6 +76,32 @@ action on its own, only with a human's approval, or never.
 - _Invariants_: enforced programmatically, never left to agent judgment
 - _Avoid_: allowlist, permission row
 
+### Homing in
+
+**Line of Inquiry**: One line of questioning into a problem, which must be
+examined before an opinion on the problem is defensible. Lines of Inquiry
+form a tree: one may contain finer, domain-specific Lines of Inquiry, and a
+fixed set of roots is shipped with the home-in Skill. A Line of Inquiry is
+explored to the depth the problem warrants, or set aside with a reason.
+Abbreviated LOI after first use.
+- _Invariants_: considered before an opinion is declared, whether or not it
+  is asked about
+- _Avoid_: angle, lens, dimension
+
+**Line of Inquiry Exit**: The event of an interrogation leaving a Line of
+Inquiry, because it has been explored to the depth the problem warrants or
+set aside with a reason. Abbreviated LOI Exit after first use.
+- _Avoid_: checkpoint
+
+**Resolution Queue**: The set of everything raised during an interrogation
+that awaits formal resolution: candidate terms with their working names,
+provisional decisions awaiting the ADR gate, assumptions under test, and
+gathering not yet done. Visible to the user throughout; travels with the
+artifact between sessions.
+- _Invariants_: every item is resolved at the next Line of Inquiry Exit;
+  empty before an interrogation is declared done
+- _Avoid_: ledger, parking lot, backlog
+
 ### Installing
 
 **Install Target**: A directory into which agent tooling is installed. Not all
@@ -148,5 +174,6 @@ but opaque to humans.
 - The Installer is the only writer of Install Targets and Receipts; an
   Adoption moves ownership between two Source repos within one Receipt.
 - The Issue Tracker holds many Issues; an Issue has exactly one Issue ID.
+- A Line of Inquiry contains zero or more finer Lines of Inquiry.
 
 ## Retired terms
