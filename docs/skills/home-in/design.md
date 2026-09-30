@@ -44,12 +44,16 @@ without the user having to steer the process itself.
 
 home-in is live collaboration and has no unattended form (see
 [ADR 0004](../../adr/0004-home-in-is-attended-only.md), which records the
-decision and the rejected unattended-over-a-brief alternative). The skill's
-frontmatter sets `disable-model-invocation: true`, so only the user can
-start it; the body states attended-only, because the flag cannot stop a
-user from typing `/home-in` into an unattended job. None of the downstream
-skills' unattended branches (lexicon proposals, draft ADRs for a reviewer)
-apply within it.
+decision and the rejected unattended-over-a-brief alternative). The skill
+is model-invocable: Claude Code parses a slash command only as the first
+token of a message, and the natural way to ask for it is mid-sentence
+("help me /home-in on whether to quit"), which only the model path can
+honor. So the frontmatter does not set `disable-model-invocation`, and the
+description is kept narrow (the literal phrases "home in on," "/home-in,"
+"hone in on," and "zero in on") so the skill does not fire on ordinary
+decision-making help. The body states attended-only. None of the
+downstream skills' unattended branches (lexicon proposals, draft ADRs for
+a reviewer) apply within it.
 
 ### Opening move
 
@@ -333,6 +337,11 @@ holds the same rejection in snapshot form.
   project is overridable at invocation and local policy decides whether
   the override succeeds; the skill needs no notion of any particular
   repo. Rejected as out of scope.
+- **Enforcing attended-only with `disable-model-invocation: true`.** The
+  flag would make the skill unreachable from the mid-sentence phrasing
+  that is its natural invocation, since the parser recognizes a slash
+  command only as a message's first token. Rejected for a narrow
+  description and a stated rule.
 - **Naming the formal capture step.** It is simply what happens at a Line
   of Inquiry Exit; the lexicon defines the event, and the skill prescribes
   the behavior. Rejected as a term.

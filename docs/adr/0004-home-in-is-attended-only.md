@@ -7,13 +7,14 @@ status: current
 
 **Context:** Every other Skill in this repo has an unattended branch (lexicon proposals, draft ADRs for a reviewer, guess-and-note autonomy), and home-in's value lies entirely in a live exchange with the user. The design is [home-in: design](../skills/home-in/design.md).
 
-**Decision:** home-in has no unattended form: its frontmatter sets `disable-model-invocation: true` and its body states attended-only.
+**Decision:** home-in has no unattended form: its body states attended-only, and it is enforced by a narrow trigger description rather than by `disable-model-invocation`.
 
 **Rationale:** An interrogation with no one to answer it produces the agent's opinion dressed as the user's, and dropping the unattended branches removes a shadow procedure for a case that does not exist.
 
 ## Consequences
 
-- The frontmatter flag stops only the model's auto-invocation; a user who types `/home-in` into an unattended job is outside the skill's contract, and the body says so.
+- The skill stays model-invocable, because Claude Code parses a slash command only as a message's first token and the natural invocation is mid-sentence ("help me /home-in on..."), which only the model path can honor.
+- A user who invokes home-in from an unattended job is outside the skill's contract, and the body says so.
 
 ## Alternatives Considered
 
@@ -21,3 +22,8 @@ status: current
 
 **Description:** Interrogate a brief instead of a person and emit lexicon proposals and draft ADRs.
 **Rejection rationale:** The questions have no one to answer them, so nothing distinguishes the result from the agent's own analysis.
+
+### Enforce with `disable-model-invocation: true`
+
+**Description:** Set the frontmatter flag so only a leading `/home-in` can start the skill.
+**Rejection rationale:** It makes the mid-sentence invocation silently inert, and the flag never stopped an unattended user from typing the command anyway.
