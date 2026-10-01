@@ -135,6 +135,8 @@ create it if it is missing, so `/tmp/claude/` must be creatable and writable
 by you; the rest use a temporary directory.
 
 `LEXICON.md` is the vocabulary. `docs/adr/` holds the design decisions.
+`docs/index.md` is the documentation front door: per-project docs under
+`docs/projects/`, the exit-code contract every wrapper shares, and the rest.
 
 Work on this repo is tracked in Beads (`bd` 1.3.0) during a trial, with
 GitHub Issues frozen; `CLAUDE.md` has the rules and ADR 0001 the reasons.

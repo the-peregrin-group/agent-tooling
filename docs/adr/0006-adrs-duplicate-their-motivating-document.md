@@ -5,7 +5,7 @@ status: current
 
 # ADRs duplicate their motivating document on purpose
 
-**Context:** The ADR writing guide said nothing about how an ADR relates to the state doc that motivated it, and agents inferred a deduplication rule ("cite the design doc instead of repeating it"), which turns the ADR into a pointer to a document that may change rather than a record of its own. The decision was made for the guide as a whole, not for one skill; the design that surfaced it and holds the analysis is [home-in: design](../skills/home-in/design.md), in the section on ADRs and the artifact.
+**Context:** The ADR writing guide said nothing about how an ADR relates to the state doc that motivated it, and agents inferred a deduplication rule ("cite the design doc instead of repeating it"), which turns the ADR into a pointer to a document that may change rather than a record of its own. The decision was made for the guide as a whole, not for one skill; the design that surfaced it and holds the analysis is [home-in: design](../projects/understanding/home-in-design.md), in the section on ADRs and the artifact.
 
 **Decision:** An ADR carries its own context, rationale, and alternatives even when a design doc holds the full analysis; the ADR links that doc, the doc summarizes and links the ADR, and there is no deduplication rule.
 

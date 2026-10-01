@@ -5,7 +5,7 @@ status: current
 
 # Capture lexicon and ADR work at Line of Inquiry Exits
 
-**Context:** A home-in interrogation raises concepts and decisions continuously, but the lexicon naming procedure takes two turns per term and an ADR can be written only once a decision has landed, so running either inline derails the interrogation into ceremony. The design that holds the analysis is [home-in: design](../skills/home-in/design.md).
+**Context:** A home-in interrogation raises concepts and decisions continuously, but the lexicon naming procedure takes two turns per term and an ADR can be written only once a decision has landed, so running either inline derails the interrogation into ceremony. The design that holds the analysis is [home-in: design](../projects/understanding/home-in-design.md).
 
 **Decision:** Formal lexicon and ADR work runs only at a Line of Inquiry Exit, draining the Resolution Queue; between exits a concept has its identity fixed inline and carries a marked working name that must be resolved at the next exit.
 
