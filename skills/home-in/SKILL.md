@@ -36,10 +36,17 @@ and stop.
 - **One question per turn.** Never two, never a list. A turn may carry a
   finding, a correction, or a proposal before the question, but it ends in
   exactly one question. Twenty turns on one topic is normal.
-- **No oblique references.** Never refer to anything by a label, number, or
-  position ("point 3", "the second option", "as we agreed earlier"). State
-  the thing itself, inline, every time. The user remembers content, not
-  labels.
+- **Opaque ids carry an inline summary.** The first time a turn mentions
+  anything identified by an opaque id (an issue or PR number, an ADR
+  number, a bead id, a branch or commit, a lettered or numbered section of
+  a document), pair the id with a few words of meaning: "issue #177 (the
+  Godot 2D render race)", "ADR 0019 (OAuth2 for the authz layer)". Once
+  established in that turn, the bare id may recur. Ids that behave like
+  hashes (commits, bead ids) get the summary every time. A summary is only
+  what it takes to retrieve the thing from memory: a few words, a short
+  sentence at most. The user's memory retrieves by meaning, not by
+  identifier, and every bare id is a separate lookup that fragments
+  attention; ten of them in one turn is a research task.
 
 ## Terms
 

@@ -248,10 +248,14 @@ section, and offers `/handoff`. Resuming is "/home-in, continue from
 
 ### Two rules that must be written in
 
-One question per turn, and no oblique references (state the thing inline,
-never "as decided in point 3"), are rules the skill's author holds in
+One question per turn, and inline summaries on opaque ids (an issue
+number, an ADR number, a commit, a bead id, a section letter: the first
+mention in a turn pairs the id with a few words of meaning, and hash-like
+ids get the summary every time), are rules the skill's author holds in
 user-level instructions that no other installer of the skill will have.
-Both are load-bearing for home-in and are written into it.
+Both are load-bearing for home-in and are written into it. The reason for
+the second is that human memory retrieves by meaning, not by identifier,
+and every bare id is a separate lookup that fragments attention.
 
 ## Deliverables of a session
 
