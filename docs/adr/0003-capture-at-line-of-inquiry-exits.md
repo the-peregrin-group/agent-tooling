@@ -9,7 +9,7 @@ status: current
 
 **Decision:** Formal lexicon and ADR work runs only at a Line of Inquiry Exit, draining the Resolution Queue; between exits a concept has its identity fixed inline and carries a marked working name that must be resolved at the next exit.
 
-**Rationale:** The interrogation is the product, and the ceremony was costing it.
+**Rationale:** Inline capture derails the interrogation, wrap-up capture lets unratified names and unchecked decisions compound for a whole session, and the exit is the first moment a subtree's content is stable enough to capture.
 
 ## Consequences
 

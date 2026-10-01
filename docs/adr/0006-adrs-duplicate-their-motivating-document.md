@@ -5,7 +5,7 @@ status: current
 
 # ADRs duplicate their motivating document on purpose
 
-**Context:** The ADR writing guide said nothing about how an ADR relates to the state doc that motivated it, and agents inferred a deduplication rule ("cite the design doc instead of repeating it"), which treats a stream doc as a reference target. The design that holds the analysis is [home-in: design](../skills/home-in/design.md), in the section on ADRs and the artifact.
+**Context:** The ADR writing guide said nothing about how an ADR relates to the state doc that motivated it, and agents inferred a deduplication rule ("cite the design doc instead of repeating it"), which turns the ADR into a pointer to a document that may change rather than a record of its own. The decision was made for the guide as a whole, not for one skill; the design that surfaced it and holds the analysis is [home-in: design](../skills/home-in/design.md), in the section on ADRs and the artifact.
 
 **Decision:** An ADR carries its own context, rationale, and alternatives even when a design doc holds the full analysis; the ADR links that doc, the doc summarizes and links the ADR, and there is no deduplication rule.
 
@@ -23,6 +23,11 @@ status: current
 
 **Description:** The ADR cites the design doc for its context and rationale instead of stating them.
 **Rejection rationale:** A rewritten design doc leaves the ADR meaningless.
+
+### Link a pinned revision of the design doc
+
+**Description:** Cite the design doc at the commit current when the decision was made, so the rewrite problem disappears.
+**Rejection rationale:** The reader must leave the ADR and find one sentence inside a stale revision of a long document, when an ADR's job is to be read in a minute.
 
 ### Two ADR length tiers
 

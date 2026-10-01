@@ -9,8 +9,9 @@ Y"); the agent interrogates them across the whole decision space, gathers
 and verifies against what already exists, pressure-tests every proposition
 including its own, and captures the result as a coherent artifact plus
 whatever lexicon entries and ADRs the discussion earns. It is a wise
-steward, not a note-taker: the interrogation is the product, and the
-documents are its record.
+steward, not a note-taker and not a critic: the interrogation is the
+product, the documents are its record, and it pressure-tests the
+proposition, never the person.
 
 ## Problem
 
@@ -38,6 +39,18 @@ that a reader with no access to the conversation can follow it.
 
 The skill has succeeded when an agent following it produces that outcome
 without the user having to steer the process itself.
+
+The skill verifies only the second half of that criterion. Its checks test
+whether the artifact stands on its own and whether the conclusion follows
+from its premises; none of them can verify that the user holds the
+opinion, and the one instrument that could, the user restating the whole
+case cold, costs more time and energy than the session saved and so
+defeats the skill. This gap is accepted deliberately: a chain of small
+ratifications may drift to a conclusion the user would not have endorsed
+cold, and the skill mitigates that risk in proportion to stakes (see
+Wrap-up) rather than eliminating it. The alternative is the user writing
+everything themselves and asking agents to review it for coherence, which
+is the authoring burden the skill exists to deflate.
 
 ## The process
 
@@ -82,7 +95,18 @@ needs with each turn still ending in one question, the agent:
    alter the skill's rules.
 5. Sketches the tree of Lines of Inquiry for this domain one level deep,
    one line per root naming the domain's first-level children under it,
-   for the user to prune or extend before it is walked.
+   for the user to prune or extend before it is walked, and says how deep
+   it intends to go and why. Depth costs the user time and energy, not
+   tokens. There is no formal budget, which would be a mode by another
+   name; the user steers depth throughout, and the skill makes the steer
+   easy to give (see Line of Inquiry Exits and capture).
+6. Asks whether this session's wrap-up should include the independent
+   checks, given the stakes and reversibility just described. The answer
+   is not binding; it is recorded, and at wrap-up the agent recalls it in
+   one sentence if the user decides differently, then accepts their
+   choice. Stakes are assessed before any chain of ratifications has
+   formed, so this answer is the user's uncontaminated judgment, offered
+   back to them later as a nudge rather than a rule.
 
 ### Three sub-processes, interleaved
 
@@ -108,7 +132,11 @@ sequence:
   own emerging recommendation once one forms, with equal vigor. Every
   adversarial question names the assumption it tests, and that assumption
   goes on the Resolution Queue. Devil's advocacy with no named assumption
-  is not allowed.
+  is not allowed. An adversarial question belongs to the Line of Inquiry
+  being walked and opens no other; the Load-bearing assumptions root is
+  where the assumptions queued along the way are collected and tested
+  systematically. Depth-first and always-on therefore coexist, and exits
+  stay discrete events.
 
 There are no modes. The invocations differ only in what is already on the
 table when the session opens.
@@ -132,8 +160,8 @@ The root Lines of Inquiry:
 5. **Constraints.** Time, money, skill, dependencies; what is fixed versus
    assumed fixed.
 6. **Load-bearing assumptions.** What must be true for the leading option
-   to work, and how each could be falsified. Most adversarial questions
-   attach here.
+   to work, and how each could be falsified. Where the assumptions queued
+   by adversarial questions are tested systematically.
 7. **Alternatives.** Including doing nothing, and the option the user has
    been avoiding naming.
 8. **Reversibility and horizon.** How long until it is known to have
@@ -147,7 +175,10 @@ expected. Every LOI is considered and not every LOI is asked: each is
 either explored to the depth the problem warrants or set aside with a
 one-line reason. Expansion is lazy (a subtree expands when entered) and
 depth-first. The agent's coverage report is the tree's frontier: exhausted,
-in progress, untouched, set aside.
+in progress, untouched, set aside, reopened. An exhausted LOI reopens when
+a later finding reframes it, as a late-discovered alternative often does to
+Success or Anti-goals; the reopening is reported and the LOI is walked and
+exited again.
 
 The ten roots are a taxonomy under test. At each Line of Inquiry Exit the
 agent surfaces any question it wanted to ask that fit no root, so the
@@ -162,7 +193,11 @@ runs, so the interrogation is never derailed by ceremony (see
 records the decision to capture at exits rather than inline or at
 wrap-up). At a LOI Exit the agent:
 
-1. Reports the frontier and the Resolution Queue.
+1. Reports the frontier and the Resolution Queue, ending with roots done,
+   roots remaining, and the depth prompt: "deeper, shallower, or as we
+   are?" An absorbed user does not notice time and energy passing, so the
+   steer is handed to them at the moment they are least likely to reach
+   for it, and honored immediately.
 2. Surfaces questions that fit no root LOI.
 3. Drains the Resolution Queue's items from that LOI: the lexicon naming
    procedure for each candidate term, one concept per turn; the ADR gate
@@ -177,7 +212,10 @@ step of the lexicon naming procedure inline ("what is this, independent of
 how it is built?") and gives the concept a working name, marked as such in
 prose the first time it appears and on the Resolution Queue. A working
 name is spent, not chosen: the plainest available description, with no
-candidate generation, so nobody grows attached to it. Every working name
+candidate generation, so the naming discussion is not pre-empted by a name
+the agent has invested in. (Plain working names may well be ratified as
+the final terms, as three were in this design; that is the user choosing
+literal clarity, not the name sticking.) Every working name
 must be resolved (ratified, renamed, or dropped) at the next LOI Exit;
 none survives into the artifact unratified, and one that crosses an exit
 unresolved is a failure the exit report calls out. Provisional decisions
@@ -188,8 +226,10 @@ unresolved is a failure the exit report calls out. Provisional decisions
 The Resolution Queue is the set of everything raised during the
 interrogation that awaits formal resolution: candidate terms with their
 working names, candidate decisions, assumptions under test, and gathering
-not yet done. It appears at the foot of the agent's replies and lives in
-the artifact's open-items section between exits, so it survives a dropped
+not yet done. It appears at the foot of the agent's reply whenever it has
+changed and always at an exit, since a queue repeated unchanged on every
+turn is noise competing with the one question, and it lives in the
+artifact's open-items section between exits, so it survives a dropped
 session. It must be empty before the session is done.
 
 ### The artifact
@@ -201,8 +241,9 @@ problem, success criteria, recommendation, rationale, and rejected paths.
 It never preserves the conversation's turn order or who said what; it is
 not a transcript. It is drafted at the first LOI Exit and
 rewritten in place at every exit after, so the wrap-up is a final rewrite
-rather than a big-bang authoring step, the user can catch a misreading
-early, and the Resolution Queue has a durable home.
+rather than a big-bang authoring step, the current picture is there for
+the user to read at any exit they choose to, and the Resolution Queue has
+a durable home.
 
 ### ADRs and the artifact
 
@@ -230,27 +271,46 @@ written into `use-adrs`; see Deliverables of this design.
 
 Done is the user's to declare. Before agreeing, the agent reports the
 frontier and the Resolution Queue, both expected empty; the user can
-overrule with a word. It then offers, and runs only on request:
+overrule with a word. It then offers three checks, singly or combined, and
+runs only what is asked for:
 
+- **The user's own summary.** Three sentences, spoken before the final
+  rewrite is shown, without the document: what they will do, why, and what
+  they rejected. Someone who holds the opinion produces it in a minute;
+  divergence from the artifact is the finding. Never more than three
+  sentences, because a full restatement would cost more than the session
+  saved.
 - **A cold read.** A subagent is given the artifact alone and asked to
   state the problem, the success criteria, the recommendation, and why the
   rejected paths lost. The test is whether the artifact stands on its own,
   not whether the user agrees with it.
-- **An independent review.** A separate agent, given the artifact and the
-  session's new ADRs and nothing else, writes a judicial opinion for the
+- **An independent review.** A separate agent, given the artifact, the
+  session's new ADRs, the owning project's lexicon, and the sources the
+  artifact cites, and nothing else, writes a judicial opinion for the
   user: it may attack the premise, dismantle the argument, reject the
   conclusion, or offer a counterproposal. Its brief is a verdict, not
   polish. It writes the opinion to a file, and the authoring agent relays
-  it verbatim with the path, adding its own response only under a separate
-  heading. The reviewer never sees the conversation or the Resolution
-  Queue; its blindness to the path is what makes the verdict cold (see
+  it verbatim with the path and nothing of its own in that turn; the
+  author's response comes only later and only if asked, since an attack
+  read together with the anchored party's defense is a filter by framing.
+  The reviewer never sees the conversation or the Resolution Queue: it is
+  blind to the path, not to the world, so it can test whether the premises
+  are true and not only whether the argument coheres (see
   [ADR 0005](../../adr/0005-independent-review-delivered-unfiltered.md),
   which records why the reviewer is separate and unfiltered and the
-  rejected self-review and polish-loop alternatives).
-- **Both.**
+  rejected self-review and polish-loop alternatives). The user is told in
+  one line that the reviewer is the same model with different inputs: it
+  corrects for anchoring on the path, not for biases the model brings to
+  any well-structured document.
 
-The offer names the risk it addresses in one line, and the agent recommends
-both when the session ran past a handful of LOI Exits.
+The offer names the risk it addresses in one line. The agent's
+recommendation follows the stakes and reversibility surfaced under
+Reversibility and horizon, never the number of exits: exit count is a
+proxy for chain length, which the user cannot assess from inside, while
+stakes are what they can. A decision cheap to undo needs no review; one
+with years of consequences deserves all three. If the user answered the
+opening-move question about these checks and now chooses differently, the
+agent recalls that answer in one sentence and then accepts their choice.
 
 Early exit is a normal outcome. "Park it" triggers a LOI Exit rewrite,
 leaves the frontier and Resolution Queue in the artifact's open-items
@@ -307,8 +367,15 @@ wrap-up says so in one line rather than omitting it silently.
   ([ADR 0005](../../adr/0005-independent-review-delivered-unfiltered.md));
   ADRs duplicate their motivating document
   ([ADR 0006](../../adr/0006-adrs-duplicate-their-motivating-document.md)).
-  The no-modes decision was judged not to pass the gate and is recorded
-  under Rejected paths instead.
+  The gate, from `use-adrs`, is three criteria that must all hold: several
+  compelling options, expensive to reverse, surprising without the
+  background. Every skill decision is cheap to reverse in the file itself,
+  so the second criterion turns on what has been built on the decision; the
+  four above each carry structure (the Resolution Queue and working names,
+  the absence of unattended branches, the review protocol, every future
+  ADR's shape). The no-modes decision carries nothing and surprises nobody
+  once the three sub-processes are described, so it failed the gate and is
+  recorded under Rejected paths instead.
 - Four edits to `skills/use-adrs/writing-adrs.md`, in their own commit,
   each closing a gap this design exposed.
   1. A paragraph stating that an ADR is a self-contained snapshot and
@@ -356,10 +423,26 @@ holds the same rejection in snapshot form.
   is anchored on every step; it is the wrong entity to attack the whole.
   Rejected for an independent reviewer blind to the path.
 - **Asking the user "do you hold this opinion without the document?"** A
-  weak instrument for a real hazard (a chain of locally reasonable
-  ratifications adding up to a conclusion the user would not endorse
-  cold), and a new mechanism where an existing one fits. Rejected for the
-  independent review.
+  yes/no is a proofread of one's own conviction, which the acclimatized
+  user cannot perform. Rejected; the three-sentence summary at wrap-up is
+  what survived of the idea.
+- **A mandatory restatement of the whole case by the user at wrap-up.**
+  The one instrument that would measure the success criterion directly,
+  and it costs the user more time and energy than the session saved, which
+  is the authoring burden the skill exists to deflate. Rejected; the gap
+  is accepted and stated under Success.
+- **Running the independent review by default.** The argument for it was
+  that insiders cannot detect their own drift and so should not decide
+  whether to run the detector. But assessing stakes is a different act
+  from detecting drift and does not require seeing the path, and reading
+  and digesting a review costs real time; for a low-stakes decision it is
+  not worth it. Rejected for offered checks, recommended by stakes, with
+  the user's own opening-move answer recalled as a nudge.
+- **A binding pre-commitment at the opening move to run the checks.** The
+  right idea in a perfect world; softened to a recorded, non-binding
+  answer that is recalled at wrap-up if the user deviates.
+- **A formal depth budget in turns.** A mode by another name. Rejected for
+  the depth prompt at every exit.
 - **Skill-level awareness of the user's knowledge-base repo.** The owning
   project is overridable at invocation and local policy decides whether
   the override succeeds; the skill needs no notion of any particular
@@ -379,9 +462,27 @@ holds the same rejection in snapshot form.
 ## Open items
 
 As of 2026-09-30 the frontier is exhausted and the Resolution Queue is
-empty. One Line of Inquiry was set aside with a reason: stakeholders beyond
-the author, since the skill's other users are agents and the design
-addresses them directly. Two things are deliberately left to be learned
-from use rather than decided now: whether the ten root Lines of Inquiry
-hold up, which the surfaced-unfitted-questions rule exists to test, and
-whether agents over-index on the example expansion.
+empty. The Stakeholders root was set aside early on a weak reason (that
+the skill's other users are agents, when other installers are human and
+the people affected by any session's outcome are stakeholders too); the
+independent review surfaced what that root would have, proportionality
+and register, and both are now addressed in the body rather than by
+reopening the walk.
+
+Deliberately left to be learned from use rather than decided now:
+
+- Whether the ten root Lines of Inquiry hold up. The
+  surfaced-unfitted-questions rule exists to test this; if unfitted
+  questions keep accumulating, or users prune most roots every session,
+  the taxonomy is wrong.
+- Whether agents over-index on the example expansion.
+- Whether capture at exits is the right cadence. If sessions routinely
+  park before the first exit, the process is too heavy for its users.
+- Whether the independent review earns its cost. If, over many sessions,
+  it never changes an outcome, it should go.
+
+The skill's own Disconfirmation: the design is abandoned or reworked if
+users of it report that the interrogation felt like a tribunal rather than
+a steward, or that the outputs were not worth the time and energy the
+sessions cost. The success criterion itself is not measured, by decision
+(see Success).

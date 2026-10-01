@@ -25,8 +25,10 @@ root exists to force into the open, not what to ask.
    genuinely fixed, or assumed fixed? The assumed ones are often the real
    decision space.
 6. **Load-bearing assumptions.** What must be true for the leading option
-   to work, and how each could be checked or falsified. Most adversarial
-   questions attach here, and each one names the assumption it tests.
+   to work, and how each could be checked or falsified. Adversarial
+   questions arise in every LOI and stay there; this root is where the
+   assumptions they put on the Resolution Queue are collected and tested
+   systematically.
 7. **Alternatives.** Including doing nothing, and the option the user has
    been avoiding naming. An opinion with no live alternative is a
    preference, not a decision.
@@ -64,8 +66,16 @@ tree for a kitchen remodel or a video essay.
 ## Coverage
 
 The frontier is the tree's state: which subtrees are exhausted, in
-progress, untouched, set aside. Report it at every LOI Exit, in a few lines,
-so the user always knows where they are and what remains.
+progress, untouched, set aside, reopened. Report it at every LOI Exit, in a
+few lines, so the user always knows where they are and what remains, and
+end the report with the depth prompt: "deeper, shallower, or as we are?"
+An absorbed user does not notice time and energy passing; the prompt hands
+them the steer at the moment they are least likely to reach for it.
+
+An exhausted LOI reopens when a later finding reframes it: an alternative
+discovered late often rewrites Success or Anti-goals. Say that it has
+reopened and why, walk it again to the depth the change warrants, and exit
+it again.
 
 The ten roots are a taxonomy under test. When you want to ask something
 that fits no root, ask it anyway and note it; surface every such question

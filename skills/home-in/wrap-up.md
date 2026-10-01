@@ -9,7 +9,9 @@ read hours earlier are remembered loosely.
 In this order:
 
 1. **Report the frontier**: exhausted, in progress, untouched, set aside,
-   in a few lines.
+   reopened, in a few lines, ending with roots done, roots remaining, and
+   the depth prompt: "deeper, shallower, or as we are?" Honor the answer
+   immediately and visibly.
 2. **Surface questions that fit no root** Line of Inquiry, if any came up.
 3. **Drain the Resolution Queue** of the items from the LOI just exited.
    - Candidate terms: run `use-lexicon`'s naming procedure, one concept per
@@ -43,13 +45,27 @@ and that is their call.
 
 ### The offers
 
-Then offer, in one short paragraph, the two checks below and the choice of
-both. Name the risk they address in one line: a long session of small
-ratifications can add up to a conclusion the user would not have endorsed
-cold, and nobody inside the conversation, you included, can see that from
-inside it. Recommend both when the session ran past a handful of LOI
-Exits; otherwise offer without recommending. Run only what the user asks
-for.
+Then offer, in one short paragraph, the three checks below, singly or in
+any combination. Name the risk they address in one line: a long session of
+small ratifications can add up to a conclusion the user would not have
+endorsed cold, and nobody inside the conversation, you included, can see
+that from inside it. Base your recommendation on the stakes and
+reversibility the user described under Reversibility and horizon, never on
+how many exits the session had: a decision that is cheap to undo needs no
+review, and one with years of consequences deserves all three. If the user
+said at the opening move what they intended to do about these checks and
+now chooses differently, remind them of their earlier answer in one
+sentence, then accept whatever they decide. Run only what the user asks
+for. None of these checks verifies that the user holds the opinion; the
+skill accepts that gap, because a validation step that costs the user more
+than the session saved defeats the skill.
+
+**The user's own summary.** Ask the user, before showing the final
+rewrite, for three sentences without the document: what they are going to
+do, why, and what they rejected. Someone who holds the opinion produces
+that in a minute. Compare it to the artifact and say plainly where they
+diverge; divergence is the finding. Never ask for more than three
+sentences.
 
 **Cold read.** Give a subagent the artifact alone, no conversation, no
 queue, and ask it to state in its own words: the problem, the success
@@ -58,9 +74,14 @@ test is whether the artifact stands on its own, not whether the user agrees
 with it. Gaps the reader finds go back into the artifact.
 
 **Independent review.** Spawn a separate agent with the artifact, the
-session's new ADRs, and nothing else. It never sees the conversation, the
-Resolution Queue, or you; its blindness to the path is what makes its
-verdict cold. Its brief, verbatim:
+session's new ADRs, the owning project's lexicon, and the sources the
+artifact cites, and nothing else. It never sees the conversation, the
+Resolution Queue, or you; it is blind to the path, not to the world, so it
+can test whether the premises are true and not only whether the argument
+is coherent. Tell the user in one line that the reviewer is the same model
+with different inputs: it corrects for anchoring on the path, not for
+biases the model brings to any well-structured document. Its brief,
+verbatim:
 
 > You are writing a judicial opinion on the attached recommendation, for
 > the person who must act on it. You are not helping the author polish it,
@@ -77,10 +98,12 @@ verdict cold. Its brief, verbatim:
 
 Give it a path under `/tmp/claude/` or beside the artifact, as the user
 prefers. When it returns, print the path and relay the opinion verbatim:
-nothing summarized, softened, reordered, or omitted. If you have a
-response, put it after the opinion under its own heading, labeled as the
-author's response. The user decides what to do with both; if they
-commission the counterproposal, the reviewer writes it, not you.
+nothing summarized, softened, reordered, or omitted, and nothing of yours
+in the same turn. Offer your response as author in one sentence and give
+it only in a later turn, if the user asks; an attack and the anchored
+party's defense read together, with the defense last, is a filter by
+framing. The user decides what to do with the opinion; if they commission
+the counterproposal, the reviewer writes it, not you.
 
 ### Closing
 

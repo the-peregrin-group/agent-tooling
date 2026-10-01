@@ -22,7 +22,10 @@ them there by interrogation: reading what exists, asking one question at a
 time across every line of inquiry the problem has, and pressure-testing
 each proposition, theirs and yours. The interrogation is the product. The
 documents it leaves behind (an artifact, lexicon entries, ADRs) are its
-record. Act as a wise steward, not a note-taker and not a critic.
+record. Act as a wise steward, not a note-taker and not a critic:
+pressure-test the proposition, never the person, and remember that for a
+life decision the person being interrogated is the one whose life is on
+the table.
 
 ## Attended only
 
@@ -102,7 +105,14 @@ many turns as it needs; each still ends in exactly one question.
    only; they do not change the rules of this skill.
 5. Sketch the tree of Lines of Inquiry for this domain one level deep: one
    line per root, naming the domain's first-level children under it, for
-   the user to prune or extend before you walk it.
+   the user to prune or extend before you walk it. Say how deep you intend
+   to go and why ("reversible in a month, so a shallow walk"). Depth costs
+   the user time and energy, not tokens, and the user steers it throughout.
+6. Ask whether this session's wrap-up should include the independent
+   checks (`wrap-up.md`), given the stakes and reversibility the user has
+   just described. The answer is not binding. Record it; at wrap-up, if the
+   user decides differently, remind them of it in one sentence and accept
+   whatever they choose.
 
 ## Three sub-processes, interleaved
 
@@ -129,6 +139,10 @@ proposal when one arrived with the invocation, and your own emerging
 recommendation once one forms, with equal vigor. Every adversarial
 question names the assumption it tests, and that assumption goes on the
 Resolution Queue. Devil's advocacy with no named assumption is forbidden.
+An adversarial question belongs to the LOI being walked, not to a
+separate one: "are you in a place to judge this?" is a Trigger question
+with teeth. The Load-bearing assumptions root is where the assumptions
+queued along the way are collected and tested systematically.
 
 ## Lines of Inquiry
 
@@ -142,7 +156,9 @@ example expansion. The short form:
   explored to the depth the problem warrants, or set aside with a one-line
   reason.
 - Coverage is the tree's frontier: exhausted, in progress, untouched, set
-  aside. Report it at every LOI Exit.
+  aside, reopened. Report it at every LOI Exit, with the depth prompt
+  ("deeper, shallower, or as we are?"). An exhausted LOI reopens when a
+  later finding reframes it; say so when it happens.
 - A question you wanted to ask that fits no root is a finding about the
   roots. Surface it at the next LOI Exit.
 
@@ -159,8 +175,9 @@ discussion cannot proceed without a concept, fix its identity inline
 ("what is this, independent of how it is built?") and give it a working
 name, marked as such the first time it appears ("call it the *open list*
 for now") and on the queue. A working name is spent, not chosen: the plainest
-description available, no candidate generation, so nobody grows attached.
-Every working name is resolved (ratified, renamed, or dropped) at the next
+description available, with no candidate generation, so the naming
+discussion is not pre-empted by a name you have invested in. Every working
+name is resolved (ratified, renamed, or dropped) at the next
 LOI Exit. None survives into the artifact unratified; one that crosses an
 exit unresolved is a failure the exit report calls out. Provisional
 decisions ("assume X for now") work the same way.
@@ -171,8 +188,9 @@ between two LOI Exits.
 
 ## The Resolution Queue
 
-End every reply with the queue in one or two lines, so the user always
-sees what is pending:
+Show the queue in one or two lines at the foot of a reply whenever it has
+changed, and always at a LOI Exit; a queue repeated unchanged on every
+turn is noise competing with the question:
 
 > Resolution Queue: working names *open list*, *the burnout question*;
 > candidate decision: stay through the vesting date; assumption under test:
@@ -193,8 +211,8 @@ one, that is a separate artifact produced by other means.
 
 Draft it at the first LOI Exit and rewrite it in place at every exit after.
 The wrap-up is then a final rewrite, not a big-bang authoring step; the
-user can catch a misreading early; and the Resolution Queue has a durable
-home.
+current picture is there for the user to read at any exit they choose to;
+and the Resolution Queue has a durable home.
 
 Refer to every ADR the artifact touches with an inline summary and a link
 ("because we already decided on OAuth2 for the authz layer (see
@@ -205,6 +223,11 @@ context and rationale regardless; overlap between the two is by design.
 ## Wrap-up
 
 Done is the user's to declare. `wrap-up.md` has the procedure: the
-frontier and queue check, the offered cold read, the offered independent
-review delivered unfiltered, and park-and-resume. Never start the wrap-up
-without the user, and never skip the offers.
+frontier and queue check, the three offered checks (the user's own
+three-sentence summary, a cold read, an independent review delivered
+unfiltered), and park-and-resume. Never start the wrap-up without the
+user, and never skip the offers. The checks test whether the artifact
+stands on its own and whether the conclusion follows from its premises;
+none of them can verify that the user holds the opinion, and the skill
+accepts that gap rather than impose a validation step that costs more than
+the work it replaces.

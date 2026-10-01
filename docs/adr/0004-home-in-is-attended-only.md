@@ -7,13 +7,13 @@ status: current
 
 **Context:** Every other Skill in this repo has an unattended branch (lexicon proposals, draft ADRs for a reviewer, guess-and-note autonomy), and home-in's value lies entirely in a live exchange with the user. The design is [home-in: design](../skills/home-in/design.md).
 
-**Decision:** home-in has no unattended form: its body states attended-only, and it is enforced by a narrow trigger description rather than by `disable-model-invocation`.
+**Decision:** home-in has no unattended form: its body declares attended-only, and the declaration is not enforced, because no enforcement exists; a narrow trigger description limits accidental invocation and `disable-model-invocation` is not set.
 
 **Rationale:** An interrogation with no one to answer it produces the agent's opinion dressed as the user's, and dropping the unattended branches removes a shadow procedure for a case that does not exist.
 
 ## Consequences
 
-- The skill stays model-invocable, because Claude Code parses a slash command only as a message's first token and the natural invocation is mid-sentence ("help me /home-in on..."), which only the model path can honor.
+- The skill stays model-invocable, because Claude Code parses a slash command only as a message's first token (per the skills documentation at code.claude.com/docs/en/skills, verified 2026-09-30) and the natural invocation is mid-sentence ("help me /home-in on..."), which only the model path can honor.
 - A user who invokes home-in from an unattended job is outside the skill's contract, and the body says so.
 
 ## Alternatives Considered
