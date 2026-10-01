@@ -11,9 +11,9 @@ Shared tooling for Claude Code agents:
   `BEADS_ACTOR` set to the session actor, and passes the arguments through
   unchanged except bd's own `--actor` flag, which it refuses. See
   [ADR 0002](docs/adr/0002-beads-identity.md).
-- **Eight skills** (`skills/`): `use-git`, `use-github`, `use-forgejo`,
+- **Ten skills** (`skills/`): `use-git`, `use-github`, `use-forgejo`,
   `setup-github-issues`, `triage-issues`, `refine-state-doc`, `use-lexicon`,
-  `handoff`.
+  `use-adrs`, `home-in`, `handoff`.
 - **One agent** (`agents/`): `code-reviewer`.
 - **The installer** (`cli/tooling-install`), which ships all of the above.
 
