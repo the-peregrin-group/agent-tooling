@@ -1,7 +1,6 @@
 # home-in: design
 
-State as of 2026-09-30. Draft: the skill itself is not yet written; see
-Open items for what remains.
+State as of 2026-09-30.
 
 `/home-in` is a user-invoked Skill for arriving at an opinion. The user
 names a problem and a desired outcome ("I have X and want to home in on
@@ -269,9 +268,17 @@ wrap-up says so in one line rather than omitting it silently.
 
 ## Deliverables of this design
 
-- `skills/home-in/SKILL.md`, with bundled reference files beside it on the
-  pattern of `use-adrs`: the root Lines of Inquiry with one example
-  expansion, and the wrap-up procedures. Not yet written.
+- `skills/home-in/`, three files on the pattern of `use-adrs`. `SKILL.md`
+  carries the process and the ten roots, since they are needed from the
+  first turn and held throughout. `lines-of-inquiry.md` holds the roots in
+  full, the expansion rule, coverage, and one example expansion for a
+  software design, labeled as one domain's tree. `wrap-up.md` holds the
+  procedures read at the point of use, because instructions loaded at turn
+  one are remembered loosely hours later: the Line of Inquiry Exit steps,
+  the wrap-up check and offers with the reviewer's brief verbatim, closing,
+  and park-and-resume. The second file has no agent-side benefit over
+  inlining and exists for human navigation; the third earns its split on
+  recency.
 - This document.
 - Lexicon entries in this repo's `LEXICON.md`, written: Line of Inquiry,
   Line of Inquiry Exit, Resolution Queue. The independent reviewer's
@@ -287,7 +294,7 @@ wrap-up says so in one line rather than omitting it silently.
   The no-modes decision was judged not to pass the gate and is recorded
   under Rejected paths instead.
 - Four edits to `skills/use-adrs/writing-adrs.md`, in their own commit,
-  each closing a gap this design exposed. Not yet made.
+  each closing a gap this design exposed.
   1. A paragraph stating that an ADR is a self-contained snapshot and
      duplicates its motivating document's context on purpose, because that
      document is state and may change.
@@ -352,21 +359,10 @@ holds the same rejection in snapshot form.
 
 ## Open items
 
-Frontier and Resolution Queue as of 2026-09-30, carried between sessions.
-
-### Frontier
-
-- Exhausted: capture timing; the sub-processes; destinations; the
-  artifact's nature; the ADR relationship; the tree of Lines of Inquiry;
-  termination.
-- Untouched: the invocation grammar (on Y; in a project; continue from an
-  artifact); the skill's file layout; the exact text of the one-question
-  and no-oblique-reference rules; the example domain expansion.
-- Set aside: stakeholders beyond the author, since the skill's other users
-  are agents and the design addresses them directly.
-
-### Resolution Queue
-
-- Entering a Line of Inquiry is also an event (that is when a subtree
-  expands one level). "LOI Entry" is the implied name if the skill text
-  turns out to refer to it more than once; decide when the text exists.
+As of 2026-09-30 the frontier is exhausted and the Resolution Queue is
+empty. One Line of Inquiry was set aside with a reason: stakeholders beyond
+the author, since the skill's other users are agents and the design
+addresses them directly. Two things are deliberately left to be learned
+from use rather than decided now: whether the ten root Lines of Inquiry
+hold up, which the surfaced-unfitted-questions rule exists to test, and
+whether agents over-index on the example expansion.
