@@ -14,16 +14,15 @@ targeted docs.
 - [bdw](projects/bdw/index.md): the Wrapper over Beads.
 - [fjw](projects/fjw/index.md): the Wrapper over a Forgejo forge; its
   [design](projects/fjw/design.md) and the issue-verbs proposal.
+- [ghw](projects/ghw/index.md): the Wrapper over GitHub, with the triage
+  reference wrappers; its [design](projects/ghw/design.md) and the
+  triage-library-rebase proposal.
 - [gitw](projects/gitw/index.md): the Wrapper over git; its
   [design](projects/gitw/design.md), the trunk-sync proposal, and the
   read-rule audit.
 - [installer](projects/installer/index.md): `tooling-install`, the
   Installer that ships Source repos' tooling into Install Targets; its
   [design](projects/installer/design.md).
-
-ghw is documented today by its operating manual (`skills/use-github`) and
-the docstrings in `cli/`; its project directory lands with the
-documentation migration that Issue `agent-tooling-bpj` gates.
 
 ### Tracking work
 
