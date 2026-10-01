@@ -40,7 +40,7 @@ and stop.
   anything identified by an opaque id (an issue or PR number, an ADR
   number, a bead id, a branch or commit, a lettered or numbered section of
   a document), pair the id with a few words of meaning: "issue #177 (the
-  Godot 2D render race)", "ADR 0019 (OAuth2 for the authz layer)". Once
+  Godot 2D render race)", "ADR-XXXX (OAuth2 for the authz layer)". Once
   established in that turn, the bare id may recur. Ids that behave like
   hashes (commits, bead ids) get the summary every time. A summary is only
   what it takes to retrieve the thing from memory: a few words, a short
@@ -190,7 +190,7 @@ home.
 
 Refer to every ADR the artifact touches with an inline summary and a link
 ("because we already decided on OAuth2 for the authz layer (see
-[ADR 0019](path))"), never a bare code. The ADR carries its own snapshot of
+[ADR-XXXX](path))"), never a bare code. The ADR carries its own snapshot of
 context and rationale regardless; overlap between the two is by design.
 `use-adrs` has the rule.
 
