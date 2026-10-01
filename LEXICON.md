@@ -157,6 +157,33 @@ bug, a feature, a task), with a status and dependencies on other Issues.
 but opaque to humans.
 - _Invariants_: every reference to an Issue includes its Issue ID
 
+### Documents
+
+**State doc**: A document that describes one entity (e.g., a design, a plan,
+a project's status) as it is at one point in time, by default now, and that is
+updated by rewriting its body in place so it always reads as one coherent
+picture rather than as a sequence of edits. Examples of State docs include a
+project's lexicon, technical design documents (TDDs), product requirements
+documents (PRDs), API documentation, user manuals, equipment specifications,
+an encyclopedia article, an essay, etc.
+- _Invariants_: one owning place per fact, with every other mention a
+  reference to it; readable end to end without replaying its history; a
+  State doc anchored at a past date states that date in its header and is
+  never updated to describe later state
+
+**Stream doc**: A document that records events in the order they happened,
+whose value is the record itself; it grows by appending, and an existing
+entry changes only to make the record clearer or truer, never to hide or
+alter what happened. Examples include a student's transcript, an
+accountant's ledger, a recurring meeting-notes doc, a commit log, a user's
+daily journal, a project's ADRs, etc. An append-only TODO list, recording
+every item ever filed and its completion, is a Stream doc; a list that shows
+only the open items, deleted on completion, is a State doc.
+- _Invariants_: entries are diffs (what was learned, decided, or done on a
+  date), never a restatement of current state; an entry contains nothing
+  learned after its date; the current state of anything is never derivable
+  only by replaying a Stream doc
+
 ## Relationships
 
 - gitw, ghw, fjw, and bdw are Wrappers; each Wrapper offers one or more Verbs.
@@ -175,5 +202,10 @@ but opaque to humans.
   Adoption moves ownership between two Source repos within one Receipt.
 - The Issue Tracker holds many Issues; an Issue has exactly one Issue ID.
 - A Line of Inquiry contains zero or more finer Lines of Inquiry.
+- A document as a whole is either a State doc or a Stream doc, never both.
+- A State doc may embed one bounded Stream doc section (e.g., a decision
+  log, an append-only TODO list) at its end; that section owns events and
+  the rest owns facts; a Stream that is unbounded or large lives in its own
+  document, referenced from the State doc.
 
 ## Retired terms
