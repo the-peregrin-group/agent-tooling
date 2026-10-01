@@ -6,8 +6,7 @@ of Inquiry, toward an opinion on a problem they can defend, and records it in
 an artifact the user chooses. `use-lexicon` keeps a project's `LEXICON.md`,
 the canonical names of its concepts, and holds all work to those names.
 `use-adrs` decides which decisions deserve an ADR and how one is written,
-read, and superseded. They derive from a single original and share one
-contract: home-in captures terms only through use-lexicon and decisions only
+read, and superseded. They share one contract: home-in captures terms only through use-lexicon and decisions only
 through use-adrs, at each Line of Inquiry Exit. They are split so that each
 can be invoked alone.
 
@@ -28,7 +27,8 @@ an ADR duplicates the context of the document that motivated it
 | Interrogation toward a defensible opinion: one question per turn, gathering and verifying against what exists, pressure-testing every proposition including the agent's own | shipped | `skills/home-in/SKILL.md` |
 | A tree of Lines of Inquiry from ten shipped roots, expanded lazily into the domain, with coverage reported at every Line of Inquiry Exit | shipped | `skills/home-in/lines-of-inquiry.md` |
 | Capture at Line of Inquiry Exits through use-lexicon and use-adrs, with working names and the Resolution Queue between exits | shipped | `skills/home-in/SKILL.md`, `skills/home-in/wrap-up.md` |
-| An artifact the user chooses, rewritten in place at every exit; refusal in unattended sessions | shipped | `skills/home-in/SKILL.md` |
+| An artifact the user chooses, rewritten in place at every exit | shipped | `skills/home-in/SKILL.md` |
+| Attended only: refuses and stops when the session is unattended | shipped | `skills/home-in/SKILL.md` |
 | Wrap-up with three offered checks (the user's three-sentence summary, a cold read, an independent review), and park and resume from the artifact | shipped | `skills/home-in/wrap-up.md` |
 | Finding a project's lexicon, or creating one from the bundled template | shipped | `skills/use-lexicon/SKILL.md`, `skills/use-lexicon/lexicon-template.md` |
 | Conversion of an existing glossary into `LEXICON.md` | shipped | `skills/use-lexicon/SKILL.md` |
@@ -36,7 +36,9 @@ an ADR duplicates the context of the document that motivated it
 | Renaming and retiring terms, and resolving conflicts between code and the lexicon | shipped | `skills/use-lexicon/writing-lexicon.md` |
 | Correcting drift from the lexicon's terms in conversation | shipped | `skills/use-lexicon/SKILL.md` |
 | Lexicon injected at session start by a hook, with no per-project pointer | planned | `agent-tooling-0s1.4` |
-| Conversion sweeps dropped terms from State docs instead of retiring them; third-party product vocabulary excluded; every invariant listed in the Invariants field | planned | `agent-tooling-i3n` |
+| Conversion sweeps a dropped or renamed glossary term from State docs and open Issues instead of adding a Retired terms line | planned | `agent-tooling-i3n` |
+| A third-party product's own vocabulary excluded from the lexicon | planned | `agent-tooling-i3n` |
+| Every invariant listed in an entry's Invariants field, even when the definition already implies it | planned | `agent-tooling-i3n` |
 | ADR placement, numbering, and file naming | shipped | `skills/use-adrs/SKILL.md` |
 | The three-part gate on what deserves an ADR, and a draft ADR for the reviewer when unattended | shipped | `skills/use-adrs/SKILL.md` |
 | Reading ADRs before design work, and superseding rather than silently contradicting one | shipped | `skills/use-adrs/SKILL.md` |
@@ -46,6 +48,6 @@ an ADR duplicates the context of the document that motivated it
 ### Known gaps
 
 - use-adrs forbids editing a landed ADR beyond typo fixes and supersession,
-  but is silent on partial supersession of an ADR without `status:`, link
+  but is silent on partial supersession of a pre-template ADR that has no `status:` field, link
   repoints after a file move, retired vocabulary, post-decision
   observations, and adopted ADRs (`agent-tooling-eeu`).
