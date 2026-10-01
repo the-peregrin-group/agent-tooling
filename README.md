@@ -11,9 +11,9 @@ Shared tooling for Claude Code agents:
   `BEADS_ACTOR` set to the session actor, and passes the arguments through
   unchanged except bd's own `--actor` flag, which it refuses. See
   [ADR 0002](docs/adr/0002-beads-identity.md).
-- **Eight skills** (`skills/`): `use-git`, `use-github`, `use-forgejo`,
+- **Ten skills** (`skills/`): `use-git`, `use-github`, `use-forgejo`,
   `setup-github-issues`, `triage-issues`, `refine-state-doc`, `use-lexicon`,
-  `handoff`.
+  `use-adrs`, `home-in`, `handoff`.
 - **One agent** (`agents/`): `code-reviewer`.
 - **The installer** (`cli/tooling-install`), which ships all of the above.
 
@@ -135,6 +135,8 @@ create it if it is missing, so `/tmp/claude/` must be creatable and writable
 by you; the rest use a temporary directory.
 
 `LEXICON.md` is the vocabulary. `docs/adr/` holds the design decisions.
+`docs/index.md` is the documentation front door: per-project docs under
+`docs/projects/`, the exit-code contract every wrapper shares, and the rest.
 
 Work on this repo is tracked in Beads (`bd` 1.3.0) during a trial, with
 GitHub Issues frozen; `CLAUDE.md` has the rules and ADR 0001 the reasons.

@@ -91,6 +91,30 @@ PR body names the issue it lands (`Lands agent-tooling-xyz`) instead of
 
 ## Documentation
 
-- `README.md` is the front door and the fresh-machine bootstrap.
+- `README.md` is the front door and the fresh-machine bootstrap;
+  `docs/index.md` is the documentation front door. `LEXICON.md` is the
+  vocabulary (`use-lexicon`); `docs/adr/` holds the decisions (`use-adrs`).
+- Every project (a Wrapper, a Skill or Skill family, the Installer) documents
+  itself under `docs/projects/<project>/`, a State doc set with no overlap:
+  - `index.md`, the one living overview: what the project is, then a
+    `## Status` table, `Capability | State | Where`, one row per user-sized
+    capability, with the closed state set `shipped`, `planned` (ratified;
+    links its proposal doc and Issue IDs), `proposed` (proposal in
+    workshop), `retired` (kept only if it prevents reintroduction; links an
+    ADR). `### Known gaps` follows: defects in shipped capabilities only, one
+    line each with its Issue ID. No dates, PR numbers, or narrative in
+    Status. Status lives only here.
+  - `design.md`, optional, the one living design: current architecture,
+    invariants, rationale, and the rejected alternatives that prevent
+    relitigation. How and why live only here.
+  - Everything else is dated: a proposal, an audit, a design anchored at a
+    date. Each states its date in its header and is never updated to
+    describe later state.
+- Living docs describe the code as it is on `main`. No living doc presents
+  unbuilt behavior as current: what the system should do lives in a dated
+  proposal, linked from a `planned` or `proposed` Status row and its Issues.
+- Merge-readiness: a PR that lands an Issue updates that capability's Status
+  row in the same PR, and a PR that changes behavior a living doc describes
+  updates that doc in the same PR.
 - `docs/beads-init.md` is the maintainer's checklist for initializing Beads
   in another repo.

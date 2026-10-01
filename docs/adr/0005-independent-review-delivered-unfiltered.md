@@ -5,7 +5,7 @@ status: current
 
 # Independent review, delivered unfiltered, at home-in wrap-up
 
-**Context:** A one-question-per-turn interrogation produces a chain of locally reasonable ratifications that can sum to a conclusion the user would never have endorsed cold, and neither the user nor the authoring agent can detect it from inside the chain. The design is [home-in: design](../skills/home-in/design.md).
+**Context:** A one-question-per-turn interrogation produces a chain of locally reasonable ratifications that can sum to a conclusion the user would never have endorsed cold, and neither the user nor the authoring agent can detect it from inside the chain. The design is [home-in: design](../projects/understanding/home-in-design.md).
 
 **Decision:** At wrap-up, home-in offers a review by a separate agent that is given only the artifact and the session's new ADRs and writes a judicial opinion for the user, which the authoring agent relays verbatim with the author's response under its own heading.
 

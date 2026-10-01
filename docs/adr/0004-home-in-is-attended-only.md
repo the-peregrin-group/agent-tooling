@@ -5,7 +5,7 @@ status: current
 
 # home-in is attended-only
 
-**Context:** Every other Skill in this repo has an unattended branch (lexicon proposals, draft ADRs for a reviewer, guess-and-note autonomy), and home-in's value lies entirely in a live exchange with the user. The design is [home-in: design](../skills/home-in/design.md).
+**Context:** Every other Skill in this repo has an unattended branch (lexicon proposals, draft ADRs for a reviewer, guess-and-note autonomy), and home-in's value lies entirely in a live exchange with the user. The design is [home-in: design](../projects/understanding/home-in-design.md).
 
 **Decision:** home-in has no unattended form: its body declares attended-only, and the declaration is not enforced, because no enforcement exists; a narrow trigger description limits accidental invocation and `disable-model-invocation` is not set.
 
