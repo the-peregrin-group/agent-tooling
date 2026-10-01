@@ -35,7 +35,9 @@ and stop.
 
 - **One question per turn.** Never two, never a list. A turn may carry a
   finding, a correction, or a proposal before the question, but it ends in
-  exactly one question. Twenty turns on one topic is normal.
+  exactly one question. Twenty turns on one topic is normal. Several
+  questions at once get partial answers, and the unanswered ones have to be
+  asked again later, so the conversation fragments and repeats itself.
 - **Opaque ids carry an inline summary.** The first time a turn mentions
   anything identified by an opaque id (an issue or PR number, an ADR
   number, a bead id, a branch or commit, a lettered or numbered section of
@@ -80,11 +82,14 @@ to parse.
 
 ## Opening move
 
-Before the first question:
+Before the first question of the interrogation. The opening move spans as
+many turns as it needs; each still ends in exactly one question.
 
-1. Load `use-lexicon`, `use-adrs`, and `refine-state-doc`. Read the owning
-   project's lexicon in full.
-2. State the owning project.
+1. Load `use-lexicon`, `use-adrs`, and `refine-state-doc`. Read
+   `lines-of-inquiry.md`, and the owning project's lexicon in full.
+2. State the owning project: the repo or directory whose conventions the
+   deliverables follow and whose lexicon and ADRs are used. By default it
+   is the session's root, the directory the session was started in.
 3. Read what already exists: the documents named, and whatever the project
    holds about the topic (notes, memory, past decisions). Report what it
    establishes and what it leaves open. If the invocation arrived with a
@@ -95,8 +100,9 @@ Before the first question:
    (for a proposal, often the revised proposal itself in place), but write
    nothing until they answer. Project conventions inform this proposal
    only; they do not change the rules of this skill.
-5. Sketch the tree of Lines of Inquiry for this domain one level deep, a
-   dozen lines or so, for the user to prune or extend before you walk it.
+5. Sketch the tree of Lines of Inquiry for this domain one level deep: one
+   line per root, naming the domain's first-level children under it, for
+   the user to prune or extend before you walk it.
 
 ## Three sub-processes, interleaved
 
@@ -108,8 +114,9 @@ modes; invocations differ only in what is already on the table.
 before the next question, and check the user's account against the record,
 not only fill gaps. A discrepancy comes back plainly, with its source,
 before you continue. Gathering that no immediate question depends on goes
-on the Resolution Queue and is done at the next natural pause; a subagent
-between every turn kills momentum. Narrate every pause in one line ("You
+on the Resolution Queue and is done when the conversation next pauses
+anyway (the user steps away, a subtree is nearly done), or at the LOI Exit
+at the latest; a subagent between every turn kills momentum. Narrate every pause in one line ("You
 mentioned Foo and Bar. Let me read what you wrote about them first.").
 
 **Interrogate.** One question per turn, each belonging to a node of the
@@ -181,7 +188,8 @@ Produce whatever deliverable the user chose at the opening move. When they
 had no format in mind, the default is a state doc as `refine-state-doc`
 defines it: a coherent picture as of now, with context, problem, success
 criteria, recommendation, rationale, and rejected paths. It never records
-turn order or who said what; the transcript is `save-log`'s job.
+turn order or who said what; it is not a transcript, and if the user wants
+one, that is a separate artifact produced by other means.
 
 Draft it at the first LOI Exit and rewrite it in place at every exit after.
 The wrap-up is then a final rewrite, not a big-bang authoring step; the

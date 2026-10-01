@@ -2,7 +2,8 @@
 
 State as of 2026-09-30.
 
-`/home-in` is a user-invoked Skill for arriving at an opinion. The user
+`/home-in` is a Skill the user asks for by name, for arriving at an
+opinion. The user
 names a problem and a desired outcome ("I have X and want to home in on
 Y"); the agent interrogates them across the whole decision space, gathers
 and verifies against what already exists, pressure-tests every proposition
@@ -16,10 +17,11 @@ documents are its record.
 Design conversations between a human and an agent produce good thinking
 and lose most of it. Decisions are made in passing and never recorded.
 Concepts get names by accident. The "design doc" that results is a
-transcript in disguise, or is written at the end from a tired memory. And
-the agent, by default, asks whatever question occurs to it next, so
-neither party can see which parts of the problem have been examined and
-which were merely mentioned.
+transcript in disguise, or is written at the end from a tired memory. The
+user's account of what happened drifts from what they wrote down at the
+time, and nobody checks. And the agent, by default, asks whatever question
+occurs to it next, so neither party can see which parts of the problem
+have been examined and which were merely mentioned.
 
 The skill applies to any domain where an opinion must be reached and
 defended: a product's next move, a software design, a career decision, an
@@ -41,7 +43,10 @@ without the user having to steer the process itself.
 
 ### Attended only
 
-home-in is live collaboration and has no unattended form (see
+home-in is live collaboration and has no unattended form: an interrogation
+with no one to answer it produces the agent's opinion dressed as the
+user's, and every other skill's unattended branch would have to be
+mirrored here for a case that does not exist (see
 [ADR 0004](../../adr/0004-home-in-is-attended-only.md), which records the
 decision and the rejected unattended-over-a-brief alternative). The skill
 is model-invocable: Claude Code parses a slash command only as the first
@@ -56,13 +61,16 @@ a reviewer) apply within it.
 
 ### Opening move
 
-Before the first question, the agent:
+Before the first question of the interrogation, over as many turns as it
+needs with each turn still ending in one question, the agent:
 
-1. Loads `use-lexicon`, `use-adrs`, and `refine-state-doc`, and reads the
-   owning project's lexicon.
-2. States the owning project. It is the session's root by default and can
-   be overridden in the invocation; whether an override succeeds is decided
-   by the machine's own policy, not by the skill.
+1. Loads `use-lexicon`, `use-adrs`, and `refine-state-doc`, reads the
+   roots file, and reads the owning project's lexicon.
+2. States the owning project: the repo or directory whose conventions the
+   deliverables follow and whose lexicon and ADRs are used. It is the
+   session's root (the directory the session started in) by default and
+   can be overridden in the invocation; whether an override succeeds is
+   decided by the machine's own permission rules, not by the skill.
 3. Reads what already exists: documents the invocation named, and whatever
    the project holds about the topic. It reports what that material
    establishes and what it leaves open. When the invocation arrives with a
@@ -72,8 +80,9 @@ Before the first question, the agent:
    so the user can accept in a word, but writes nothing until the user
    answers. Project conventions inform this proposal only; they do not
    alter the skill's rules.
-5. Sketches the tree of Lines of Inquiry for this domain one level deep, a
-   dozen lines or so, for the user to prune or extend before it is walked.
+5. Sketches the tree of Lines of Inquiry for this domain one level deep,
+   one line per root naming the domain's first-level children under it,
+   for the user to prune or extend before it is walked.
 
 ### Three sub-processes, interleaved
 
@@ -86,9 +95,10 @@ sequence:
   gathering verifies the user's account against the record, not only fills
   gaps. A discrepancy comes back to the user plainly, with its source,
   before the interrogation continues. Gathering that no immediate question
-  depends on goes on the Resolution Queue and is cleared at the next
-  natural pause, because a subagent between every turn destroys
-  conversational momentum. Every pause is narrated in one line.
+  depends on goes on the Resolution Queue and is done when the
+  conversation next pauses anyway, or at the Line of Inquiry Exit at the
+  latest, because a subagent between every turn destroys conversational
+  momentum. Every pause is narrated in one line.
 - **Interrogate.** One question per turn, always. Each question belongs to
   a node of the tree of Lines of Inquiry, and a Line of Inquiry is walked
   to the bottom before the next is entered.
@@ -156,7 +166,9 @@ wrap-up). At a LOI Exit the agent:
 2. Surfaces questions that fit no root LOI.
 3. Drains the Resolution Queue's items from that LOI: the lexicon naming
    procedure for each candidate term, one concept per turn; the ADR gate
-   for each candidate decision, drafting those that pass.
+   for each candidate decision, drafting those that pass; each assumption
+   under test confirmed, refuted, or carried forward with a reason; each
+   pending gathering done or dropped with a reason.
 4. Rewrites the artifact in place.
 
 Between exits, capture is deferred but definition is not. When a
@@ -186,8 +198,8 @@ The agent produces whatever deliverable the user asked for. The default,
 when the user has no format in mind, is a state doc in the sense of
 `refine-state-doc`: a coherent picture as of the wrap-up, with context,
 problem, success criteria, recommendation, rationale, and rejected paths.
-It never preserves the conversation's turn order or who said what; the
-transcript is `save-log`'s job. It is drafted at the first LOI Exit and
+It never preserves the conversation's turn order or who said what; it is
+not a transcript. It is drafted at the first LOI Exit and
 rewritten in place at every exit after, so the wrap-up is a final rewrite
 rather than a big-bang authoring step, the user can catch a misreading
 early, and the Resolution Queue has a durable home.
@@ -253,8 +265,11 @@ mention in a turn pairs the id with a few words of meaning, and hash-like
 ids get the summary every time), are rules the skill's author holds in
 user-level instructions that no other installer of the skill will have.
 Both are load-bearing for home-in and are written into it. The reason for
-the second is that human memory retrieves by meaning, not by identifier,
-and every bare id is a separate lookup that fragments attention.
+the first is that several questions at once get partial answers, and the
+unanswered ones must be asked again, so the conversation fragments and
+repeats. The reason for the second is that human memory retrieves by
+meaning, not by identifier, and every bare id is a separate lookup that
+fragments attention.
 
 ## Deliverables of a session
 
@@ -268,17 +283,18 @@ wrap-up says so in one line rather than omitting it silently.
 
 ## Deliverables of this design
 
-- `skills/home-in/`, three files on the pattern of `use-adrs`. `SKILL.md`
-  carries the process and the ten roots, since they are needed from the
-  first turn and held throughout. `lines-of-inquiry.md` holds the roots in
-  full, the expansion rule, coverage, and one example expansion for a
-  software design, labeled as one domain's tree. `wrap-up.md` holds the
-  procedures read at the point of use, because instructions loaded at turn
-  one are remembered loosely hours later: the Line of Inquiry Exit steps,
-  the wrap-up check and offers with the reviewer's brief verbatim, closing,
-  and park-and-resume. The second file has no agent-side benefit over
-  inlining and exists for human navigation; the third earns its split on
-  recency.
+- `skills/home-in/`, three files on the pattern of `use-adrs`, a short
+  SKILL.md with reference files beside it. `SKILL.md` carries the process
+  and reads the other two at the moments they are needed.
+  `lines-of-inquiry.md` is authoritative for the ten roots, the expansion
+  rule, coverage, and one example expansion for a software design, labeled
+  as one domain's tree; it is read at the opening move. `wrap-up.md` holds
+  the procedures read at the point of use, because instructions loaded at
+  turn one are remembered loosely hours later: the Line of Inquiry Exit
+  steps, the wrap-up check and offers with the reviewer's brief verbatim,
+  closing, and park-and-resume. The roots file has no agent-side benefit
+  over inlining, since it is loaded on turn one every time, and exists for
+  human navigation; the wrap-up file earns its split on recency.
 - This document.
 - Lexicon entries in this repo's `LEXICON.md`, written: Line of Inquiry,
   Line of Inquiry Exit, Resolution Queue. The independent reviewer's
@@ -348,6 +364,9 @@ holds the same rejection in snapshot form.
   project is overridable at invocation and local policy decides whether
   the override succeeds; the skill needs no notion of any particular
   repo. Rejected as out of scope.
+- **An unattended home-in over a written brief.** The questions would have
+  no one to answer them, so nothing would distinguish the result from the
+  agent's own analysis. Rejected for attended-only.
 - **Enforcing attended-only with `disable-model-invocation: true`.** The
   flag would make the skill unreachable from the mid-sentence phrasing
   that is its natural invocation, since the parser recognizes a slash
