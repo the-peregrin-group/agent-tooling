@@ -11,12 +11,16 @@ targeted docs.
 
 ### Wrappers and the Installer
 
-The Wrappers (gitw, ghw, fjw, bdw) and the Installer are documented today by
-their operating manuals (`skills/use-git`, `skills/use-github`,
-`skills/use-forgejo`, `CLAUDE.md` for bdw, `README.md` for the Installer)
-and the docstrings in `cli/`. Their project directories under
-`docs/projects/` land with the documentation migration that Issue
-`agent-tooling-bpj` gates.
+- [fjw](projects/fjw/index.md): the Wrapper over a Forgejo forge; its
+  [design](projects/fjw/design.md) and the issue-verbs proposal.
+- [installer](projects/installer/index.md): `tooling-install`, the
+  Installer that ships Source repos' tooling into Install Targets; its
+  [design](projects/installer/design.md).
+
+The other Wrappers (gitw, ghw, bdw) are documented today by their
+operating manuals (`skills/use-git`, `skills/use-github`, `CLAUDE.md` for
+bdw) and the docstrings in `cli/`. Their project directories land with the
+documentation migration that Issue `agent-tooling-bpj` gates.
 
 ### Understanding
 
