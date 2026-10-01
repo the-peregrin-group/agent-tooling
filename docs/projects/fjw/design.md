@@ -2,7 +2,9 @@
 
 How the Forgejo Wrapper works and why. What is shipped and what is planned
 is in [index.md](index.md); the planned issue Verbs are specified in
-[issue-verbs.md](issue-verbs.md).
+[issue-verbs.md](issue-verbs.md). fjw is motivated by the same concerns and
+design choices that led to the GitHub Wrapper, and this doc assumes them;
+refer to the [ghw design](../ghw/design.md) for background.
 
 ## Problem
 
