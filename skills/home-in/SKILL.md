@@ -126,8 +126,9 @@ not only fill gaps. A discrepancy comes back plainly, with its source,
 before you continue. Gathering that no immediate question depends on goes
 on the Resolution Queue and is done when the conversation next pauses
 anyway (the user steps away, a subtree is nearly done), or at the LOI Exit
-at the latest; a subagent between every turn kills momentum. Narrate every pause in one line ("You
-mentioned Foo and Bar. Let me read what you wrote about them first.").
+at the latest; a subagent between every turn kills momentum. Narrate every
+pause in one line ("You mentioned Foo and Bar. Let me read what you wrote
+about them first.").
 
 **Interrogate.** One question per turn, each belonging to a node of the
 tree. Walk a LOI to the bottom before entering the next. Say where you are
