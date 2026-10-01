@@ -135,7 +135,7 @@ humans installing at once.
 ## Exit codes
 
 The Installer keeps its own codes rather than the Wrappers' Exit-code
-contract; [the documentation index](../../index.md#exit-code-contract)
+contract; [the Exit-code contract](../../index.md#exit-code-contract)
 lists each family's codes.
 
 | Code | `diff` | `apply`, `adopt` |

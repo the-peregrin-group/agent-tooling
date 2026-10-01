@@ -195,7 +195,7 @@ Forgejo answers 404 for a repo the caller may not see, so a missing grant
 reads as a missing resource. The shipped `fjw-pr-create` already misreports
 this way (see index.md's Known gaps), and every issue Verb's index guard
 walks the same path with more causes (no such issue, it is a PR, the repo
-is invisible). The fix lives in the shared `lib/forgejo` layer. It was
+is invisible). The fix lives in the shared `cli/lib/forgejo` layer. It was
 ratified to ship with this work; it is now planned to ship ahead of it
 (see Implementation notes):
 

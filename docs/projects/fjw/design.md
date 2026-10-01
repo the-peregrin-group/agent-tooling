@@ -155,7 +155,7 @@ backward-compatible addition if a second consumer needs one.
 
 fjw implements the full Exit-code contract; the taxonomy and each Wrapper
 family's coverage live in
-[the documentation index](../../index.md#exit-code-contract).
+[the Exit-code contract](../../index.md#exit-code-contract).
 
 | Code | fjw meaning |
 |---|---|
@@ -206,6 +206,6 @@ nothing runs from a checkout is the
   issue Verbs include an edit Verb ([issue-verbs.md](issue-verbs.md)).
 - **A Wrappers-only install directory.** The install directory is not
   reserved for credential-fronting Wrappers; see the
-  [Installer design](../installer/design.md).
+  [Installer design](../installer/design.md#the-executable-tooling-directory).
 - **No `fjw-orient`.** The Verb set is exactly what consumers exercise;
   an orient Verb waits for a consumer that needs one.
