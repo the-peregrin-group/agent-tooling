@@ -71,6 +71,9 @@ staged rename or deletion rides `gitw-commit`'s commit-all form.
     contract doing its job.
   - `5` roster/auth failure: abort and flag the deployment. Never retry.
   - `6` network failure: the one retryable class.
+- If a `use-privacy` skill is listed among your available skills, load it
+  before composing any text bound for outside this machine: a commit
+  message, a PR or issue body, a comment.
 - **Commit and merge messages always go through a staged file.** Write the
   message with the Write tool to `/tmp/claude/` (unique filename), or in a
   background job `~/.claude/jobs/<job-id>/tmp/` with the job ID typed out

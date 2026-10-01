@@ -342,6 +342,10 @@ deletion candidate.
 
 ### 6b: Create Issues
 
+If a `use-privacy` skill is listed among your available skills, load it
+before composing any text bound for outside this machine: a commit message,
+a PR or issue body, a comment.
+
 Create issues in the order specified in the plan (dependency order matters so
 that `#N` cross-references resolve correctly).
 

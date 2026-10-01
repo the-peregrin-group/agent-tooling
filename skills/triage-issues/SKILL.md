@@ -490,6 +490,8 @@ closedByPullRequestsReferences(first:20, includeClosedPrs:true, userLinkedOnly:f
 
 ### Write — mutations
 
+If a `use-privacy` skill is listed among your available skills, load it before composing any text bound for outside this machine: a commit message, a PR or issue body, a comment.
+
 | Target | Command |
 |---|---|
 | Status / Priority / Size | `gh project item-edit --id <ITEM_ID> --project-id <PROJECT_NODE_ID> --field-id <FIELD_ID> --single-select-option-id <OPTION_ID>` |
@@ -593,6 +595,8 @@ The report's atomic unit is a **finding** — a `(group, finding, action)` tuple
 - **R-CAD-3 — The permission layer is the enforcement; a denial is terminal for the pass.** Unattended runs use `--permission-mode dontAsk` with an allowlist of wrapper-script names only (R-CAD-5). A tool call outside the allowlist is *auto-denied*, not prompted — so a stray attempt at a proposed mutation fails closed instead of hanging. On denial the agent records the intended action as a pending finding and moves on; it must **not** seek an alternate path to the same mutation. (Fail-safe: the dangerous direction stalls, the safe direction flows.)
 
 ### The triage ledger
+
+If a `use-privacy` skill is listed among your available skills, load it before composing any text bound for outside this machine: the ledger body, a changelog comment.
 
 - **R-LEDG-1 — A durable, skill-owned GitHub issue.** The report is not regenerated into chat each pass; it is a single GitHub issue (the "triage ledger") whose number is bound in the profile (required). The skill *owns* this issue: it is the one issue triage writes to autonomously every pass, and it is **excluded from triage as a subject** — never itself triaged, sized, or prioritized.
 - **R-LEDG-2 — Body = state, comments = events.** The issue **body** holds the *current* set of open findings in the R-RPT format (groups, folding, ordering); each pass **rewrites the body** to reflect current state. The issue **comments** hold a per-pass **changelog**: what was auto-applied this pass, plus a one-line delta (`+N new, −M resolved, K pending`). Body answers "what needs my attention right now"; comments answer "what changed since I last looked."
