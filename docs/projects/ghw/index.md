@@ -34,32 +34,32 @@ How and why it works: [design.md](design.md).
 | Repo tracking bootstrap: labels, board, backlog import | shipped | `setup-github-issues` |
 | Backlog triage and grooming, with autonomous writes through dedicated wrappers | shipped | `triage-issues`, `triage-*` |
 | Scheduled unattended triage via a guard-script background job | shipped | [DEPLOYMENT.md](../../../skills/triage-issues/reference/DEPLOYMENT.md) |
-| Mandatory closing comment on every issue close | planned | `ghw-issue-close`, `setup-github-issues`; [fjw issue-verbs proposal](../fjw/issue-verbs.md); (Issue to be filed) |
-| Full Exit-code contract (codes 3 to 6) for ghw | planned | [Exit-code contract](../../index.md#exit-code-contract); (Issue to be filed) |
-| `triage-*` wrappers rebased onto the shared library | planned | [triage-library-rebase.md](triage-library-rebase.md); (Issue to be filed) |
+| Mandatory closing comment on every issue close | planned | `ghw-issue-close`, `setup-github-issues`; [fjw issue-verbs proposal](../fjw/issue-verbs.md); `agent-tooling-75z` |
+| Full Exit-code contract (codes 3 to 6) for ghw | planned | [Exit-code contract](../../index.md#exit-code-contract); `agent-tooling-9qe` |
+| `triage-*` wrappers rebased onto the shared library | planned | [triage-library-rebase.md](triage-library-rebase.md); `agent-tooling-t7y` |
 
 ### Known gaps
 
 - `ghw-pr-merge` still accepts a `squash` strategy token, although squash is
-  banned in every repo (Issue to be filed).
+  banned in every repo (`agent-tooling-589`).
 - The triage Skill and `DEPLOYMENT.md` still document launch forms besides
   the guard-script background job, and scope the ghw-grant caveat to project
-  settings only, omitting local settings (Issue to be filed).
+  settings only, omitting local settings (`agent-tooling-za1`).
 - Unattended triage cannot run in a repo whose project or local settings
   grant ghw write Verbs; no mechanism isolates the pass from those grants
-  (Issue to be filed).
+  (`agent-tooling-ys3`).
 - The triage bootstrap (R-CAD-6 and `DEPLOYMENT.md` §6) creates the ledger
   issue with raw `gh issue create` instead of a Verb; needs a decision first
   on whether the triage-excluded ledger issue takes the type and `area:`
-  labels `ghw-issue-create` requires (Issue to be filed).
+  labels `ghw-issue-create` requires (`agent-tooling-5kf`).
 - `triage-inventory` silently omits open issues beyond the first 500
-  (Issue to be filed).
+  (`agent-tooling-lo7`).
 - `ghw-label-sync` and `label_schema.py` docstrings say all nine GitHub stock
   labels become deletions; it is eight, since stock `bug` is a canonical type
-  label (Issue to be filed).
+  label (`agent-tooling-ln2`).
 - `ghw-board-sync`'s write path, including `new`, has never run against the
   live GitHub API; it is verified by schema introspection and unit tests only
-  (Issue to be filed).
+  (`agent-tooling-2ul`).
 - The ghw Verbs and `triage-*` run the first `python3` on PATH rather than
   the system interpreter the other Wrappers pin
   (`agent-tooling-1790288520721-1-86415521`).

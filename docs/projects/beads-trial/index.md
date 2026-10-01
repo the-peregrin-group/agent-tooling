@@ -44,8 +44,8 @@ Why the trial has this shape, and the alternatives it rules out, is in
 | Permission rules for `bd`, `bdw`, and `beads`, with a spec test that requires the JSON to equal its generated set | shipped | `.claude/settings.json`; `cli/repo_policy_test.py` |
 | The agent loop through `bdw` | shipped | `CLAUDE.md`; [`bdw`](../bdw/index.md) |
 | Post-init checklist for another repo | shipped | [`docs/beads-init.md`](../../beads-init.md) |
-| Go/no-go verdict as an ADR, with the GitHub Issues wind-down or refile | planned | [phase-two.md](phase-two.md) (Issue to be filed) |
-| Phase two: a second repo syncing Issues to its git remote | planned | [phase-two.md](phase-two.md) (Issue to be filed) |
+| Go/no-go verdict as an ADR, with the GitHub Issues wind-down or refile | planned | [phase-two.md](phase-two.md); `agent-tooling-0pe` |
+| Phase two: a second repo syncing Issues to its git remote | planned | [phase-two.md](phase-two.md); `agent-tooling-frm` |
 
 ### Known gaps
 
@@ -53,9 +53,9 @@ Why the trial has this shape, and the alternatives it rules out, is in
   the Permission rules are not safe in auto mode until a parsed-command deny
   hook lands (`agent-tooling-1790288522490-13-6d52b051`).
 - A denied verb's `--help` is denied too, so agents cannot read the flags of
-  the commands they document (Issue to be filed).
+  the commands they document (`agent-tooling-0bd`).
 - A deny rule also matches a write whose Issue text names a denied verb or
-  flag, so Issue text spells those in words (Issue to be filed).
+  flag, so Issue text spells those in words (`agent-tooling-9nx`).
 - The Permission rules' spec docstring still calls the bare-call match of
   a trailing space-star unobserved (`agent-tooling-na2`).
 

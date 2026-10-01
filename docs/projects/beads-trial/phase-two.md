@@ -53,4 +53,4 @@ sharing it.
   [known-behavior list](index.md#beads-130-known-behavior) is re-checked
   against it.
 - **Entry criteria.** What makes phase one routine enough to start phase two
-  is not yet written down (Issue to be filed).
+  is not yet written down (`agent-tooling-gfk`).

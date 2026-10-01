@@ -22,14 +22,14 @@ its own project ([installer](../installer/index.md)).
 | Close a PR with a mandatory comment | shipped | `fjw-pr-close` |
 | Comment on a PR within a pinned head-branch prefix | shipped | `fjw-pr-comment` |
 | Agent conventions for the Verbs | shipped | use-forgejo Skill |
-| Issue and label Verbs, with PR/issue index guard | planned | [issue-verbs.md](issue-verbs.md) (Issue to be filed) |
+| Issue and label Verbs, with PR/issue index guard | planned | [issue-verbs.md](issue-verbs.md); `agent-tooling-1vr` |
 
 ### Known gaps
 
 - `fjw-pr-create` reports a repo the machine account cannot see as a
   missing branch ("push it first", exit 2) instead of exit 3 naming both
-  possibilities (Issue to be filed).
+  possibilities (`agent-tooling-5np`).
 - use-forgejo says the Wrapper reconciles the API and SSH hosts, but no Verb
-  reads the `ssh_host`/`ssh_port` config keys (Issue to be filed).
+  reads the `ssh_host`/`ssh_port` config keys (`agent-tooling-1t4`).
 - use-forgejo and the `fjw-pr-comment` docstring carry a
-  non-generic example head prefix (Issue to be filed).
+  non-generic example head prefix (`agent-tooling-c57`).
