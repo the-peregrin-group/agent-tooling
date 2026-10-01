@@ -22,10 +22,10 @@ imported once and frozen (see
 
 - **Local-only, no Dolt remote.** A Beads push never passes through git
   (see [known behavior](index.md#beads-130-known-behavior)): neither git's
-  pre-push hooks nor any gitw Verb sees it. This repo's pushes pass a pre-push content
-  lint, and Issue content pushed through Dolt would escape it. The
-  database therefore stays on the maintainer's machine until Issue content
-  has a lint path (see the [phase-two proposal](phase-two.md)). Backups go
+  pre-push hooks nor any gitw Verb sees it. This repo's pushes pass a
+  pre-push content lint, and Issue content pushed through Dolt would escape
+  it. The database therefore stays on the maintainer's machine until Issue
+  content has a lint path (see the [phase-two proposal](phase-two.md)). Backups go
   to a local directory outside the repo, and `backup.git-push: false` is
   pinned in the tracked config.
 - **Tracked config, not a stealth init.** The three config files under
@@ -48,8 +48,8 @@ imported once and frozen (see
 `.claude/settings.json` holds the repo's Permission rules for Beads, in
 deny, ask, and allow lists. `cli/repo_policy_test.py` is their spec: its
 tuples generate the deny list and list the ask and allow rows, and the
-test requires the JSON to equal them. A hand-edited row with a typo would fail a
-deny open silently, so equality with a generated set is the control.
+test requires the JSON to equal them. A hand-edited row with a typo would
+fail a deny open silently, so equality with a generated set is the control.
 
 - **Names covered.** Beads installs under two names (see
   [known behavior](index.md#beads-130-known-behavior)). Reads and

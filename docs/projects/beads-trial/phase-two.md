@@ -13,8 +13,8 @@ sharing it.
 
 - **Recorded as an ADR.** The go/no-go verdict is a new ADR in this repo.
   ADR 0001, which made Beads the sole Issue Tracker for the trial, is
-  marked superseded in part, with a Superseded-by line naming the verdict
-  ADR.
+  marked `status: superseded`, with a `## Superseded by` line naming the
+  verdict ADR and the part it overturns.
 - **Announced on pinned issue #18.** The maintainer comments on the pinned
   issue, announcing the verdict and linking the ADR. That comment is the
   maintainer's deliberate act of unfreezing, and the one sanctioned write
