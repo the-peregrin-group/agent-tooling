@@ -203,6 +203,10 @@ section, so a dropped session loses nothing.
 
 ## The artifact
 
+If a `use-privacy` skill is listed among your available skills, load it
+before composing any text bound for outside this machine: the artifact, a
+lexicon entry, an ADR.
+
 Produce whatever deliverable the user chose at the opening move. When they
 had no format in mind, the default is a state doc as `refine-state-doc`
 defines it: a coherent picture as of now, with context, problem, success

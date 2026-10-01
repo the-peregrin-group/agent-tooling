@@ -29,6 +29,9 @@ suggest:
 
 ### Process
 
+If a `use-privacy` skill is listed among your available skills, load it before composing any text bound for outside
+this machine: a state doc in a repo that is pushed or shared.
+
 1. **Establish your desired organization:** What are all of the things that need to be conveyed? Where should be the one
    dedicated "owning" home for each piece of relevant data? Should some of them live in other docs entirely with references
    only in this doc? Where are cross-references useful? How can you reorder the doc to maximize organizational hierarchy
