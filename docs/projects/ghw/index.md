@@ -34,7 +34,7 @@ How and why it works: [design.md](design.md).
 | Repo tracking bootstrap: labels, board, backlog import | shipped | `setup-github-issues` |
 | Backlog triage and grooming, with autonomous writes through dedicated wrappers | shipped | `triage-issues`, `triage-*` |
 | Scheduled unattended triage via a guard-script background job | shipped | [DEPLOYMENT.md](../../../skills/triage-issues/reference/DEPLOYMENT.md) |
-| Mandatory closing comment on every issue close | planned | `ghw-issue-close`, `setup-github-issues`; [../fjw/issue-verbs.md](../fjw/issue-verbs.md); (Issue to be filed) |
+| Mandatory closing comment on every issue close | planned | `ghw-issue-close`, `setup-github-issues`; [fjw issue-verbs proposal](../fjw/issue-verbs.md); (Issue to be filed) |
 | Full Exit-code contract (codes 3 to 6) for ghw | planned | [Exit-code contract](../../index.md#exit-code-contract); (Issue to be filed) |
 | `triage-*` wrappers rebased onto the shared library | planned | [triage-library-rebase.md](triage-library-rebase.md); (Issue to be filed) |
 
