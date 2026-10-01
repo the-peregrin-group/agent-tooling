@@ -490,7 +490,7 @@ closedByPullRequestsReferences(first:20, includeClosedPrs:true, userLinkedOnly:f
 
 ### Write — mutations
 
-If a `use-privacy` skill is listed among your available skills, load it before composing any text bound for outside this machine: a commit message, a PR or issue body, a comment.
+If a `use-privacy` skill is listed among your available skills, load it before composing any text bound for outside this machine: an issue body, a comment.
 
 | Target | Command |
 |---|---|

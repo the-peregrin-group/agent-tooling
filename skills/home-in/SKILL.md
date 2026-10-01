@@ -165,6 +165,10 @@ example expansion. The short form:
 
 ## Line of Inquiry Exits and capture
 
+If a `use-privacy` skill is listed among your available skills, load it
+before composing any text bound for outside this machine: the artifact, a
+lexicon entry, an ADR, in a repo that is pushed or shared.
+
 Formal capture runs only at a LOI Exit. The procedure is in `wrap-up.md`;
 in short: report the frontier and the Resolution Queue, surface questions
 that fit no root, drain the queue's items from that LOI (lexicon naming
@@ -202,10 +206,6 @@ Between LOI Exits the queue also lives in the artifact's open-items
 section, so a dropped session loses nothing.
 
 ## The artifact
-
-If a `use-privacy` skill is listed among your available skills, load it
-before composing any text bound for outside this machine: the artifact, a
-lexicon entry, an ADR.
 
 Produce whatever deliverable the user chose at the opening move. When they
 had no format in mind, the default is a state doc as `refine-state-doc`
