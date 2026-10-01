@@ -333,7 +333,7 @@ never ahead.
   `Bash(git check-ignore *)` (flag surface audited clean; a routine
   agent read now that `gitw-commit`'s sweep guard makes
   ignore-verification part of the workflow) join the ratified read list.
-- **A `Bash(git -C <worktree-path>/*)`-shaped rule must die with the
+- **A `Bash(git -C <worktree-path> *)`-shaped rule must die with the
   displacement.** It is a full escape: the star covers the entire
   remainder, so it admits any mutation *and* re-opens the otherwise
   shape-blocked `-c` config/alias/pager injection

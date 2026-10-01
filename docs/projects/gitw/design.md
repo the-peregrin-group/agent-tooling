@@ -245,8 +245,8 @@ gitw's own:
 ### Exit codes
 
 gitw implements the full shared Exit-code contract; the taxonomy and
-every family's implemented codes live in [the docs index](../../index.md#exit-code-contract).
-gitw's codes:
+every family's implemented codes live in
+[the Exit-code contract](../../index.md#exit-code-contract). gitw's codes:
 
 - `0` success, including a converged no-op.
 - `1` unclassified git failure, or a local (non-remote) timeout.

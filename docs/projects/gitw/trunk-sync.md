@@ -69,6 +69,6 @@ switch-then-fast-forward text is to be rewritten to match this proposal.
 
 An agent-tooling PR: `cli/` implementation plus offline tests green under
 Apple Python 3.9; adversarial-correctness and style/test review passes
-before the maintainer merges; `use-git`'s The Verbs gains the Verb and the
-`index.md` Status row flips to `shipped` in the same PR; install with
+before the maintainer merges; `use-git`'s The Verbs section gains the Verb and
+the `index.md` Status row flips to `shipped` in the same PR; install with
 `tooling-install` after merge.
