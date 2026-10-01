@@ -11,6 +11,7 @@ targeted docs.
 
 ### Wrappers and the Installer
 
+- [bdw](projects/bdw/index.md): the Wrapper over Beads.
 - [fjw](projects/fjw/index.md): the Wrapper over a Forgejo forge; its
   [design](projects/fjw/design.md) and the issue-verbs proposal.
 - [gitw](projects/gitw/index.md): the Wrapper over git; its
@@ -20,10 +21,15 @@ targeted docs.
   Installer that ships Source repos' tooling into Install Targets; its
   [design](projects/installer/design.md).
 
-The other Wrappers (ghw, bdw) are documented today by their operating
-manuals (`skills/use-github`, `CLAUDE.md` for bdw) and the docstrings in
-`cli/`. Their project directories land with the documentation migration
-that Issue `agent-tooling-bpj` gates.
+ghw is documented today by its operating manual (`skills/use-github`) and
+the docstrings in `cli/`; its project directory lands with the
+documentation migration that Issue `agent-tooling-bpj` gates.
+
+### Tracking work
+
+- [beads-trial](projects/beads-trial/index.md): the in-repo trial of
+  Beads as the Issue Tracker; its [design](projects/beads-trial/design.md)
+  and the phase-two proposal.
 
 ### Understanding
 
