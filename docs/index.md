@@ -13,14 +13,17 @@ targeted docs.
 
 - [fjw](projects/fjw/index.md): the Wrapper over a Forgejo forge; its
   [design](projects/fjw/design.md) and the issue-verbs proposal.
+- [gitw](projects/gitw/index.md): the Wrapper over git; its
+  [design](projects/gitw/design.md), the trunk-sync proposal, and the
+  read-rule audit.
 - [installer](projects/installer/index.md): `tooling-install`, the
   Installer that ships Source repos' tooling into Install Targets; its
   [design](projects/installer/design.md).
 
-The other Wrappers (gitw, ghw, bdw) are documented today by their
-operating manuals (`skills/use-git`, `skills/use-github`, `CLAUDE.md` for
-bdw) and the docstrings in `cli/`. Their project directories land with the
-documentation migration that Issue `agent-tooling-bpj` gates.
+The other Wrappers (ghw, bdw) are documented today by their operating
+manuals (`skills/use-github`, `CLAUDE.md` for bdw) and the docstrings in
+`cli/`. Their project directories land with the documentation migration
+that Issue `agent-tooling-bpj` gates.
 
 ### Understanding
 
