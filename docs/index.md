@@ -30,16 +30,16 @@ targeted docs.
   Beads as the Issue Tracker; its [design](projects/beads-trial/design.md)
   and the phase-two proposal.
 
-### Understanding
+### Skills
 
-The `home-in`, `use-adrs`, and `use-lexicon` Skills form one project: they
-derive from a single original and share one contract (home-in clarifies a
-problem space while capturing lexicon entries and ADRs through the other
-two; they are split only so each can be invoked alone).
-
-- [home-in: design](projects/understanding/home-in-design.md): the design
-  of the home-in Skill and the two capture Skills it drives, as of
+- [understanding](projects/understanding/index.md): the `home-in`,
+  `use-adrs`, and `use-lexicon` Skills, one project because home-in
+  captures lexicon entries and ADRs through the other two; its
+  [home-in design](projects/understanding/home-in-design.md), as of
   2026-09-30.
+- [handoff](projects/handoff/index.md): the Skill that writes a Handoff.
+- [refine-state-doc](projects/refine-state-doc/index.md): the guide for
+  writing and refining State docs.
 
 ### Other
 
