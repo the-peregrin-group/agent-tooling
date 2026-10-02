@@ -231,6 +231,10 @@ them just because you can.
 
 ## Step 5: Present the Plan
 
+If a `use-privacy` skill is listed among your available skills, load it
+before composing any text bound for outside this machine: an issue title or
+body, a label description, a TODO comment, a commit message.
+
 Before executing anything, present the complete plan as markdown for user
 approval. The plan must include:
 

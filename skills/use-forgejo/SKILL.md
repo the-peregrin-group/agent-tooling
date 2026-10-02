@@ -67,6 +67,10 @@ needs attention; do not retry and do not go looking for credentials.
   - `6` network failure: the one retryable class.
 - **On exit 2 or 4, fix the call.** Never work around a refusal with raw
   API calls, `curl`, or `tea` — the refusal is the contract doing its job.
+- **Load `use-privacy` first, if listed.** If a `use-privacy` skill is
+  listed among your available skills, load it before composing any text
+  bound for outside this machine: a commit message, a PR or issue body, a
+  comment.
 - **Body text always goes through a file.** Write the body with the Write
   tool to a staging path, then pass that path. Only two locations are
   accepted: `/tmp/claude/` (unique filename, so parallel agents don't

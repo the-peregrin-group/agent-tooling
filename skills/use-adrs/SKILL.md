@@ -81,4 +81,8 @@ instance, to project, business, and life decisions.
 
 ## How to write an ADR
 
+If a `use-privacy` skill is listed among your available skills, load it
+before composing any text bound for outside this machine: an ADR in a repo
+that is pushed or shared.
+
 See `./writing-adrs.md`.
