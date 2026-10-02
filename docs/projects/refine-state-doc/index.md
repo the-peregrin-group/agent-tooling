@@ -17,4 +17,4 @@ artifact is a State doc.
 | Guardrails: embedded streams may be rewritten, keeping their event statements; currency stamps are left alone, and staleness is mentioned in one sentence rather than fixed | shipped | `skills/refine-state-doc/SKILL.md` |
 | Exceptions that look like history but are state (alternatives considered, major reversals, root causes), and where each goes | shipped | `skills/refine-state-doc/SKILL.md` |
 | Rules for Stream sections embedded in a State doc, including TODO lists that track rather than define | shipped | `skills/refine-state-doc/SKILL.md` |
-| Loading the use-privacy Skill, when listed, before writing anything bound outward | planned | `agent-tooling-n0p` |
+| Loading the use-privacy Skill, when listed, before writing anything bound outward | shipped | `skills/refine-state-doc/SKILL.md` |

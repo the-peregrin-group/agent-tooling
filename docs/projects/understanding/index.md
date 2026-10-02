@@ -43,7 +43,8 @@ an ADR duplicates the context of the document that motivated it
 | The three-part gate on what deserves an ADR, and a draft ADR for the reviewer when unattended | shipped | `skills/use-adrs/SKILL.md` |
 | Reading ADRs before design work, and superseding rather than silently contradicting one | shipped | `skills/use-adrs/SKILL.md` |
 | The ADR template, hard length limits, self-contained snapshot, supersession, and citation by inline summary and link | shipped | `skills/use-adrs/writing-adrs.md` |
-| Loading the use-privacy Skill, when listed, before writing anything bound outward | planned | `agent-tooling-n0p` (home-in, use-adrs), `agent-tooling-i3n` (use-lexicon) |
+| Loading the use-privacy Skill, when listed, before writing anything bound outward, in home-in and use-adrs | shipped | `skills/home-in/SKILL.md`, `skills/use-adrs/SKILL.md` |
+| Loading the use-privacy Skill, when listed, before writing anything bound outward, in use-lexicon | planned | `agent-tooling-i3n` |
 
 ### Known gaps
 
