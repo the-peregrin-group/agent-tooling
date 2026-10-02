@@ -42,9 +42,9 @@ Code: the `cli/gitw-*` Verbs over `cli/lib/git/` and the shared
   (`agent-tooling-ndt`).
 - `use-git` still describes the retired third operating mode (work
   directly on the default branch) and lacks the session-start ceremony
-  (Issue to be filed).
+  (`agent-tooling-4t9`).
 - `use-git` attributes the Permission-rule token boundary to the Branch
   prefix's trailing slash; the boundary is the space before the star
   (`agent-tooling-4zo`).
 - `use-git` cites the repo's policy spec for exact gitw deny rules it does
-  not carry (Issue to be filed).
+  not carry (`agent-tooling-bpp`).

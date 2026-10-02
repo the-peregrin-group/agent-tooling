@@ -56,4 +56,4 @@ its commits carry one identity.
 
 - Sub-agents of one background job share its job directory, so they record
   one Actor and the trail cannot tell an orchestrator from its implementers
-  (Issue to be filed).
+  (`agent-tooling-jk2`).
