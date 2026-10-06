@@ -122,6 +122,12 @@ def main(argv: list[str]) -> int:
                 _USAGE,
             )
         target = arguments.prefixed_branch(prefix, name)
+        if arguments.shadows_ref_namespace(target):
+            plan.usage_die(
+                f"target {target!r} starts with a git ref namespace (refs, "
+                "heads, remotes, tags, HEAD) and would shadow git's own refs",
+                _USAGE,
+            )
     entry = roster.resolve_or_die(label, _USAGE)
 
     try:
@@ -143,14 +149,11 @@ def main(argv: list[str]) -> int:
             root, prefix, label, entry.default_branch
         )
         if target is not None:
-            repo.refuse_remote_shadowing(target, prefix, entry.remote)
-        for candidate in (branch, target):
-            if candidate is not None and repo.is_default_branch(
-                candidate, entry.default_branch
-            ):
+            repo.refuse_remote_shadowing(target, entry.remote)
+            if repo.is_default_branch(target, entry.default_branch):
                 raise repo.RefusalError(
                     f"refusing to push the authoritative default branch "
-                    f"{candidate!r} -- trunk moves only by integration"
+                    f"{target!r} -- trunk moves only by integration"
                 )
         if target is None or target == branch:
             payload = _push(workspace, branch)

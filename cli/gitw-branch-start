@@ -82,13 +82,19 @@ def main(argv: list[str]) -> int:
             _USAGE,
         )
     branch = arguments.prefixed_branch(prefix, name)
+    if arguments.shadows_ref_namespace(branch):
+        plan.usage_die(
+            f"branch {branch!r} starts with a git ref namespace (refs, "
+            "heads, remotes, tags, HEAD) and would shadow git's own refs",
+            _USAGE,
+        )
     entry = roster.resolve_or_die(label, _USAGE)
 
     try:
         repo.require_branch_in_scope(
-            branch, prefix, label, entry.default_branch
+            branch, prefix, label, entry.default_branch, subject="branch"
         )
-        repo.refuse_remote_shadowing(branch, prefix, entry.remote)
+        repo.refuse_remote_shadowing(branch, entry.remote)
         workspace = repo.resolve_workspace(entry, Path.cwd())
         if not workspace.in_repo:
             raise repo.RefusalError(

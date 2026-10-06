@@ -8,8 +8,8 @@ the actual head branch does not match the claimed prefix. Policy lives
 in the allowlist layer; this wrapper stays consumer-generic. The prefix
 follows gitw's grammar (lowercase, single-level, ending in '/'). A bare '/'
 admits any head branch, so a comment on an arbitrary PR takes a rule that
-pins '/' explicitly; there is no form that omits the token. Acts as the
-deployment's machine account.
+pins '/' or stars the prefix position; there is no form that omits the
+token. Acts as the deployment's machine account.
 
 Exit codes: 0 success, 1 unclassified API failure, 2 usage error, 3 no such
 PR (or no such repository), 4 refused (head branch does not match the

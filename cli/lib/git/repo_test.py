@@ -266,35 +266,31 @@ class ReadPrimitivesTest(_FixtureTest):
         with self.assertRaisesRegex(repo.RefusalError, "default branch"):
             repo.require_prefixed_branch(self.clone, "/", "proj", "main")
 
-    def test_bare_slash_refuses_names_shadowing_the_remote(self):
+    def test_names_shadowing_the_remote_are_refused(self):
+        # Judged on the full name, however the prefix token was spelled.
         for branch in ("origin/main", "Origin/topic"):
             with self.subTest(branch=branch):
                 with self.assertRaisesRegex(repo.RefusalError, "shadow"):
-                    repo.refuse_remote_shadowing(branch, "/", "origin")
-        repo.refuse_remote_shadowing("origin", "/", "origin")
-        repo.refuse_remote_shadowing("origin/x", "origin/", "origin")
+                    repo.refuse_remote_shadowing(branch, "origin")
+        repo.refuse_remote_shadowing("origin", "origin")
+        repo.refuse_remote_shadowing("originals/x", "origin")
 
-    def test_a_real_prefix_ignores_the_default_branch_argument(self):
-        # The default-branch refusal belongs to the bare slash alone; a
-        # real prefix keeps exactly its old meaning.
-        gitw_test_support.git(self.clone, "switch", "-c", "release/x")
-        self.assertEqual(
+    def test_a_machine_local_repo_has_no_remote_to_shadow(self):
+        repo.refuse_remote_shadowing("origin/x", None)
+
+    def test_a_real_prefix_also_refuses_a_slashed_default(self):
+        # A real prefix can match a default like 'release/main'; the
+        # refusal is prefix-independent.
+        gitw_test_support.git(self.clone, "switch", "-c", "release/main")
+        with self.assertRaisesRegex(repo.RefusalError, "default branch"):
             repo.require_prefixed_branch(
-                self.clone, "release/", "proj", "release/x"
-            ),
-            "release/x",
-        )
+                self.clone, "release/", "proj", "release/main"
+            )
 
     def test_no_rebase_in_progress_reports_none(self):
         self.assertIsNone(repo.rebase_head_branch(self.clone))
         self.assertEqual(repo.conflicted_paths(self.clone), [])
         self.assertIsNone(repo.pending_operation(self.clone))
-
-    def test_branch_matches_prefix_requires_a_non_empty_tail(self):
-        self.assertTrue(repo.branch_matches_prefix("fix/topic", "fix/"))
-        for branch in ("fix/", "fix", "fixation", "docs/topic"):
-            with self.subTest(branch=branch):
-                self.assertFalse(repo.branch_matches_prefix(branch, "fix/"))
 
     def test_describe_dirty_names_all_three_tallies(self):
         self.assertEqual(

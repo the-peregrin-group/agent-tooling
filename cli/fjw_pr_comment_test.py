@@ -138,7 +138,9 @@ class FjwPrCommentBehaviorTest(unittest.TestCase):
         return code, comment
 
     def test_bare_slash_comments_on_any_head(self):
-        for head in ("foo-bar", "reconcile/2001-02-03"):
+        # 'main' included: commenting moves no branch, so fjw's bare
+        # slash admits the default too.
+        for head in ("foo-bar", "reconcile/2001-02-03", "main"):
             with self.subTest(head=head):
                 code, comment = self._comment_with_head("/", {"ref": head})
                 self.assertEqual(code, 0)

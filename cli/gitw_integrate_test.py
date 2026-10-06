@@ -312,6 +312,17 @@ class GitwIntegrateBehaviorTest(_IntegrateFixtureTest):
         self.assertIn("left behind", stderr)
 
     def test_branch_equal_to_base_is_refused(self):
+        # A non-default base: the default itself is refused earlier, by
+        # the scope check. Case is ignored, as for the default.
+        gitw_test_support.git(self.clone, "switch", "-c", "fix/trunk")
+        for base in ("fix/trunk", "Fix/Trunk"):
+            with self.subTest(base=base):
+                stderr = self.integrate_expecting_exit(
+                    4, "proj", base, "fix/", self.message_path,
+                )
+                self.assertIn("nothing to integrate into", stderr)
+
+    def test_slashed_default_as_source_is_refused(self):
         entry = Entry(
             label="proj",
             checkout=self.clone,
@@ -321,10 +332,10 @@ class GitwIntegrateBehaviorTest(_IntegrateFixtureTest):
         )
         gitw_test_support.git(self.clone, "switch", "-c", "fix/trunk")
         stderr = self.integrate_expecting_exit(
-            4, "proj", "fix/trunk", "fix/", self.message_path,
+            4, "proj", "develop", "fix/", self.message_path,
             entries={"proj": entry},
         )
-        self.assertIn("nothing to integrate into", stderr)
+        self.assertIn("default branch", stderr)
 
     def test_machine_local_repo_is_refused(self):
         local = self.base / "local"

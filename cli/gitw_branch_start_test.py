@@ -341,5 +341,29 @@ class GitwBranchStartBareSlashTest(_BranchStartFixtureTest):
         self.assertIn("shadow", stderr)
 
 
+    def test_machine_local_slashed_name_does_not_crash(self):
+        # A machine-local entry has no remote; the shadowing check must
+        # not reach into it.
+        local = self.base / "local"
+        local.mkdir()
+        gitw_test_support.git(local, "init", "--initial-branch=main", ".")
+        gitw_test_support.commit_on(local, "a.txt", "a\n", "seed")
+        entry = Entry(label="scratch", checkout=local)
+        payload = self.start(
+            "scratch", "/", "someone/topic", cwd=local,
+            entries={"scratch": entry},
+        )
+        self.assertEqual(payload["branch"], "someone/topic")
+
+    def test_real_prefix_naming_the_remote_is_refused(self):
+        stderr = self.start_expecting_exit(4, "proj", "origin/", "x")
+        self.assertIn("shadow", stderr)
+
+    def test_real_prefix_naming_a_ref_namespace_is_usage_error(self):
+        result = _run("proj", "tags/", "v1")
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("ref namespace", result.stderr)
+
+
 if __name__ == "__main__":
     unittest.main()

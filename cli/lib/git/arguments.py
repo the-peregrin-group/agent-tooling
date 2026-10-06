@@ -27,6 +27,11 @@ _NAME_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 # same conservative charset otherwise.
 _BRANCH_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/-]*$")
 
+# First components that make a multi-level branch name collide with git's
+# own ref namespaces when written as a short name. Compared casefolded, so
+# "head" also catches HEAD.
+_REF_NAMESPACES = ("refs", "heads", "remotes", "tags", "head")
+
 
 def is_valid_label(label: str) -> bool:
     """True for a plausible roster label: lowercase alphanumerics plus
@@ -58,14 +63,17 @@ def is_valid_name_for_prefix(prefix: str, name: str) -> bool:
     real prefix, but a full branch name, slashes allowed, under
     NO_BRANCH_PREFIX, since there the name is the whole branch."""
     if prefix == NO_BRANCH_PREFIX:
-        head = name.split("/", 1)[0].casefold()
-        return is_valid_branch(name) and head not in _REF_NAMESPACES
+        return is_valid_branch(name)
     return is_valid_branch_name(name)
 
 
-# First components that would make a full branch name shadow, or be
-# shadowed by, git's own ref namespaces when used as a short name.
-_REF_NAMESPACES = ("refs", "heads", "remotes", "tags", "head")
+def shadows_ref_namespace(branch: str) -> bool:
+    """True when a full branch name's first level is one of git's ref
+    namespaces ('tags/v1', 'refs/x'): as a short name it would collide
+    with git's own refs. Judged on the composed name, so a real prefix
+    like 'tags/' is caught exactly as the bare slash is."""
+    head, _, tail = branch.partition("/")
+    return bool(tail) and head.casefold() in _REF_NAMESPACES
 
 
 def is_valid_branch(branch: str) -> bool:

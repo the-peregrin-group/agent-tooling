@@ -531,5 +531,18 @@ class GitwCommitBareSlashTest(_CommitFixtureTest):
         self.assertIn("default branch", stderr)
 
 
+    def test_real_prefix_refuses_a_slashed_default(self):
+        self.entry = Entry(
+            label="proj",
+            checkout=self.clone,
+            remote_url=self.entry.remote_url,
+            remote="origin",
+            default_branch="fix/topic",
+        )
+        (self.clone / "new.txt").write_text("new\n")
+        stderr = self.commit_expecting_exit(4, "proj", "fix/", self.message_path)
+        self.assertIn("default branch", stderr)
+
+
 if __name__ == "__main__":
     unittest.main()

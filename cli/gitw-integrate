@@ -154,7 +154,7 @@ def _integrate(
     branch = repo.require_prefixed_branch(
         root, prefix, entry.label, entry.default_branch
     )
-    if branch == base:
+    if branch.casefold() == base.casefold():
         raise repo.RefusalError(
             f"branch and base are both {base!r}; nothing to integrate into"
         )

@@ -51,11 +51,22 @@ class IsValidNameForPrefixTest(unittest.TestCase):
         for name in ("foo-bar", "someone/topic", "a/b/c"):
             with self.subTest(name=name):
                 self.assertTrue(arguments.is_valid_name_for_prefix("/", name))
-        for name in ("", "/x", "x/", "a//b", "a..b", "x.lock",
-                     "refs/heads/x", "heads/main", "Remotes/origin/x",
-                     "tags/v1", "HEAD/x"):
+        for name in ("", "/x", "x/", "a//b", "a..b", "x.lock"):
             with self.subTest(name=name):
                 self.assertFalse(arguments.is_valid_name_for_prefix("/", name))
+
+
+class ShadowsRefNamespaceTest(unittest.TestCase):
+    def test_multi_level_names_in_a_ref_namespace(self):
+        for branch in ("refs/heads/x", "heads/main", "Remotes/origin/x",
+                       "tags/v1", "HEAD/x"):
+            with self.subTest(branch=branch):
+                self.assertTrue(arguments.shadows_ref_namespace(branch))
+
+    def test_single_level_and_ordinary_names_pass(self):
+        for branch in ("tags", "refs", "fix/topic", "tagsx/y", "foo-bar"):
+            with self.subTest(branch=branch):
+                self.assertFalse(arguments.shadows_ref_namespace(branch))
 
     def test_prefixed_branch_drops_the_bare_slash(self):
         self.assertEqual(arguments.prefixed_branch("fix/", "a"), "fix/a")
