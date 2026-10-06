@@ -42,10 +42,14 @@ class FjwPrCommentArgumentsTest(unittest.TestCase):
         self.assertEqual(result.returncode, 2)
         self.assertIn("usage: fjw-pr-comment", result.stderr)
 
-    def test_empty_head_prefix_is_usage_error(self):
-        result = _run("o/r", "  ", "5", _MISSING_BODY)
-        self.assertEqual(result.returncode, 2)
-        self.assertIn("head-prefix", result.stderr)
+    def test_non_grammar_head_prefix_is_usage_error(self):
+        # Same grammar as gitw's branch prefix; a slashless 'reconcile'
+        # would match 'reconciled-elsewhere' too.
+        for prefix in ("", "  ", "reconcile", "Fix/", "a/b/", "//"):
+            with self.subTest(prefix=prefix):
+                result = _run("o/r", prefix, "5", _MISSING_BODY)
+                self.assertEqual(result.returncode, 2)
+                self.assertIn("head-prefix", result.stderr)
 
     def test_missing_body_file_is_refused(self):
         result = _run("o/r", "reconcile/", "5", _MISSING_BODY)
@@ -112,6 +116,39 @@ class FjwPrCommentBehaviorTest(unittest.TestCase):
             with self.assertRaises(SystemExit) as caught:
                 _MODULE.main(["o/r", "reconcile/", "5", self._body_path])
         self.assertEqual(caught.exception.code, 4)
+        comment.assert_not_called()
+
+
+    def _comment_with_head(self, prefix, head):
+        with mock.patch.object(_MODULE.fjw_config, "load", return_value=_CONFIG), \
+                mock.patch.object(
+                    _MODULE.pulls, "get_pr",
+                    return_value={"number": 5, "head": head},
+                ), \
+                mock.patch.object(
+                    _MODULE.pulls, "create_comment",
+                    return_value={"id": 11, "html_url": "u"},
+                ) as comment, \
+                contextlib.redirect_stdout(io.StringIO()), \
+                contextlib.redirect_stderr(io.StringIO()):
+            try:
+                code = _MODULE.main(["o/r", prefix, "5", self._body_path])
+            except SystemExit as caught:
+                code = caught.code
+        return code, comment
+
+    def test_bare_slash_comments_on_any_head(self):
+        # 'main' included: commenting moves no branch, so fjw's bare
+        # slash admits the default too.
+        for head in ("foo-bar", "reconcile/2001-02-03", "main"):
+            with self.subTest(head=head):
+                code, comment = self._comment_with_head("/", {"ref": head})
+                self.assertEqual(code, 0)
+                comment.assert_called_once()
+
+    def test_bare_slash_still_refuses_a_missing_head_ref(self):
+        code, comment = self._comment_with_head("/", None)
+        self.assertEqual(code, 4)
         comment.assert_not_called()
 
 

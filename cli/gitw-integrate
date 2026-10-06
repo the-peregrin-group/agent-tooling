@@ -8,7 +8,8 @@ the machine-checkable part). After the branch has been rebased and
 merge-readiness has been validated -- validation stays entirely
 skill-side, this wrapper runs no repo validation -- it integrates the
 prefix-matched branch checked out at cwd into <base-branch> without ever
-checking out the base or touching the primary checkout:
+checking out the base or touching the primary checkout. A bare '/'
+prefix matches any branch except the authoritative default. The steps:
 
 1. fetch, then verify the branch tip DESCENDS from the fetched base tip
    (the rebase is current -- trust-but-verify; refusal means "rebase
@@ -104,7 +105,8 @@ def main(argv: list[str]) -> int:
     if not arguments.is_valid_branch_prefix(prefix):
         plan.usage_die(
             f"branch prefix must be lowercase, single-level, and end in "
-            f"'/' (e.g. 'fix/'), got {prefix!r}",
+            f"'/' (e.g. 'fix/'), or be a bare '/' for no branch "
+            f"constraint, got {prefix!r}",
             _USAGE,
         )
     message_file = staging.resolve_staging_path(
@@ -149,8 +151,10 @@ def _integrate(
 ) -> dict:
     entry = workspace.entry
     root = workspace.root
-    branch = repo.require_prefixed_branch(root, prefix, entry.label)
-    if branch == base:
+    branch = repo.require_prefixed_branch(
+        root, prefix, entry.label, entry.default_branch
+    )
+    if branch.casefold() == base.casefold():
         raise repo.RefusalError(
             f"branch and base are both {base!r}; nothing to integrate into"
         )

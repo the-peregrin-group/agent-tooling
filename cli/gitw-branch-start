@@ -18,7 +18,10 @@ onto it, and reports ahead/behind vs. both its upstream and the
 authoritative default.
 
 The branch prefix is the allowlist scope token (lowercase, single-level,
-always ending in '/'); prefix plus name is the full branch name. Runs only
+always ending in '/'); prefix plus name is the full branch name. A bare
+'/' means no branch constraint: the name is then the full branch name,
+slashes allowed, and only the authoritative default branch is refused
+(a branch someone else created, PR and all, can be resumed). Runs only
 from inside a worktree of the labeled repo: cwd is the binding that names
 the worktree to switch. Machine-local entries skip the fetch and branch
 from the local default branch.
@@ -67,19 +70,31 @@ def main(argv: list[str]) -> int:
     if not arguments.is_valid_branch_prefix(prefix):
         plan.usage_die(
             f"branch prefix must be lowercase, single-level, and end in "
-            f"'/' (e.g. 'fix/'), got {prefix!r}",
+            f"'/' (e.g. 'fix/'), or be a bare '/' for no branch "
+            f"constraint, got {prefix!r}",
             _USAGE,
         )
-    if not arguments.is_valid_branch_name(name):
+    if not arguments.is_valid_name_for_prefix(prefix, name):
         plan.usage_die(
             f"branch name must be alphanumerics plus ._- (no leading "
-            f"punctuation, no '..', no '.lock' suffix), got {name!r}",
+            f"punctuation, no '..', no '.lock' suffix; slashes only "
+            f"under the bare '/' prefix), got {name!r}",
             _USAGE,
         )
-    branch = prefix + name
+    branch = arguments.prefixed_branch(prefix, name)
+    if arguments.shadows_ref_namespace(branch):
+        plan.usage_die(
+            f"branch {branch!r} starts with a git ref namespace (refs, "
+            "heads, remotes, tags, HEAD) and would shadow git's own refs",
+            _USAGE,
+        )
     entry = roster.resolve_or_die(label, _USAGE)
 
     try:
+        repo.require_branch_in_scope(
+            branch, prefix, label, entry.default_branch, subject="branch"
+        )
+        repo.refuse_remote_shadowing(branch, entry.remote)
         workspace = repo.resolve_workspace(entry, Path.cwd())
         if not workspace.in_repo:
             raise repo.RefusalError(

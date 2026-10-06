@@ -346,5 +346,47 @@ class GitwRebaseAbortTest(_RebaseFixtureTest):
         self.assertEqual(repo.rebase_head_branch(self.clone), "fix/topic")
 
 
+class GitwRebaseBareSlashTest(_RebaseFixtureTest):
+    def test_rebases_an_unprefixed_branch(self):
+        gitw_test_support.git(self.clone, "branch", "-m", "foo-bar")
+        gitw_test_support.commit_on(self.clone, "work.txt", "w\n", "work")
+        gitw_test_support.advance_remote(self.seed)
+        payload = self.rebase("proj", "/")
+        self.assertEqual(payload["commits_atop"], 1)
+
+    def test_refuses_the_default_branch(self):
+        gitw_test_support.git(self.clone, "switch", "main")
+        payload, code = self.rebase_raw("proj", "/")
+        self.assertEqual(code, 4)
+        self.assertIn("default branch", self.last_stderr)
+
+    def test_conflict_hint_repeats_the_bare_slash(self):
+        gitw_test_support.git(self.clone, "branch", "-m", "foo-bar")
+        self.make_conflict()
+        payload, code = self.rebase_raw("proj", "/")
+        self.assertEqual(code, 4)
+        self.assertIn("gitw-rebase proj / continue", payload["hint"])
+        payload = self.rebase("proj", "/", "abort")
+        self.assertEqual(payload["branch"], "foo-bar")
+
+
+    def test_continue_and_abort_refuse_a_rebase_of_the_default(self):
+        # A rebase of main started outside gitw: '/' must not let the
+        # Verb finish or unwind it.
+        gitw_test_support.git(self.clone, "switch", "main")
+        self.make_conflict()
+        gitw_test_support.git(self.clone, "fetch", "origin")
+        rebase = subprocess.run(
+            ["git", "rebase", "origin/main"], cwd=self.clone,
+            capture_output=True, text=True,
+        )
+        self.assertNotEqual(rebase.returncode, 0)
+        for mode in ("continue", "abort"):
+            with self.subTest(mode=mode):
+                payload, code = self.rebase_raw("proj", "/", mode)
+                self.assertEqual(code, 4)
+                self.assertIn("default branch", self.last_stderr)
+
+
 if __name__ == "__main__":
     unittest.main()

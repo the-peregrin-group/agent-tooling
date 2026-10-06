@@ -503,5 +503,46 @@ class GitwCommitExecutedByTest(_CommitFixtureTest):
         )
 
 
+class GitwCommitBareSlashTest(_CommitFixtureTest):
+    def test_commits_on_an_unprefixed_branch(self):
+        gitw_test_support.git(self.clone, "switch", "-c", "foo-bar")
+        (self.clone / "new.txt").write_text("new\n")
+        payload = self.commit("proj", "/", self.message_path)
+        self.assertEqual(payload["branch"], "foo-bar")
+
+    def test_refuses_the_default_branch(self):
+        gitw_test_support.git(self.clone, "switch", "main")
+        (self.clone / "new.txt").write_text("new\n")
+        stderr = self.commit_expecting_exit(4, "proj", "/", self.message_path)
+        self.assertIn("default branch", stderr)
+        self.assertEqual(
+            gitw_test_support.git(
+                self.clone, "status", "--porcelain"
+            ).stdout.strip(),
+            "?? new.txt",
+        )
+
+
+    def test_tag_named_like_the_default_does_not_hide_it(self):
+        gitw_test_support.git(self.clone, "switch", "main")
+        gitw_test_support.git(self.clone, "tag", "main")
+        (self.clone / "new.txt").write_text("new\n")
+        stderr = self.commit_expecting_exit(4, "proj", "/", self.message_path)
+        self.assertIn("default branch", stderr)
+
+
+    def test_real_prefix_refuses_a_slashed_default(self):
+        self.entry = Entry(
+            label="proj",
+            checkout=self.clone,
+            remote_url=self.entry.remote_url,
+            remote="origin",
+            default_branch="fix/topic",
+        )
+        (self.clone / "new.txt").write_text("new\n")
+        stderr = self.commit_expecting_exit(4, "proj", "fix/", self.message_path)
+        self.assertIn("default branch", stderr)
+
+
 if __name__ == "__main__":
     unittest.main()

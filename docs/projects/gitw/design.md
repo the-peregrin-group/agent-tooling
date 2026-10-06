@@ -197,7 +197,40 @@ removal is a destructive operation gitw is better off without.
 `gitw-branch-start` runs inside whatever worktree the harness provided and
 re-verifies freshness itself. Branch prefixes, not worktree mechanics, are
 therefore the policy vocabulary that Permission rules pin. A Branch
-prefix is lowercase, single-level, and ends in `/`.
+prefix is lowercase, single-level, and ends in `/`, or is a bare `/`.
+
+The bare `/` means no branch constraint: it admits any branch except the
+repo's authoritative default branch, and under it a branch-start name or
+push target is the whole branch name, slashes allowed. The prefix has no
+value of its own; it segments permissions only where a rule pins a
+particular value, so the unconstrained scope exists and the rules decide
+whether to grant it. `/` was chosen because it needs no shell quoting and
+cannot collide with a real prefix (a git ref name cannot begin with a
+slash, and a real prefix starts with a letter, so a rule pinning `/` never
+covers one); the empty string, an optional token, and a reserved word were
+rejected (see [ADR 0008, bare `/` means no branch
+prefix](../../adr/0008-bare-slash-means-no-branch-prefix.md)).
+
+Two guards are properties of the branch name, not of how the prefix token
+was spelled, so they apply under every prefix:
+
+- **No Verb acts on the default branch.** `repo.require_branch_in_scope`,
+  the scope check every mutating Verb shares, refuses it (exit 4). A
+  slashless default like `main` can match only `/`, but a slashed one
+  like `release/main` can match a real prefix too. The comparison
+  ignores letter case, because on a case-insensitive filesystem (macOS's
+  default) `Main` and `main` are one loose ref. The current branch is
+  read from the full `refs/heads/` ref, because with a tag named like the
+  branch `symbolic-ref --short` answers `heads/main`, which no
+  comparison would recognize.
+- **No Verb creates or pushes to a shadowing name.** A `gitw-branch-start`
+  branch or `gitw-push` target whose first level is a git ref namespace
+  (`refs`, `heads`, `remotes`, `tags`, `HEAD`) is a usage error (exit 2):
+  that is fixed grammar, checked before the Roster is read. One whose
+  first level is the remote's name (`origin/x`) is refused (exit 4),
+  since it depends on the Roster entry; a machine-local repo has no
+  remote and nothing to shadow. Branches that already exist are not
+  re-checked.
 
 ## Wrapper invariants
 
@@ -223,9 +256,11 @@ Family-wide, shared with ghw and fjw:
 gitw's own:
 
 - **Token grammar.** Label `^[a-z0-9][a-z0-9._-]*$`; Branch prefix
-  `^[a-z][a-z0-9-]*/$`; branch-name tail without a slash, `..`, trailing
-  `.`, or `.lock`; an integration base may contain slashes. A bad token is
-  exit 2.
+  `^[a-z][a-z0-9-]*/$` or a bare `/` (the grammar lives in the shared
+  `cli/lib/arguments.py`, which fjw uses too); branch-name tail without a
+  slash, `..`, trailing `.`, or `.lock`, except that under `/` the name is
+  a full branch and may contain slashes; an integration base may contain
+  slashes. A bad token is exit 2.
 - **Non-interactive git.** Every git call runs with terminal prompts off,
   the editor set to `true`, the pager to `cat`, askpass to
   `/usr/bin/false`, optional locks off, `LC_ALL=C`, and ssh in batch mode
@@ -450,6 +485,11 @@ Rules pin Verb, label, and Branch prefix as literal prefixes:
   (`Bash(gitw-push rocket-sled review/ current)`).
 - **`gitw-integrate`** is granted per repo and per base, deliberately,
   only where direct integration is sanctioned.
+- **The bare `/` prefix is granted like any other**
+  (`Bash(gitw-commit rocket-sled / *)`, `Bash(gitw-push rocket-sled /)`),
+  and a repo that wants prefix segmentation simply does not grant it. A
+  rule starred right after the label (`Bash(gitw-commit rocket-sled *)`)
+  already admits it.
 - **`gitw-repo-register`** is never allowed; a global `ask` rule keeps
   every registration a visible human approval (`ask` outranks `allow`).
 - **`git mv` / `git rm`** may be granted raw, per repo and path-narrowed,

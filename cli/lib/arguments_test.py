@@ -16,6 +16,21 @@ if __package__ in (None, ""):  # direct invocation: python3 lib/arguments_test.p
 from lib import arguments
 
 
+class BranchMatchesPrefixTest(unittest.TestCase):
+    def test_a_real_prefix_needs_a_non_empty_tail(self):
+        self.assertTrue(arguments.branch_matches_prefix("fix/topic", "fix/"))
+        for branch in ("fix/", "fix", "fixture", "main", ""):
+            with self.subTest(branch=branch):
+                self.assertFalse(arguments.branch_matches_prefix(branch, "fix/"))
+
+    def test_the_bare_slash_matches_any_non_empty_branch(self):
+        # Including the default branch: refusing it is the caller's job.
+        for branch in ("foo-bar", "fix/topic", "a/b/c", "main"):
+            with self.subTest(branch=branch):
+                self.assertTrue(arguments.branch_matches_prefix(branch, "/"))
+        self.assertFalse(arguments.branch_matches_prefix("", "/"))
+
+
 class IsValidRepositoryTest(unittest.TestCase):
     def test_accepts_owner_slash_name(self):
         for repository in ("a/b", "octo-org/widgets", "own-er/na.me",

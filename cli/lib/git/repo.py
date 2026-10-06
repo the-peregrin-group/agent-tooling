@@ -19,7 +19,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from lib import plan
-from lib.git import run
+from lib.git import arguments, run
 from lib.git.roster import Entry
 
 
@@ -149,8 +149,21 @@ def ref_exists(root: Path, refname: str) -> bool:
 
 
 def current_branch(root: Path) -> str | None:
-    """The checked-out branch name, or None when HEAD is detached."""
-    return run.output(["symbolic-ref", "--quiet", "--short", "HEAD"], root)
+    """The checked-out branch name, or None when HEAD is detached. Read
+    from the full ref, not `--short`: with a tag named like the branch,
+    `--short` disambiguates to 'heads/<branch>', which no scope check
+    would recognize."""
+    ref = run.output(["symbolic-ref", "--quiet", "HEAD"], root)
+    if ref is None or not ref.startswith("refs/heads/"):
+        return None
+    return ref[len("refs/heads/"):]
+
+
+def is_default_branch(branch: str, default_branch: str) -> bool:
+    """True when `branch` names the default branch, ignoring case: on a
+    case-insensitive filesystem (macOS's default) 'Main' and 'main' are
+    the same loose ref, so an exact comparison is not a guard."""
+    return branch.casefold() == default_branch.casefold()
 
 
 def head_commit(root: Path) -> str | None:
@@ -229,12 +242,6 @@ def status_counts(root: Path) -> dict:
     return {"staged": staged, "unstaged": unstaged, "untracked": untracked}
 
 
-def branch_matches_prefix(branch: str, prefix: str) -> bool:
-    """True when `branch` is `prefix` plus a non-empty tail -- the bare
-    prefix (or the prefix minus its slash) is not a match."""
-    return branch.startswith(prefix) and len(branch) > len(prefix)
-
-
 def describe_dirty(counts: dict) -> str:
     """One phrase for a status_counts() result, for refusal messages."""
     return (
@@ -243,23 +250,58 @@ def describe_dirty(counts: dict) -> str:
     )
 
 
-def require_prefixed_branch(root: Path, prefix: str, label: str) -> str:
-    """The branch-prefix scope check shared by every mutating verb: the
-    worktree's current branch must be <prefix> plus a non-empty tail.
-    Returns the branch name; RefusalError on detached HEAD or mismatch."""
+def require_branch_in_scope(
+    branch: str, prefix: str, label: str, default_branch: str,
+    subject: str = "current branch",
+) -> None:
+    """The scope check every mutating verb shares: RefusalError unless
+    `branch` matches `prefix` and is not the default branch. The default
+    is refused whatever the prefix: a slashless default like 'main' can
+    match only the bare slash, but a slashed one like 'release/main' can
+    match a real prefix too. `subject` names the branch in the message."""
+    if not arguments.branch_matches_prefix(branch, prefix):
+        raise RefusalError(
+            f"{subject} {branch!r} does not match the pinned prefix "
+            f"{prefix!r} for {label!r} -- the prefix is the allowlist "
+            "scope; switch branches or fix the invocation"
+        )
+    if is_default_branch(branch, default_branch):
+        raise RefusalError(
+            f"{subject} {branch!r} is the authoritative default branch of "
+            f"{label!r}; no gitw verb acts on it, whatever the prefix"
+        )
+
+
+def require_prefixed_branch(
+    root: Path, prefix: str, label: str, default_branch: str
+) -> str:
+    """require_branch_in_scope for the worktree's current branch.
+    Returns the branch name; RefusalError on detached HEAD or a scope
+    failure."""
     branch = current_branch(root)
     if branch is None:
         raise RefusalError(
             f"worktree {root} has a detached HEAD; the branch-prefix scope "
             "requires a checked-out branch (gitw-branch-start creates one)"
         )
-    if not branch_matches_prefix(branch, prefix):
-        raise RefusalError(
-            f"current branch {branch!r} does not match the pinned prefix "
-            f"{prefix!r} for {label!r} -- the prefix is the allowlist "
-            "scope; switch branches or fix the invocation"
-        )
+    require_branch_in_scope(branch, prefix, label, default_branch)
     return branch
+
+
+def refuse_remote_shadowing(branch: str, remote: str | None) -> None:
+    """RefusalError when a branch name's first level is the remote's name
+    ('origin/main'): as a short name it would resolve to the local branch
+    ahead of the remote-tracking ref, misleading every later reader of
+    that short name. Case is ignored, as for the default. A machine-local
+    repo has no remote, so nothing to shadow."""
+    if remote is None:
+        return
+    head, _, tail = branch.partition("/")
+    if tail and head.casefold() == remote.casefold():
+        raise RefusalError(
+            f"branch name {branch!r} starts with the remote name "
+            f"{remote!r} and would shadow its remote-tracking refs"
+        )
 
 
 def rebase_head_branch(root: Path) -> str | None:

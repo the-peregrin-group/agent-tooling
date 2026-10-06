@@ -57,7 +57,7 @@ class GitwBranchStartArgumentsTest(unittest.TestCase):
         self.assertIn("label", result.stderr)
 
     def test_invalid_prefix_is_usage_error(self):
-        for prefix in ("fix", "Fix/", "a/b/", "/", "-x/", "fix_a/"):
+        for prefix in ("fix", "Fix/", "a/b/", "//", "-x/", "fix_a/"):
             with self.subTest(prefix=prefix):
                 result = _run("proj", prefix, "x")
                 self.assertEqual(result.returncode, 2)
@@ -302,6 +302,67 @@ class GitwBranchStartResumeTest(_BranchStartFixtureTest):
         gitw_test_support.git(self.clone, "branch", "fix/topic")
         (self.clone / "README.md").write_text("modified\n")
         self.start_expecting_exit(4, "proj", "fix/", "topic", "resume")
+
+
+class GitwBranchStartBareSlashTest(_BranchStartFixtureTest):
+    """A bare '/' prefix: the name is the whole branch, and only the
+    authoritative default branch is out of scope."""
+
+    def test_resume_unprefixed_remote_branch(self):
+        # The handoff case: a human's branch with an open PR, no prefix.
+        self.push_remote_branch("foo-bar")
+        payload = self.start("proj", "/", "foo-bar", "resume")
+        self.assertEqual(payload["branch"], "foo-bar")
+        self.assertEqual(payload["upstream"], "origin/foo-bar")
+
+    def test_resume_branch_under_another_prefix(self):
+        self.push_remote_branch("someone/topic")
+        payload = self.start("proj", "/", "someone/topic", "resume")
+        self.assertEqual(payload["branch"], "someone/topic")
+
+    def test_create_takes_the_name_as_the_full_branch(self):
+        payload = self.start("proj", "/", "foo-bar")
+        self.assertEqual(payload["branch"], "foo-bar")
+
+    def test_default_branch_is_refused(self):
+        for arguments in (("proj", "/", "main", "resume"),
+                          ("proj", "/", "main")):
+            with self.subTest(arguments=arguments):
+                stderr = self.start_expecting_exit(4, *arguments)
+                self.assertIn("default branch", stderr)
+
+
+    def test_case_variant_of_the_default_is_refused(self):
+        stderr = self.start_expecting_exit(4, "proj", "/", "Main", "resume")
+        self.assertIn("default branch", stderr)
+
+    def test_name_shadowing_the_remote_is_refused(self):
+        stderr = self.start_expecting_exit(4, "proj", "/", "origin/main")
+        self.assertIn("shadow", stderr)
+
+
+    def test_machine_local_slashed_name_does_not_crash(self):
+        # A machine-local entry has no remote; the shadowing check must
+        # not reach into it.
+        local = self.base / "local"
+        local.mkdir()
+        gitw_test_support.git(local, "init", "--initial-branch=main", ".")
+        gitw_test_support.commit_on(local, "a.txt", "a\n", "seed")
+        entry = Entry(label="scratch", checkout=local)
+        payload = self.start(
+            "scratch", "/", "someone/topic", cwd=local,
+            entries={"scratch": entry},
+        )
+        self.assertEqual(payload["branch"], "someone/topic")
+
+    def test_real_prefix_naming_the_remote_is_refused(self):
+        stderr = self.start_expecting_exit(4, "proj", "origin/", "x")
+        self.assertIn("shadow", stderr)
+
+    def test_real_prefix_naming_a_ref_namespace_is_usage_error(self):
+        result = _run("proj", "tags/", "v1")
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("ref namespace", result.stderr)
 
 
 if __name__ == "__main__":

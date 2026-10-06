@@ -227,32 +227,70 @@ class ReadPrimitivesTest(_FixtureTest):
     def test_require_prefixed_branch(self):
         gitw_test_support.git(self.clone, "switch", "-c", "fix/topic")
         self.assertEqual(
-            repo.require_prefixed_branch(self.clone, "fix/", "proj"),
+            repo.require_prefixed_branch(self.clone, "fix/", "proj", "main"),
             "fix/topic",
         )
         with self.assertRaises(repo.RefusalError):
-            repo.require_prefixed_branch(self.clone, "docs/", "proj")
+            repo.require_prefixed_branch(self.clone, "docs/", "proj", "main")
         gitw_test_support.git(self.clone, "switch", "--detach")
         with self.assertRaises(repo.RefusalError):
-            repo.require_prefixed_branch(self.clone, "fix/", "proj")
+            repo.require_prefixed_branch(self.clone, "fix/", "proj", "main")
 
     def test_prefix_alone_is_not_a_matching_branch(self):
         # A branch literally named like the prefix minus the slash must
         # not pass; nor would an empty tail.
         gitw_test_support.git(self.clone, "switch", "-c", "fixation")
         with self.assertRaises(repo.RefusalError):
-            repo.require_prefixed_branch(self.clone, "fix/", "proj")
+            repo.require_prefixed_branch(self.clone, "fix/", "proj", "main")
+
+    def test_bare_slash_admits_any_branch_but_the_default(self):
+        gitw_test_support.git(self.clone, "switch", "-c", "foo-bar")
+        self.assertEqual(
+            repo.require_prefixed_branch(self.clone, "/", "proj", "main"),
+            "foo-bar",
+        )
+        gitw_test_support.git(self.clone, "switch", "main")
+        with self.assertRaisesRegex(repo.RefusalError, "default branch"):
+            repo.require_prefixed_branch(self.clone, "/", "proj", "main")
+
+    def test_bare_slash_refuses_a_case_variant_of_the_default(self):
+        # On a case-insensitive filesystem 'Main' is the same ref as
+        # 'main'; the guard must not depend on the filesystem.
+        with self.assertRaisesRegex(repo.RefusalError, "default branch"):
+            repo.require_branch_in_scope("Main", "/", "proj", "main")
+
+    def test_current_branch_ignores_a_tag_named_like_the_branch(self):
+        # `symbolic-ref --short` would answer 'heads/main' here.
+        gitw_test_support.git(self.clone, "tag", "main")
+        self.assertEqual(repo.current_branch(self.clone), "main")
+        with self.assertRaisesRegex(repo.RefusalError, "default branch"):
+            repo.require_prefixed_branch(self.clone, "/", "proj", "main")
+
+    def test_names_shadowing_the_remote_are_refused(self):
+        # Judged on the full name, however the prefix token was spelled.
+        for branch in ("origin/main", "Origin/topic"):
+            with self.subTest(branch=branch):
+                with self.assertRaisesRegex(repo.RefusalError, "shadow"):
+                    repo.refuse_remote_shadowing(branch, "origin")
+        repo.refuse_remote_shadowing("origin", "origin")
+        repo.refuse_remote_shadowing("originals/x", "origin")
+
+    def test_a_machine_local_repo_has_no_remote_to_shadow(self):
+        repo.refuse_remote_shadowing("origin/x", None)
+
+    def test_a_real_prefix_also_refuses_a_slashed_default(self):
+        # A real prefix can match a default like 'release/main'; the
+        # refusal is prefix-independent.
+        gitw_test_support.git(self.clone, "switch", "-c", "release/main")
+        with self.assertRaisesRegex(repo.RefusalError, "default branch"):
+            repo.require_prefixed_branch(
+                self.clone, "release/", "proj", "release/main"
+            )
 
     def test_no_rebase_in_progress_reports_none(self):
         self.assertIsNone(repo.rebase_head_branch(self.clone))
         self.assertEqual(repo.conflicted_paths(self.clone), [])
         self.assertIsNone(repo.pending_operation(self.clone))
-
-    def test_branch_matches_prefix_requires_a_non_empty_tail(self):
-        self.assertTrue(repo.branch_matches_prefix("fix/topic", "fix/"))
-        for branch in ("fix/", "fix", "fixation", "docs/topic"):
-            with self.subTest(branch=branch):
-                self.assertFalse(repo.branch_matches_prefix(branch, "fix/"))
 
     def test_describe_dirty_names_all_three_tallies(self):
         self.assertEqual(

@@ -83,8 +83,15 @@ numbers to be positive integers.
 - `fjw-pr-comment <owner/repo> <head-prefix> <pr#> <body-file>` posts a
   standalone comment. `<head-prefix>` is a positional scope token that
   Permission rules pin; the Wrapper fetches the PR and refuses (exit 4)
-  unless its head branch starts with the prefix. There is no prefix-free
-  form, so a grant can never reach other actors' review threads.
+  unless its head branch matches the prefix. The prefix takes gitw's
+  grammar from the shared `cli/lib/arguments.py`: lowercase,
+  single-level, ending in `/`, or a bare `/` that admits any head branch
+  (see [ADR 0008, bare `/` means no branch
+  prefix](../../adr/0008-bare-slash-means-no-branch-prefix.md)). No form
+  omits the token, so a grant reaches other actors' review threads only
+  through a rule that pins `/` or stars the prefix position
+  (`Bash(fjw-pr-comment owner/repo *)`). Under `/` a PR whose head is the
+  default branch is admitted too: commenting moves no branch.
 
 ## Forgejo API mechanics
 
