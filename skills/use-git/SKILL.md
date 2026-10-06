@@ -219,7 +219,9 @@ repo's authoritative default, which every verb refuses under it. Use it
 for a branch that has no prefix, such as a human's `foo-bar` branch with
 an open PR handed to you: `gitw-branch-start <repo> / foo-bar resume`,
 then `gitw-commit <repo> / <message-file>` and `gitw-push <repo> /`. Under
-`/` the name (or push target) is the whole branch name, slashes allowed.
+`/` the name (or push target) is the whole branch name, slashes allowed,
+except a first component naming the remote (`origin/`) or a ref namespace
+(`refs/`, `tags/`, ...), which would shadow git's own refs.
 Write it bare, never quoted: the permission rule matches the literal
 text. Whether `/` is granted is the repo's policy, not your choice; a
 prompt on it is the policy asking.

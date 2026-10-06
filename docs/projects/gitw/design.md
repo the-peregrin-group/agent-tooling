@@ -211,7 +211,19 @@ rejected (see [ADR 0008, bare `/` means no branch
 prefix](../../adr/0008-bare-slash-means-no-branch-prefix.md)). The
 default-branch refusal is explicit because a real prefix can never match
 a slashless default like `main`, and `gitw-commit`, `gitw-integrate`,
-and `gitw-branch-start resume` relied on that implicitly.
+`gitw-branch-start resume`, and `gitw-rebase continue`/`abort` relied on
+that implicitly. Three details keep the refusal sound:
+
+- It ignores letter case. On a case-insensitive filesystem (macOS's
+  default) `Main` and `main` are one loose ref, so `Main` would otherwise
+  reach the default branch.
+- The current branch is read from the full `refs/heads/` ref. With a tag
+  named like the branch, `symbolic-ref --short` answers `heads/main`,
+  which no comparison would recognize.
+- Under `/`, a name whose first component is the remote's name (`origin/x`)
+  is refused, because as a short name it would shadow the remote-tracking
+  ref. So is one starting with a git ref namespace (`refs`, `heads`,
+  `remotes`, `tags`, `HEAD`).
 
 ## Wrapper invariants
 

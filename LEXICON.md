@@ -53,8 +53,8 @@ gitw) identify the repo.
 
 **Branch prefix**: The token naming a class of branches (e.g., fix/) that
 scopes a Verb acting on a branch, and that Permission rules pin when
-granting it. A bare / names the class of every branch except the repo's
-default branch.
+granting it. A bare / names the class of every branch; gitw Verbs
+exclude the repo's default branch from it.
 - _Invariants_: a Wrapper only verifies a Branch prefix; whether a
   particular one is granted is decided by Permission rules alone
 

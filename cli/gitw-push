@@ -142,8 +142,12 @@ def main(argv: list[str]) -> int:
         branch = repo.require_prefixed_branch(
             root, prefix, label, entry.default_branch
         )
+        if target is not None:
+            repo.refuse_remote_shadowing(target, prefix, entry.remote)
         for candidate in (branch, target):
-            if candidate == entry.default_branch:
+            if candidate is not None and repo.is_default_branch(
+                candidate, entry.default_branch
+            ):
                 raise repo.RefusalError(
                     f"refusing to push the authoritative default branch "
                     f"{candidate!r} -- trunk moves only by integration"

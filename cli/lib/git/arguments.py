@@ -58,8 +58,14 @@ def is_valid_name_for_prefix(prefix: str, name: str) -> bool:
     real prefix, but a full branch name, slashes allowed, under
     NO_BRANCH_PREFIX, since there the name is the whole branch."""
     if prefix == NO_BRANCH_PREFIX:
-        return is_valid_branch(name)
+        head = name.split("/", 1)[0].casefold()
+        return is_valid_branch(name) and head not in _REF_NAMESPACES
     return is_valid_branch_name(name)
+
+
+# First components that would make a full branch name shadow, or be
+# shadowed by, git's own ref namespaces when used as a short name.
+_REF_NAMESPACES = ("refs", "heads", "remotes", "tags", "head")
 
 
 def is_valid_branch(branch: str) -> bool:

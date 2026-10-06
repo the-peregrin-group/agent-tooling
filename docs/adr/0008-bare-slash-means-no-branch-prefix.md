@@ -15,8 +15,9 @@ current mechanics are in the [gitw design](../projects/gitw/design.md).
 
 **Decision:** Wherever a Branch prefix token exists (the mutating gitw
 Verbs and `fjw-pr-comment`), a bare `/` is accepted and admits any
-branch except the repo's authoritative default branch, while every
-other value keeps the grammar lowercase, single-level, ending in `/`.
+branch, except the repo's authoritative default branch in gitw, while
+every other value keeps the grammar lowercase, single-level, ending in
+`/`.
 
 **Rationale:** The Wrapper's job is to make a capability grantable at a
 pinnable scope, not to decide policy, so the unconstrained scope must
@@ -25,9 +26,12 @@ exist and be spelled as one literal that rules can grant or withhold.
 ## Consequences
 
 - A real prefix can never match a slashless default branch like `main`,
-  and `gitw-commit`, `gitw-integrate`, and `gitw-branch-start resume`
-  relied on that implicitly; under `/` the shared scope check refuses
-  the default branch explicitly.
+  and `gitw-commit`, `gitw-integrate`, `gitw-branch-start resume`, and
+  `gitw-rebase continue`/`abort` relied on that implicitly; under `/`
+  the shared scope check refuses the default branch explicitly, in any
+  letter case, since macOS's filesystem treats `Main` as `main`.
+- `fjw-pr-comment` only comments, so under `/` it admits a PR whose head
+  is the default branch.
 - Under `/`, a `gitw-branch-start` name or a `gitw-push` target is the
   whole branch name, so slashes are allowed in it.
 - An existing starred grant such as `gitw-commit <label> *` now also

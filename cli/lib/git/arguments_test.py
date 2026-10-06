@@ -51,7 +51,9 @@ class IsValidNameForPrefixTest(unittest.TestCase):
         for name in ("foo-bar", "someone/topic", "a/b/c"):
             with self.subTest(name=name):
                 self.assertTrue(arguments.is_valid_name_for_prefix("/", name))
-        for name in ("", "/x", "x/", "a//b", "a..b", "x.lock"):
+        for name in ("", "/x", "x/", "a//b", "a..b", "x.lock",
+                     "refs/heads/x", "heads/main", "Remotes/origin/x",
+                     "tags/v1", "HEAD/x"):
             with self.subTest(name=name):
                 self.assertFalse(arguments.is_valid_name_for_prefix("/", name))
 

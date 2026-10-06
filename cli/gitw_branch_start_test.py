@@ -332,5 +332,14 @@ class GitwBranchStartBareSlashTest(_BranchStartFixtureTest):
                 self.assertIn("default branch", stderr)
 
 
+    def test_case_variant_of_the_default_is_refused(self):
+        stderr = self.start_expecting_exit(4, "proj", "/", "Main", "resume")
+        self.assertIn("default branch", stderr)
+
+    def test_name_shadowing_the_remote_is_refused(self):
+        stderr = self.start_expecting_exit(4, "proj", "/", "origin/main")
+        self.assertIn("shadow", stderr)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -149,8 +149,21 @@ def ref_exists(root: Path, refname: str) -> bool:
 
 
 def current_branch(root: Path) -> str | None:
-    """The checked-out branch name, or None when HEAD is detached."""
-    return run.output(["symbolic-ref", "--quiet", "--short", "HEAD"], root)
+    """The checked-out branch name, or None when HEAD is detached. Read
+    from the full ref, not `--short`: with a tag named like the branch,
+    `--short` disambiguates to 'heads/<branch>', which no scope check
+    would recognize."""
+    ref = run.output(["symbolic-ref", "--quiet", "HEAD"], root)
+    if ref is None or not ref.startswith("refs/heads/"):
+        return None
+    return ref[len("refs/heads/"):]
+
+
+def is_default_branch(branch: str, default_branch: str) -> bool:
+    """True when `branch` names the default branch, ignoring case: on a
+    case-insensitive filesystem (macOS's default) 'Main' and 'main' are
+    the same loose ref, so an exact comparison is not a guard."""
+    return branch.casefold() == default_branch.casefold()
 
 
 def head_commit(root: Path) -> str | None:
@@ -260,21 +273,44 @@ def require_prefixed_branch(
 def require_branch_in_scope(
     branch: str, prefix: str, label: str, default_branch: str
 ) -> None:
-    """RefusalError unless `branch` matches `prefix`. Under the bare-slash
-    prefix the default branch is refused too: a real prefix can never
-    match a slashless default like 'main', and that implicit guard must
-    not vanish when the prefix constraint does."""
+    """RefusalError unless `branch` matches `prefix` and, under the
+    bare-slash prefix, is not the default branch."""
     if not branch_matches_prefix(branch, prefix):
         raise RefusalError(
             f"current branch {branch!r} does not match the pinned prefix "
             f"{prefix!r} for {label!r} -- the prefix is the allowlist "
             "scope; switch branches or fix the invocation"
         )
-    if prefix == arguments.NO_BRANCH_PREFIX and branch == default_branch:
+    refuse_default_under_bare_slash(branch, prefix, label, default_branch)
+
+
+def refuse_default_under_bare_slash(
+    branch: str, prefix: str, label: str, default_branch: str
+) -> None:
+    """RefusalError when the bare-slash prefix would admit the default
+    branch. A real prefix can never match a slashless default like
+    'main', and that implicit guard must not vanish when the prefix
+    constraint does."""
+    if (prefix == arguments.NO_BRANCH_PREFIX
+            and is_default_branch(branch, default_branch)):
         raise RefusalError(
             f"branch {branch!r} is the authoritative default branch of "
             f"{label!r}; the bare-slash prefix {prefix!r} admits any branch "
             "except the default"
+        )
+
+
+def refuse_remote_shadowing(branch: str, prefix: str, remote: str) -> None:
+    """RefusalError when a bare-slash branch name starts with the remote's
+    name ('origin/main'): as a short name it would resolve to the local
+    branch ahead of the remote-tracking ref, misleading every later
+    reader of that short name. Case is ignored, as for the default."""
+    head = branch.split("/", 1)[0]
+    if prefix == arguments.NO_BRANCH_PREFIX and "/" in branch \
+            and head.casefold() == remote.casefold():
+        raise RefusalError(
+            f"branch name {branch!r} starts with the remote name "
+            f"{remote!r} and would shadow its remote-tracking refs"
         )
 
 

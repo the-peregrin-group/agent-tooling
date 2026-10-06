@@ -88,6 +88,7 @@ def main(argv: list[str]) -> int:
         repo.require_branch_in_scope(
             branch, prefix, label, entry.default_branch
         )
+        repo.refuse_remote_shadowing(branch, prefix, entry.remote)
         workspace = repo.resolve_workspace(entry, Path.cwd())
         if not workspace.in_repo:
             raise repo.RefusalError(

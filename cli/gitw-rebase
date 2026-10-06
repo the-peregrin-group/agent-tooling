@@ -132,7 +132,7 @@ def _rebase(workspace: repo.Workspace, prefix: str) -> dict:
     branch = repo.require_prefixed_branch(
         root, prefix, entry.label, entry.default_branch
     )
-    if branch == entry.default_branch:
+    if repo.is_default_branch(branch, entry.default_branch):
         raise repo.RefusalError(
             f"refusing to rebase the authoritative default branch "
             f"{branch!r}"
@@ -194,7 +194,9 @@ def _in_progress_branch(
             f"the in-progress rebase is rewriting {branch!r}, which does "
             f"not match the pinned prefix {prefix!r} for {label!r}"
         )
-    repo.require_branch_in_scope(branch, prefix, label, default_branch)
+    repo.refuse_default_under_bare_slash(
+        branch, prefix, label, default_branch
+    )
     return branch
 
 

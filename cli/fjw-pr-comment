@@ -4,7 +4,7 @@
 The head-prefix is a positional scope token: an allowlist rule pins it (e.g.
 `Bash(fjw-pr-comment owner/repo reconcile/ *)`), and the wrapper
 trust-but-verifies the claim -- it fetches the PR and refuses (exit 4) when
-the actual head branch does not start with the claimed prefix. Policy lives
+the actual head branch does not match the claimed prefix. Policy lives
 in the allowlist layer; this wrapper stays consumer-generic. The prefix
 follows gitw's grammar (lowercase, single-level, ending in '/'). A bare '/'
 admits any head branch, so a comment on an arbitrary PR takes a rule that

@@ -253,6 +253,27 @@ class ReadPrimitivesTest(_FixtureTest):
         with self.assertRaisesRegex(repo.RefusalError, "default branch"):
             repo.require_prefixed_branch(self.clone, "/", "proj", "main")
 
+    def test_bare_slash_refuses_a_case_variant_of_the_default(self):
+        # On a case-insensitive filesystem 'Main' is the same ref as
+        # 'main'; the guard must not depend on the filesystem.
+        with self.assertRaisesRegex(repo.RefusalError, "default branch"):
+            repo.require_branch_in_scope("Main", "/", "proj", "main")
+
+    def test_current_branch_ignores_a_tag_named_like_the_branch(self):
+        # `symbolic-ref --short` would answer 'heads/main' here.
+        gitw_test_support.git(self.clone, "tag", "main")
+        self.assertEqual(repo.current_branch(self.clone), "main")
+        with self.assertRaisesRegex(repo.RefusalError, "default branch"):
+            repo.require_prefixed_branch(self.clone, "/", "proj", "main")
+
+    def test_bare_slash_refuses_names_shadowing_the_remote(self):
+        for branch in ("origin/main", "Origin/topic"):
+            with self.subTest(branch=branch):
+                with self.assertRaisesRegex(repo.RefusalError, "shadow"):
+                    repo.refuse_remote_shadowing(branch, "/", "origin")
+        repo.refuse_remote_shadowing("origin", "/", "origin")
+        repo.refuse_remote_shadowing("origin/x", "origin/", "origin")
+
     def test_a_real_prefix_ignores_the_default_branch_argument(self):
         # The default-branch refusal belongs to the bare slash alone; a
         # real prefix keeps exactly its old meaning.

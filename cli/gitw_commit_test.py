@@ -523,5 +523,13 @@ class GitwCommitBareSlashTest(_CommitFixtureTest):
         )
 
 
+    def test_tag_named_like_the_default_does_not_hide_it(self):
+        gitw_test_support.git(self.clone, "switch", "main")
+        gitw_test_support.git(self.clone, "tag", "main")
+        (self.clone / "new.txt").write_text("new\n")
+        stderr = self.commit_expecting_exit(4, "proj", "/", self.message_path)
+        self.assertIn("default branch", stderr)
+
+
 if __name__ == "__main__":
     unittest.main()

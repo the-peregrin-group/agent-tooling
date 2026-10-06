@@ -83,7 +83,7 @@ numbers to be positive integers.
 - `fjw-pr-comment <owner/repo> <head-prefix> <pr#> <body-file>` posts a
   standalone comment. `<head-prefix>` is a positional scope token that
   Permission rules pin; the Wrapper fetches the PR and refuses (exit 4)
-  unless its head branch starts with the prefix. The prefix takes gitw's
+  unless its head branch matches the prefix. The prefix takes gitw's
   grammar from the shared `cli/lib/arguments.py`: lowercase,
   single-level, ending in `/`, or a bare `/` that admits any head branch
   (see [ADR 0008, bare `/` means no branch

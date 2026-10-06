@@ -508,5 +508,14 @@ class GitwPushBareSlashTest(_PushFixtureTest):
         self.assertIn("default branch", stderr)
 
 
+    def test_target_shadowing_the_remote_is_refused(self):
+        stderr = self.push_expecting_exit(4, "proj", "/", "origin/topic")
+        self.assertIn("shadow", stderr)
+
+    def test_case_variant_default_target_is_refused(self):
+        stderr = self.push_expecting_exit(4, "proj", "/", "Main")
+        self.assertIn("default branch", stderr)
+
+
 if __name__ == "__main__":
     unittest.main()

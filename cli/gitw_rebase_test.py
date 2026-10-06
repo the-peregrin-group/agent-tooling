@@ -370,5 +370,23 @@ class GitwRebaseBareSlashTest(_RebaseFixtureTest):
         self.assertEqual(payload["branch"], "foo-bar")
 
 
+    def test_continue_and_abort_refuse_a_rebase_of_the_default(self):
+        # A rebase of main started outside gitw: '/' must not let the
+        # Verb finish or unwind it.
+        gitw_test_support.git(self.clone, "switch", "main")
+        self.make_conflict()
+        gitw_test_support.git(self.clone, "fetch", "origin")
+        rebase = subprocess.run(
+            ["git", "rebase", "origin/main"], cwd=self.clone,
+            capture_output=True, text=True,
+        )
+        self.assertNotEqual(rebase.returncode, 0)
+        for mode in ("continue", "abort"):
+            with self.subTest(mode=mode):
+                payload, code = self.rebase_raw("proj", "/", mode)
+                self.assertEqual(code, 4)
+                self.assertIn("default branch", self.last_stderr)
+
+
 if __name__ == "__main__":
     unittest.main()
