@@ -52,7 +52,11 @@ gitw) identify the repo.
 - _Avoid_: repo name, slug
 
 **Branch prefix**: The token naming a class of branches (e.g., fix/) that
-scopes a mutating gitw Verb, and that Permission rules pin when granting it.
+scopes a Verb acting on a branch, and that Permission rules pin when
+granting it. A bare / names the class of every branch except the repo's
+default branch.
+- _Invariants_: a Wrapper only verifies a Branch prefix; whether a
+  particular one is granted is decided by Permission rules alone
 
 ### Agentic systems
 
@@ -188,7 +192,7 @@ only the open items, deleted on completion, is a State doc.
 
 - gitw, ghw, fjw, and bdw are Wrappers; each Wrapper offers one or more Verbs.
 - Every mutating gitw Verb is scoped by exactly one Roster label and one
-  Branch prefix.
+  Branch prefix; fjw-pr-comment is scoped by one Branch prefix.
 - gitw, ghw, and fjw Verbs report through the Exit-code contract.
 - bdw and gitw record the Actor on the writes they attribute: bdw on the Issue
   Tracker, gitw on its commits.

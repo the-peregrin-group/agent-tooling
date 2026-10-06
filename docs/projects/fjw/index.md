@@ -20,7 +20,7 @@ its own project ([installer](../installer/index.md)).
 | Read open PRs, one PR, and a PR's comments | shipped | `fjw-pr-list`, `fjw-pr-view`, `fjw-pr-comments` |
 | Probe a head branch's open-PR state (none, draft, mergeable, conflicted) | shipped | `fjw-pr-query` |
 | Close a PR with a mandatory comment | shipped | `fjw-pr-close` |
-| Comment on a PR within a pinned head-branch prefix | shipped | `fjw-pr-comment` |
+| Comment on a PR within a pinned head-branch prefix, or any PR under a bare `/` | shipped | `fjw-pr-comment` |
 | Agent conventions for the Verbs | shipped | use-forgejo Skill |
 | Issue and label Verbs, with PR/issue index guard | planned | [issue-verbs.md](issue-verbs.md); `agent-tooling-1vr` |
 

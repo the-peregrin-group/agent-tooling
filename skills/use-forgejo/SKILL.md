@@ -136,7 +136,10 @@ fjw-pr-comment <owner/repo> <head-prefix> <pr#> <body-file>
 Standalone comment, scoped: `<head-prefix>` is a positional scope token that
 allowlist rules pin (e.g. `Bash(fjw-pr-comment owner/repo reconcile/ *)`),
 and the wrapper verifies the PR's actual head branch starts with it —
-mismatch is exit 4. There is deliberately no prefix-free form.
+mismatch is exit 4. The prefix follows gitw's grammar (lowercase,
+single-level, ending in `/`). A bare `/`, written unquoted, admits any
+head branch; there is no form that omits the token, so commenting on
+arbitrary PRs takes a rule that pins `/` explicitly.
 
 ## Allowlisting a Consumer
 

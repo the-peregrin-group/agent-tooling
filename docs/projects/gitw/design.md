@@ -197,7 +197,21 @@ removal is a destructive operation gitw is better off without.
 `gitw-branch-start` runs inside whatever worktree the harness provided and
 re-verifies freshness itself. Branch prefixes, not worktree mechanics, are
 therefore the policy vocabulary that Permission rules pin. A Branch
-prefix is lowercase, single-level, and ends in `/`.
+prefix is lowercase, single-level, and ends in `/`, or is a bare `/`.
+
+The bare `/` means no branch constraint: it admits any branch except the
+repo's authoritative default branch, and under it a branch-start name or
+push target is the whole branch name, slashes allowed. The prefix has no
+value of its own; it segments permissions only where a rule pins a
+particular value, so the unconstrained scope exists and the rules decide
+whether to grant it. `/` was chosen because it needs no shell quoting and
+cannot collide with a real prefix (a git ref name cannot begin with a
+slash); the empty string, an optional token, and a reserved word were
+rejected (see [ADR 0008, bare `/` means no branch
+prefix](../../adr/0008-bare-slash-means-no-branch-prefix.md)). The
+default-branch refusal is explicit because a real prefix can never match
+a slashless default like `main`, and `gitw-commit`, `gitw-integrate`,
+and `gitw-branch-start resume` relied on that implicitly.
 
 ## Wrapper invariants
 
@@ -223,9 +237,11 @@ Family-wide, shared with ghw and fjw:
 gitw's own:
 
 - **Token grammar.** Label `^[a-z0-9][a-z0-9._-]*$`; Branch prefix
-  `^[a-z][a-z0-9-]*/$`; branch-name tail without a slash, `..`, trailing
-  `.`, or `.lock`; an integration base may contain slashes. A bad token is
-  exit 2.
+  `^[a-z][a-z0-9-]*/$` or a bare `/` (the grammar lives in the shared
+  `cli/lib/arguments.py`, which fjw uses too); branch-name tail without a
+  slash, `..`, trailing `.`, or `.lock`, except that under `/` the name is
+  a full branch and may contain slashes; an integration base may contain
+  slashes. A bad token is exit 2.
 - **Non-interactive git.** Every git call runs with terminal prompts off,
   the editor set to `true`, the pager to `cat`, askpass to
   `/usr/bin/false`, optional locks off, `LC_ALL=C`, and ssh in batch mode
@@ -450,6 +466,11 @@ Rules pin Verb, label, and Branch prefix as literal prefixes:
   (`Bash(gitw-push rocket-sled review/ current)`).
 - **`gitw-integrate`** is granted per repo and per base, deliberately,
   only where direct integration is sanctioned.
+- **The bare `/` prefix is granted like any other**
+  (`Bash(gitw-commit rocket-sled / *)`, `Bash(gitw-push rocket-sled /)`),
+  and a repo that wants prefix segmentation simply does not grant it. A
+  rule starred right after the label (`Bash(gitw-commit rocket-sled *)`)
+  already admits it.
 - **`gitw-repo-register`** is never allowed; a global `ask` rule keeps
   every registration a visible human approval (`ask` outranks `allow`).
 - **`git mv` / `git rm`** may be granted raw, per repo and path-narrowed,

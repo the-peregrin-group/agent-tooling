@@ -214,6 +214,16 @@ harness's `worktree-*` placeholder, so there is no current-branch check.
 For commit, rebase, push, and integrate, the branch you're standing on
 must match the prefix or the verb refuses.
 
+A bare `/` is the no-constraint prefix: it matches any branch except the
+repo's authoritative default, which every verb refuses under it. Use it
+for a branch that has no prefix, such as a human's `foo-bar` branch with
+an open PR handed to you: `gitw-branch-start <repo> / foo-bar resume`,
+then `gitw-commit <repo> / <message-file>` and `gitw-push <repo> /`. Under
+`/` the name (or push target) is the whole branch name, slashes allowed.
+Write it bare, never quoted: the permission rule matches the literal
+text. Whether `/` is granted is the repo's policy, not your choice; a
+prompt on it is the policy asking.
+
 ```bash
 gitw-commit <repo> <branch-prefix> <message-file> [<pathspec>...]
 ```
@@ -371,6 +381,12 @@ carries exact deny rows as well. `gitw-push` never takes a star: the set
 of refs a consumer may move is a deliberate enumeration, so its bare
 form is one exact row and each named target is its own exact row
 (`"Bash(gitw-push rocket-sled reconcile/ current)"`).
+
+The bare `/` prefix is granted like any other
+(`"Bash(gitw-commit rocket-sled / *)"`, `"Bash(gitw-push rocket-sled /)"`);
+a repo that wants prefix segmentation simply does not grant it. A row
+starred right after the label (`"Bash(gitw-commit rocket-sled *)"`)
+already admits it.
 
 Grant only the verbs and prefixes the consumer exercises;
 `gitw-integrate` is granted per-repo, deliberately, and only where direct
