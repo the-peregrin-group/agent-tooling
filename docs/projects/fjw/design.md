@@ -89,7 +89,9 @@ numbers to be positive integers.
   (see [ADR 0008, bare `/` means no branch
   prefix](../../adr/0008-bare-slash-means-no-branch-prefix.md)). No form
   omits the token, so a grant reaches other actors' review threads only
-  through a rule that pins `/` explicitly.
+  through a rule that pins `/` or stars the prefix position
+  (`Bash(fjw-pr-comment owner/repo *)`). Under `/` a PR whose head is the
+  default branch is admitted too: commenting moves no branch.
 
 ## Forgejo API mechanics
 

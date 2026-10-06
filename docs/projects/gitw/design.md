@@ -206,24 +206,31 @@ value of its own; it segments permissions only where a rule pins a
 particular value, so the unconstrained scope exists and the rules decide
 whether to grant it. `/` was chosen because it needs no shell quoting and
 cannot collide with a real prefix (a git ref name cannot begin with a
-slash); the empty string, an optional token, and a reserved word were
+slash, and a real prefix starts with a letter, so a rule pinning `/` never
+covers one); the empty string, an optional token, and a reserved word were
 rejected (see [ADR 0008, bare `/` means no branch
-prefix](../../adr/0008-bare-slash-means-no-branch-prefix.md)). The
-default-branch refusal is explicit because a real prefix can never match
-a slashless default like `main`, and `gitw-commit`, `gitw-integrate`,
-`gitw-branch-start resume`, and `gitw-rebase continue`/`abort` relied on
-that implicitly. Three details keep the refusal sound:
+prefix](../../adr/0008-bare-slash-means-no-branch-prefix.md)).
 
-- It ignores letter case. On a case-insensitive filesystem (macOS's
-  default) `Main` and `main` are one loose ref, so `Main` would otherwise
-  reach the default branch.
-- The current branch is read from the full `refs/heads/` ref. With a tag
-  named like the branch, `symbolic-ref --short` answers `heads/main`,
-  which no comparison would recognize.
-- Under `/`, a name whose first component is the remote's name (`origin/x`)
-  is refused, because as a short name it would shadow the remote-tracking
-  ref. So is one starting with a git ref namespace (`refs`, `heads`,
-  `remotes`, `tags`, `HEAD`).
+Two guards are properties of the branch name, not of how the prefix token
+was spelled, so they apply under every prefix:
+
+- **No Verb acts on the default branch.** `repo.require_branch_in_scope`,
+  the scope check every mutating Verb shares, refuses it (exit 4). A
+  slashless default like `main` can match only `/`, but a slashed one
+  like `release/main` can match a real prefix too. The comparison
+  ignores letter case, because on a case-insensitive filesystem (macOS's
+  default) `Main` and `main` are one loose ref. The current branch is
+  read from the full `refs/heads/` ref, because with a tag named like the
+  branch `symbolic-ref --short` answers `heads/main`, which no
+  comparison would recognize.
+- **No Verb creates or pushes to a shadowing name.** A `gitw-branch-start`
+  branch or `gitw-push` target whose first level is a git ref namespace
+  (`refs`, `heads`, `remotes`, `tags`, `HEAD`) is a usage error (exit 2):
+  that is fixed grammar, checked before the Roster is read. One whose
+  first level is the remote's name (`origin/x`) is refused (exit 4),
+  since it depends on the Roster entry; a machine-local repo has no
+  remote and nothing to shadow. Branches that already exist are not
+  re-checked.
 
 ## Wrapper invariants
 

@@ -15,9 +15,9 @@ current mechanics are in the [gitw design](../projects/gitw/design.md).
 
 **Decision:** Wherever a Branch prefix token exists (the mutating gitw
 Verbs and `fjw-pr-comment`), a bare `/` is accepted and admits any
-branch, except the repo's authoritative default branch in gitw, while
-every other value keeps the grammar lowercase, single-level, ending in
-`/`.
+branch, while every other value keeps the grammar lowercase,
+single-level, ending in `/`, and no gitw Verb acts on the repo's
+authoritative default branch whatever the prefix.
 
 **Rationale:** The Wrapper's job is to make a capability grantable at a
 pinnable scope, not to decide policy, so the unconstrained scope must
@@ -25,13 +25,17 @@ exist and be spelled as one literal that rules can grant or withhold.
 
 ## Consequences
 
-- A real prefix can never match a slashless default branch like `main`,
-  and `gitw-commit`, `gitw-integrate`, `gitw-branch-start resume`, and
-  `gitw-rebase continue`/`abort` relied on that implicitly; under `/`
-  the shared scope check refuses the default branch explicitly, in any
-  letter case, since macOS's filesystem treats `Main` as `main`.
+- `gitw-commit`, `gitw-integrate`, `gitw-branch-start resume`, and
+  `gitw-rebase continue`/`abort` kept off a slashless default like
+  `main` only because no real prefix can match it; the shared scope check
+  now refuses the default explicitly, in any letter case (macOS's
+  filesystem treats `Main` as `main`), which also closes the older gap
+  where a real prefix could match a slashed default like `release/main`.
 - `fjw-pr-comment` only comments, so under `/` it admits a PR whose head
   is the default branch.
+- Branch names that would shadow git's refs (`origin/x`, `tags/x`) are
+  refused on the composed name, so a real prefix such as `tags/` cannot
+  create what `/` cannot.
 - Under `/`, a `gitw-branch-start` name or a `gitw-push` target is the
   whole branch name, so slashes are allowed in it.
 - An existing starred grant such as `gitw-commit <label> *` now also

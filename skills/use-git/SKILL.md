@@ -214,15 +214,22 @@ harness's `worktree-*` placeholder, so there is no current-branch check.
 For commit, rebase, push, and integrate, the branch you're standing on
 must match the prefix or the verb refuses.
 
+Whatever the prefix, no verb acts on the repo's authoritative default
+branch: it is refused even when a prefix happens to match it (a default
+named `release/main` under `release/`). Nor does a verb create or push
+to a branch whose first level is the remote's name (`origin/x`) or a git
+ref namespace (`refs/`, `tags/`, ...), since as a short name it would
+shadow git's own refs.
+
 A bare `/` is the no-constraint prefix: it matches any branch except the
-repo's authoritative default, which every verb refuses under it. Use it
-for a branch that has no prefix, such as a human's `foo-bar` branch with
-an open PR handed to you: `gitw-branch-start <repo> / foo-bar resume`,
-then `gitw-commit <repo> / <message-file>` and `gitw-push <repo> /`. Under
-`/` the name (or push target) is the whole branch name, slashes allowed,
-except a first component naming the remote (`origin/`) or a ref namespace
-(`refs/`, `tags/`, ...), which would shadow git's own refs.
-Write it bare, never quoted: the permission rule matches the literal
+default. Use it for a branch that has no prefix, such as a human's
+`foo-bar` branch with an open PR handed to you:
+`gitw-branch-start <repo> / foo-bar resume`, then
+`gitw-commit <repo> / <message-file>` and `gitw-push <repo> /`. Under `/`
+the name (or push target) is the whole branch name, slashes allowed, but
+still in gitw's conservative charset (alphanumerics plus `._-/`), so a
+branch like `feature/#123` cannot be started or resumed through gitw.
+Write `/` bare, never quoted: the permission rule matches the literal
 text. Whether `/` is granted is the repo's policy, not your choice; a
 prompt on it is the policy asking.
 
