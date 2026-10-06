@@ -496,5 +496,19 @@ class GitwIntegrateHookTest(_IntegrateFixtureTest):
         )
 
 
+class GitwIntegrateBareSlashTest(_IntegrateFixtureTest):
+    def test_integrates_an_unprefixed_branch(self):
+        gitw_test_support.git(self.clone, "branch", "-m", "foo-bar")
+        payload = self.integrate("proj", "main", "/", self.message_path)
+        self.assertEqual(payload["branch"], "foo-bar")
+
+    def test_refuses_the_default_branch_as_source(self):
+        gitw_test_support.git(self.clone, "switch", "main")
+        stderr = self.integrate_expecting_exit(
+            4, "proj", "develop", "/", self.message_path
+        )
+        self.assertIn("default branch", stderr)
+
+
 if __name__ == "__main__":
     unittest.main()

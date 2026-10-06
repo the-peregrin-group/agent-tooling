@@ -227,21 +227,42 @@ class ReadPrimitivesTest(_FixtureTest):
     def test_require_prefixed_branch(self):
         gitw_test_support.git(self.clone, "switch", "-c", "fix/topic")
         self.assertEqual(
-            repo.require_prefixed_branch(self.clone, "fix/", "proj"),
+            repo.require_prefixed_branch(self.clone, "fix/", "proj", "main"),
             "fix/topic",
         )
         with self.assertRaises(repo.RefusalError):
-            repo.require_prefixed_branch(self.clone, "docs/", "proj")
+            repo.require_prefixed_branch(self.clone, "docs/", "proj", "main")
         gitw_test_support.git(self.clone, "switch", "--detach")
         with self.assertRaises(repo.RefusalError):
-            repo.require_prefixed_branch(self.clone, "fix/", "proj")
+            repo.require_prefixed_branch(self.clone, "fix/", "proj", "main")
 
     def test_prefix_alone_is_not_a_matching_branch(self):
         # A branch literally named like the prefix minus the slash must
         # not pass; nor would an empty tail.
         gitw_test_support.git(self.clone, "switch", "-c", "fixation")
         with self.assertRaises(repo.RefusalError):
-            repo.require_prefixed_branch(self.clone, "fix/", "proj")
+            repo.require_prefixed_branch(self.clone, "fix/", "proj", "main")
+
+    def test_bare_slash_admits_any_branch_but_the_default(self):
+        gitw_test_support.git(self.clone, "switch", "-c", "foo-bar")
+        self.assertEqual(
+            repo.require_prefixed_branch(self.clone, "/", "proj", "main"),
+            "foo-bar",
+        )
+        gitw_test_support.git(self.clone, "switch", "main")
+        with self.assertRaisesRegex(repo.RefusalError, "default branch"):
+            repo.require_prefixed_branch(self.clone, "/", "proj", "main")
+
+    def test_a_real_prefix_ignores_the_default_branch_argument(self):
+        # The default-branch refusal belongs to the bare slash alone; a
+        # real prefix keeps exactly its old meaning.
+        gitw_test_support.git(self.clone, "switch", "-c", "release/x")
+        self.assertEqual(
+            repo.require_prefixed_branch(
+                self.clone, "release/", "proj", "release/x"
+            ),
+            "release/x",
+        )
 
     def test_no_rebase_in_progress_reports_none(self):
         self.assertIsNone(repo.rebase_head_branch(self.clone))

@@ -5,7 +5,8 @@ The cwd-anchored working-tree verb: the wrapper resolves the target
 working tree from cwd, verifies it belongs to the roster-registered
 checkout for <repo> (~/.config/gitw/repos.toml) and that its branch
 matches the pinned prefix, then owns staging outright -- raw `git add` is
-dead and the index stops being agent-visible state.
+dead and the index stops being agent-visible state. A bare '/' prefix
+matches any branch except the authoritative default.
 
 No pathspec: stage-and-commit the entire working tree (`add -A`
 semantics), leaving the tree clean by construction -- the mechanical
@@ -81,7 +82,8 @@ def main(argv: list[str]) -> int:
     if not arguments.is_valid_branch_prefix(prefix):
         plan.usage_die(
             f"branch prefix must be lowercase, single-level, and end in "
-            f"'/' (e.g. 'fix/'), got {prefix!r}",
+            f"'/' (e.g. 'fix/'), or be a bare '/' for no branch "
+            f"constraint, got {prefix!r}",
             _USAGE,
         )
     for pathspec in pathspecs:
@@ -108,7 +110,9 @@ def main(argv: list[str]) -> int:
                 "from an operable_from path"
             )
         repo.verify_remote(workspace)
-        branch = repo.require_prefixed_branch(workspace.root, prefix, label)
+        branch = repo.require_prefixed_branch(
+            workspace.root, prefix, label, entry.default_branch
+        )
         payload = _commit(
             workspace, branch, message, pathspecs,
             derive_actor(os.environ),

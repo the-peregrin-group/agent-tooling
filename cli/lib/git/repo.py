@@ -19,7 +19,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from lib import plan
-from lib.git import run
+from lib.git import arguments, run
 from lib.git.roster import Entry
 
 
@@ -229,10 +229,8 @@ def status_counts(root: Path) -> dict:
     return {"staged": staged, "unstaged": unstaged, "untracked": untracked}
 
 
-def branch_matches_prefix(branch: str, prefix: str) -> bool:
-    """True when `branch` is `prefix` plus a non-empty tail -- the bare
-    prefix (or the prefix minus its slash) is not a match."""
-    return branch.startswith(prefix) and len(branch) > len(prefix)
+# Shared with fjw; see lib.arguments for the bare-slash semantics.
+branch_matches_prefix = arguments.branch_matches_prefix
 
 
 def describe_dirty(counts: dict) -> str:
@@ -243,7 +241,9 @@ def describe_dirty(counts: dict) -> str:
     )
 
 
-def require_prefixed_branch(root: Path, prefix: str, label: str) -> str:
+def require_prefixed_branch(
+    root: Path, prefix: str, label: str, default_branch: str
+) -> str:
     """The branch-prefix scope check shared by every mutating verb: the
     worktree's current branch must be <prefix> plus a non-empty tail.
     Returns the branch name; RefusalError on detached HEAD or mismatch."""
@@ -253,13 +253,29 @@ def require_prefixed_branch(root: Path, prefix: str, label: str) -> str:
             f"worktree {root} has a detached HEAD; the branch-prefix scope "
             "requires a checked-out branch (gitw-branch-start creates one)"
         )
+    require_branch_in_scope(branch, prefix, label, default_branch)
+    return branch
+
+
+def require_branch_in_scope(
+    branch: str, prefix: str, label: str, default_branch: str
+) -> None:
+    """RefusalError unless `branch` matches `prefix`. Under the bare-slash
+    prefix the default branch is refused too: a real prefix can never
+    match a slashless default like 'main', and that implicit guard must
+    not vanish when the prefix constraint does."""
     if not branch_matches_prefix(branch, prefix):
         raise RefusalError(
             f"current branch {branch!r} does not match the pinned prefix "
             f"{prefix!r} for {label!r} -- the prefix is the allowlist "
             "scope; switch branches or fix the invocation"
         )
-    return branch
+    if prefix == arguments.NO_BRANCH_PREFIX and branch == default_branch:
+        raise RefusalError(
+            f"branch {branch!r} is the authoritative default branch of "
+            f"{label!r}; the bare-slash prefix {prefix!r} admits any branch "
+            "except the default"
+        )
 
 
 def rebase_head_branch(root: Path) -> str | None:

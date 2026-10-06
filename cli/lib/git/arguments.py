@@ -10,16 +10,13 @@ from __future__ import annotations
 
 import re
 
+from lib import arguments as shared
+
 # Repo labels are the short stable literals allowlist rules pin
 # (`Bash(gitw-commit <label> <prefix> *)`). Single token, lowercase, no
 # slash: the slash is the branch-prefix terminator, and keeping it out of
 # labels keeps the two token kinds visually unmistakable in a rule.
 _LABEL_PATTERN = re.compile(r"^[a-z0-9][a-z0-9._-]*$")
-
-# Branch prefixes: lowercase, single-level,
-# always ending in '/'. The trailing slash is the token boundary in
-# space-star rules, preventing the fix/fix-2 prefix-leak class.
-_PREFIX_PATTERN = re.compile(r"^[a-z][a-z0-9-]*/$")
 
 # Branch names (the part after the prefix): a conservative slice of what
 # git permits. No slash -- single-level is the prefix grammar's job, and a
@@ -37,10 +34,11 @@ def is_valid_label(label: str) -> bool:
     return bool(_LABEL_PATTERN.match(label))
 
 
-def is_valid_branch_prefix(prefix: str) -> bool:
-    """True for a grammar-conforming branch prefix: lowercase, single
-    level, trailing '/' included (e.g. 'fix/')."""
-    return bool(_PREFIX_PATTERN.match(prefix))
+# The branch-prefix grammar lives in lib.arguments, shared with fjw.
+NO_BRANCH_PREFIX = shared.NO_BRANCH_PREFIX
+is_valid_branch_prefix = shared.is_valid_branch_prefix
+branch_matches_prefix = shared.branch_matches_prefix
+prefixed_branch = shared.prefixed_branch
 
 
 def is_valid_branch_name(name: str) -> bool:
@@ -53,6 +51,15 @@ def is_valid_branch_name(name: str) -> bool:
         return False
     return (".." not in name and not name.endswith(".")
             and not name.endswith(".lock"))
+
+
+def is_valid_name_for_prefix(prefix: str, name: str) -> bool:
+    """True for a name tail valid under `prefix`: single-level under a
+    real prefix, but a full branch name, slashes allowed, under
+    NO_BRANCH_PREFIX, since there the name is the whole branch."""
+    if prefix == NO_BRANCH_PREFIX:
+        return is_valid_branch(name)
+    return is_valid_branch_name(name)
 
 
 def is_valid_branch(branch: str) -> bool:

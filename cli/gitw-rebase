@@ -16,6 +16,7 @@ is staged, as is a resolution set touching a local-only file
 (settings.local.json, .env*). `abort`: restore the pre-rebase branch. Both modes require an
 in-progress rebase and verify its branch (from the rebase state's
 head-name -- HEAD is detached mid-rebase) against the pinned prefix.
+A bare '/' prefix matches any branch except the authoritative default.
 There is deliberately no `skip`: silently dropping a commit is a
 human-decision moment.
 
@@ -68,7 +69,8 @@ def main(argv: list[str]) -> int:
     if not arguments.is_valid_branch_prefix(prefix):
         plan.usage_die(
             f"branch prefix must be lowercase, single-level, and end in "
-            f"'/' (e.g. 'fix/'), got {prefix!r}",
+            f"'/' (e.g. 'fix/'), or be a bare '/' for no branch "
+            f"constraint, got {prefix!r}",
             _USAGE,
         )
     entry = roster.resolve_or_die(label, _USAGE)
@@ -127,7 +129,9 @@ def _rebase(workspace: repo.Workspace, prefix: str) -> dict:
             "a rebase is already in progress in this worktree; finish it "
             "with 'continue' or 'abort'"
         )
-    branch = repo.require_prefixed_branch(root, prefix, entry.label)
+    branch = repo.require_prefixed_branch(
+        root, prefix, entry.label, entry.default_branch
+    )
     if branch == entry.default_branch:
         raise repo.RefusalError(
             f"refusing to rebase the authoritative default branch "
@@ -176,7 +180,9 @@ def _rebase(workspace: repo.Workspace, prefix: str) -> dict:
     }
 
 
-def _in_progress_branch(root: Path, prefix: str, label: str) -> str:
+def _in_progress_branch(
+    root: Path, prefix: str, label: str, default_branch: str
+) -> str:
     branch = repo.rebase_head_branch(root)
     if branch is None:
         raise repo.RefusalError(
@@ -188,6 +194,7 @@ def _in_progress_branch(root: Path, prefix: str, label: str) -> str:
             f"the in-progress rebase is rewriting {branch!r}, which does "
             f"not match the pinned prefix {prefix!r} for {label!r}"
         )
+    repo.require_branch_in_scope(branch, prefix, label, default_branch)
     return branch
 
 
@@ -211,7 +218,9 @@ def _has_marker_triple(root: Path, path: str) -> bool:
 def _continue(workspace: repo.Workspace, prefix: str) -> dict:
     entry = workspace.entry
     root = workspace.root
-    branch = _in_progress_branch(root, prefix, entry.label)
+    branch = _in_progress_branch(
+        root, prefix, entry.label, entry.default_branch
+    )
 
     conflicts = repo.conflicted_paths(root)
     unresolved = [
@@ -264,7 +273,9 @@ def _continue(workspace: repo.Workspace, prefix: str) -> dict:
 def _abort(workspace: repo.Workspace, prefix: str) -> dict:
     entry = workspace.entry
     root = workspace.root
-    branch = _in_progress_branch(root, prefix, entry.label)
+    branch = _in_progress_branch(
+        root, prefix, entry.label, entry.default_branch
+    )
     result = run.run(["rebase", "--abort"], root)
     if result.returncode != 0:
         detail = result.stderr.strip() or result.stdout.strip() or "no output"

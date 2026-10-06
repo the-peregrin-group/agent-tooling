@@ -346,5 +346,29 @@ class GitwRebaseAbortTest(_RebaseFixtureTest):
         self.assertEqual(repo.rebase_head_branch(self.clone), "fix/topic")
 
 
+class GitwRebaseBareSlashTest(_RebaseFixtureTest):
+    def test_rebases_an_unprefixed_branch(self):
+        gitw_test_support.git(self.clone, "branch", "-m", "foo-bar")
+        gitw_test_support.commit_on(self.clone, "work.txt", "w\n", "work")
+        gitw_test_support.advance_remote(self.seed)
+        payload = self.rebase("proj", "/")
+        self.assertEqual(payload["commits_atop"], 1)
+
+    def test_refuses_the_default_branch(self):
+        gitw_test_support.git(self.clone, "switch", "main")
+        payload, code = self.rebase_raw("proj", "/")
+        self.assertEqual(code, 4)
+        self.assertIn("default branch", self.last_stderr)
+
+    def test_conflict_hint_repeats_the_bare_slash(self):
+        gitw_test_support.git(self.clone, "branch", "-m", "foo-bar")
+        self.make_conflict()
+        payload, code = self.rebase_raw("proj", "/")
+        self.assertEqual(code, 4)
+        self.assertIn("gitw-rebase proj / continue", payload["hint"])
+        payload = self.rebase("proj", "/", "abort")
+        self.assertEqual(payload["branch"], "foo-bar")
+
+
 if __name__ == "__main__":
     unittest.main()

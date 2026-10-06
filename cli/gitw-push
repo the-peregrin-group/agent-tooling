@@ -34,7 +34,9 @@ for <repo> (~/.config/gitw/repos.toml), requires the current branch to
 match the pinned prefix, pushes only to the authoritative remote (no free
 refspecs), and sets the upstream. Structural guard: any push targeting
 the roster's authoritative default branch is refused regardless of
-prefix. Machine-local repos have nothing to push to and refuse.
+prefix. A bare '/' prefix matches any branch except the authoritative
+default; under it, the named target is `<name>` itself, slashes
+allowed. Machine-local repos have nothing to push to and refuse.
 
 Output: git's own push output (stdout, then stderr, verbatim) is relayed
 to stderr on success and failure alike, so whatever a pre-push hook
@@ -105,19 +107,21 @@ def main(argv: list[str]) -> int:
     if not arguments.is_valid_branch_prefix(prefix):
         plan.usage_die(
             f"branch prefix must be lowercase, single-level, and end in "
-            f"'/' (e.g. 'fix/'), got {prefix!r}",
+            f"'/' (e.g. 'fix/'), or be a bare '/' for no branch "
+            f"constraint, got {prefix!r}",
             _USAGE,
         )
     target = None
     if len(argv) == 3:
         name = argv[2]
-        if not arguments.is_valid_branch_name(name):
+        if not arguments.is_valid_name_for_prefix(prefix, name):
             plan.usage_die(
                 f"target name must be alphanumerics plus ._- (no leading "
-                f"punctuation, no '..', no '.lock' suffix), got {name!r}",
+                f"punctuation, no '..', no '.lock' suffix; slashes only "
+                f"under the bare '/' prefix), got {name!r}",
                 _USAGE,
             )
-        target = prefix + name
+        target = arguments.prefixed_branch(prefix, name)
     entry = roster.resolve_or_die(label, _USAGE)
 
     try:
@@ -135,7 +139,9 @@ def main(argv: list[str]) -> int:
                 "push to"
             )
         root = workspace.root
-        branch = repo.require_prefixed_branch(root, prefix, label)
+        branch = repo.require_prefixed_branch(
+            root, prefix, label, entry.default_branch
+        )
         for candidate in (branch, target):
             if candidate == entry.default_branch:
                 raise repo.RefusalError(

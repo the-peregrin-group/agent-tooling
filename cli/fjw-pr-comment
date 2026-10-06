@@ -5,9 +5,11 @@ The head-prefix is a positional scope token: an allowlist rule pins it (e.g.
 `Bash(fjw-pr-comment owner/repo reconcile/ *)`), and the wrapper
 trust-but-verifies the claim -- it fetches the PR and refuses (exit 4) when
 the actual head branch does not start with the claimed prefix. Policy lives
-in the allowlist layer; this wrapper stays consumer-generic. Standalone
-comments on arbitrary PRs are deliberately inexpressible: there is no
-prefix-free form. Acts as the deployment's machine account.
+in the allowlist layer; this wrapper stays consumer-generic. The prefix
+follows gitw's grammar (lowercase, single-level, ending in '/'). A bare '/'
+admits any head branch, so a comment on an arbitrary PR takes a rule that
+pins '/' explicitly; there is no form that omits the token. Acts as the
+deployment's machine account.
 
 Exit codes: 0 success, 1 unclassified API failure, 2 usage error, 3 no such
 PR (or no such repository), 4 refused (head branch does not match the
@@ -38,8 +40,13 @@ def main(argv: list[str]) -> int:
     repository, head_prefix, raw_index, body_path = argv
     if not pulls.is_valid_repository(repository):
         plan.usage_die(f"repo must be 'owner/name', got {repository!r}", _USAGE)
-    if not head_prefix.strip():
-        plan.usage_die("head-prefix must not be empty", _USAGE)
+    if not arguments.is_valid_branch_prefix(head_prefix):
+        plan.usage_die(
+            "head-prefix must be lowercase, single-level, and end in '/' "
+            f"(e.g. 'fix/'), or be a bare '/' for any head branch, got "
+            f"{head_prefix!r}",
+            _USAGE,
+        )
     index = arguments.parse_issue_number(raw_index)
     if index is None:
         plan.usage_die(f"pr# must be a positive integer, got {raw_index!r}", _USAGE)
@@ -55,7 +62,7 @@ def main(argv: list[str]) -> int:
     except api.ApiError as error:
         api.die(str(error), error.exit_code)
     actual_head = (pr.get("head") or {}).get("ref") or ""
-    if not actual_head.startswith(head_prefix):
+    if not arguments.branch_matches_prefix(actual_head, head_prefix):
         api.die(
             f"PR #{index} has head branch {actual_head!r}, which does not "
             f"match the claimed prefix {head_prefix!r}",

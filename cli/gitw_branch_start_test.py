@@ -57,7 +57,7 @@ class GitwBranchStartArgumentsTest(unittest.TestCase):
         self.assertIn("label", result.stderr)
 
     def test_invalid_prefix_is_usage_error(self):
-        for prefix in ("fix", "Fix/", "a/b/", "/", "-x/", "fix_a/"):
+        for prefix in ("fix", "Fix/", "a/b/", "//", "-x/", "fix_a/"):
             with self.subTest(prefix=prefix):
                 result = _run("proj", prefix, "x")
                 self.assertEqual(result.returncode, 2)
@@ -302,6 +302,34 @@ class GitwBranchStartResumeTest(_BranchStartFixtureTest):
         gitw_test_support.git(self.clone, "branch", "fix/topic")
         (self.clone / "README.md").write_text("modified\n")
         self.start_expecting_exit(4, "proj", "fix/", "topic", "resume")
+
+
+class GitwBranchStartBareSlashTest(_BranchStartFixtureTest):
+    """A bare '/' prefix: the name is the whole branch, and only the
+    authoritative default branch is out of scope."""
+
+    def test_resume_unprefixed_remote_branch(self):
+        # The handoff case: a human's branch with an open PR, no prefix.
+        self.push_remote_branch("foo-bar")
+        payload = self.start("proj", "/", "foo-bar", "resume")
+        self.assertEqual(payload["branch"], "foo-bar")
+        self.assertEqual(payload["upstream"], "origin/foo-bar")
+
+    def test_resume_branch_under_another_prefix(self):
+        self.push_remote_branch("someone/topic")
+        payload = self.start("proj", "/", "someone/topic", "resume")
+        self.assertEqual(payload["branch"], "someone/topic")
+
+    def test_create_takes_the_name_as_the_full_branch(self):
+        payload = self.start("proj", "/", "foo-bar")
+        self.assertEqual(payload["branch"], "foo-bar")
+
+    def test_default_branch_is_refused(self):
+        for arguments in (("proj", "/", "main", "resume"),
+                          ("proj", "/", "main")):
+            with self.subTest(arguments=arguments):
+                stderr = self.start_expecting_exit(4, *arguments)
+                self.assertIn("default branch", stderr)
 
 
 if __name__ == "__main__":

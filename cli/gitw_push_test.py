@@ -487,5 +487,26 @@ class GitwPushNamedTargetTest(_PushFixtureTest):
         self.assertIn("does not match the pinned prefix", stderr)
 
 
+class GitwPushBareSlashTest(_PushFixtureTest):
+    def test_pushes_an_unprefixed_branch(self):
+        gitw_test_support.git(self.clone, "branch", "-m", "foo-bar")
+        payload = self.push("proj", "/")
+        self.assertEqual(payload["branch"], "foo-bar")
+        self.assertEqual(self.remote_tip("foo-bar"), payload["commit"])
+
+    def test_named_target_is_the_name_itself(self):
+        payload = self.push("proj", "/", "review/current")
+        self.assertEqual(
+            self.remote_tip("review/current"), payload["commit"]
+        )
+
+    def test_refuses_the_default_branch_as_source_or_target(self):
+        stderr = self.push_expecting_exit(4, "proj", "/", "main")
+        self.assertIn("default branch", stderr)
+        gitw_test_support.git(self.clone, "switch", "main")
+        stderr = self.push_expecting_exit(4, "proj", "/")
+        self.assertIn("default branch", stderr)
+
+
 if __name__ == "__main__":
     unittest.main()
