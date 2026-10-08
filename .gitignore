@@ -12,3 +12,6 @@ __pycache__/
 
 # The harness creates agent worktrees inside the checkout when an agent enters one
 /.claude/worktrees/
+
+# Subagents with project-scoped memory (code-reviewer) write their notes here
+/.claude/agent-memory/
