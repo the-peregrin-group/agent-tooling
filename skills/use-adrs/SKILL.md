@@ -25,7 +25,7 @@ at the time it was made. This skill covers when to read and write them.
 ADRs live in `meta_docs/adr/` when the project has a `meta_docs/` directory
 (docs about the project, kept apart from user-facing `docs/`), otherwise in
 `docs/adr/`. Create the directory if it is missing. If ADRs already exist
-somewhere else, ask before creating a second home; do not adapt to their
+somewhere else, ask before creating a second home; do not adopt their
 format.
 
 ADRs are numbered from `0001`, zero-padded to four digits; a new ADR takes
