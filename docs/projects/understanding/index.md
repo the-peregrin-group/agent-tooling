@@ -6,7 +6,7 @@ of Inquiry, toward an opinion on a problem they can defend, and records it in
 an artifact the user chooses. `use-lexicon` keeps a project's `LEXICON.md`,
 the canonical names of its concepts, and holds all work to those names.
 `use-adrs` decides which decisions deserve an ADR and how one is written,
-read, and superseded. They share one contract: home-in captures terms only through use-lexicon and decisions only
+read, amended, and superseded. They share one contract: home-in captures terms only through use-lexicon and decisions only
 through use-adrs, at each Line of Inquiry Exit. They are split so that each
 can be invoked alone.
 
@@ -41,14 +41,12 @@ an ADR duplicates the context of the document that motivated it
 | Every invariant listed in an entry's Invariants field, even when the definition already implies it | planned | `agent-tooling-i3n` |
 | ADR placement, numbering, and file naming | shipped | `skills/use-adrs/SKILL.md` |
 | The three-part gate on what deserves an ADR, and a draft ADR for the reviewer when unattended | shipped | `skills/use-adrs/SKILL.md` |
-| Reading ADRs before design work, and superseding rather than silently contradicting one | shipped | `skills/use-adrs/SKILL.md` |
-| The ADR template, hard length limits, self-contained snapshot, supersession, and citation by inline summary and link | shipped | `skills/use-adrs/writing-adrs.md` |
+| Reading ADRs before design work, bound by the one decision each records, and amending or superseding rather than silently contradicting one | shipped | `skills/use-adrs/SKILL.md` |
+| The ADR template, one decision per ADR, hard length limits, self-contained snapshot, and citation by inline summary and link | shipped | `skills/use-adrs/writing-adrs.md` |
+| Edits to a landed ADR: the decision and its date never change; capture fixes ratified by the user, objective fixes without; truing up older ADRs; `current`, `amended`, and `superseded` status; observations kept out; adopted ADRs dated by their original decision | shipped | `skills/use-adrs/writing-adrs.md` |
 | Loading the use-privacy Skill, when listed, before writing anything bound outward, in home-in and use-adrs | shipped | `skills/home-in/SKILL.md`, `skills/use-adrs/SKILL.md` |
 | Loading the use-privacy Skill, when listed, before writing anything bound outward, in use-lexicon | planned | `agent-tooling-i3n` |
 
 ### Known gaps
 
-- use-adrs forbids editing a landed ADR beyond typo fixes and supersession,
-  but is silent on partial supersession of a pre-template ADR that has no `status:` field, link
-  repoints after a file move, retired vocabulary, post-decision
-  observations, and adopted ADRs (`agent-tooling-eeu`).
+None.
