@@ -4,13 +4,14 @@ description: >
   Read and write Architecture Decision Records (ADRs): where a project keeps
   them, numbering and file naming, the three-part gate for what deserves one
   (several real options, costly to reverse, surprising without context), the
-  Context/Decision/Rationale format, and the optional Consequences and
-  Alternatives Considered sections. Load before creating or editing anything
-  under an ADR directory, when a design or project decision is being made or
-  revisited, when a proposed change contradicts a recorded decision, and when
-  the user asks why something was decided. Triggers: "write an ADR", "record
-  this decision", "should this be an ADR", "why did we decide", "supersede
-  ADR", "amend ADR", "true up this ADR", "what did we decide about". Applies to non-code repos too (knowledge
+  Context/Decision/Rationale format, the optional Consequences and required
+  Alternatives Considered sections, and which edits a landed ADR takes. Load
+  before creating or editing anything under an ADR directory, when a design
+  or project decision is being made or revisited, when a proposed change
+  contradicts a recorded decision, and when the user asks why something was
+  decided. Triggers: "write an ADR", "record this decision", "should this be
+  an ADR", "why did we decide", "supersede ADR", "amend ADR", "true up this
+  ADR", "what did we decide about". Applies to non-code repos too (knowledge
   vaults, business and project decisions). EXCLUDE: general documentation,
   design docs, and plans (state docs, see refine-state-doc), vocabulary
   (use-lexicon), and issue tracking.
@@ -27,9 +28,9 @@ ADRs live in `meta_docs/adr/` when the project has a `meta_docs/` directory
 somewhere else, ask before creating a second home; do not adapt to their
 format.
 
-ADRs are numbered in the order they were written, from `0001`, zero-padded
-to four digits. A new ADR takes the highest existing number plus one; gaps
-are never backfilled and ADRs are never renumbered. Filenames are
+ADRs are numbered from `0001`, zero-padded to four digits; a new ADR takes
+the highest existing number plus one. Gaps are never backfilled and ADRs are
+never renumbered. Filenames are
 `XXXX-kebab-case-slug.md`.
 
 ## Why and when

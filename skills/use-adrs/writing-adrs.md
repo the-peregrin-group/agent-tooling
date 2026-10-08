@@ -1,9 +1,8 @@
 # How to write an ADR
 
 This guide is canon for every ADR written from now on and for every true-up
-of an existing one. An ADR written to an earlier standard is still read by
-the one decision it records, not judged by its format; `SKILL.md` ("Reading
-ADRs") has that rule.
+of an existing one. Older ADRs are read by the one decision they record, not
+judged by format (`SKILL.md`, "Reading ADRs").
 
 ## Template
 
@@ -49,11 +48,9 @@ Context).
 ## One decision
 
 An ADR records one narrow decision. Most ADRs that later need amending
-recorded several decisions at once, or recorded implementation as though it
-were the decision: the wider the scope, the longer the ADR, and the more of
-it turns out to be speculation about an implementation nobody had built yet.
-Before writing, agree with the user on the one decision being recorded, in
-one sentence.
+bundled several decisions, or recorded implementation as the decision; the
+wider the scope, the more of it turns out to be speculation. Before writing,
+agree with the user, in one sentence, on the one decision being recorded.
 
 Then test each clause of the draft Decision, and each option in Alternatives
 Considered, against the gate in `SKILL.md` as though it stood alone:
@@ -70,15 +67,13 @@ push, never cron versus systemd.
 
 ## A self-contained snapshot
 
-An ADR is the minute of a meeting: it records a decision, with its context,
-rationale, and alternatives, as they stood at the moment the decision was
-made. It carries all of that itself even when a design doc holds the full
-analysis, and it duplicates that doc on purpose. The design doc is a state
-doc and may be rewritten tomorrow; the ADR is the snapshot that must
-survive the rewrite. Never write "see the design doc" where the context or
-rationale should be. When a design doc exists, Context links it, and the
-design doc in turn summarizes and links the ADR; the overlap between them
-is the design working, not a defect to deduplicate.
+An ADR is the minute of a meeting: it carries its own context, rationale,
+and alternatives as they stood when the decision was made, even when a
+design doc holds the full analysis. The design doc is a state doc and may be
+rewritten; the ADR must survive the rewrite. Never write "see the design
+doc" in place of context or rationale. When a design doc exists, Context
+links it and the design doc summarizes and links the ADR; that overlap is
+intended, not a defect to deduplicate.
 
 ## Length
 
@@ -89,60 +84,53 @@ here. Alternatives Considered is the one section that flexes, and it is
 never omitted: the gate requires that real alternatives existed, and the
 snapshot must show what was on the table.
 
-- **A state doc holds the analysis.** Context links it. Each alternative
-  gets one sentence of description and one of rejection rationale.
-- **The ADR stands alone.** Description stays at one sentence. Rejection
-  rationale runs as long as it takes to stop a future reader from reopening
-  the option, and no longer: cut any sentence whose absence would not tempt
-  a relitigation.
-
-An ADR grows only through this section, never through longer sentences
-elsewhere.
+Description is always one sentence. Rejection rationale is one sentence when
+a state doc holds the analysis; otherwise it runs only as long as it takes to
+stop a reader reopening the option: cut any sentence whose absence would not
+tempt a relitigation. An ADR grows only through this section, never through
+longer sentences elsewhere.
 
 ## After an ADR lands
 
-An ADR records one decision as it stood at the moment it was made: the
-ruling, the reasons that held then, and that moment. Those are the
-decision's identity. Changing any of them, the date included, rewrites
-history rather than correcting the record. Two other things may change: how
-well the decision was written down, and where it stands now.
+An ADR records one decision as it stood when it was made: the ruling, the
+reasons that held then, and that moment, its date. Those are the decision's
+identity; changing any of them rewrites history rather than correcting the
+record. Only two things may change: how well the decision was written down
+(fixes, below) and where it stands now (status).
 
-### Capture fixes
+### Capture fixes and objective fixes
 
 A capture fix corrects how a decision was written down without changing what
 was decided: a guideline the ADR breaks, implementation detail stated as
 decision, a design doc written inline where a link belonged, two decisions
-recorded as one. The user ratifies every capture fix, so one is made only in
-an attended session.
+recorded as one. The user ratifies every capture fix except the objective
+ones below, so one is made only in an attended session.
 
-If a fix brings in information that was not known when the decision was
-made, you are almost certainly changing the substance: stop, and treat it as
-a new decision. The exception is information showing that the record
-misstates the decision, such as the user saying its author misunderstood the
-ruling.
+If a fix brings in information unknown when the decision was made, it almost
+certainly changes the substance: stop, and treat it as a new decision. The
+exception is information showing the record misstates the decision, such as
+the user saying its author misunderstood the ruling.
 
 An objective fix, which makes a broken thing not broken with no judgment
 involved, needs no ratification and may be made in any session:
 
 - A typo.
-- A link repointed to the same document's new path after a move. When the
-  document was merged into another, choosing its successor is a judgment
-  and goes to the user; when it was deleted with no successor, the link
-  stays as it is.
+- A link repointed to a moved document's new path. If the document was
+  merged into another, choosing its successor is a judgment for the user;
+  if it was deleted with no successor, the link stays.
 - A note on a renamed term, where the lexicon records a one-to-one rename
   with no change in meaning: "the command policy (now called Permission
   rules)". The original word stays. A term that was merged, split, or
-  redefined gets no note. An ADR that keeps a retired term is not drift: the
-  term was correct when the decision was made.
+  redefined gets no note. A retired term in an ADR is not drift: it was
+  correct when the decision was made.
 
 ### Truing up an existing ADR
 
-Bringing an existing ADR, typically one written before this guide, up to the
-template is a set of capture fixes, and it is never required. Do it when the
-user asks. Attended, when you notice an ADR that breaks this guide, offer to;
-unattended, edit nothing and mention it in your final report. Before any
-true-up, name the one decision you take the ADR to record and get the user's
-agreement; everything else follows from it.
+Bringing an existing ADR up to the template is a set of capture fixes, never
+required; do it when the user asks. Attended, offer it when you notice an ADR
+that breaks this guide; unattended, edit nothing and mention it in your final
+report. Before any true-up, name the one decision you take the ADR to record
+and get the user's agreement.
 
 ### Status, amendment, and supersession
 
@@ -171,30 +159,24 @@ deprecated state.
 
 ### Observations after the decision
 
-What is learned after the decision, about how it played out, never goes into
-the ADR, Consequences included. Consequences records what the deciders
-foresaw and accepted; a later addition there claims they weighed something
-they never saw. The test is provenance: was this known when the decision was
-made? A known effect the author left out is a capture fix. An unforeseen one
-is an observation, and it goes in the project's Known gaps with its Issue
-when it is a defect in what shipped, or in an Issue otherwise. If acting on
-it would change the ruling, that is a new ADR that amends this one.
+What is learned after the decision never goes into the ADR, Consequences
+included: Consequences records what the deciders foresaw and accepted, and a
+later addition there claims they weighed something they never saw. The test
+is provenance: was this known when the decision was made? A known effect the
+author left out is a capture fix. An unforeseen one is an observation, and it
+goes in the project's state docs or issue tracker. If acting on it would
+change the ruling, that is a new ADR that amends this one.
 
 ## Adopted ADRs
 
 An ADR adopted from another project's decision record carries the date the
-decision was made there, not the date it was adopted here: adopting records
-a decision without making one, and the date is part of the decision's
-identity. A later ruling on the same question is a separate decision with
-its own date, so it is a separate ADR, amending the first if it changed it,
-even when both are adopted at once.
+decision was made there, not the adoption date: adopting makes no decision.
+A later ruling on the same question is a separate ADR with its own date,
+amending the first if it changed it, even when both are adopted at once.
 
 ## Citing an ADR
 
-A bare number is a lookup the reader has to perform. Cite an ADR with an
-inline summary and a link to its file, so the reader recovers the decision
-from the sentence: "because we already decided on OAuth2 for the authz
-layer (see [ADR-XXXX](XXXX-oauth2-for-authz.md))". The summary is a few
-words, enough to retrieve the decision from memory; the link carries the
-rest. This holds in prose, in other ADRs, in commit messages, and in PR
-bodies.
+A bare number forces a lookup. Cite an ADR with a few-word inline summary
+and a link to its file: "because we already decided on OAuth2 for the authz
+layer (see [ADR-XXXX](XXXX-oauth2-for-authz.md))". This holds in prose,
+other ADRs, commit messages, and PR bodies.
