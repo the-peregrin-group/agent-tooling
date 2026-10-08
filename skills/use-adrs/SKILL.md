@@ -10,7 +10,7 @@ description: >
   revisited, when a proposed change contradicts a recorded decision, and when
   the user asks why something was decided. Triggers: "write an ADR", "record
   this decision", "should this be an ADR", "why did we decide", "supersede
-  ADR", "what did we decide about". Applies to non-code repos too (knowledge
+  ADR", "amend ADR", "true up this ADR", "what did we decide about". Applies to non-code repos too (knowledge
   vaults, business and project decisions). EXCLUDE: general documentation,
   design docs, and plans (state docs, see refine-state-doc), vocabulary
   (use-lexicon), and issue tracking.
@@ -53,12 +53,27 @@ ratification.
 
 Skim the ADR titles before design work in an area they may cover, and read
 the ones that apply. Before proposing anything that contradicts a recorded
-decision, cite the ADR and propose a superseding one rather than diverging
-silently. When asked why the project does something, look here first.
+decision, cite the ADR and propose a new one that amends or supersedes it
+rather than diverging silently. When asked why the project does something,
+look here first.
+
+Check `status:` first: a `superseded` ADR binds nothing, and an `amended`
+one binds only what its `## Amended by` lines leave standing. An ADR with no
+`status:` is current.
+
+What binds is the one decision an ADR records: the part that would pass the
+gate above on its own. ADRs written to an earlier standard often carry
+implementation detail, sometimes so prominently that it reads as the
+decision; replacing that detail does not contradict the ADR and needs no new
+one. Before you treat any part of an ADR as non-binding, name the decision
+you take it to record, so the user can correct you. Then, attended, offer to
+true the ADR up (`writing-adrs.md`); unattended, mention it in your final
+report.
 
 ## ADRs are not _the_ documentation
 
-An ADR is a stream doc: one decision, one point in time, never rewritten.
+An ADR is a stream doc: one decision at one point in time, and that decision
+is never rewritten; `writing-adrs.md` says which edits it does take.
 Everything else, including what the decision produced and how it works today,
 belongs in the project's state docs.
 
