@@ -166,6 +166,8 @@ it has any children, open or closed, or if it is of a kind designated to hold
 children (e.g., an epic), even before it has any. The work of a Branch Issue
 is management: scoping, setting success criteria, breaking down into child
 Issues, and verifying completion.
+- _Invariants_: ready work exactly when it has no open children; never closed
+  without a pass verifying completion
 - _Avoid_: branch (alone), parent, container
 
 **Leaf Issue**: An Issue that is not a Branch Issue: a unit of work meant to
