@@ -154,6 +154,50 @@ phase-subtree templates is open.
 - **No reach outside the project.** An agent acts only on its own project's
   Issues unless expressly given permission to act on another's.
 
+## One Skill, many repos
+
+use-bd installs machine-wide and serves every repo that uses Beads, so it
+holds only what is the same everywhere. What differs per repo splits along
+one line: policy (what agents may do) versus conventions (how this project
+does things).
+
+- **Policy** stays in each repo's reviewed Permission rules, never in a file
+  an agent could edit to loosen its own limits. A canonical Beads rule set
+  ships with the Skill as data; a test checks that every command the Skill
+  teaches is allowed by it, and each repo's rules spec checks that the
+  repo's settings contain it. When the repo capability system is extracted
+  from the brain (`agent-tooling-137.1`), Beads policy moves into it and
+  the canonical rule set becomes its input.
+- **Conventions** live in two committed files, each fact in exactly one:
+  `.beads/PRIME.md`, prose that `bd prime` prints at session start (it
+  replaces bd's default text with a pointer to use-bd and states the
+  project's conventions in words), and `.beads/bdw.json` (or
+  `bdw-config.json` at the repo root, if bd does not tolerate the extra
+  file), the structured facts `bdw` reads: the label scheme, extra document
+  link keys, the docs inbox path. Neither may grant or limit anything an
+  agent may do.
+- **Labels** follow the scheme the repo declares; `bdw create` refuses
+  unknown labels or a missing required category. Beads' own type field
+  carries the Issue's kind, so labels carry only areas and the like.
+- **Context outside the Issue Tracker.** If information makes sense in a
+  requirements doc, a design doc, a UX design, an ADR, a lexicon entry, or
+  any other standard document type the project uses, it goes there, and the
+  Issue links to it through a metadata key per document type (e.g.,
+  `requirements`, `design`, `ux`; the Skill defines the common keys, a repo
+  may add its own). A filing agent need not know the repo's layout: it drops
+  the material in the repo's docs inbox, and the same `bdw` Verb files a
+  Leaf Issue to incorporate it, whose worker moves it to its proper home and
+  updates every Issue that links to it. A repo with no docs home keeps such
+  context in the Issue's description.
+- **The Beads version.** `bdw` carries the bd versions it has been verified
+  against, and the Skill's list of known quirks names the same version. On
+  any other version `bdw` refuses writes and warns on reads; onboarding
+  pins bd so it changes only deliberately. An upgrade re-verifies the
+  quirks.
+- **Upstream.** Agents offer to report Beads bugs, or contribute small
+  fixes, upstream; they never do it on their own, and especially not during
+  the trial. Unattended, they mention the bug in their final report.
+
 ## Identity and claims (version-one choices)
 
 These are deliberate choices for version one, made around current
@@ -186,9 +230,8 @@ when its limitation is lifted.
 
 **Frontier** of the home-in walk (Lines of Inquiry):
 
-- Exhausted: Trigger, Success, Anti-goals.
-- Untouched: Stakeholders (shallow), Constraints
-  (deep), Load-bearing assumptions (deep), Alternatives (deep),
+- Exhausted: Trigger, Success, Anti-goals, Stakeholders, Constraints.
+- Untouched: Load-bearing assumptions (deep), Alternatives (deep),
   Reversibility and horizon (shallow), Pre-mortem (shallow),
   Disconfirmation (shallow).
 
@@ -203,30 +246,25 @@ when its limitation is lifted.
 - Repair: `agent-tooling-aio` (the use-bd Issue) is a Branch Issue with an
   open child, so this session's claim on it is a pass that should end by
   breaking it down.
+- Working name: *docs inbox* (the one place a filing agent drops material
+  for the project's documentation); to be named at the Constraints exit.
 - Carried forward, with where each is walked:
-  - use-bd as one Skill for every repo, though it installs machine-wide
-    while much current policy is this repo's trial policy (Constraints);
   - fixes in our layer stay easy, so `bdw` never grows into a spinoff
-    (Alternatives; evidence so far: the hierarchy rules match upstream's
-    own conventions);
-  - how the Skill-versus-rules drift test works when the Skill serves
-    every repo but the rules are per repo (Constraints);
+    (Load-bearing assumptions; evidence so far: the hierarchy rules match
+    upstream's own conventions, and `bdw` must stay standard-library Python
+    3.9);
   - Beads' native `human` label (`bd human list`, `bd human respond`) as an
     alternative to a custom status for work waiting on a human
     (Alternatives);
   - whether our own Verbs reuse bd's names (`bdw ready`) or get their own
     (decided as each is needed);
-  - where context that deserves a home outside the Issue Tracker lives;
-    `--spec-id` is a candidate (Constraints);
   - loading the Skill at the moment of need (Alternatives);
-  - label conventions per project (Constraints);
   - whether use-bd version one is already big enough to split
     (Alternatives);
   - formulas as phase-subtree templates (Alternatives);
-  - whether raw `bd ready` is denied (Constraints);
   - to verify when building: whether `bd ready` excludes custom statuses,
-    whether `--graph` accepts an existing parent, and that `bdw` can read a
-    parent's type cheaply.
+    whether `--graph` accepts an existing parent, that `bdw` can read a
+    parent's type cheaply, and whether bd tolerates `.beads/bdw.json`.
 - To do in this change: rewrite the trial's stated question in
   `docs/projects/beads-trial/index.md` to the "Beads run well" framing, and
   note the attribution rule on `agent-tooling-0pe` (record the go/no-go
