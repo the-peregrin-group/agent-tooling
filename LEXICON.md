@@ -34,11 +34,13 @@ during integration).
 **Exit-code contract**: The fixed meaning of a Verb's exit status (e.g.,
 success, refused by policy, network failure, etc.) that callers branch on.
 
-**Actor**: The session identity a Wrapper derives from its own environment and
-records on the writes it attributes: one per background job, and a visibly
-distinct fallback for attended sessions. An Actor is a session, never a
-person.
+**Actor**: The party, an agent or a person, that carried out an action or a
+piece of work and is recorded as having done so.
 - _Avoid_: user, author, assignee
+
+**Actor ID**: The identifier recorded for an Actor, unambiguous across every
+Actor, agent or person.
+- _Invariants_: never shared by two Actors
 
 ### Repos and branches
 
@@ -210,6 +212,7 @@ only the open items, deleted on completion, is a State doc.
 - gitw, ghw, and fjw Verbs report through the Exit-code contract.
 - bdw and gitw record the Actor on the writes they attribute: bdw on the Issue
   Tracker, gitw on its commits.
+- An Actor has exactly one Actor ID.
 - A Source repo contains exactly one Install Manifest, which declares one or
   more Cohorts.
 - A Cohort holds one or more tools, and a tool may belong to more than one

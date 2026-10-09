@@ -6,9 +6,9 @@ This document holds why use-bd and `bdw` work the way they do; the Skill
 (`skills/use-bd/`) holds the procedure.
 
 > **In progress.** This design is being worked out in a home-in session
-> (2026-10-07). Only the sections below the line are settled; the open
-> items at the end are the live state of that session and are removed
-> before the change merges.
+> (2026-10-07 to 2026-10-08). The sections above the open items are
+> settled; the open items at the end are the live state of that session and
+> are removed before the change merges.
 
 ## Why use-bd exists
 
@@ -30,6 +30,10 @@ reliably. A verdict on Beads used bare would grade the wrong thing.
   Beads, then encodes that in the Skill and, where the Skill's guidance
   needs it, in `bdw`. `bdw` is ours: where the right practice needs it to
   behave differently, it changes, rather than the Skill teaching around it.
+- **Enforce the simple rule in code.** Where a rule fits in one sentence and
+  agents' habits (industry practice in their training data) pull against
+  it, `bdw` enforces it with a refusal that teaches the right form, rather
+  than the Skill spending paragraphs on judgment.
 - **Our layer absorbs what is fixable.** Friction that can be fixed easily
   without changing Beads' fundamental nature, identity, or values (its
   design ideology, APIs, data model, features and limitations) is our
@@ -40,32 +44,145 @@ reliably. A verdict on Beads used bare would grade the wrong thing.
   go/no-go criteria built on it are tracked in `agent-tooling-bs8` (write
   down the go/no-go criteria).
 
+## Success criteria
+
+1. **The normal path never prompts.** Every step of the loop is a `bdw` call
+   the Permission rules allow; a prompt or denial on routine work is a
+   defect. Genuinely dangerous operations are the one exception.
+2. **No workarounds.** Every real use case has a normal path; no agent
+   rewords Issue text to dodge a refusal or skips a field because it only
+   takes inline text. A real use case with no normal path is a gap to fix.
+3. **A cold pick-up works.** A fresh session can resume any Issue from the
+   Issue Tracker alone. The Issue points to the context it needs rather
+   than holding all of it, so nothing is duplicated where it can drift.
+4. **Every state change has one owner.** Every claim, close, and rewrite is
+   attributable to exactly one Actor.
+5. **Agents load use-bd before touching the Issue Tracker,** not after a
+   refusal, and nothing `bd prime` prints contradicts it.
+6. **Policy has one home.** Each rule is written once, in the Skill or this
+   design; `CLAUDE.md`, the README, and the trial docs point here.
+7. **Organizational hygiene.** Work is broken down into Leaf Issues sized
+   for one session, under Branch Issues for anything bigger, and the four
+   relationships (dependency, contradiction, duplication, composition) are
+   looked for when an Issue is filed.
+8. **Labels follow the project's conventions.**
+
+**Version one covers** the loop (prime, ready, claim, file discovered work,
+append, close, land the plane); the write rules; filing discipline
+(breakdown, relationships, labels); pick-up notes; and the known Beads
+1.3.0 quirks. Onboarding a new repo is a supporting file inside the Skill,
+read only by whoever does it. **Out of scope:** batch triage and
+reconciliation, phase-two sync, and the go/no-go criteria.
+
+## The Issue hierarchy
+
+Every Issue is either a Branch Issue (it has any children, or is of a kind
+designated to hold children, e.g., an epic) or a Leaf Issue (every other
+Issue, meant to be claimed and finished in one session); see `LEXICON.md`.
+
+- **Branch Issues are worked in passes.** A Branch Issue is ready work
+  exactly when it has no open children; each claim on it is one pass that
+  ends by adding children or by verifying completion and closing it. It is
+  never closed merely because its children closed. (See
+  [ADR 0009](../../adr/0009-branch-issues-are-worked-in-passes.md),
+  Branch Issues are worked in passes.)
+- **Only branch kinds take new children.** `bdw` refuses to add a child to
+  an Issue that is not of a branch kind, with a refusal that teaches the
+  alternative: file a sibling Leaf Issue linked by a dependency, or retype
+  the Issue to a branch kind first. This is a convenience guard, not a
+  correctness rule: an Issue that somehow gains a child is a Branch Issue
+  by definition and is treated as one. Its job is to stop an agent's habit
+  (subtasks under a task) from silently turning a task in progress into a
+  project; a task that proves bigger than a session is retyped instead. A
+  Branch Issue that is not of a branch kind is an anomaly to repair.
+- **Ending a pass.** When the session holding a Branch Issue's claim adds
+  children to it, `bdw` releases the claim in the same call; closing it
+  releases it too. A pass drafts its whole breakdown before submitting it,
+  as one atomic batch (`bd create --graph`, previewed with `--dry-run`),
+  because the children are ready work as soon as they exist; restructuring
+  afterwards is an ordinary edit made knowing children may be claimed.
+- **What `bdw ready` shows:** Leaf Issues with no open blockers, and Branch
+  Issues with no open children; never a Branch Issue with open children
+  (`bdw` also refuses to claim one).
+
+**Rejected:** Branch Issues as passive containers (invisible before
+breakdown, never verified); breakdown and acceptance child tasks (their
+dependencies must be maintained by hand, against the grain); a long-lived
+lead owning a Branch Issue (no agent stays available that long; deferred,
+not ruled out, until longer-lived agents exist); hiding children while the
+Branch Issue is claimed (a dead session hides the subtree; atomic batches
+give the same privacy without a lock). Beads formulas and molecules
+(templated trees) are not used for breakdown; whether they serve as
+phase-subtree templates is open.
+
+## Identity and claims (version-one choices)
+
+These are deliberate choices for version one, made around current
+limitations rather than as lasting architecture; each is expected to change
+when its limitation is lifted.
+
+- **One Actor ID per session.** `bdw` derives the Actor ID from the
+  session ID the harness sets (`CLAUDE_CODE_SESSION_ID`), for attended
+  sessions and background jobs alike, and also sets the variable bd reads
+  to record the closing session. Today's job-based ID is a prefix of the
+  same value, so background jobs keep their IDs.
+- **Sub-agents share their session's Actor ID,** because nothing in a
+  sub-agent's environment distinguishes it from its parent
+  (`agent-tooling-jk2`). So an agent without an Actor ID of its own reads,
+  files new Issues, and appends, but never claims, closes, or rewrites; the
+  session that holds the conversation does those. The Skill teaches this,
+  and orchestrators' briefs carry it; `bdw` cannot enforce it.
+- **A claim never outlives its session.** Before a session ends it closes
+  or releases every Issue it claimed; continuity between sessions lives in
+  the Issue (its pick-up note and metadata), never in a claim. Longer-lived
+  agents would revisit this.
+- **Work waiting on a human** (e.g., a PR in review) is released into a
+  custom status that keeps it out of ready work, and the Issue records its
+  branch and PR as metadata keys, which are structured and queryable,
+  rather than as prose in its notes.
+
 ---
 
 ## Open items
 
 **Frontier** of the home-in walk (Lines of Inquiry):
 
-- Exhausted: Trigger.
-- Untouched: Success, Anti-goals, Stakeholders, Constraints, Load-bearing
-  assumptions, Alternatives, Reversibility and horizon, Pre-mortem,
-  Disconfirmation.
-- Depth: deep on Success, Constraints, Alternatives, Load-bearing
-  assumptions; shallow on the rest.
+- Exhausted: Trigger, Success.
+- Untouched: Anti-goals (medium), Stakeholders (shallow), Constraints
+  (deep), Load-bearing assumptions (deep), Alternatives (deep),
+  Reversibility and horizon (shallow), Pre-mortem (shallow),
+  Disconfirmation (shallow).
 
 **Resolution Queue:**
 
-- Assumption under test: use-bd can be one Skill serving every repo, though
-  it installs machine-wide while much current policy is this repo's trial
-  policy (walk under Constraints).
-- Assumption under test: fixes in our layer stay easy, so `bdw` never grows
-  into a spinoff; needs a ceiling (walk under Alternatives).
-- Candidate decision: amend or supersede the decision that `bdw` execs `bd`
-  with arguments untouched ([ADR 0002](../../adr/0002-beads-identity.md),
-  Beads identity).
-- Candidate lexicon change: whether bdw follows the Exit-code contract (the
-  lexicon says only gitw, ghw, and fjw do; `docs/index.md` and the bdw docs
-  say bdw does too).
+- Decision: `bdw` grows its own Verbs where policy needs them and passes the
+  rest through, amending the decision that it execs `bd` with arguments
+  untouched ([ADR 0002](../../adr/0002-beads-identity.md), Beads identity).
+  Walk under Alternatives.
+- Lexicon: whether bdw follows the Exit-code contract (settle with the
+  `bdw` Verbs).
+- Repair: `agent-tooling-aio` (the use-bd Issue) is a Branch Issue with an
+  open child, so this session's claim on it is a pass that should end by
+  breaking it down.
+- Carried forward, with where each is walked:
+  - use-bd as one Skill for every repo, though it installs machine-wide
+    while much current policy is this repo's trial policy (Constraints);
+  - fixes in our layer stay easy, so `bdw` never grows into a spinoff
+    (Alternatives; evidence so far: the hierarchy rules match upstream's
+    own conventions);
+  - dependencies are safe to add unilaterally (Anti-goals);
+  - which operations are dangerous enough to prompt (Anti-goals);
+  - where context that deserves a home outside the Issue Tracker lives;
+    `--spec-id` is a candidate (Constraints);
+  - loading the Skill at the moment of need (Alternatives);
+  - label conventions per project (Constraints);
+  - whether use-bd version one is already big enough to split
+    (Alternatives);
+  - formulas as phase-subtree templates (Alternatives);
+  - whether raw `bd ready` is denied (Constraints);
+  - to verify when building: whether `bd ready` excludes custom statuses,
+    whether `--graph` accepts an existing parent, and that `bdw` can read a
+    parent's type cheaply.
 - To do in this change: rewrite the trial's stated question in
   `docs/projects/beads-trial/index.md` to the "Beads run well" framing, and
   note the attribution rule on `agent-tooling-0pe` (record the go/no-go
