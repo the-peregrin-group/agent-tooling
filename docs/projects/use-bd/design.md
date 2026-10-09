@@ -172,13 +172,32 @@ to the file form rather than reword.
     agents: reversible, visible operations such as marking a duplicate or
     superseding an Issue are allowed, and when to use them is a filing
     discipline, not a permission.
+
+  Applied to bd 1.3.0's surface (from an audit of its full command set):
+  deny `epic close-eligible` (it closes epics because their children
+  closed), `close --claim-next` and `--continue` and `ready --claim` (they
+  claim around `bdw ready`), `memories` and `recall` (`bd prime` injects
+  memories even with a custom `PRIME.md`), and the `link` command and the
+  `new`, `done`, and `hb` aliases unless `bdw` maps them; ask for
+  `unclaim --force` and `update --assignee` (taking over a claim, like
+  `assign`), `orphans --fix` (it closes Issues), and `backup sync` (it
+  pushes the whole database to the backup destination); allow `duplicate`,
+  `supersede`, `defer`, and `undefer`. `bdw` refuses the global flags that
+  point bd at another database (`-C`, `--db`, `--database`, `--global`)
+  wherever they appear.
 - **Unilateral relationships.** Agents add dependencies they find at filing
   time on their own; contradiction, duplication, and composition only when
   very confident, and otherwise raise them (or, unattended, report them).
   Because a wrong blocking dependency silently removes work from ready,
-  `bdw` echoes what each new blocking dependency took out of ready work, so
-  the mistake shows in the same turn. Batch reconciliation is separate work
-  (`agent-tooling-r6b`, automated batch triage).
+  `bdw` echoes what each new blocking dependency took out of ready work
+  (built on `bd ready --explain`), so the mistake shows in the same turn;
+  closing echoes what it unblocked (`close --suggest-next`). Before filing,
+  agents search for near-duplicates (`bd search`, and `find-duplicates`
+  after filing). The four relationships map to Beads' native ones:
+  dependency to `blocks`, duplication to `duplicate --of`, composition to
+  `parent-child`, and contradiction, which Beads has no type for, to
+  `relates-to` plus a label naming the contradiction. Batch reconciliation
+  is separate work (`agent-tooling-r6b`, automated batch triage).
 - **No silent switch of database.** `bdw` refuses to run when it cannot find
   the workspace's Beads config, because bd 1.3.0 otherwise falls back to an
   empty database without complaint.
@@ -190,6 +209,8 @@ to the file form rather than reword.
   harness.
 - **One voice.** A committed `.beads/PRIME.md` replaces `bd prime`'s
   default text with a short pointer to use-bd.
+- **No empty Issues.** `create.require-description` is on, so every Issue
+  says what it is.
 - **No reach outside the project.** An agent acts only on its own project's
   Issues unless expressly given permission to act on another's.
 
@@ -262,14 +283,19 @@ when its limitation is lifted.
   or releases every Issue it claimed; continuity between sessions lives in
   the Issue (its pick-up note and metadata), never in a claim. Longer-lived
   agents would revisit this.
-- **Work waiting on a human** (e.g., a PR in review) is released into a
-  custom status that keeps it out of ready work, and the Issue records its
-  branch and PR as metadata keys, which are structured and queryable,
-  rather than as prose in its notes. Anything that needs a human, to review
-  or to decide, also carries Beads' native `human` label, so the
-  maintainer has one queue (`bd human list`). A review closes through the
-  normal close after merge, never through `bd human respond`, which closes
-  the Issue at once.
+- **Work waiting on a human** (e.g., a PR in review, a decision) is
+  released and blocked by a native Beads gate (`bd gate`): a `gh:pr` gate
+  that resolves when the PR merges, or a `human` gate that a person
+  resolves. A gated Issue is out of ready work without any custom status.
+  Anything that needs a human also carries Beads' native `human` label, so
+  the maintainer has one queue (`bd human list`). A review closes through
+  the normal close after merge, never through `bd human respond`, which
+  closes the Issue at once.
+- **Branch and PR.** The Issue records its branch and PR as metadata keys
+  (`branch`, `pr`): the one current answer, structured and queryable.
+  Beads' provenance log (`bd provenance`) supplements them with the
+  history of branch, PR, and commit events; it does not replace them, as a
+  stream never replaces the state it records.
 
 ## Getting agents to load use-bd
 
