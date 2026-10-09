@@ -115,6 +115,45 @@ give the same privacy without a lock). Beads formulas and molecules
 (templated trees) are not used for breakdown; whether they serve as
 phase-subtree templates is open.
 
+## What must never happen
+
+- **Command policy.** The Permission rules sort every Beads operation into
+  three classes:
+  - **Deny** what is irreversible, sends Issue data off the machine, or
+    falsifies the record; and deny any raw `bd` command, read or write, that
+    a `bdw` Verb supersedes, so agents cannot take the old path out of
+    habit. Reads `bdw` does not supersede stay open.
+  - **Ask** for what fits the deny criteria but normal work still
+    occasionally needs (it then runs only with a human attending, e.g.,
+    `init` when onboarding a repo, restoring a backup), and for anything
+    that steps around a `bdw` or `bd` safeguard or changes the safeguards
+    or configuration themselves (e.g., `--force`, `--no-history`, `config
+    set`, `batch`, `import`, `assign`).
+  - **Allow** everything else. Beads is meant as a tracker for agents, by
+    agents: reversible, visible operations such as marking a duplicate or
+    superseding an Issue are allowed, and when to use them is a filing
+    discipline, not a permission.
+- **Unilateral relationships.** Agents add dependencies they find at filing
+  time on their own; contradiction, duplication, and composition only when
+  very confident, and otherwise raise them (or, unattended, report them).
+  Because a wrong blocking dependency silently removes work from ready,
+  `bdw` echoes what each new blocking dependency took out of ready work, so
+  the mistake shows in the same turn. Batch reconciliation is separate work
+  (`agent-tooling-r6b`, automated batch triage).
+- **No silent switch of database.** `bdw` refuses to run when it cannot find
+  the workspace's Beads config, because bd 1.3.0 otherwise falls back to an
+  empty database without complaint.
+- **The Skill never drifts from the rules.** A test checks every command the
+  Skill teaches against the Permission rules spec.
+- **No field agents cannot write.** `bdw` accepts every free-text field from
+  a file (title, notes appended or replaced, acceptance criteria, close
+  reason, comments), since inline text that names the VCS is refused by the
+  harness.
+- **One voice.** A committed `.beads/PRIME.md` replaces `bd prime`'s
+  default text with a short pointer to use-bd.
+- **No reach outside the project.** An agent acts only on its own project's
+  Issues unless expressly given permission to act on another's.
+
 ## Identity and claims (version-one choices)
 
 These are deliberate choices for version one, made around current
@@ -147,8 +186,8 @@ when its limitation is lifted.
 
 **Frontier** of the home-in walk (Lines of Inquiry):
 
-- Exhausted: Trigger, Success.
-- Untouched: Anti-goals (medium), Stakeholders (shallow), Constraints
+- Exhausted: Trigger, Success, Anti-goals.
+- Untouched: Stakeholders (shallow), Constraints
   (deep), Load-bearing assumptions (deep), Alternatives (deep),
   Reversibility and horizon (shallow), Pre-mortem (shallow),
   Disconfirmation (shallow).
@@ -170,8 +209,13 @@ when its limitation is lifted.
   - fixes in our layer stay easy, so `bdw` never grows into a spinoff
     (Alternatives; evidence so far: the hierarchy rules match upstream's
     own conventions);
-  - dependencies are safe to add unilaterally (Anti-goals);
-  - which operations are dangerous enough to prompt (Anti-goals);
+  - how the Skill-versus-rules drift test works when the Skill serves
+    every repo but the rules are per repo (Constraints);
+  - Beads' native `human` label (`bd human list`, `bd human respond`) as an
+    alternative to a custom status for work waiting on a human
+    (Alternatives);
+  - whether our own Verbs reuse bd's names (`bdw ready`) or get their own
+    (decided as each is needed);
   - where context that deserves a home outside the Issue Tracker lives;
     `--spec-id` is a candidate (Constraints);
   - loading the Skill at the moment of need (Alternatives);
