@@ -112,8 +112,9 @@ lead owning a Branch Issue (no agent stays available that long; deferred,
 not ruled out, until longer-lived agents exist); hiding children while the
 Branch Issue is claimed (a dead session hides the subtree; atomic batches
 give the same privacy without a lock). Beads formulas and molecules
-(templated trees) are not used for breakdown; whether they serve as
-phase-subtree templates is open.
+(templated trees) are not used for breakdown, which is the Branch Issue's
+own pass; as templates for a Branch Issue's standard phases they are in
+scope but deferred from the first shipment (`agent-tooling-sn6`, evaluate formulas as phase templates).
 
 ## How bdw carries policy
 
@@ -156,9 +157,11 @@ to the file form rather than reword.
 - **Command policy.** The Permission rules sort every Beads operation into
   three classes:
   - **Deny** what is irreversible, sends Issue data off the machine, or
-    falsifies the record; and deny any raw `bd` command, read or write, that
-    a `bdw` Verb supersedes, so agents cannot take the old path out of
-    habit. Reads `bdw` does not supersede stay open.
+    falsifies the record; and deny any raw `bd` command that a `bdw` Verb
+    supersedes, so agents cannot take the old path out of habit. Since
+    `bdw` forwards everything else to `bd`, that means denying raw `bd`
+    and `beads` outright, reads included: agents touch Beads only through
+    `bdw`, and the classes below apply to `bdw` calls.
   - **Ask** for what fits the deny criteria but normal work still
     occasionally needs (it then runs only with a human attending, e.g.,
     `init` when onboarding a repo, restoring a backup), and for anything
@@ -262,7 +265,48 @@ when its limitation is lifted.
 - **Work waiting on a human** (e.g., a PR in review) is released into a
   custom status that keeps it out of ready work, and the Issue records its
   branch and PR as metadata keys, which are structured and queryable,
-  rather than as prose in its notes.
+  rather than as prose in its notes. Anything that needs a human, to review
+  or to decide, also carries Beads' native `human` label, so the
+  maintainer has one queue (`bd human list`). A review closes through the
+  normal close after merge, never through `bd human respond`, which closes
+  the Issue at once.
+
+## Getting agents to load use-bd
+
+Agents often load an operating-manual Skill only when they feel the need,
+despite instructions, so use-bd's loading is pushed from several sides:
+
+- the Skill's description and trigger phrases;
+- `.beads/PRIME.md`, which `bd prime` prints, pointing to use-bd;
+- every help output and usage error from `bdw` saying "Agents, load
+  `/use-bd` immediately." (which is why `bdw` runs `bd` as a child process
+  and reads its failures, rather than replacing itself with `bd`);
+- the Permission rules denying raw `bd`, so the habit fails at once;
+- once the hook system exists (`agent-tooling-0s1`): a SessionStart hook
+  that has the agent load use-bd in any repo with a `.beads/` directory
+  (`agent-tooling-0s1.5`), and a hook that refuses raw Beads calls with a
+  message pointing to use-bd and `bdw` (`agent-tooling-0s1.6`).
+
+A per-session reminder printed by `bdw` was rejected: it is machinery that
+still cannot make an agent comply.
+
+## The Skill's shape
+
+One Skill, with supporting files read only when needed, so the part every
+load pays for stays small:
+
+- `SKILL.md`, read on every load: the loop; the write, hierarchy, and claim
+  rules; free text through files, and what to do when refused; filing
+  discipline (breakdown, the four relationships, labels, the Docs Inbox);
+  working a Branch Issue in passes; landing the plane.
+- `onboarding.md`: setting Beads up in a new repo (the canonical rules,
+  `PRIME.md` and `bdw.json`, pinning bd), read by whoever onboards.
+- `quirks.md`: the known behaviors of the verified bd version, read when bd
+  surprises an agent or is upgraded.
+- The canonical Beads rule set, as data the tests read.
+
+Splitting into sibling Skills (e.g., a separate setup Skill) belongs to the
+skill-family work (`agent-tooling-u9n`).
 
 ---
 
@@ -271,9 +315,8 @@ when its limitation is lifted.
 **Frontier** of the home-in walk (Lines of Inquiry):
 
 - Exhausted: Trigger, Success, Anti-goals, Stakeholders, Constraints,
-  Load-bearing assumptions.
-- Untouched: Alternatives (deep),
-  Reversibility and horizon (shallow), Pre-mortem (shallow),
+  Load-bearing assumptions, Alternatives.
+- Untouched: Reversibility and horizon (shallow), Pre-mortem (shallow),
   Disconfirmation (shallow).
 
 **Resolution Queue:**
@@ -281,17 +324,10 @@ when its limitation is lifted.
 - Repair: `agent-tooling-aio` (the use-bd Issue) is a Branch Issue with an
   open child, so this session's claim on it is a pass that should end by
   breaking it down.
-- Carried forward, with where each is walked:
-  - Beads' native `human` label (`bd human list`, `bd human respond`) as an
-    alternative to a custom status for work waiting on a human
-    (Alternatives);
-  - whether our own Verbs reuse bd's names (`bdw ready`) or get their own
-    (decided as each is needed);
-  - loading the Skill at the moment of need (Alternatives);
-  - whether use-bd version one is already big enough to split
-    (Alternatives);
-  - formulas as phase-subtree templates (Alternatives);
-  - to verify when building: whether `bd ready` excludes custom statuses,
+- Carried into the build:
+  - whether our own Verbs reuse bd's names (`bdw ready`) or get their own,
+    decided per Verb;
+  - to verify: whether `bd ready` excludes custom statuses,
     whether `--graph` accepts an existing parent, that `bdw` can read a
     parent's type cheaply, and whether bd tolerates `.beads/bdw.json`.
 - To do in this change: rewrite the trial's stated question in
