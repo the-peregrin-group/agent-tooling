@@ -115,6 +115,42 @@ give the same privacy without a lock). Beads formulas and molecules
 (templated trees) are not used for breakdown; whether they serve as
 phase-subtree templates is open.
 
+## How bdw carries policy
+
+`bdw` carries the Beads policy that Permission rules cannot express, each
+operation in the lightest tier that suffices (see
+[ADR 0010](../../adr/0010-bdw-carries-beads-policy-in-tiers.md), bdw carries
+Beads policy in tiers):
+
+1. **Pass-through** when an operation carries no risk or special usage
+   expectation: `bdw` sets the Actor and execs `bd` unchanged (e.g., reads,
+   setting `branch` and `pr` metadata).
+2. **Thin intercept** when a feature needs wrapping without handling a
+   combinatorial explosion of arguments: `bdw` reads the one or two flags
+   it cares about, in the forms bd documents, and fails closed, refusing
+   and naming the gap, on any command line it cannot read unambiguously
+   (e.g., the kind check on `create --parent`, releasing a Branch Issue's
+   claim when children are added, the echo after a blocking `dep add`, the
+   label check on `create`, refusing a call whose first argument is a
+   flag). File forms for every free-text field are `bdw`'s own added flags,
+   turned into bd's inline flags by `bdw` itself.
+3. **A Verb of its own** when the operation encodes a practice or process,
+   or narrows a bd command so far that an intercept would duplicate much of
+   its grammar; the raw `bd` commands it supersedes are denied (e.g.,
+   `ready`, whose meaning changes, and dropping material in the Docs
+   Inbox). Whether a Verb reuses bd's name or takes its own is decided per
+   Verb.
+
+`bdw` stays standard-library Python 3.9, like the other Wrappers, and its
+list of verified bd versions covers every intercept and Verb, along with
+the JSON shapes it reads.
+
+**Free text.** The Skill teaches the file forms as the default for every
+text field. Inline text stays allowed; when it trips the harness's refusal
+of text naming the VCS, or a deny rule matching a denied word, the
+refusal happens before `bdw` runs, and the Skill tells the agent to switch
+to the file form rather than reword.
+
 ## What must never happen
 
 - **Command policy.** The Permission rules sort every Beads operation into
@@ -234,27 +270,20 @@ when its limitation is lifted.
 
 **Frontier** of the home-in walk (Lines of Inquiry):
 
-- Exhausted: Trigger, Success, Anti-goals, Stakeholders, Constraints.
-- Untouched: Load-bearing assumptions (deep), Alternatives (deep),
+- Exhausted: Trigger, Success, Anti-goals, Stakeholders, Constraints,
+  Load-bearing assumptions.
+- Untouched: Alternatives (deep),
   Reversibility and horizon (shallow), Pre-mortem (shallow),
   Disconfirmation (shallow).
 
 **Resolution Queue:**
 
-- Decision: `bdw` grows its own Verbs where policy needs them and passes the
-  rest through, amending the decision that it execs `bd` with arguments
-  untouched ([ADR 0002](../../adr/0002-beads-identity.md), Beads identity).
-  Walk under Alternatives.
-- Lexicon: whether bdw follows the Exit-code contract (settle with the
-  `bdw` Verbs).
+- Lexicon: whether bdw follows the Exit-code contract (its own Verbs and
+  intercepts will).
 - Repair: `agent-tooling-aio` (the use-bd Issue) is a Branch Issue with an
   open child, so this session's claim on it is a pass that should end by
   breaking it down.
 - Carried forward, with where each is walked:
-  - fixes in our layer stay easy, so `bdw` never grows into a spinoff
-    (Load-bearing assumptions; evidence so far: the hierarchy rules match
-    upstream's own conventions, and `bdw` must stay standard-library Python
-    3.9);
   - Beads' native `human` label (`bd human list`, `bd human respond`) as an
     alternative to a custom status for work waiting on a human
     (Alternatives);
