@@ -219,7 +219,7 @@ discarded as already captured or outdated.
 - gitw, ghw, fjw, and bdw are Wrappers; each Wrapper offers one or more Verbs.
 - Every mutating gitw Verb is scoped by exactly one Roster label and one
   Branch prefix; fjw-pr-comment is scoped by one Branch prefix.
-- gitw, ghw, and fjw Verbs report through the Exit-code contract.
+- gitw, ghw, fjw, and bdw Verbs report through the Exit-code contract.
 - bdw and gitw record the Actor on the writes they attribute: bdw on the Issue
   Tracker, gitw on its commits.
 - An Actor has exactly one Actor ID.

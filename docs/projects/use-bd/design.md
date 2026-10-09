@@ -278,8 +278,6 @@ when its limitation is lifted.
 
 **Resolution Queue:**
 
-- Lexicon: whether bdw follows the Exit-code contract (its own Verbs and
-  intercepts will).
 - Repair: `agent-tooling-aio` (the use-bd Issue) is a Branch Issue with an
   open child, so this session's claim on it is a pass that should end by
   breaking it down.
