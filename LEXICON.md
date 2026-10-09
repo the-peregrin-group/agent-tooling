@@ -204,6 +204,16 @@ only the open items, deleted on completion, is a State doc.
   learned after its date; the current state of anything is never derivable
   only by replaying a Stream doc
 
+**Docs Inbox**: The one place in a project where an agent drops material that
+belongs in the project's documentation when it does not know where that
+material belongs, so that later tracked work can incorporate it.
+Incorporating an item is a judgment, not a move: the item may be moved and
+renamed into its proper home, folded into one or more existing documents, or
+discarded as already captured or outdated.
+- _Invariants_: every item in it is owned by an open Issue to incorporate it;
+  nothing is meant to stay in it
+- _Avoid_: mailbox, staging, scratch
+
 ## Relationships
 
 - gitw, ghw, fjw, and bdw are Wrappers; each Wrapper offers one or more Verbs.

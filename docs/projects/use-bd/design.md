@@ -174,7 +174,7 @@ does things).
   project's conventions in words), and `.beads/bdw.json` (or
   `bdw-config.json` at the repo root, if bd does not tolerate the extra
   file), the structured facts `bdw` reads: the label scheme, extra document
-  link keys, the docs inbox path. Neither may grant or limit anything an
+  link keys, the Docs Inbox path. Neither may grant or limit anything an
   agent may do.
 - **Labels** follow the scheme the repo declares; `bdw create` refuses
   unknown labels or a missing required category. Beads' own type field
@@ -184,11 +184,15 @@ does things).
   any other standard document type the project uses, it goes there, and the
   Issue links to it through a metadata key per document type (e.g.,
   `requirements`, `design`, `ux`; the Skill defines the common keys, a repo
-  may add its own). A filing agent need not know the repo's layout: it drops
-  the material in the repo's docs inbox, and the same `bdw` Verb files a
-  Leaf Issue to incorporate it, whose worker moves it to its proper home and
-  updates every Issue that links to it. A repo with no docs home keeps such
-  context in the Issue's description.
+  may add its own). An agent that knows where the material belongs under
+  the project's conventions puts it there directly. One that does not drops
+  it in the repo's Docs Inbox (see `LEXICON.md`), and the same `bdw` Verb
+  files a Leaf Issue to incorporate it. Incorporating is a reading and a
+  judgment, not a move: the item is moved and renamed into its proper home,
+  folded into one or more existing documents, or discarded as already
+  captured or outdated; the Issue records which, and why, before it closes,
+  and every Issue that linked to the item is updated. A repo with no docs
+  home keeps such context in the Issue's description.
 - **The Beads version.** `bdw` carries the bd versions it has been verified
   against, and the Skill's list of known quirks names the same version. On
   any other version `bdw` refuses writes and warns on reads; onboarding
@@ -246,8 +250,6 @@ when its limitation is lifted.
 - Repair: `agent-tooling-aio` (the use-bd Issue) is a Branch Issue with an
   open child, so this session's claim on it is a pass that should end by
   breaking it down.
-- Working name: *docs inbox* (the one place a filing agent drops material
-  for the project's documentation); to be named at the Constraints exit.
 - Carried forward, with where each is walked:
   - fixes in our layer stay easy, so `bdw` never grows into a spinoff
     (Load-bearing assumptions; evidence so far: the hierarchy rules match
