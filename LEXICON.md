@@ -160,6 +160,19 @@ bug, a feature, a task), with a status and dependencies on other Issues.
 but opaque to humans.
 - _Invariants_: every reference to an Issue includes its Issue ID
 
+**Branch Issue**: An Issue that holds other Issues as its children: a project,
+rather than a unit of work one session finishes. An Issue is a Branch Issue if
+it has any children, open or closed, or if it is of a kind designated to hold
+children (e.g., an epic), even before it has any. The work of a Branch Issue
+is management: scoping, setting success criteria, breaking down into child
+Issues, and verifying completion.
+- _Avoid_: branch (alone), parent, container
+
+**Leaf Issue**: An Issue that is not a Branch Issue: a unit of work meant to
+be claimed and finished in one session (e.g., a task, a bug). A Leaf Issue
+that is given a child becomes a Branch Issue.
+- _Avoid_: subtask
+
 ### Documents
 
 **State doc**: A document that describes one entity (e.g., a design, a plan,
@@ -204,6 +217,8 @@ only the open items, deleted on completion, is a State doc.
 - The Installer is the only writer of Install Targets and Receipts; an
   Adoption moves ownership between two Source repos within one Receipt.
 - The Issue Tracker holds many Issues; an Issue has exactly one Issue ID.
+- An Issue is either a Branch Issue or a Leaf Issue, never both.
+- A Branch Issue has zero or more child Issues; a Leaf Issue has none.
 - A Line of Inquiry contains zero or more finer Lines of Inquiry.
 - A document as a whole is either a State doc or a Stream doc, never both.
 - A State doc may embed one bounded Stream doc section (e.g., a decision
