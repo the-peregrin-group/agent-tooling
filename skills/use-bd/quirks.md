@@ -22,6 +22,10 @@ what bd does and what to do about it.
   skipping the verifying pass. Never run it.
 - **`ready` hides a `hooked` status** alongside in_progress, blocked, and
   deferred; `hooked` is named in `ready`'s help but not in `list -s`'s.
+- **A gated Issue still shows `OPEN` in `bdw show`;** it is out of
+  `bdw ready` and listed by `bdw blocked`. `gate create` ends with
+  "Resolve with: bd gate resolve ..."; ignore it: resolving a human gate
+  is the human's act, and agents never run raw `bd`.
 - **There is no built-in "in review" status** (a custom one is possible
   but not used). An unclaimed open Issue reads as ready work. Block work waiting on a human with a gate (see SKILL.md).
 - **`close --claim-next`, `close --continue`, and `ready --claim` claim
