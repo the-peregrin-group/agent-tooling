@@ -199,6 +199,8 @@ ALLOW_READS = (
     "Bash({b} label list-all *)",
     "Bash({b} epic)",
     "Bash({b} epic status *)",
+    "Bash({b} gate list *)",
+    "Bash({b} gate show *)",
     "Bash({b} human)",
     "Bash({b} human list *)",
     "Bash({b} human stats *)",
@@ -248,6 +250,11 @@ WRITE_VERBS = (
     "priority *",
     "unclaim *",
     "heartbeat *",
+    # Work waiting on a human is blocked by a gate. `gate check` closes the
+    # gates whose condition holds (a merged PR). `gate resolve` stays
+    # unruled, so it prompts: resolving a human gate is the human's act.
+    "gate create *",
+    "gate check *",
     "human respond *",
     "set-state *",
     "epic close-eligible *",
