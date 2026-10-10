@@ -262,7 +262,7 @@ does things).
   ships with the Skill as data; a test checks that every command the Skill
   teaches is allowed by it, and each repo's rules spec checks that the
   repo's settings contain it. When the repo capability system is extracted
-  from the brain (`agent-tooling-137.1`), Beads policy moves into it and
+  into this repo (`agent-tooling-137.1`), Beads policy moves into it and
   the canonical rule set becomes its input.
 - **Conventions** live in two committed files, each fact in exactly one:
   `.beads/PRIME.md`, prose that `bd prime` prints at session start (it
