@@ -67,6 +67,11 @@ reliably. A verdict on Beads used bare would grade the wrong thing.
    looked for when an Issue is filed.
 8. **Labels follow the project's conventions.**
 
+During the Beads trial, each entry in the friction log (`agent-tooling-w7p.4`)
+names the criterion above it bears on, or "none" (a gap in the criteria),
+so the verdict can read the log criterion by criterion. That is this repo's
+trial convention, stated in its `PRIME.md`, not part of the Skill.
+
 **Version one covers** the loop (prime, ready, claim, file discovered work,
 append, close, land the plane); the write rules; filing discipline
 (breakdown, relationships, labels); pick-up notes; and the known Beads
@@ -365,16 +370,36 @@ load pays for stays small:
 Splitting into sibling Skills (e.g., a separate setup Skill) belongs to the
 skill-family work (`agent-tooling-u9n`).
 
+## What would change this design
+
+The design's core bet is enforcing simple rules in `bdw`, with refusals
+that teach, rather than relying on the Skill's text. The evidence that
+would most argue against it is an inability to teach agents to use `bdw`
+successfully over time: agents routing around `bdw` despite the denials,
+the help line, and the Skill; the same refusal hit again and again across
+sessions; agents reporting the Issue Tracker as awkward even when they
+comply; or friction under the first two success criteria (no prompts, no
+workarounds) caused mostly by our own refusals rather than by Beads. So the
+Skill asks agents to log a friction entry when a `bdw` refusal surprised
+them, and to say in their final report anything about the Issue Tracker
+that felt awkward. The cost of bd upgrades is not such evidence: upgrades
+are optional, taken only when a release is worth re-verifying.
+
+The likeliest failures, as foreseen: Beads proving too volatile, or its
+values diverging from ours (both verdict evidence, softened by the version
+pin and by keeping our concepts tracker-agnostic); the system proving too
+opinionated for agents (the bet above); the build never finishing (so it
+ships in thin slices, each useful alone); and, during the local-only trial,
+losing the single copy of the database (`agent-tooling-mfs`, snapshots to
+the maintainer's NAS).
+
 ---
 
 ## Open items
 
 **Frontier** of the home-in walk (Lines of Inquiry):
 
-- Exhausted: Trigger, Success, Anti-goals, Stakeholders, Constraints,
-  Load-bearing assumptions, Alternatives.
-- Untouched: Reversibility and horizon (shallow), Pre-mortem (shallow),
-  Disconfirmation (shallow).
+- Exhausted: all ten roots.
 
 **Resolution Queue:**
 
@@ -384,10 +409,5 @@ skill-family work (`agent-tooling-u9n`).
 - Carried into the build:
   - whether our own Verbs reuse bd's names (`bdw ready`) or get their own,
     decided per Verb;
-  - to verify: whether `bd ready` excludes custom statuses,
-    whether `--graph` accepts an existing parent, that `bdw` can read a
-    parent's type cheaply, and whether bd tolerates `.beads/bdw.json`.
-- To do in this change: rewrite the trial's stated question in
-  `docs/projects/beads-trial/index.md` to the "Beads run well" framing, and
-  note the attribution rule on `agent-tooling-0pe` (record the go/no-go
-  verdict as an ADR).
+  - to verify: that `bdw` can read a parent's type cheaply, and whether bd
+    tolerates `.beads/bdw.json`.

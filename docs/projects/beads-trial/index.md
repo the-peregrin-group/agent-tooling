@@ -2,9 +2,13 @@
 
 This repo tracks its own work in [Beads](https://github.com/gastownhall/beads)
 (`bd`) as its only Issue Tracker, for a trial whose verdict decides whether
-Beads stays. The trial asks whether the agent loop on Beads becomes routine
-across sessions, and whether per-session identity shows up in claims and
-history. The freeze has held since 2026-09-24:
+Beads stays. The trial tests Beads run well, not Beads used bare: whether,
+with the systems and guardrails that let agents cooperate on it (the
+[use-bd design](../use-bd/design.md) and [`bdw`](../bdw/index.md)), agents
+work on Beads uniformly and reliably across sessions, with every claim and
+change attributable to one Actor. Friction that our own layer can fix
+without changing Beads' fundamental nature counts against our tooling, not
+Beads. The freeze has held since 2026-09-24:
 
 - **Local-only.** Beads 1.3.0 keeps its database in an embedded Dolt store on
   the maintainer's machine. It has no Dolt remote and syncs nowhere. git
