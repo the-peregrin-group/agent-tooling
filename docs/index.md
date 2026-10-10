@@ -29,6 +29,9 @@ targeted docs.
 - [beads-trial](projects/beads-trial/index.md): the in-repo trial of
   Beads as the Issue Tracker; its [design](projects/beads-trial/design.md)
   and the phase-two proposal.
+- [use-bd](projects/use-bd/index.md): the Skill that is the operating
+  manual for Beads through `bdw`, including onboarding a new repo; its
+  version-one proposal.
 
 ### Skills
 
@@ -40,11 +43,6 @@ targeted docs.
 - [handoff](projects/handoff/index.md): the Skill that writes a Handoff.
 - [refine-state-doc](projects/refine-state-doc/index.md): the guide for
   writing and refining State docs.
-
-### Other
-
-- [Beads post-init checklist](beads-init.md): the maintainer's procedure
-  for initializing Beads in another repo.
 
 ## Exit-code contract
 

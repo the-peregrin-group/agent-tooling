@@ -34,11 +34,13 @@ during integration).
 **Exit-code contract**: The fixed meaning of a Verb's exit status (e.g.,
 success, refused by policy, network failure, etc.) that callers branch on.
 
-**Actor**: The session identity a Wrapper derives from its own environment and
-records on the writes it attributes: one per background job, and a visibly
-distinct fallback for attended sessions. An Actor is a session, never a
-person.
+**Actor**: The party, an agent or a person, that carried out an action or a
+piece of work and is recorded as having done so.
 - _Avoid_: user, author, assignee
+
+**Actor ID**: The identifier recorded for an Actor, unambiguous across every
+Actor, agent or person.
+- _Invariants_: never shared by two Actors
 
 ### Repos and branches
 
@@ -160,6 +162,21 @@ bug, a feature, a task), with a status and dependencies on other Issues.
 but opaque to humans.
 - _Invariants_: every reference to an Issue includes its Issue ID
 
+**Branch Issue**: An Issue that holds other Issues as its children: a project,
+rather than a unit of work one session finishes. An Issue is a Branch Issue if
+it has any children, open or closed, or if it is of a kind designated to hold
+children (e.g., an epic), even before it has any. The work of a Branch Issue
+is management: scoping, setting success criteria, breaking down into child
+Issues, and verifying completion.
+- _Invariants_: ready work exactly when it has no open children; never closed
+  without a pass verifying completion
+- _Avoid_: branch (alone), parent, container
+
+**Leaf Issue**: An Issue that is not a Branch Issue: a unit of work meant to
+be claimed and finished in one session (e.g., a task, a bug). A Leaf Issue
+that is given a child becomes a Branch Issue.
+- _Avoid_: subtask
+
 ### Documents
 
 **State doc**: A document that describes one entity (e.g., a design, a plan,
@@ -187,14 +204,25 @@ only the open items, deleted on completion, is a State doc.
   learned after its date; the current state of anything is never derivable
   only by replaying a Stream doc
 
+**Docs Inbox**: The one place in a project where an agent drops material that
+belongs in the project's documentation when it does not know where that
+material belongs, so that later tracked work can incorporate it.
+Incorporating an item is a judgment, not a move: the item may be moved and
+renamed into its proper home, folded into one or more existing documents, or
+discarded as already captured or outdated.
+- _Invariants_: every item in it is owned by an open Issue to incorporate it;
+  nothing is meant to stay in it
+- _Avoid_: mailbox, staging, scratch
+
 ## Relationships
 
 - gitw, ghw, fjw, and bdw are Wrappers; each Wrapper offers one or more Verbs.
 - Every mutating gitw Verb is scoped by exactly one Roster label and one
   Branch prefix; fjw-pr-comment is scoped by one Branch prefix.
-- gitw, ghw, and fjw Verbs report through the Exit-code contract.
+- gitw, ghw, fjw, and bdw Verbs report through the Exit-code contract.
 - bdw and gitw record the Actor on the writes they attribute: bdw on the Issue
   Tracker, gitw on its commits.
+- An Actor has exactly one Actor ID.
 - A Source repo contains exactly one Install Manifest, which declares one or
   more Cohorts.
 - A Cohort holds one or more tools, and a tool may belong to more than one
@@ -204,6 +232,8 @@ only the open items, deleted on completion, is a State doc.
 - The Installer is the only writer of Install Targets and Receipts; an
   Adoption moves ownership between two Source repos within one Receipt.
 - The Issue Tracker holds many Issues; an Issue has exactly one Issue ID.
+- An Issue is either a Branch Issue or a Leaf Issue, never both.
+- A Branch Issue has zero or more child Issues; a Leaf Issue has none.
 - A Line of Inquiry contains zero or more finer Lines of Inquiry.
 - A document as a whole is either a State doc or a Stream doc, never both.
 - A State doc may embed one bounded Stream doc section (e.g., a decision

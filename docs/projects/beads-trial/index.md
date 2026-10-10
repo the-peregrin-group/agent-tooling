@@ -2,14 +2,19 @@
 
 This repo tracks its own work in [Beads](https://github.com/gastownhall/beads)
 (`bd`) as its only Issue Tracker, for a trial whose verdict decides whether
-Beads stays. The trial asks whether the agent loop on Beads becomes routine
-across sessions, and whether per-session identity shows up in claims and
-history. The freeze has held since 2026-09-24:
+Beads stays. The trial tests Beads run well, not Beads used bare: whether,
+with the systems and guardrails that let agents cooperate on it (the
+[use-bd](../use-bd/index.md) Skill and [`bdw`](../bdw/index.md)), agents
+work on Beads uniformly and reliably across sessions, with every claim and
+change attributable to one Actor. Friction that our own layer can fix
+without changing Beads' fundamental nature counts against our tooling, not
+Beads. The freeze has held since 2026-09-24:
 
 - **Local-only.** Beads 1.3.0 keeps its database in an embedded Dolt store on
   the maintainer's machine. It has no Dolt remote and syncs nowhere. git
-  tracks only three config files under `.beads/`: `.gitignore`,
-  `config.yaml`, and `metadata.json`. `config.yaml` keeps `sync.remote`
+  tracks only four files under `.beads/`: the config files `.gitignore`,
+  `config.yaml`, and `metadata.json`, and `PRIME.md`, the repo's Beads
+  conventions that `bd prime` prints. `config.yaml` keeps `sync.remote`
   commented out as a record and pins `backup.git-push: false`, so backups
   stay on the machine in every clone.
 - **GitHub Issues frozen.** The open GitHub issues were imported once, one
@@ -23,13 +28,12 @@ history. The freeze has held since 2026-09-24:
   run, prompt, or are refused. `cli/repo_policy_test.py` is their spec: its
   tuples generate the expected rules, and the test requires the JSON to
   equal them.
-- **The loop**, written in `CLAUDE.md`: prime, ready, claim, file
-  discovered work with a `discovered-from` dependency, close, and land the
-  plane (close or unclaim everything held before the session ends). A
-  `TODO` comment cites the Issue ID; a PR body names the Issue it lands
-  (`Lands agent-tooling-xyz`).
-- **Another repo** can repeat the setup with the maintainer's post-init
-  checklist, [`docs/beads-init.md`](../../beads-init.md).
+- **The loop** and everything else about working Beads is taught by the
+  [use-bd](../use-bd/index.md) Skill; this repo's conventions (labels, the
+  friction log, `TODO` citations) are in `.beads/PRIME.md`, and a PR body
+  names the Issue it lands (`Lands agent-tooling-xyz`).
+- **Another repo** can repeat the setup with use-bd's onboarding
+  checklist, `skills/use-bd/onboarding.md`.
 
 Why the trial has this shape, and the alternatives it rules out, is in
 [design.md](design.md). How it closes and what follows is the ratified
@@ -42,8 +46,6 @@ Why the trial has this shape, and the alternatives it rules out, is in
 | Beads as the sole, local-only Issue Tracker, with only its config committed | shipped | `.beads/`; [design.md](design.md) |
 | One-way import of the open GitHub issues, then the freeze | shipped | `CLAUDE.md`; pinned issue #18 |
 | Permission rules for `bd`, `bdw`, and `beads`, with a spec test that requires the JSON to equal its generated set | shipped | `.claude/settings.json`; `cli/repo_policy_test.py` |
-| The agent loop through `bdw` | shipped | `CLAUDE.md`; [`bdw`](../bdw/index.md) |
-| Post-init checklist for another repo | shipped | [`docs/beads-init.md`](../../beads-init.md) |
 | Go/no-go verdict as an ADR, with the GitHub Issues wind-down or refile | planned | [phase-two.md](phase-two.md); `agent-tooling-0pe` |
 | Phase two: a second repo syncing Issues to its git remote | planned | [phase-two.md](phase-two.md); `agent-tooling-frm` |
 
