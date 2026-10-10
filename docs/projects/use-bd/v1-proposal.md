@@ -12,7 +12,8 @@ Skill (`skills/use-bd/`) holds the procedure.
 
 Beads' operating policy for agents is spread across `CLAUDE.md`, the README,
 the Beads ADRs, the Permission rules' spec comments, the trial docs, and
-[`docs/beads-init.md`](../../beads-init.md), and works only if each is read
+the post-init checklist (`docs/beads-init.md`, since folded into the
+Skill's `onboarding.md`), and works only if each is read
 at the right moment. Meanwhile `bd prime`, the one text every agent is told
 to run first, teaches the opposite of local policy in several places (raw
 `bd` writes, `bd edit`, `bd remember`, inline text, raw git commits).
