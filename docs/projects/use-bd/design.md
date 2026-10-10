@@ -146,6 +146,30 @@ Beads policy in tiers):
 list of verified bd versions covers every intercept and Verb, along with
 the JSON shapes it reads.
 
+**Filing is a plan file.** Creating structure (new Issues, their parents,
+labels, and dependencies) is tier 3, because a parent, a label, or a
+dependency can be set through too many of bd's commands for intercepts to
+cover. Every filing goes through one `bdw` Verb that takes a graph plan,
+the JSON `bd create --graph` understands (one Issue is a one-node plan).
+`bdw` validates the plan before submitting it (parent kinds, labels against
+the scheme, dependency types), searches for near-duplicates, and echoes
+what left ready work; it validates JSON whose shape it controls instead of
+parsing bd's command line. The plan is a file, so no free text reaches the
+command line, and the submission is atomic and previewable, which makes
+"draft, preview, submit" the only way to file. Every other path to
+creating structure is denied (`create` in its other forms, `q`, `todo`,
+`create -f`, `link`, `parent-child` dependencies through `dep add`).
+Changing structure after filing (reparenting, labels, dependencies) gets a
+thin intercept or the same plan mechanism, decided when built.
+
+The filing Verb (`bdw file graph`) is one grant that covers every kind of
+structural change, so prefix rules cannot grant some changes and not
+others. That is a known gap, closed when a first need arises, preferably
+by having `bdw` check a plan's contents against machine-level capability
+policy once the capability system exists (`agent-tooling-137.1`): finer
+than prefix rules, independent of Claude Code, and reusable beyond Beads.
+Narrower Verbs, each grantable by its own prefix rule, are the fallback.
+
 **Free text.** The Skill teaches the file forms as the default for every
 text field. Inline text stays allowed; when it trips the harness's refusal
 of text naming the VCS, or a deny rule matching a denied word, the
@@ -211,6 +235,13 @@ to the file form rather than reword.
   default text with a short pointer to use-bd.
 - **No empty Issues.** `create.require-description` is on, so every Issue
   says what it is.
+- **No barrier to capture.** Beads' section lint (`bd lint`) is
+  type-dependent and, if enforced at creation, would refuse a bug filed
+  before anyone knows how to reproduce it, inviting placeholder text. So
+  `validation.on-create` stays off, and the filing Verb's dry run reports
+  lint findings as warnings only. Rigor that arrives as an Issue moves
+  through its lifecycle is separate work (`agent-tooling-c86`, a
+  status-gated Issue lifecycle).
 - **No reach outside the project.** An agent acts only on its own project's
   Issues unless expressly given permission to act on another's.
 
