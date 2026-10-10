@@ -1,5 +1,6 @@
 ---
 date: 2026-09-24
+status: amended
 ---
 
 # Beads identity: the bdw wrapper and the Executed-By trailer
@@ -29,3 +30,7 @@ date: 2026-09-24
 
 **Description:** Set `BD_ACTOR` once at session start and call `bd` directly.
 **Rejection rationale:** Each harness Bash call is a fresh shell, so the export does not survive to the next call.
+
+## Amended by
+
+- [ADR 0010](0010-bdw-carries-beads-policy-in-tiers.md): `bdw` no longer always execs `bd` with arguments untouched; it intercepts, or replaces with its own Verbs, the operations that carry policy.

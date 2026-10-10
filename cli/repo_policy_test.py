@@ -27,15 +27,18 @@ from pathlib import Path
 POLICY = Path(__file__).resolve().parents[1] / ".claude" / "settings.json"
 
 # The names the binary answers to: Homebrew links both `bd` and `beads`
-# beside each other, and `bdw` is the Beads wrapper. Reads and reversible
-# writes are granted on `bd` and `bdw` only; `beads` is denied and asked for
-# so that it cannot be the unguarded spelling in auto mode.
-GRANTED_BINARIES = ("bd", "bdw")
-GUARDED_BINARIES = ("bd", "bdw", "beads")
+# beside each other, and `bdw` is the Beads wrapper. Agents touch Beads only
+# through `bdw` (the use-bd Skill), so the raw names are denied outright,
+# reads included: the habit of typing `bd` fails at once instead of
+# working for reads and prompting for writes. Everything below applies to
+# `bdw` alone.
+GRANTED_BINARIES = ("bdw",)
+RAW_BINARIES = ("bd", "beads")
+RAW_DENY_SHAPES = ("Bash({b})", "Bash({b} *)")
 
-# Never run by an agent. Each verb gets two spellings per binary: the
-# subcommand-first form (which also matches the bare call) and the
-# flag-first form that catches global flags placed before the verb.
+# Never run by an agent. Each verb gets two spellings: the subcommand-first
+# form (which also matches the bare call) and the flag-first form that
+# catches global flags placed before the verb.
 DENY_VERBS = (
     "admin",
     "ado",
@@ -44,7 +47,15 @@ DENY_VERBS = (
     "conflicts",
     "delete",
     "dolt",
+    # Aliases (`done` for close, `hb` for heartbeat, `new` for create) and
+    # `link` (shorthand for dep add) are denied so the use-bd Skill's one
+    # spelling of each operation is the only one, while bdw does not map
+    # them.
+    "done",
     "edit",
+    # Closes epics because their children closed, skipping the Branch
+    # Issue's verifying pass (ADR 0009).
+    "epic close-eligible",
     "events prune",
     "federation",
     "flatten",
@@ -52,17 +63,23 @@ DENY_VERBS = (
     "gc",
     "github",
     "gitlab",
+    "hb",
     "hooks",
     "init",
     "jira",
     "linear",
+    "link",
     "mail",
+    # Memories stay in the harness's own memory files, never in Beads.
+    "memories",
     "metrics on",
     "migrate",
     "migrate-personal",
+    "new",
     "notion",
     "prune",
     "purge",
+    "recall",
     # The lease reaper: it reverts every claim whose lease has expired to
     # open. A lapsed lease is inert until reclaim runs, and our sessions sit
     # for hours waiting on a human, so a reclaim would rob live work. Denied
@@ -82,6 +99,14 @@ DENY_VERBS = (
     "worktree",
 )
 DENY_SHAPES = ("Bash({b} {v} *)", "Bash({b} -* {v}*)")
+
+# Flags that claim the next Issue for the agent, around the choice of what
+# to work on. Denied wherever they appear on their verb.
+DENY_FLAG_ROWS = (
+    "Bash(bdw ready *--claim*)",
+    "Bash(bdw close *--claim-next*)",
+    "Bash(bdw close *--continue*)",
+)
 
 # Verbs that act with no arguments at all, given an exact bare row as well,
 # so that a deny does not depend on the space-star-matches-bare rule.
@@ -130,45 +155,53 @@ INDIRECTION_ASK_ROWS = (
 )
 
 # Human gate on top of an allow: flags that delete, override another actor's
-# claim, write files, or send data off the machine, and configuration or
-# backup-destination changes.
+# claim, close Issues on the agent's behalf, write files, or send data off
+# the machine, and configuration or backup changes.
 ASK_FLAGS = (
-    "Bash({b} update *--force*)",
-    "Bash({b} update *--no-history*)",
-    "Bash({b} close *--force*)",
-    "Bash({b} close * -f*)",
-    "Bash({b} create *--no-history*)",
-    "Bash({b} doctor *--fix*)",
-    "Bash({b} doctor *--clean*)",
-    "Bash({b} doctor *--yes*)",
-    "Bash({b} doctor * -y*)",
-    "Bash({b} doctor *--perf*)",
-    "Bash({b} doctor *--output*)",
-    "Bash({b} doctor * -o*)",
-    "Bash({b} preflight *--fix*)",
-    "Bash({b} find-duplicates *--method*)",
-    "Bash({b} human dismiss *)",
-    "Bash({b} config set *)",
-    "Bash({b} config set-many *)",
-    "Bash({b} config unset *)",
-    "Bash({b} config apply *)",
-    "Bash({b} backup init *)",
-    "Bash({b} backup add *)",
-    "Bash({b} backup restore *)",
-    "Bash({b} backup remove *)",
-    "Bash({b} assign *)",
-    "Bash({b} supersede *)",
-    "Bash({b} duplicate *)",
-    "Bash({b} duplicates *)",
-    "Bash({b} import *)",
-    "Bash({b} export *)",
-    "Bash({b} batch *)",
-    "Bash({b} bootstrap *)",
-    "Bash({b} restore *)",
+    "Bash(bdw update *--force*)",
+    "Bash(bdw update *--no-history*)",
+    "Bash(bdw update *--assignee*)",
+    "Bash(bdw update * -a*)",
+    "Bash(bdw unclaim *--force*)",
+    "Bash(bdw close *--force*)",
+    "Bash(bdw close * -f*)",
+    "Bash(bdw create *--no-history*)",
+    "Bash(bdw doctor *--fix*)",
+    "Bash(bdw doctor *--clean*)",
+    "Bash(bdw doctor *--yes*)",
+    "Bash(bdw doctor * -y*)",
+    "Bash(bdw doctor *--perf*)",
+    "Bash(bdw doctor *--output*)",
+    "Bash(bdw doctor * -o*)",
+    "Bash(bdw orphans *--fix*)",
+    "Bash(bdw orphans * -f*)",
+    "Bash(bdw preflight *--fix*)",
+    "Bash(bdw find-duplicates *--method*)",
+    # Comments, then closes the Issue at once; a review never closes this
+    # way, so only a human-attended call may.
+    "Bash(bdw human respond *)",
+    "Bash(bdw human dismiss *)",
+    "Bash(bdw config set *)",
+    "Bash(bdw config set-many *)",
+    "Bash(bdw config unset *)",
+    "Bash(bdw config apply *)",
+    "Bash(bdw backup init *)",
+    "Bash(bdw backup add *)",
+    "Bash(bdw backup restore *)",
+    "Bash(bdw backup remove *)",
+    # Pushes the whole database to the backup destination.
+    "Bash(bdw backup sync *)",
+    "Bash(bdw assign *)",
+    "Bash(bdw duplicates *)",
+    "Bash(bdw import *)",
+    "Bash(bdw export *)",
+    "Bash(bdw batch *)",
+    "Bash(bdw bootstrap *)",
+    "Bash(bdw restore *)",
 )
 
-# Reads, granted on bd and bdw. A read needs no actor, so either name may
-# run it. `metrics off` is the one write here: it only turns telemetry off.
+# Reads, granted on bdw. `metrics off` is the one write here: it only turns
+# telemetry off.
 ALLOW_READS = (
     "Bash({b})",
     "Bash({b} --help)",
@@ -199,6 +232,8 @@ ALLOW_READS = (
     "Bash({b} label list-all *)",
     "Bash({b} epic)",
     "Bash({b} epic status *)",
+    "Bash({b} gate list *)",
+    "Bash({b} gate show *)",
     "Bash({b} human)",
     "Bash({b} human list *)",
     "Bash({b} human stats *)",
@@ -226,8 +261,7 @@ ALLOW_READS = (
     "Bash({b} metrics example *)",
 )
 
-# Reversible writes. Allowed through bdw, which carries the actor, and
-# asked for on the bare names, so a raw write prompts even in auto mode.
+# Reversible writes, allowed through bdw, which carries the actor.
 WRITE_VERBS = (
     "create *",
     "q *",
@@ -248,39 +282,39 @@ WRITE_VERBS = (
     "priority *",
     "unclaim *",
     "heartbeat *",
-    "human respond *",
+    # Work waiting on a human is blocked by a gate. `gate check` closes the
+    # gates whose condition holds (a merged PR). `gate resolve` stays
+    # unruled, so it prompts: resolving a human gate is the human's act.
+    "gate create *",
+    "gate check *",
     "set-state *",
-    "epic close-eligible *",
     "recompute-blocked *",
-    "backup sync *",
     "todo *",
+    # Reversible, visible record-keeping: when to use them is a filing
+    # discipline (use-bd), not a permission.
+    "duplicate *",
+    "supersede *",
+    "defer *",
+    "undefer *",
 )
-# `ready --claim` is a write hiding under the `ready *` read.
-RAW_WRITE_EXTRA = ("Bash({b} ready *--claim*)",)
-RAW_BINARIES = tuple(b for b in GUARDED_BINARIES if b != "bdw")
 
 
 def expected_deny() -> set:
-    rows = set(PATH_DENY_ROWS)
-    for binary in GUARDED_BINARIES:
-        for verb in DENY_VERBS:
-            for shape in DENY_SHAPES:
-                rows.add(shape.format(b=binary, v=verb))
-        for verb in BARE_DENY_VERBS:
-            rows.add(BARE_DENY_SHAPE.format(b=binary, v=verb))
-        for shape in ACTOR_FLAG_DENY_SHAPES:
-            rows.add(shape.format(b=binary))
+    rows = set(PATH_DENY_ROWS) | set(DENY_FLAG_ROWS)
+    for binary in RAW_BINARIES:
+        rows.update(shape.format(b=binary) for shape in RAW_DENY_SHAPES)
+    for verb in DENY_VERBS:
+        for shape in DENY_SHAPES:
+            rows.add(shape.format(b="bdw", v=verb))
+    for verb in BARE_DENY_VERBS:
+        rows.add(BARE_DENY_SHAPE.format(b="bdw", v=verb))
+    for shape in ACTOR_FLAG_DENY_SHAPES:
+        rows.add(shape.format(b="bdw"))
     return rows
 
 
 def expected_ask() -> set:
-    rows = set(INDIRECTION_ASK_ROWS)
-    for binary in GUARDED_BINARIES:
-        rows.update(row.format(b=binary) for row in ASK_FLAGS)
-    for binary in RAW_BINARIES:
-        rows.update("Bash({b} {v})".format(b=binary, v=verb) for verb in WRITE_VERBS)
-        rows.update(row.format(b=binary) for row in RAW_WRITE_EXTRA)
-    return rows
+    return set(INDIRECTION_ASK_ROWS) | set(ASK_FLAGS)
 
 
 def expected_allow() -> set:
@@ -336,49 +370,72 @@ class RepoPolicyTest(unittest.TestCase):
             if len(tokens) > 1:
                 self.assertNotIn("*", tokens[1], row)
 
-    def test_the_beads_name_is_never_granted(self) -> None:
-        for row in self.lists["allow"]:
-            self.assertFalse(row.startswith("Bash(beads"), row)
-
-    def test_every_forgetting_verb_is_denied_for_every_guarded_binary(self) -> None:
+    def test_the_raw_names_are_denied_outright_and_never_granted(self) -> None:
         deny = set(self.lists["deny"])
-        for binary in GUARDED_BINARIES:
-            for verb in ("admin", "prune", "gc", "compact"):
-                self.assertIn(f"Bash({binary} {verb} *)", deny)
-                self.assertIn(f"Bash({binary} -* {verb}*)", deny)
+        granted = self.lists["allow"] + self.lists["ask"]
+        for binary in RAW_BINARIES:
+            self.assertIn(f"Bash({binary})", deny)
+            self.assertIn(f"Bash({binary} *)", deny)
+            for row in granted:
+                self.assertFalse(row.startswith(f"Bash({binary} "), row)
+                self.assertNotEqual(row, f"Bash({binary})")
+
+    def test_every_forgetting_verb_is_denied(self) -> None:
+        deny = set(self.lists["deny"])
+        for verb in ("admin", "prune", "gc", "compact"):
+            self.assertIn(f"Bash(bdw {verb} *)", deny)
+            self.assertIn(f"Bash(bdw -* {verb}*)", deny)
 
     def test_nothing_that_leaves_the_machine_is_anything_but_denied(self) -> None:
         deny = set(self.lists["deny"])
         granted = set(self.lists["allow"]) | set(self.lists["ask"])
-        for binary in GUARDED_BINARIES:
-            for verb in ("github", "sync", "dolt", "federation", "mail", "ship", "metrics on"):
-                self.assertIn(f"Bash({binary} {verb} *)", deny)
-                self.assertIn(f"Bash({binary} -* {verb}*)", deny)
-                self.assertNotIn(f"Bash({binary} {verb} *)", granted)
+        for verb in ("github", "sync", "dolt", "federation", "mail", "ship", "metrics on"):
+            self.assertIn(f"Bash(bdw {verb} *)", deny)
+            self.assertIn(f"Bash(bdw -* {verb}*)", deny)
+            self.assertNotIn(f"Bash(bdw {verb} *)", granted)
 
-    def test_the_actor_flag_is_denied_in_any_position_for_every_guarded_binary(self) -> None:
+    def test_the_actor_flag_is_denied_in_any_position(self) -> None:
         deny = set(self.lists["deny"])
-        for binary in GUARDED_BINARIES:
-            self.assertIn(f"Bash({binary} --actor*)", deny)
-            self.assertIn(f"Bash({binary} * --actor*)", deny)
+        self.assertIn("Bash(bdw --actor*)", deny)
+        self.assertIn("Bash(bdw * --actor*)", deny)
 
-    def test_reclaim_is_denied_and_never_asked_for_on_every_guarded_binary(self) -> None:
+    def test_reclaim_is_denied_and_never_asked_for(self) -> None:
         deny = set(self.lists["deny"])
         granted = set(self.lists["allow"]) | set(self.lists["ask"])
-        for binary in GUARDED_BINARIES:
-            self.assertIn(f"Bash({binary} reclaim)", deny)
-            self.assertIn(f"Bash({binary} reclaim *)", deny)
-            self.assertIn(f"Bash({binary} -* reclaim*)", deny)
-            self.assertNotIn(f"Bash({binary} reclaim *)", granted)
+        self.assertIn("Bash(bdw reclaim)", deny)
+        self.assertIn("Bash(bdw reclaim *)", deny)
+        self.assertIn("Bash(bdw -* reclaim*)", deny)
+        self.assertNotIn("Bash(bdw reclaim *)", granted)
 
-    def test_every_raw_write_verb_is_asked_for_and_only_the_wrapper_is_allowed(self) -> None:
-        ask = set(self.lists["ask"])
+    def test_every_write_verb_is_allowed_through_the_wrapper(self) -> None:
         allow = set(self.lists["allow"])
         for verb in WRITE_VERBS:
-            for binary in RAW_BINARIES:
-                self.assertIn(f"Bash({binary} {verb})", ask)
-                self.assertNotIn(f"Bash({binary} {verb})", allow)
             self.assertIn(f"Bash(bdw {verb})", allow)
+
+    def test_what_use_bd_says_never_to_do_is_denied_or_asked_for(self) -> None:
+        # The Skill's "never" calls must not run unattended: claiming
+        # around the choice of work, closing an epic or a review on the
+        # agent's behalf, and taking over another Actor's claim.
+        deny = set(self.lists["deny"])
+        ask = set(self.lists["ask"])
+        for row in (
+            "Bash(bdw epic close-eligible *)",
+            "Bash(bdw ready *--claim*)",
+            "Bash(bdw close *--claim-next*)",
+            "Bash(bdw close *--continue*)",
+            "Bash(bdw memories *)",
+            "Bash(bdw recall *)",
+        ):
+            self.assertIn(row, deny)
+        for row in (
+            "Bash(bdw human respond *)",
+            "Bash(bdw unclaim *--force*)",
+            "Bash(bdw update *--assignee*)",
+            "Bash(bdw update * -a*)",
+            "Bash(bdw orphans *--fix*)",
+            "Bash(bdw backup sync *)",
+        ):
+            self.assertIn(row, ask)
 
 
 if __name__ == "__main__":

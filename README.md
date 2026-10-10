@@ -143,7 +143,8 @@ GitHub Issues frozen; `CLAUDE.md` has the rules and ADR 0001 the reasons.
 You need `bd` to contribute, not to use the tooling. A fresh clone gets the
 `.beads/` config but no issue data: the database is local to the
 maintainer's machine, and nothing in it syncs anywhere. To set up Beads in
-another repo, follow the post-init checklist in `docs/beads-init.md`.
+another repo, follow the onboarding checklist in
+`skills/use-bd/onboarding.md`.
 
 ## Provenance
 
