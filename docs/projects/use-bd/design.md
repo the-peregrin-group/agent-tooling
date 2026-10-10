@@ -5,10 +5,10 @@ as its Issue Tracker, through [`bdw`](../bdw/index.md), the Beads Wrapper.
 This document holds why use-bd and `bdw` work the way they do; the Skill
 (`skills/use-bd/`) holds the procedure.
 
-> **In progress.** This design is being worked out in a home-in session
-> (2026-10-07 to 2026-10-08). The sections above the open items are
-> settled; the open items at the end are the live state of that session and
-> are removed before the change merges.
+> **Ratified 2026-10-09** in a home-in session (2026-10-07 to 2026-10-09).
+> Most of what it describes is being built in slices under
+> `agent-tooling-aio`; which parts are shipped is tracked in the project's
+> Status table, not here.
 
 ## Why use-bd exists
 
@@ -393,21 +393,3 @@ ships in thin slices, each useful alone); and, during the local-only trial,
 losing the single copy of the database (`agent-tooling-mfs`, snapshots to
 the maintainer's NAS).
 
----
-
-## Open items
-
-**Frontier** of the home-in walk (Lines of Inquiry):
-
-- Exhausted: all ten roots.
-
-**Resolution Queue:**
-
-- Repair: `agent-tooling-aio` (the use-bd Issue) is a Branch Issue with an
-  open child, so this session's claim on it is a pass that should end by
-  breaking it down.
-- Carried into the build:
-  - whether our own Verbs reuse bd's names (`bdw ready`) or get their own,
-    decided per Verb;
-  - to verify: that `bdw` can read a parent's type cheaply, and whether bd
-    tolerates `.beads/bdw.json`.
