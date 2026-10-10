@@ -13,7 +13,8 @@ is the operating manual; this file holds only this repo's conventions.
   do not add those to new Issues, since kind goes in the type field.
 - **Friction log.** Append friction, surprises, and refusals to
   `agent-tooling-w7p.4` with `bdw note agent-tooling-w7p.4 --file=<path>`:
-  a dated, numbered entry that names the use-bd success criterion it bears
+  a dated entry, numbered after the last one in its notes
+  (`bdw show agent-tooling-w7p.4`), that names the use-bd success criterion it bears
   on (`docs/projects/use-bd/v1-proposal.md`, "Success criteria"), or
   "none" when it fits no criterion.
 - **`TODO` comments** cite the Issue ID (`TODO(agent-tooling-xyz)`).

@@ -38,7 +38,6 @@ carrying policy in tiers is
 | `bdw ready` without Branch Issues that have open children, and the pass rules enforced (claim refusal, claim release on breakdown, branch-kind check) | planned | [v1-proposal.md](v1-proposal.md); `agent-tooling-aio.4` |
 | Filing through a validated graph plan (`bdw file graph`), with near-duplicate search, lint warnings, and a ready-work echo; other paths to structure denied | planned | [v1-proposal.md](v1-proposal.md); `agent-tooling-aio.5` |
 | The repo's structured conventions file, label checks against its scheme, file forms for every free-text field, and the Docs Inbox Verb | planned | [v1-proposal.md](v1-proposal.md); `agent-tooling-aio.6` |
-| Issue kinds consistent across repos: imported GitHub type labels converted to Beads types, and a custom `meta` type | planned | `agent-tooling-aio.7` |
 | A SessionStart hook that loads use-bd, and a hook refusing raw Beads calls | planned | [v1-proposal.md](v1-proposal.md); `agent-tooling-0s1.5`, `agent-tooling-0s1.6` |
 | Formulas as templates for a Branch Issue's standard phases | planned | [v1-proposal.md](v1-proposal.md); `agent-tooling-sn6` |
 
@@ -48,3 +47,7 @@ carrying policy in tiers is
   environment distinguishes it from its parent (`agent-tooling-jk2`).
 - A title has no file form in bd 1.3.0, so a title that names the VCS is
   refused inline (`agent-tooling-aio.6`).
+- Calls the Skill says never to make are still allowed in this repo
+  (`human respond`, `epic close-eligible`, `unclaim --force`,
+  `ready --claim`, `close --claim-next`), and marking a duplicate prompts
+  (`agent-tooling-aio.3`).

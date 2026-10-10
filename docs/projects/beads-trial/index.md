@@ -46,8 +46,6 @@ Why the trial has this shape, and the alternatives it rules out, is in
 | Beads as the sole, local-only Issue Tracker, with only its config committed | shipped | `.beads/`; [design.md](design.md) |
 | One-way import of the open GitHub issues, then the freeze | shipped | `CLAUDE.md`; pinned issue #18 |
 | Permission rules for `bd`, `bdw`, and `beads`, with a spec test that requires the JSON to equal its generated set | shipped | `.claude/settings.json`; `cli/repo_policy_test.py` |
-| The agent loop through `bdw` | shipped | [use-bd](../use-bd/index.md); [`bdw`](../bdw/index.md) |
-| Post-init checklist for another repo | shipped | `skills/use-bd/onboarding.md` |
 | Go/no-go verdict as an ADR, with the GitHub Issues wind-down or refile | planned | [phase-two.md](phase-two.md); `agent-tooling-0pe` |
 | Phase two: a second repo syncing Issues to its git remote | planned | [phase-two.md](phase-two.md); `agent-tooling-frm` |
 

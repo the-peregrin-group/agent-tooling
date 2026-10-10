@@ -8,9 +8,11 @@ what bd does and what to do about it.
 
 - **Claims carry a lease that only `heartbeat` extends.** A claim's lease
   lapses after a few minutes (the length is undocumented) unless renewed
-  with `bdw heartbeat <id>`. A lapsed lease is inert until `reclaim` runs,
-  which reverts every expired claim to open. Agents never run `reclaim`;
-  where it is denied, a lapsed lease does nothing.
+  with `bdw heartbeat <id>`. `reclaim` reverts claims whose lease expired
+  more than `--older-than` ago to open. Agents never run `reclaim`. A
+  lapsed lease may also let another Actor take the Issue with
+  `update --assignee` without `--force` (inferred from bd's help, not
+  tested), which is one more reason never to reassign a claimed Issue.
 - **A contested claim's message steers to `reclaim`.** When `--claim`
   fails because someone else holds the Issue, bd suggests reclaiming it.
   Do not; ask whoever holds it, or the user.
@@ -18,10 +20,10 @@ what bd does and what to do about it.
   hand (`bdw show <id> --children`).
 - **`epic close-eligible` closes epics because their children closed,**
   skipping the verifying pass. Never run it.
-- **`ready` hides a status `bd` does not document:** `hooked`, alongside
-  in_progress, blocked, and deferred.
-- **There is no "in review" status.** An unclaimed open Issue reads as
-  ready work. Block work waiting on a human with a gate (see SKILL.md).
+- **`ready` hides a `hooked` status** alongside in_progress, blocked, and
+  deferred; `hooked` is named in `ready`'s help but not in `list -s`'s.
+- **There is no built-in "in review" status** (a custom one is possible
+  but not used). An unclaimed open Issue reads as ready work. Block work waiting on a human with a gate (see SKILL.md).
 - **`close --claim-next`, `close --continue`, and `ready --claim` claim
   the next Issue for you,** skipping the choice of what to work on. Claim
   explicitly instead.
@@ -35,8 +37,9 @@ what bd does and what to do about it.
   `note --file` append.
 - **Children inherit their parent's labels** unless filed with
   `--no-inherit-labels`.
-- **`-f` means different things:** a markdown batch file on `create`,
-  `--force` on `close`.
+- **`-f` means different things:** a markdown batch file on `create`, a
+  file on `comments add`, and `--force` on `close`. Spell file flags out
+  (`--file`, `--reason-file`) except where SKILL.md shows `-f`.
 - **No file form** for the title, acceptance criteria, replacing notes,
   or the reasons on `unclaim`, `gate create`, and `gate resolve`.
 - **`list -s` repeated keeps only the last value;** pass a comma list.
@@ -55,9 +58,9 @@ what bd does and what to do about it.
 
 ## Help and denied verbs
 
-- **`bd help <verb>` works for a denied verb.** To read a denied verb's
-  flags, use `bdw help <verb>`; running the verb with `--help` matches
-  its deny rule.
+- **`bdw help <verb>` works for every verb, denied ones included;**
+  `bdw <verb> --help` matches the verb's own rules, so it is denied for a
+  denied verb and can prompt for others.
 
 ## Prime and memories
 

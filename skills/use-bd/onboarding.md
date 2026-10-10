@@ -2,9 +2,9 @@
 
 Setting Beads 1.3.0 up in a new repo so that its Issue Tracker stays
 local to the machine, only its config lands in version control, and agents
-work it through `bdw` under this skill. This is a maintainer procedure:
-agents are denied `init` and every `dolt` subcommand, and the backup
-commands ask, so a human runs or approves each step. An agent may draft
+work it through `bdw` under this skill. This is a maintainer procedure,
+and the Permission rules suggested below deny agents `init` and every
+`dolt` subcommand, so a human runs or approves each step. An agent may draft
 the files (`PRIME.md`, the Permission rules) and the change that lands
 them.
 
@@ -48,7 +48,8 @@ them.
   ```
 
 - [ ] Remove the sync remote. Init sets `sync.remote` in
-  `.beads/config.yaml` to the repo's origin; delete the line. The Dolt
+  `.beads/config.yaml` to the repo's origin; delete the line, or comment
+  it out as a record. The Dolt
   repo holds its own copy, so also run, in the primary checkout:
 
   ```sh
@@ -109,9 +110,9 @@ them.
   default text, which contradicts this skill. Keep it short: one line
   telling agents to load `/use-bd`, then the repo's conventions in words
   (its labels, where friction is logged, how a PR names the Issue it
-  lands, how a `TODO` comment cites an Issue). It describes and points;
-  it never permits or forbids anything, because what agents may do is
-  decided only by the reviewed Permission rules.
+  lands, how a `TODO` comment cites an Issue). It states conventions and
+  points; it never grants or denies an operation, because what agents may
+  run is decided only by the reviewed Permission rules.
 - [ ] Add Permission rules for `bdw` to the repo's `.claude/settings.json`:
   reads and reversible writes allowed through `bdw`, raw `bd` and `beads`
   writes asked for or denied, and the irreversible, off-machine, and

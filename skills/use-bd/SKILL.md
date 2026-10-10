@@ -20,7 +20,8 @@ description: >
 Beads (`bd`) is the Issue Tracker; `bdw` is the wrapper every agent runs it
 through. `bdw` records which session acted (the Actor) and otherwise passes
 the arguments to `bd` untouched, so bd's own help is the reference for
-flags: `bdw help <verb>` or `bdw <verb> --help`.
+flags: `bdw help <verb> [<subcommand>]`. (`bdw <verb> --help` can prompt
+or match a deny rule; `bdw help` never does.)
 
 Three rules hold for every call:
 
@@ -39,11 +40,12 @@ prints. Read this skill's `quirks.md` when bd surprises you, and
 
 ## The loop
 
-1. `bdw prime` at session start.
+1. `bdw prime` at session start, then `bdw gate check` to resolve gates
+   whose condition now holds (see Work waiting on a human).
 2. `bdw ready` to find work, `bdw show <id>` to read it. `bdw ready` also
    lists Branch Issues (below) that still have open children; skip those
-   by hand (`bdw show <id> --children` shows them). A Branch Issue whose
-   children are all closed is ready for its verifying pass.
+   by hand. `bdw epic status --eligible-only` lists the epics whose
+   children are all closed, which are ready for their verifying pass.
 3. `bdw update <id> --claim` before touching anything.
 4. File what you find along the way as new Issues linked back:
    `--deps=discovered-from:<id>` (see Filing).
@@ -63,9 +65,13 @@ files new Issues, and appends notes and comments, but never claims,
 closes, or rewrites an Issue.** The session that holds the conversation
 does those. An orchestrator puts this rule in every brief it hands down.
 
-Attended sessions of one user share one Actor today, so two attended
-sessions must not work the same Issue. Never pass `--actor`; `bdw`
-refuses it. Never take over someone else's claim; ask.
+Attended sessions of one user share one Actor today, and `--claim`
+succeeds silently when the Issue is already claimed by the same Actor.
+So a successful claim does not prove the Issue is yours: if `bdw show`
+already showed it `in_progress` under your Actor before you claimed it,
+another session may hold it; stop and ask. Never pass `--actor`; `bdw`
+refuses it. Never take over someone else's claim (`unclaim --force`,
+`update --assignee`); ask.
 
 ## Branch Issues and Leaf Issues
 
@@ -142,14 +148,16 @@ to the file form; never reword the text to get past the refusal.**
 | a note, appended | `bdw note <id> --file=<path>` |
 | a comment | `bdw comments add <id> -f <path>` |
 | close reason | `bdw close <id> --reason-file=<path>` |
-| metadata | `--metadata=@<file>.json` (replaces all keys) |
 
-bd 1.3.0 has no file form for the title, acceptance criteria, or
-replacing notes (`--notes` overwrites them; append with `note --file`). A
-title is the one place where keeping the word out is sanctioned until
-`bdw` adds a file form; log a friction entry when it happens.
+bd 1.3.0 has no file form for the title, acceptance criteria, replacing
+notes (`--notes` overwrites them; append with `note --file`), or the
+reasons on `unclaim` and `gate`. Leave those reasons off and put the why
+in a note. A title is the one place where keeping the word out is
+sanctioned until `bdw` adds a file form; log a friction entry when it
+happens.
 
-Write files under the session's scratch directory with unique names.
+Write the files in the temporary directory your harness designates
+(never in the repo), with unique names.
 
 **State versus log.** An Issue's description is its state: rewrite it in
 place (`--body-file`) so it always reads as the current picture,
@@ -162,15 +170,18 @@ When an Issue cannot move until a person acts (a PR in review, a
 decision), release it and block it with a gate, so it leaves ready work
 without a custom status:
 
-- A PR: `bdw gate create --blocks=<id> --type=gh:pr --await-id=<number>`.
-  `bdw gate check` resolves gates whose PR has merged.
-- Anything else: `bdw gate create --blocks=<id> --type=human
-  --reason=<why>`. The person resolves it.
+- A PR on GitHub: `bdw gate create --blocks=<id> --type=gh:pr
+  --await-id=<number>`. `bdw gate check` resolves it once the PR has
+  merged (it asks the `gh` CLI, so it works only for GitHub-hosted repos;
+  elsewhere use a `human` gate).
+- Anything else: `bdw gate create --blocks=<id> --type=human`, with the
+  why in a note on the Issue. The person resolves it.
 - Add the `human` label (`bdw label add <id> human`), so the maintainer
   has one queue: `bdw human list`.
 
-After merge, close the Issue the normal way. Never close it through
-`bdw human respond`, which closes at once.
+An open gate blocks closing as well as ready work. After merge, run
+`bdw gate check`, then close the Issue the normal way; never force the
+close. Never close it through `bdw human respond`, which closes at once.
 
 Record the Issue's branch and PR as metadata, the one current answer:
 `bdw update <id> --set-metadata=branch=<name> --set-metadata=pr=<number>`.
