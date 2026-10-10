@@ -5,7 +5,7 @@ status: current
 
 # bdw carries Beads policy, in the lightest tier that suffices
 
-**Context:** `bdw` was built as an identity wrapper that otherwise execs `bd` with arguments untouched ([ADR 0002](0002-beads-identity.md), Beads identity). The use-bd design needs policy that Permission rules cannot express (which kinds may take children, what counts as ready work, releasing a Branch Issue's claim), and encoding it means `bdw` handling bd's arguments, where re-implementing bd's command grammar would tie `bdw` to bd's CLI. The analysis is in the [use-bd design](../projects/use-bd/design.md).
+**Context:** `bdw` was built as an identity wrapper that otherwise execs `bd` with arguments untouched ([ADR 0002](0002-beads-identity.md), Beads identity). The use-bd design needs policy that Permission rules cannot express (which kinds may take children, what counts as ready work, releasing a Branch Issue's claim), and encoding it means `bdw` handling bd's arguments, where re-implementing bd's command grammar would tie `bdw` to bd's CLI. The analysis is in the [use-bd v1 proposal](../projects/use-bd/v1-proposal.md).
 
 **Decision:** `bdw` carries the Beads policy that Permission rules cannot express, handling each operation in the lightest of three tiers that suffices: pass-through, a thin intercept that fails closed on any command line it cannot read unambiguously, or a Verb of its own whose superseded raw `bd` commands are denied.
 

@@ -5,7 +5,7 @@ status: current
 
 # Branch Issues are worked in passes, triggered by having no open children
 
-**Context:** A Branch Issue's work is management (scoping, setting success criteria, breaking down, verifying completion), but nothing in Beads schedules it: excluded from ready-work queries it becomes invisible, and closed automatically once its children close it skips verification. No agent stays available across the days or weeks a Branch Issue can live, so that work cannot belong to a standing owner. The analysis is in the [use-bd design](../projects/use-bd/design.md).
+**Context:** A Branch Issue's work is management (scoping, setting success criteria, breaking down, verifying completion), but nothing in Beads schedules it: excluded from ready-work queries it becomes invisible, and closed automatically once its children close it skips verification. No agent stays available across the days or weeks a Branch Issue can live, so that work cannot belong to a standing owner. The analysis is in the [use-bd v1 proposal](../projects/use-bd/v1-proposal.md).
 
 **Decision:** A Branch Issue is ready work exactly when it has no open children, and each claim on it is one session-sized pass that ends either by adding children or by verifying completion and closing it.
 

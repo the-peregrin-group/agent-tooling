@@ -1,14 +1,12 @@
-# use-bd: design
+# use-bd: version-one proposal
 
-use-bd is the Skill that teaches agents how this ecosystem uses Beads (`bd`)
-as its Issue Tracker, through [`bdw`](../bdw/index.md), the Beads Wrapper.
-This document holds why use-bd and `bdw` work the way they do; the Skill
-(`skills/use-bd/`) holds the procedure.
-
-> **Ratified 2026-10-09** in a home-in session (2026-10-07 to 2026-10-09).
-> Most of what it describes is being built in slices under
-> `agent-tooling-aio` (the use-bd epic); which parts are shipped is tracked in the project's
-> Status table, not here.
+Proposal, ratified 2026-10-09 in a home-in session (2026-10-07 to
+2026-10-09). A point-in-time capture of the plan for version one of use-bd,
+the Skill that teaches agents how this ecosystem uses Beads (`bd`) as its
+Issue Tracker, through [`bdw`](../bdw/index.md), the Beads Wrapper. It is
+being built in slices under `agent-tooling-aio` (the use-bd epic) and is not
+updated as they ship: status and Issues are in [index.md](index.md), and the
+Skill (`skills/use-bd/`) holds the procedure.
 
 ## Why use-bd exists
 
@@ -59,8 +57,11 @@ reliably. A verdict on Beads used bare would grade the wrong thing.
    attributable to exactly one Actor.
 5. **Agents load use-bd before touching the Issue Tracker,** not after a
    refusal, and nothing `bd prime` prints contradicts it.
-6. **Policy has one home.** Each rule is written once, in the Skill or this
-   design; `CLAUDE.md`, the README, and the trial docs point here.
+6. **Policy has one home.** Each rule is written once: its procedure in the
+   Skill, its rationale in the project's design doc or an ADR; `CLAUDE.md`,
+   the README, and the trial docs point to the Skill. Enforcement is
+   separate from the prose: the Permission rules decide what an agent may
+   run, and `bdw`'s own behavior carries what they cannot express.
 7. **Organizational hygiene.** Work is broken down into Leaf Issues sized
    for one session, under Branch Issues for anything bigger, and the four
    relationships (dependency, contradiction, duplication, composition) are
@@ -282,8 +283,10 @@ does things).
   project's conventions in words), and `.beads/bdw.json` (or
   `bdw-config.json` at the repo root, if bd does not tolerate the extra
   file), the structured facts `bdw` reads: the label scheme, extra document
-  link keys, the Docs Inbox path. Neither may grant or limit anything an
-  agent may do.
+  link keys, the Docs Inbox path. Neither touches the Permission rules:
+  `bdw.json` may steer what the `bdw` executable itself does (e.g., which
+  labels the filing Verb accepts), but whether an agent may run an
+  operation at all is decided only by the reviewed Permission rules.
 - **Labels** follow the scheme the repo declares; the filing Verb refuses
   unknown labels or a missing required category. Beads' own type field
   carries the Issue's kind, so labels carry only areas and the like.
@@ -362,8 +365,12 @@ despite instructions, so use-bd's loading is pushed from several sides:
   (`agent-tooling-0s1.5`), and a hook that refuses raw Beads calls with a
   message pointing to use-bd and `bdw` (`agent-tooling-0s1.6`).
 
-A per-session reminder printed by `bdw` was rejected: it is machinery that
-still cannot make an agent comply.
+A per-session reminder printed by `bdw` was rejected. The help line is a
+fixed string of about ten tokens, with no logic or state, so it costs
+nothing even though its effect is small. A once-per-session reminder needs
+a mechanism (state that tracks what a session has seen, keyed to how
+Claude Code identifies sessions), which adds complexity and can break when
+Claude Code changes, for an effect no larger.
 
 ## The Skill's shape
 
@@ -382,6 +389,28 @@ load pays for stays small:
 
 Splitting into sibling Skills (e.g., a separate setup Skill) belongs to the
 skill-family work (`agent-tooling-u9n`).
+
+## Decided in its slice
+
+This proposal deliberately leaves these interface choices to the slice that
+builds them, where they can be settled against working code:
+
+- Which Issue types count as branch kinds beyond the epic, and whether a
+  Branch Issue with no open children but an open blocker is ready work
+  (`agent-tooling-aio.4`, `bdw ready` and the pass rules).
+- How structure is changed after filing (reparenting, labels,
+  dependencies): a thin intercept or the plan mechanism; and how a Branch
+  Issue that is not of a branch kind is detected for repair
+  (`agent-tooling-aio.5`, the filing Verb).
+- The config file's name and place (`.beads/bdw.json` or a repo-root
+  file), its schema, the label scheme's format and what a required
+  category is; the names of the file-form flags; and the Docs Inbox Verb's
+  name (`agent-tooling-aio.6`, config, label checks, file forms, Docs
+  Inbox).
+- Whether `link` and the `new`, `done`, and `hb` aliases are mapped or
+  denied (`agent-tooling-aio.3`, the canonical rule set).
+- The variable `bdw` sets so bd records the closing session
+  (`agent-tooling-aio.2`, bdw hardening).
 
 ## What would change this design
 
