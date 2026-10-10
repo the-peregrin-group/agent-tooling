@@ -287,9 +287,10 @@ does things).
   `bdw.json` may steer what the `bdw` executable itself does (e.g., which
   labels the filing Verb accepts), but whether an agent may run an
   operation at all is decided only by the reviewed Permission rules.
-- **Labels** follow the scheme the repo declares; the filing Verb refuses
-  unknown labels or a missing required category. Beads' own type field
-  carries the Issue's kind, so labels carry only areas and the like.
+- **Labels** follow the scheme the repo declares: every Issue has at least
+  one area label and may carry others (e.g., Beads' own `human` label).
+  The filing Verb refuses unknown labels or an Issue with no area label.
+  An Issue's kind lives in Beads' type field, not in a label.
 - **Context outside the Issue Tracker.** If information makes sense in a
   requirements doc, a design doc, a UX design, an ADR, a lexicon entry, or
   any other standard document type the project uses, it goes there, and the
@@ -403,8 +404,7 @@ builds them, where they can be settled against working code:
   Issue that is not of a branch kind is detected for repair
   (`agent-tooling-aio.5`, the filing Verb).
 - The config file's name and place (`.beads/bdw.json` or a repo-root
-  file), its schema, the label scheme's format and what a required
-  category is; the names of the file-form flags; and the Docs Inbox Verb's
+  file), its schema, and the label scheme's format; the names of the file-form flags; and the Docs Inbox Verb's
   name (`agent-tooling-aio.6`, config, label checks, file forms, Docs
   Inbox).
 - Whether `link` and the `new`, `done`, and `hb` aliases are mapped or
