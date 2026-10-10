@@ -6,8 +6,8 @@ Beads takes the identity it records from an environment variable, and every
 harness Bash call is a fresh shell, so an Actor exported once does not
 survive to the next call; `bdw` derives it again on every call. It has its
 own name, rather than shadowing `bd` on PATH, so that Permission rules can
-grant `bdw` writes literally while raw `bd` writes stay behind a human
-prompt. These choices are recorded in the decision to give Beads a
+grant `bdw` literally while denying raw `bd` (in this repo, outright).
+These choices are recorded in the decision to give Beads a
 distinctly named identity wrapper that refuses `--actor` (see
 [ADR 0002](../../adr/0002-beads-identity.md)).
 

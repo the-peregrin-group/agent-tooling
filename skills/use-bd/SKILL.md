@@ -25,8 +25,8 @@ or match a deny rule; `bdw help` never does.)
 
 Three rules hold for every call:
 
-- **Always `bdw`, never `bd` or `beads`.** Raw writes prompt or are denied
-  by design.
+- **Always `bdw`, never `bd` or `beads`,** reads included. Raw calls do
+  not record the Actor, and a repo set up for use-bd denies them.
 - **Verb first, global flags after:** `bdw ready --json`, never
   `bdw --json ready`. Permission rules are prefix rules, and a flag-first
   spelling either prompts or trips a deny meant for something else.

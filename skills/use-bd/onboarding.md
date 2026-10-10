@@ -114,9 +114,10 @@ them.
   points; it never grants or denies an operation, because what agents may
   run is decided only by the reviewed Permission rules.
 - [ ] Add Permission rules for `bdw` to the repo's `.claude/settings.json`:
-  reads and reversible writes allowed through `bdw`, raw `bd` and `beads`
-  writes asked for or denied, and the irreversible, off-machine, and
-  record-falsifying verbs denied. Until use-bd ships its canonical rule
+  reads and reversible writes allowed through `bdw`; raw `bd` and `beads`
+  denied outright, reads included; the irreversible, off-machine, and
+  record-falsifying verbs denied; and what steps around a safeguard
+  (taking over a claim, forcing a close) asked for. Until use-bd ships its canonical rule
   set, agent-tooling's own `.claude/settings.json` and the spec that
   generates it (`cli/repo_policy_test.py`) are the model to copy.
 - [ ] Point the repo's `CLAUDE.md` at this skill rather than restating

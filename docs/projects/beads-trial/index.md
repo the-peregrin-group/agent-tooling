@@ -22,8 +22,8 @@ Beads. The freeze has held since 2026-09-24:
   issue is filed, edited, relabeled, reprioritized, or closed while the
   freeze holds, and there is no sync in either direction. Pinned issue #18
   says so for anyone arriving from the web.
-- **Agents go through [`bdw`](../bdw/index.md).** Reads may use `bd` or
-  `bdw`; writes go through `bdw`, and a raw `bd` write prompts.
+- **Agents go through [`bdw`](../bdw/index.md).** Raw `bd` and `beads`
+  are denied, reads included.
 - **Permission rules** in `.claude/settings.json` decide which Beads calls
   run, prompt, or are refused. `cli/repo_policy_test.py` is their spec: its
   tuples generate the expected rules, and the test requires the JSON to

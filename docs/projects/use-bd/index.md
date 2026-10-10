@@ -34,7 +34,8 @@ carrying policy in tiers is
 | `bdw` runs bd as a child process and points every help output and usage error at use-bd | planned | [v1-proposal.md](v1-proposal.md); `agent-tooling-aio.2` |
 | `bdw` refuses flag-first calls, database-switching flags, a missing workspace config, and writes on unverified bd versions | planned | [v1-proposal.md](v1-proposal.md); `agent-tooling-aio.2` |
 | One Actor ID per session, from the harness's session ID | planned | [v1-proposal.md](v1-proposal.md); `agent-tooling-aio.2` |
-| The canonical Beads rule set as data, raw `bd` denied, and a test that every command the Skill teaches is allowed | planned | [v1-proposal.md](v1-proposal.md); `agent-tooling-aio.3` |
+| This repo's Permission rules aligned with the Skill: raw `bd` and `beads` denied, the Skill's "never" calls denied or asked for, and its normal path allowed | shipped | `.claude/settings.json`; `cli/repo_policy_test.py` |
+| The canonical Beads rule set shipped with the Skill as data, and a test that every command the Skill teaches is allowed by it | planned | [v1-proposal.md](v1-proposal.md); `agent-tooling-aio.3` |
 | `bdw ready` without Branch Issues that have open children, and the pass rules enforced (claim refusal, claim release on breakdown, branch-kind check) | planned | [v1-proposal.md](v1-proposal.md); `agent-tooling-aio.4` |
 | Filing through a validated graph plan (`bdw file graph`), with near-duplicate search, lint warnings, and a ready-work echo; other paths to structure denied | planned | [v1-proposal.md](v1-proposal.md); `agent-tooling-aio.5` |
 | The repo's structured conventions file, label checks against its scheme, file forms for every free-text field, and the Docs Inbox Verb | planned | [v1-proposal.md](v1-proposal.md); `agent-tooling-aio.6` |
@@ -47,7 +48,3 @@ carrying policy in tiers is
   environment distinguishes it from its parent (`agent-tooling-jk2`).
 - A title has no file form in bd 1.3.0, so a title that names the VCS is
   refused inline (`agent-tooling-aio.6`).
-- Calls the Skill says never to make are still allowed in this repo
-  (`human respond`, `epic close-eligible`, `unclaim --force`,
-  `ready --claim`, `close --claim-next`), and marking a duplicate prompts
-  (`agent-tooling-aio.3`).
