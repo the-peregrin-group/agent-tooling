@@ -7,7 +7,7 @@ This document holds why use-bd and `bdw` work the way they do; the Skill
 
 > **Ratified 2026-10-09** in a home-in session (2026-10-07 to 2026-10-09).
 > Most of what it describes is being built in slices under
-> `agent-tooling-aio`; which parts are shipped is tracked in the project's
+> `agent-tooling-aio` (the use-bd epic); which parts are shipped is tracked in the project's
 > Status table, not here.
 
 ## Why use-bd exists
@@ -73,9 +73,11 @@ so the verdict can read the log criterion by criterion. That is this repo's
 trial convention, stated in its `PRIME.md`, not part of the Skill.
 
 **Version one covers** the loop (prime, ready, claim, file discovered work,
-append, close, land the plane); the write rules; filing discipline
-(breakdown, relationships, labels); pick-up notes; and the known Beads
-1.3.0 quirks. Onboarding a new repo is a supporting file inside the Skill,
+append progress to the Issue, close, and land the plane: close or
+release every claim before the session ends); the write rules; filing
+discipline (breakdown, relationships, labels); pick-up notes (a summary
+of where the work stands, for the next session to resume from, rewritten
+in place rather than appended); and the known Beads 1.3.0 quirks. Onboarding a new repo is a supporting file inside the Skill,
 read only by whoever does it. **Out of scope:** batch triage and
 reconciliation, phase-two sync, and the go/no-go criteria.
 
@@ -103,7 +105,8 @@ Issue, meant to be claimed and finished in one session); see `LEXICON.md`.
 - **Ending a pass.** When the session holding a Branch Issue's claim adds
   children to it, `bdw` releases the claim in the same call; closing it
   releases it too. A pass drafts its whole breakdown before submitting it,
-  as one atomic batch (`bd create --graph`, previewed with `--dry-run`),
+  as one atomic batch (one graph plan through the filing Verb, previewed
+  with a dry run; see "Filing is a plan file" below),
   because the children are ready work as soon as they exist; restructuring
   afterwards is an ordinary edit made knowing children may be claimed.
 - **What `bdw ready` shows:** Leaf Issues with no open blockers, and Branch
@@ -129,16 +132,16 @@ operation in the lightest tier that suffices (see
 Beads policy in tiers):
 
 1. **Pass-through** when an operation carries no risk or special usage
-   expectation: `bdw` sets the Actor and execs `bd` unchanged (e.g., reads,
+   expectation: `bdw` sets the Actor and runs `bd` as a child process
+   with the arguments unchanged (e.g., reads,
    setting `branch` and `pr` metadata).
 2. **Thin intercept** when a feature needs wrapping without handling a
    combinatorial explosion of arguments: `bdw` reads the one or two flags
    it cares about, in the forms bd documents, and fails closed, refusing
    and naming the gap, on any command line it cannot read unambiguously
-   (e.g., the kind check on `create --parent`, releasing a Branch Issue's
-   claim when children are added, the echo after a blocking `dep add`, the
-   label check on `create`, refusing a call whose first argument is a
-   flag). File forms for every free-text field are `bdw`'s own added flags,
+   (e.g., the echo after a blocking `dep add`, refusing a call whose first
+   argument is a flag, refusing the flags that point bd at another
+   database). File forms for every free-text field are `bdw`'s own added flags,
    turned into bd's inline flags by `bdw` itself.
 3. **A Verb of its own** when the operation encodes a practice or process,
    or narrows a bd command so far that an intercept would duplicate much of
@@ -157,8 +160,9 @@ dependency can be set through too many of bd's commands for intercepts to
 cover. Every filing goes through one `bdw` Verb that takes a graph plan,
 the JSON `bd create --graph` understands (one Issue is a one-node plan).
 `bdw` validates the plan before submitting it (parent kinds, labels against
-the scheme, dependency types), searches for near-duplicates, and echoes
-what left ready work; it validates JSON whose shape it controls instead of
+the scheme, dependency types), searches for near-duplicates, releases the
+claim on any Branch Issue the plan adds children to (ending the pass), and
+echoes what left ready work; it validates JSON whose shape it controls instead of
 parsing bd's command line. The plan is a file, so no free text reaches the
 command line, and the submission is atomic and previewable, which makes
 "draft, preview, submit" the only way to file. Every other path to
@@ -177,7 +181,10 @@ Narrower Verbs, each grantable by its own prefix rule, are the fallback.
 
 **Free text.** The Skill teaches the file forms as the default for every
 text field. Inline text stays allowed; when it trips the harness's refusal
-of text naming the VCS, or a deny rule matching a denied word, the
+of text naming the VCS (in a worktree-isolated session, Claude Code refuses
+a command whose inline arguments mention git, because it cannot show the
+command is not a git operation outside the worktree;
+`agent-tooling-doq`), or a deny rule matching a denied word, the
 refusal happens before `bdw` runs, and the Skill tells the agent to switch
 to the file form rather than reword.
 
@@ -202,7 +209,11 @@ to the file form rather than reword.
     superseding an Issue are allowed, and when to use them is a filing
     discipline, not a permission.
 
-  Applied to bd 1.3.0's surface (from an audit of its full command set):
+  In this document, `bd <verb>` names a bd feature; agents reach it as
+  `bdw <verb>`.
+
+  Applied to bd 1.3.0's surface, in addition to the denies already in
+  place (e.g., `edit`, `remember`, `delete`), bd's full command set gives:
   deny `epic close-eligible` (it closes epics because their children
   closed), `close --claim-next` and `--continue` and `ready --claim` (they
   claim around `bdw ready`), `memories` and `recall` (`bd prime` injects
@@ -221,8 +232,9 @@ to the file form rather than reword.
   `bdw` echoes what each new blocking dependency took out of ready work
   (built on `bd ready --explain`), so the mistake shows in the same turn;
   closing echoes what it unblocked (`close --suggest-next`). Before filing,
-  agents search for near-duplicates (`bd search`, and `find-duplicates`
-  after filing). The four relationships map to Beads' native ones:
+  agents search for near-duplicates themselves (`search`); the filing
+  Verb's own near-duplicate check is a backstop, and `find-duplicates`
+  sweeps after filing. The four relationships map to Beads' native ones:
   dependency to `blocks`, duplication to `duplicate --of`, composition to
   `parent-child`, and contradiction, which Beads has no type for, to
   `relates-to` plus a label naming the contradiction. Batch reconciliation
@@ -272,7 +284,7 @@ does things).
   file), the structured facts `bdw` reads: the label scheme, extra document
   link keys, the Docs Inbox path. Neither may grant or limit anything an
   agent may do.
-- **Labels** follow the scheme the repo declares; `bdw create` refuses
+- **Labels** follow the scheme the repo declares; the filing Verb refuses
   unknown labels or a missing required category. Beads' own type field
   carries the Issue's kind, so labels carry only areas and the like.
 - **Context outside the Issue Tracker.** If information makes sense in a
@@ -307,11 +319,12 @@ when its limitation is lifted.
 - **One Actor ID per session.** `bdw` derives the Actor ID from the
   session ID the harness sets (`CLAUDE_CODE_SESSION_ID`), for attended
   sessions and background jobs alike, and also sets the variable bd reads
-  to record the closing session. Today's job-based ID is a prefix of the
-  same value, so background jobs keep their IDs.
+  to record the closing session. A background job's ID is a prefix of
+  its session ID, so Actor IDs that `bdw` derived from job IDs still
+  identify the same sessions.
 - **Sub-agents share their session's Actor ID,** because nothing in a
   sub-agent's environment distinguishes it from its parent
-  (`agent-tooling-jk2`). So an agent without an Actor ID of its own reads,
+  (`agent-tooling-jk2`, sub-agents share their job's Actor). So an agent without an Actor ID of its own reads,
   files new Issues, and appends, but never claims, closes, or rewrites; the
   session that holds the conversation does those. The Skill teaches this,
   and orchestrators' briefs carry it; `bdw` cannot enforce it.
@@ -344,7 +357,7 @@ despite instructions, so use-bd's loading is pushed from several sides:
   `/use-bd` immediately." (which is why `bdw` runs `bd` as a child process
   and reads its failures, rather than replacing itself with `bd`);
 - the Permission rules denying raw `bd`, so the habit fails at once;
-- once the hook system exists (`agent-tooling-0s1`): a SessionStart hook
+- once agent-tooling can ship hooks (`agent-tooling-0s1`, not yet built): a SessionStart hook
   that has the agent load use-bd in any repo with a `.beads/` directory
   (`agent-tooling-0s1.5`), and a hook that refuses raw Beads calls with a
   message pointing to use-bd and `bdw` (`agent-tooling-0s1.6`).
