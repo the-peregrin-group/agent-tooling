@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/python3
 """ghw-issue-create <repo> <type-label> <title> <body-file> [label ...] -- file a new issue.
 
 Validates the label attachment contract before writing: exactly one canonical

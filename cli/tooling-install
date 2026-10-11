@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/python3
 """tooling-install {diff | apply | adopt} <source-checkout> -- ship a repo's
 agent tooling into the install targets.
 

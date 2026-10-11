@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/python3
 """ghw-board-set <repo> <field-name> <option-name> <issue#> [--project <number>] -- set a board field on an issue.
 
 The field name sits at position 2 so an allowlist rule can grant Priority

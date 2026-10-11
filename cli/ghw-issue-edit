@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/python3
 """ghw-issue-edit <repo> <add-label|remove-label|retitle|set-body> <issue#> <value> -- edit one facet of an issue.
 
 The subverb sits at position 2 so an allowlist grant can include label edits

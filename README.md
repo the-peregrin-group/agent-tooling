@@ -35,8 +35,8 @@ which commit, with a sha256 per file. Several Source repos can install into
 the same Install Target; each one's Receipt record covers only its own files.
 
 ```sh
-python3 cli/tooling-install diff  <checkout>   # read-only: installed vs. source
-python3 cli/tooling-install apply <checkout>   # install; refuses a dirty source
+/usr/bin/python3 cli/tooling-install diff  <checkout>   # read-only: installed vs. source
+/usr/bin/python3 cli/tooling-install apply <checkout>   # install; refuses a dirty source
 ```
 
 `diff` exits 0 when in sync and 1 on drift. `apply` refuses a dirty source tree
@@ -49,18 +49,16 @@ is in the docstring of `cli/lib/install.py`.
 
 ## Bootstrap on a fresh machine
 
-Prerequisites: `git`; a system `/usr/bin/python3` of 3.9 or later, which some
-executables' shebangs pin; a `python3` of 3.9 or later on PATH, which the
-others (including `tooling-install`) resolve through `/usr/bin/env`; `gh`,
+Prerequisites: `git`; a system `/usr/bin/python3` of 3.9 or later, which every
+executable's shebang pins; `gh`,
 authenticated, if you use the `ghw-*` wrappers; and Beads' `bd` on PATH if
 you use `bdw`. On macOS, `/usr/bin/python3`
-comes with the Xcode Command Line Tools (`xcode-select --install`). Use the
-system interpreter, not your usual Homebrew, pyenv, or conda one: macOS grants
-OS-level permissions (privacy prompts such as Local Network access) to the
-Apple-signed `/usr/bin/python3`, and silently denies them to other interpreters
-when a wrapper runs from an unattended or background session. The `env python3`
-executables resolve whatever `python3` comes first on PATH, so put the system
-interpreter first there too. The board
+comes with the Xcode Command Line Tools (`xcode-select --install`). The
+interpreter is the system one, not your usual Homebrew, pyenv, or conda one:
+macOS grants OS-level permissions (privacy prompts such as Local Network
+access) to the Apple-signed `/usr/bin/python3`, and silently denies them to
+other interpreters when a wrapper runs from an unattended or background
+session. The board
 wrappers (`ghw-board-*`, `ghw-orient`) need the `project` scope on the `gh`
 token: `gh auth refresh -s project`.
 
@@ -68,7 +66,7 @@ token: `gh auth refresh -s project`.
 2. Install everything from it:
 
     ```sh
-    python3 <checkout>/cli/tooling-install apply <checkout>
+    /usr/bin/python3 <checkout>/cli/tooling-install apply <checkout>
     ```
 
 3. Put the wrapper directory on PATH, for example in `~/.zshrc`:

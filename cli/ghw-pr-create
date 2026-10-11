@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/python3
 """ghw-pr-create <repo> <base-branch> <head-branch> <title> <body-file> [--draft] -- open a pull request.
 
 The head branch is an explicit argument, never inferred from cwd, so an agent
