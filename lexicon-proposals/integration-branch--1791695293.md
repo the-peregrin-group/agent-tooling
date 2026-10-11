@@ -45,7 +45,7 @@ Permission rule" as implementation; if so, keep the invariant as "an agent
 may land work in one only while it is explicitly granted" and leave the
 mechanism to the docs below.
 
-## Where it is used
+## In code
 
 - CLAUDE.md, section "Integration branches" (the designation of
   `integrate/`)

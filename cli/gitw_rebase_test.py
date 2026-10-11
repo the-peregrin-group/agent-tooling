@@ -323,7 +323,8 @@ class GitwRebaseOntoTest(_RebaseFixtureTest):
                 _, code = self.rebase_raw("proj", "fix/", "onto", base)
                 self.assertEqual(code, 4)
                 self.assertIn(
-                    "authoritative default branch", self.last_stderr
+                    "default branch by another spelling (HEAD)",
+                    self.last_stderr,
                 )
 
     def test_symbolic_alias_of_the_default_is_refused(self):

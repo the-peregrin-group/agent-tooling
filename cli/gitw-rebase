@@ -275,12 +275,16 @@ def _rebase(
                 "rebases onto the local default"
             )
         # HEAD (origin/HEAD) is the default under another spelling.
-        if (repo.is_default_branch(base, entry.default_branch)
-                or base.partition("/")[0].casefold() == "head"):
+        bare_form = f"`gitw-rebase {entry.label} {prefix}`"
+        if repo.is_default_branch(base, entry.default_branch):
             raise repo.RefusalError(
                 f"{base!r} is the authoritative default branch; rebase "
-                f"onto it with the bare form, `gitw-rebase {entry.label} "
-                f"{prefix}`, not with 'onto'"
+                f"onto it with the bare form, {bare_form}, not with 'onto'"
+            )
+        if base.partition("/")[0].casefold() == "head":
+            raise repo.RefusalError(
+                f"{base!r} names the default branch by another spelling "
+                f"(HEAD); use the bare form, {bare_form}"
             )
     if repo.rebase_head_branch(root) is not None:
         raise repo.RefusalError(
