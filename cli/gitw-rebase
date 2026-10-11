@@ -11,12 +11,13 @@ exits 4 with a JSON listing of the conflicted paths.
 `onto <base-branch>`: the same, but onto the fetched
 <remote>/<base-branch> -- the rebase half of the loop into an
 integration branch a repo designates. It mirrors gitw-integrate's
-<base-branch>: the allowlist pins the base (one exact row per base), and
-the roster is not asked which bases are legitimate. The base must exist
-on the remote after the fetch (exit 3 otherwise). Naming the roster's
-default branch here is refused (exit 4): the bare form is the one
-spelling for the default, so an exact onto row is the only grant that
-names any other base. Machine-local repos refuse the onto form: there is
+<base-branch>: the allowlist pins the base (an exact row per base; a
+row starred after the prefix admits any base), and the roster is not
+asked which bases are legitimate. The base must exist on the remote
+after the fetch (exit 3 otherwise). Naming the roster's default branch
+here is refused (exit 4): the bare form is the one spelling for the
+default, so a consumer granting exact rows grants the default and each
+designated base separately. Machine-local repos refuse the onto form: there is
 no fetched base to rebase onto. At a conflict stop the chosen base is
 recorded inside git's own rebase state directory, so every later stop
 and the final `continue` report the same `onto`; git deletes that

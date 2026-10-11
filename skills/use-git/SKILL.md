@@ -143,8 +143,9 @@ Three operating modes, escalating in required trust:
 - **(b) Worktree + feature branch, direct integration.** Only where the
   repo's CLAUDE.md grants it; attended when the base is trunk or a
   protected branch, on the repo's own terms into an integration branch it
-  designates. Rebase onto current trunk, run the full merge-readiness
-  loop, then `gitw-integrate`. No PR.
+  designates. Rebase onto the current base (`gitw-rebase`'s bare form for
+  trunk, its `onto` form for a designated branch), run the full
+  merge-readiness loop, then `gitw-integrate` into that same base. No PR.
 - **(c) Work directly on the default branch.** Very rare: repo exemption
   + attended + the user's explicit assurance of zero parallel agents for
   the session's duration. Sync the branch to its authoritative instance
@@ -252,6 +253,7 @@ write one yourself.
 
 ```bash
 gitw-rebase <repo> <branch-prefix> [continue|abort]
+gitw-rebase <repo> <branch-prefix> onto <base-branch>
 ```
 
 Bare form: fetch and rebase the current branch onto the fetched
@@ -262,6 +264,14 @@ resolutions and refuses files still carrying a full conflict-marker
 triple); the cycle repeats per conflicted commit. `abort` restores the
 pre-rebase branch. There is deliberately no `skip`: silently dropping a
 commit is a human decision.
+
+`onto` form: the same, onto the fetched `<remote>/<base-branch>`, for
+an integration branch the repo designates. As with `gitw-integrate`'s
+base, the allowlist pins which bases you may name; the wrapper only
+checks that the base exists on the remote after the fetch (exit 3 if
+not). Naming the default branch here is refused: the bare form is the
+one way to reach it. `continue` and `abort` take no base, because git's
+rebase state already knows it, and their JSON reports the same `onto`.
 
 ```bash
 gitw-push <repo> <branch-prefix> [<name>]
@@ -299,10 +309,11 @@ gitw-integrate <repo> <base-branch> <branch-prefix> <message-file>
 
 Mode (b) only — only where the repo grants it; attended when the base is
 trunk or a protected branch, on the repo's own terms into an integration
-branch it designates. The loop:
-`gitw-rebase`, then the full merge-readiness validation (skill-side,
-driven by the repo's own CLAUDE.md — the wrapper runs no validation), then
-integrate. The wrapper verifies your branch tip descends from the freshly
+branch it designates. The loop: `gitw-rebase` onto the same base you
+will integrate into (bare form for trunk, `onto <base-branch>` for a
+designated branch), then the full merge-readiness validation
+(skill-side, driven by the repo's own CLAUDE.md — the wrapper runs no
+validation), then integrate. The wrapper verifies your branch tip descends from the freshly
 fetched base tip, builds the two-parent bubble without ever checking out
 the base, and pushes it under an exact lease. Both refusals — "not a
 descendant" and "moved during the attempt" — mean the same thing: **the
@@ -332,7 +343,8 @@ hand-edit, not yours.
 - **Rebase your own branch freely**, attended or not, conflicts included.
   Your own branch is one you started, or resumed on the user's say-so; a
   branch another author pushed is shared history, behind the rewrite
-  boundary. `gitw-rebase` never reaches the trunk.
+  boundary. `gitw-rebase` rewrites only the branch you stand on, never
+  its base.
 - **Disclose conflicts you resolved unattended**, naming every file (the
   union of each stop's `conflicts` list) in the PR body, or in a PR
   comment when the PR already exists, so the reviewer checks those
@@ -341,8 +353,12 @@ hand-edit, not yours.
 - **Trunk advances only with a human in the loop.** Integrating into the
   default branch, or any branch the project protects, is attended,
   always. A project may designate its own integration branches and let
-  `gitw-integrate` land there unattended; its CLAUDE.md and settings
-  rule. Where they are silent, push-and-PR is the unattended ceiling.
+  agents land there unattended; its CLAUDE.md and settings rule. The
+  loop into a designated branch is the trunk loop with a named base:
+  `gitw-rebase <repo> <prefix> onto <base>`, validate, land (by
+  `gitw-integrate <repo> <base> ...` or the forge merge the project
+  names), and loop from the rebase if the base moved. Where CLAUDE.md
+  and settings are silent, push-and-PR is the unattended ceiling.
 
 ## Cross-Repo Work
 
@@ -382,8 +398,14 @@ prefixes; the trailing slash on the prefix is the token boundary:
 
 A rule ending in a space and a star, with no other star, also matches
 the bare call (see Wildcard patterns, code.claude.com/docs/en/permissions),
-so the starred `gitw-rebase` row covers its bare form and its
-`continue`/`abort` modes. A harness that does not honour the rule makes
+so the starred `gitw-rebase` row covers its bare form, its
+`continue`/`abort` modes, and the `onto` form with any base. Rebasing
+never moves the base, so that is usually fine; a consumer that wants
+the base pinned grants exact rows instead, the bare form and
+`continue`/`abort` each as their own row plus one per designated base
+(`"Bash(gitw-rebase rocket-sled fix/ onto integrate/workjam-2026-10-10)"`).
+The base pin that guards a designated branch is on whatever lands
+there: `gitw-integrate`'s exact row, or the forge merge's. A harness that does not honour the rule makes
 the bare call prompt rather than run, so an allow row fails closed; a
 deny row would fail open, which is why agent-tooling's own policy spec
 carries exact deny rows as well. `gitw-push` never takes a star: the set
