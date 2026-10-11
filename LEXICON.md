@@ -59,6 +59,21 @@ granting it. A bare / names the class of every branch.
 - _Invariants_: a Wrapper only verifies a Branch prefix; whether a
   particular one is granted is decided by Permission rules alone
 
+**Agent integration branch**: A non-default branch a project creates for
+agents to land work into unattended, typically for one run and under a
+Branch prefix the project's CLAUDE.md designates (e.g., `integrate/` in this
+repo). Which branch agents may land into is pinned per run by Permission
+rules. The qualifier "agent" marks the separation: an integration branch in
+general is any branch work flows into, the default branch included, and a
+project that lets agents land into its default branch has no Agent
+integration branch, only a default branch agents may land into. Whether
+agents may land into a default branch is each project's policy, not this
+term's.
+- _Invariants_: never the default branch; agents land into one only while
+  Permission rules pin that exact branch
+- _Avoid_: integration branch (unqualified, for this sense), agent trunk,
+  designated base
+
 ### Agentic systems
 
 **Skill**: A package, compliant with the agentskills.io standard, that teaches
@@ -219,6 +234,9 @@ discarded as already captured or outdated.
 - gitw, ghw, fjw, and bdw are Wrappers; each Wrapper offers one or more Verbs.
 - Every mutating gitw Verb is scoped by exactly one Roster label and one
   Branch prefix; fjw-pr-comment is scoped by one Branch prefix.
+- A project has zero or more Agent integration branches; each is distinct
+  from the default branch (trunk), and work landed in one reaches the
+  default branch only on the project's own terms.
 - gitw, ghw, fjw, and bdw Verbs report through the Exit-code contract.
 - bdw and gitw record the Actor on the writes they attribute: bdw on the Issue
   Tracker, gitw on its commits.

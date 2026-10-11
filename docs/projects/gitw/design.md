@@ -479,7 +479,7 @@ primary-checkout mutation it avoids). It never checks out the base:
 
 `<base-branch>` is whatever the Permission rule pins. It is deliberately
 not required to equal the Roster's default branch, because a repo may
-designate a second integration branch. Validation stays in the Skill,
+designate an agent integration branch. Validation stays in the Skill,
 driven by the repo's own instructions; the Wrapper runs no repo-declared
 command. Output relay and hook detection match `gitw-push`; a hook
 refusal is exit 4 but does not mean the base moved. Afterwards the
