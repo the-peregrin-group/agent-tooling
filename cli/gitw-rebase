@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-"""gitw-rebase <repo> <branch-prefix> [continue|abort] -- rebase the own branch onto the fresh authoritative default.
+"""gitw-rebase <repo> <branch-prefix> [continue|abort | onto <base-branch>] -- rebase the own branch onto a fresh base.
 
 Bare form: verify the working copy at cwd against the roster entry for
 <repo> (~/.config/gitw/repos.toml) and the pinned branch prefix, fetch
@@ -7,6 +7,20 @@ the authoritative remote, then rebase the current branch onto the fetched
 authoritative default. Clean completion exits 0. A conflict leaves the
 standard git conflict state in place -- it IS the work product -- and
 exits 4 with a JSON listing of the conflicted paths.
+
+`onto <base-branch>`: the same, but onto the fetched
+<remote>/<base-branch> -- the rebase half of the loop into an
+integration branch a repo designates. It mirrors gitw-integrate's
+<base-branch>: the allowlist pins the base (one exact row per base), and
+the roster is not asked which bases are legitimate. The base must exist
+on the remote after the fetch (exit 3 otherwise). Naming the roster's
+default branch here is refused (exit 4): the bare form is the one
+spelling for the default, so an exact onto row is the only grant that
+names any other base. Machine-local repos refuse the onto form: there is
+no fetched base to rebase onto. At a conflict stop the chosen base is
+recorded inside git's own rebase state directory, so every later stop
+and the final `continue` report the same `onto`; git deletes that
+directory, record included, when the rebase completes or aborts.
 
 `continue`: stage the resolutions (exactly the conflicted paths, nothing
 else) and proceed; the cycle repeats per conflict (each stop exits 4
@@ -25,9 +39,11 @@ Whether a session may rebase or resolve conflicts unattended is
 skill-side; this wrapper enforces only what is machine-checkable.
 
 Exit codes: 0 success, 1 unclassified git failure, 2 usage error, 3 not
-found (label not in the roster, or the authoritative default missing),
-4 refused (cwd/branch-prefix mismatch, dirty worktree, rebase already or
-not in progress, conflict stop, unresolved markers on continue), 5 roster
+found (label not in the roster, the authoritative default missing, or
+the onto base missing on the remote), 4 refused (cwd/branch-prefix
+mismatch, dirty worktree, rebase already or not in progress, conflict
+stop, unresolved markers on continue, onto naming the default branch or
+used on a machine-local repo), 5 roster
 missing/malformed or auth failure, 6 network failure.
 """
 
@@ -41,7 +57,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from lib import plan
 from lib.git import arguments, policy, repo, roster, run
 
-_USAGE = "gitw-rebase <repo> <branch-prefix> [continue|abort]"
+_USAGE = (
+    "gitw-rebase <repo> <branch-prefix> [continue|abort | onto <base-branch>]"
+)
+
+# The base a stopped rebase was started onto, kept inside git's own rebase
+# state directory so that its lifetime is exactly the rebase's.
+_ONTO_RECORD = "gitw-onto"
 
 
 def main(argv: list[str]) -> int:
@@ -50,21 +72,35 @@ def main(argv: list[str]) -> int:
     if argv and argv[0] in ("-h", "--help"):
         print(__doc__.strip())
         return plan.EXIT_OK
-    if len(argv) not in (2, 3):
+    if len(argv) not in (2, 3, 4):
         plan.usage_die(
             "expected repo label and branch prefix, optionally followed by "
-            "'continue' or 'abort'",
+            "'continue', 'abort', or 'onto <base-branch>'",
             _USAGE,
         )
     mode = None
-    if len(argv) == 3:
-        if argv[2] not in ("continue", "abort"):
+    base = None
+    if len(argv) >= 3:
+        if argv[2] == "onto":
+            if len(argv) != 4:
+                plan.usage_die("'onto' takes exactly one base branch", _USAGE)
+            base = argv[3]
+            if not arguments.is_valid_branch(base):
+                plan.usage_die(
+                    f"base branch must be a plain branch name, got {base!r}",
+                    _USAGE,
+                )
+        elif argv[2] not in ("continue", "abort"):
             plan.usage_die(
-                f"the only positional modes are 'continue' and 'abort' "
-                f"(there is deliberately no 'skip'), got {argv[2]!r}",
+                f"the only positional modes are 'continue', 'abort', and "
+                f"'onto <base-branch>' (there is deliberately no 'skip'), "
+                f"got {argv[2]!r}",
                 _USAGE,
             )
-        mode = argv[2]
+        elif len(argv) == 4:
+            plan.usage_die(f"{argv[2]!r} takes no further arguments", _USAGE)
+        else:
+            mode = argv[2]
     label, prefix = argv[:2]
     if not arguments.is_valid_branch_prefix(prefix):
         plan.usage_die(
@@ -89,7 +125,7 @@ def main(argv: list[str]) -> int:
         elif mode == "abort":
             payload = _abort(workspace, prefix)
         else:
-            payload = _rebase(workspace, prefix)
+            payload = _rebase(workspace, prefix, base)
     except repo.RefusalError as error:
         run.die(str(error), plan.EXIT_REFUSED)
     except run.GitError as error:
@@ -106,6 +142,7 @@ def _conflict_stop(
     as JSON (the machine-readable work order) and exit 4, leaving the
     standard git conflict state in place."""
     label = workspace.entry.label
+    _record_onto(workspace.root, onto)
     plan.emit_plan(
         "conflict",
         repo=label,
@@ -121,9 +158,79 @@ def _conflict_stop(
     sys.exit(plan.EXIT_REFUSED)
 
 
-def _rebase(workspace: repo.Workspace, prefix: str) -> dict:
+def _record_onto(root: Path, onto: str) -> None:
+    """Keep the base's display name in the rebase state directory for the
+    stops a later `continue` reports. Best effort: a lost record only
+    costs those reports the authoritative-default fallback."""
+    state_dir = repo.rebase_state_dir(root)
+    if state_dir is None:
+        return
+    try:
+        (state_dir / _ONTO_RECORD).write_text(onto + "\n", encoding="utf-8")
+    except OSError:
+        pass
+
+
+def _recorded_onto(workspace: repo.Workspace) -> str:
+    """The base the in-progress rebase was started onto: the record a
+    conflict stop left, or the authoritative default for a rebase that
+    carries none (one started by an older gitw-rebase, say)."""
+    state_dir = repo.rebase_state_dir(workspace.root)
+    if state_dir is not None:
+        try:
+            recorded = (state_dir / _ONTO_RECORD).read_text(
+                encoding="utf-8"
+            ).strip()
+        except OSError:
+            recorded = ""
+        if recorded:
+            return recorded
+    display, _ = repo.authoritative_ref(workspace.entry)
+    return display
+
+
+def _base_ref(entry, base: str | None, root: Path) -> tuple[str, str]:
+    """The (display name, full refname) to rebase onto, resolved after the
+    fetch: the authoritative default for the bare form, else the fetched
+    <remote>/<base>. Dies with exit 3 when the ref is missing."""
+    if base is None:
+        display, refname = repo.authoritative_ref(entry)
+        if not repo.ref_exists(root, refname):
+            run.die(
+                f"authoritative default {display} not found in {root}; the "
+                "roster's default_branch may be wrong",
+                plan.EXIT_NOT_FOUND,
+            )
+        return display, refname
+    display = f"{entry.remote}/{base}"
+    refname = f"refs/remotes/{entry.remote}/{base}"
+    if not repo.ref_exists(root, refname):
+        run.die(
+            f"base branch {base!r} not found on {entry.remote} (no "
+            f"{refname} after fetching)",
+            plan.EXIT_NOT_FOUND,
+        )
+    return display, refname
+
+
+def _rebase(
+    workspace: repo.Workspace, prefix: str, base: str | None = None
+) -> dict:
     entry = workspace.entry
     root = workspace.root
+    if base is not None:
+        if entry.machine_local:
+            raise repo.RefusalError(
+                f"repo {entry.label!r} is machine-local; there is no "
+                "fetched base to rebase onto. Use the bare form, which "
+                "rebases onto the local default"
+            )
+        if repo.is_default_branch(base, entry.default_branch):
+            raise repo.RefusalError(
+                f"{base!r} is the authoritative default branch; rebase "
+                f"onto it with the bare form, `gitw-rebase {entry.label} "
+                f"{prefix}`, not with 'onto'"
+            )
     if repo.rebase_head_branch(root) is not None:
         raise repo.RefusalError(
             "a rebase is already in progress in this worktree; finish it "
@@ -140,13 +247,7 @@ def _rebase(workspace: repo.Workspace, prefix: str) -> dict:
         )
     if not entry.machine_local:
         run.fetch(entry.remote, root)
-    display, refname = repo.authoritative_ref(entry)
-    if not repo.ref_exists(root, refname):
-        run.die(
-            f"authoritative default {display} not found in {root}; the "
-            "roster's default_branch may be wrong",
-            plan.EXIT_NOT_FOUND,
-        )
+    display, refname = _base_ref(entry, base, root)
     # Same TOCTOU stance as branch-start's switch: a file written during
     # the fetch must not ride through the rebase's checkouts.
     dirty = repo.status_counts(root)
@@ -246,11 +347,12 @@ def _continue(workspace: repo.Workspace, prefix: str) -> dict:
                 result.stderr.strip() or result.stdout.strip() or "no output"
             )
             raise run.GitError(f"git add failed: {detail}")
+    # Read before continuing: a completed rebase takes the record with it.
+    onto = _recorded_onto(workspace)
     result = run.run(["rebase", "--continue"], root)
     if result.returncode != 0:
         if repo.rebase_head_branch(root) is not None:
-            display, _ = repo.authoritative_ref(entry)
-            _conflict_stop(workspace, branch, display, prefix)
+            _conflict_stop(workspace, branch, onto, prefix)
         detail = result.stderr.strip() or result.stdout.strip() or "no output"
         raise run.GitError(f"git rebase --continue failed: {detail}")
 
@@ -258,6 +360,7 @@ def _continue(workspace: repo.Workspace, prefix: str) -> dict:
         "repo": entry.label,
         "mode": "continue",
         "branch": branch,
+        "onto": onto,
         "commit": repo.head_commit(root),
         "worktree": str(root),
     }

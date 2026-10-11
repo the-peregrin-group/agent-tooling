@@ -327,6 +327,21 @@ def rebase_head_branch(root: Path) -> str | None:
     return None
 
 
+def rebase_state_dir(root: Path) -> Path | None:
+    """The in-progress rebase's state directory (rebase-merge or
+    rebase-apply under the worktree's git dir), or None when no rebase is
+    in progress. Git removes it when the rebase completes or aborts, so a
+    file a verb keeps there lives exactly as long as the rebase."""
+    for state_dir in ("rebase-merge", "rebase-apply"):
+        location = run.output(["rev-parse", "--git-path", state_dir], root)
+        if location is None:
+            continue
+        path = Path(root) / location
+        if (path / "head-name").is_file():
+            return path
+    return None
+
+
 def pending_operation(root: Path) -> str | None:
     """The multi-step operation whose pending-commit state a plain commit
     would silently conclude ('merge', 'cherry-pick', 'revert'), or None.

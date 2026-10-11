@@ -46,6 +46,28 @@ class GitwRebaseArgumentsTest(unittest.TestCase):
                 self.assertEqual(result.returncode, 2)
                 self.assertIn("usage: gitw-rebase", result.stderr)
 
+    def test_onto_usage_errors(self):
+        for arguments, message in (
+            (("proj", "fix/", "onto"), "exactly one base branch"),
+            (
+                ("proj", "fix/", "onto", "integrate/run", "x"),
+                "usage: gitw-rebase",
+            ),
+            (("proj", "fix/", "onto", "../trunk"), "plain branch name"),
+            (
+                ("proj", "fix/", "abort", "integrate/run"),
+                "no further arguments",
+            ),
+            (
+                ("proj", "fix/", "into", "integrate/run"),
+                "'onto <base-branch>'",
+            ),
+        ):
+            with self.subTest(arguments=arguments):
+                result = _run(*arguments)
+                self.assertEqual(result.returncode, 2)
+                self.assertIn(message, result.stderr)
+
     def test_skip_is_deliberately_not_a_mode(self):
         result = _run("proj", "fix/", "skip")
         self.assertEqual(result.returncode, 2)
@@ -207,6 +229,106 @@ class GitwRebaseBareTest(_RebaseFixtureTest):
         )
 
 
+class GitwRebaseOntoTest(_RebaseFixtureTest):
+    def setUp(self):
+        super().setUp()
+        # A designated integration branch on the remote, one commit
+        # ahead of main.
+        gitw_test_support.git(self.seed, "switch", "-c", "integrate/run")
+        gitw_test_support.commit_on(
+            self.seed, "base.txt", "b\n", "base work"
+        )
+        gitw_test_support.git(self.seed, "push", "origin", "integrate/run")
+        gitw_test_support.git(self.seed, "switch", "main")
+
+    def make_base_conflict(self) -> None:
+        gitw_test_support.commit_on(
+            self.clone, "conflict.txt", "branch one\n", "branch change 1"
+        )
+        gitw_test_support.commit_on(
+            self.clone, "conflict.txt", "branch two\n", "branch change 2"
+        )
+        gitw_test_support.git(self.seed, "switch", "integrate/run")
+        gitw_test_support.commit_on(
+            self.seed, "conflict.txt", "base side\n", "base change"
+        )
+        gitw_test_support.git(self.seed, "push", "origin", "integrate/run")
+        gitw_test_support.git(self.seed, "switch", "main")
+
+    def test_rebases_onto_the_fetched_named_base(self):
+        gitw_test_support.commit_on(self.clone, "work.txt", "w\n", "work")
+        payload = self.rebase("proj", "fix/", "onto", "integrate/run")
+        self.assertEqual(payload["action"], "applied")
+        self.assertEqual(payload["mode"], "rebase")
+        self.assertEqual(payload["onto"], "origin/integrate/run")
+        self.assertEqual(payload["commits_atop"], 1)
+        self.assertEqual(
+            repo.ahead_behind(
+                self.clone, "HEAD", "refs/remotes/origin/integrate/run"
+            ),
+            (1, 0),
+        )
+
+    def test_base_missing_on_the_remote_is_not_found(self):
+        _, code = self.rebase_raw("proj", "fix/", "onto", "nonesuch")
+        self.assertEqual(code, 3)
+        self.assertIn("'nonesuch' not found on origin", self.last_stderr)
+
+    def test_naming_the_default_branch_is_refused(self):
+        for base in ("main", "Main"):
+            with self.subTest(base=base):
+                _, code = self.rebase_raw("proj", "fix/", "onto", base)
+                self.assertEqual(code, 4)
+                self.assertIn("gitw-rebase proj fix/`", self.last_stderr)
+
+    def test_machine_local_is_refused(self):
+        entry = Entry(label="scratch", checkout=self.clone)
+        _, code = self.rebase_raw(
+            "scratch", "fix/", "onto", "integrate/run",
+            entries={"scratch": entry},
+        )
+        self.assertEqual(code, 4)
+        self.assertIn("machine-local", self.last_stderr)
+
+    def test_continue_reports_the_named_base_at_every_stop(self):
+        self.make_base_conflict()
+        payload, code = self.rebase_raw(
+            "proj", "fix/", "onto", "integrate/run"
+        )
+        self.assertEqual(code, 4)
+        self.assertEqual(payload["onto"], "origin/integrate/run")
+        # The hint's continue command needs no base: git's rebase state
+        # already knows it.
+        self.assertIn("gitw-rebase proj fix/ continue", payload["hint"])
+        (self.clone / "conflict.txt").write_text("resolved one\n")
+        payload, code = self.rebase_raw("proj", "fix/", "continue")
+        self.assertEqual(code, 4)
+        self.assertEqual(payload["action"], "conflict")
+        self.assertEqual(payload["onto"], "origin/integrate/run")
+        (self.clone / "conflict.txt").write_text("resolved two\n")
+        payload = self.rebase("proj", "fix/", "continue")
+        self.assertEqual(payload["onto"], "origin/integrate/run")
+        self.assertIsNone(repo.rebase_head_branch(self.clone))
+        self.assertEqual(
+            repo.ahead_behind(
+                self.clone, "HEAD", "refs/remotes/origin/integrate/run"
+            ),
+            (2, 0),
+        )
+
+    def test_abort_clears_the_record_with_the_rebase(self):
+        self.make_base_conflict()
+        _, code = self.rebase_raw("proj", "fix/", "onto", "integrate/run")
+        self.assertEqual(code, 4)
+        self.rebase("proj", "fix/", "abort")
+        self.assertIsNone(repo.rebase_state_dir(self.clone))
+        # A later bare-form stop reports the default, not a stale record.
+        self.make_conflict()
+        payload, code = self.rebase_raw("proj", "fix/")
+        self.assertEqual(code, 4)
+        self.assertEqual(payload["onto"], "origin/main")
+
+
 class GitwRebaseContinueTest(_RebaseFixtureTest):
     def test_continue_after_resolution_completes_the_rebase(self):
         self.make_conflict()
@@ -215,6 +337,7 @@ class GitwRebaseContinueTest(_RebaseFixtureTest):
         (self.clone / "conflict.txt").write_text("resolved\n")
         payload = self.rebase("proj", "fix/", "continue")
         self.assertEqual(payload["mode"], "continue")
+        self.assertEqual(payload["onto"], "origin/main")
         self.assertIsNone(repo.rebase_head_branch(self.clone))
         # Linear on top of the fetched default: exactly one commit atop.
         self.assertEqual(
