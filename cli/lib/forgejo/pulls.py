@@ -235,6 +235,42 @@ def list_comments(config: Config, repository: str, index: int) -> list[dict]:
         page += 1
 
 
+def list_reviews(config: Config, repository: str, index: int) -> list[dict]:
+    """Every review on PR `index`, paginated to exhaustion."""
+    reviews: list[dict] = []
+    page = 1
+    while True:
+        batch = api.request(
+            config,
+            "GET",
+            f"/repos/{repository}/pulls/{index}/reviews",
+            query={"limit": str(_PAGE_SIZE), "page": str(page)},
+        ) or []
+        reviews.extend(batch)
+        if len(batch) < _PAGE_SIZE:
+            return reviews
+        page += 1
+
+
+def list_review_comments(
+    config: Config, repository: str, index: int, review_id: int
+) -> list[dict]:
+    """Every inline comment of one review on PR `index`, paginated."""
+    comments: list[dict] = []
+    page = 1
+    while True:
+        batch = api.request(
+            config,
+            "GET",
+            f"/repos/{repository}/pulls/{index}/reviews/{review_id}/comments",
+            query={"limit": str(_PAGE_SIZE), "page": str(page)},
+        ) or []
+        comments.extend(batch)
+        if len(batch) < _PAGE_SIZE:
+            return comments
+        page += 1
+
+
 def close_pr(config: Config, repository: str, index: int) -> dict:
     """PATCH the PR closed; the raw updated PR object back."""
     return api.request(

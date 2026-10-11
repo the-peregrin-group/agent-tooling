@@ -18,6 +18,7 @@ its own project ([installer](../installer/index.md)).
 |---|---|---|
 | Open a PR, optionally as a draft | shipped | `fjw-pr-create` |
 | Read open PRs, one PR, and a PR's comments | shipped | `fjw-pr-list`, `fjw-pr-view`, `fjw-pr-comments` |
+| Read a PR's reviews with their inline review comments | shipped | `fjw-pr-reviews` |
 | Probe a head branch's open-PR state (none, draft, mergeable, conflicted) | shipped | `fjw-pr-query` |
 | Close a PR with a mandatory comment | shipped | `fjw-pr-close` |
 | Comment on a PR within a pinned head-branch prefix, or any PR under a bare `/` | shipped | `fjw-pr-comment` |

@@ -4,7 +4,7 @@ description: >
   Day-to-day conventions for pull-request operations against a self-hosted
   Forgejo forge. All Forgejo writes run through the installed `fjw-*` wrapper
   scripts on PATH, acting as the deployment's machine account: create a PR,
-  list/view PRs, read PR comments, probe a head branch's open-PR state
+  list/view PRs, read PR comments and inline review comments, probe a head branch's open-PR state
   (none/draft/mergeable/conflicted), close a PR with a mandatory comment,
   comment on a PR within a pinned head-branch prefix. Load this before any
   Forgejo PR operation, attended or unattended. Also relevant for "open a PR
@@ -113,8 +113,15 @@ open PR for the same head/base already existing is exit 4 — query first.
 ```bash
 fjw-pr-list <owner/repo>          # open PRs, raw JSON array
 fjw-pr-view <owner/repo> <pr#>    # one PR, raw JSON object
-fjw-pr-comments <owner/repo> <pr#>  # its comments, raw JSON array
+fjw-pr-comments <owner/repo> <pr#>  # its conversation comments, raw JSON array
+fjw-pr-reviews <owner/repo> <pr#>   # its reviews, each with its inline comments
 ```
+
+`fjw-pr-view` reports `review_comments` as a count; the comments themselves
+(file path, line, review id, review state) come only from `fjw-pr-reviews`.
+`fjw-pr-comments` never returns them. The output is a raw JSON array of
+review objects, each carrying one added key, `comments`, the raw array of
+that review's inline comments.
 
 ```bash
 fjw-pr-query <owner/repo> <head-branch>

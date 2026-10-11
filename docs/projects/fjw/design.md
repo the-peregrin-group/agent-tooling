@@ -71,6 +71,14 @@ numbers to be positive integers.
   the PR endpoint and exits 3.
 - `fjw-pr-comments <owner/repo> <pr#>` checks that the number names a PR
   (exit 3 otherwise), then prints its comments, paginated.
+- `fjw-pr-reviews <owner/repo> <pr#>` makes the same PR-ness check, then
+  prints the reviews (paginated), each gaining a `comments` key holding that
+  review's raw inline comments (one extra request per review; reviews with
+  no inline comments still appear). It is a separate Verb rather than an
+  extension of `fjw-pr-comments` because inline comments live on the
+  `/pulls/{index}/reviews` routes, not the issue-comment routes: one route
+  family per Verb keeps `fjw-pr-comments`' output shape stable for existing
+  callers. The cost is two calls for "everything said on this PR".
 - `fjw-pr-query <owner/repo> <head-branch>` is the predecessor probe. It
   prints `{"repository", "head", "state", "pr"}` with state `none`,
   `draft`, `mergeable`, or `conflicted`, and exits 0 for every determinate
