@@ -226,11 +226,15 @@ unresolved is a failure the exit report calls out. Provisional decisions
 The Resolution Queue is the set of everything raised during the
 interrogation that awaits formal resolution: candidate terms with their
 working names, candidate decisions, assumptions under test, and gathering
-not yet done. It appears at the foot of the agent's reply whenever it has
-changed and always at an exit, since a queue repeated unchanged on every
-turn is noise competing with the one question, and it lives in the
-artifact's open-items section between exits, so it survives a dropped
-session. It must be empty before the session is done.
+not yet done. It stays visible to the user throughout without dominating
+each reply: by default a reply in which it changed ends with a one-line
+summary (remaining count and a count per category), with only the items
+added or resolved in that reply listed in full; an unchanged queue gets no
+line, since a count repeated every turn is noise competing with the one
+question. The full queue appears at every exit, in the wrap-up check, and
+on request, and it lives in the artifact's open-items section between
+exits, so it survives a dropped session. It must be empty before the
+session is done.
 
 ### The artifact
 
