@@ -6,7 +6,7 @@ exhaustion, open PRs only -- the one state the unattended consumer ever
 lists). Acts as the deployment's machine account.
 
 Exit codes: 0 success (an empty array is success), 1 unclassified API
-failure, 2 usage error, 3 repository not found, 5 auth/config failure,
+failure, 2 usage error, 3 repository not found, 5 roster/auth/config (deployment),
 6 network failure.
 """
 

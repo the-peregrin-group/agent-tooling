@@ -56,7 +56,7 @@ branch on it, unattended callers especially.
 | `2` | usage error, or a policy refusal at argument-parse time | fix the call |
 | `3` | not found | treat as an answer, not an error |
 | `4` | validation or policy refusal past parse time | a caller bug: never retry unchanged, never work around it with the raw tool |
-| `5` | auth failure; roster and configuration problems map here too | abort and flag the deployment |
+| `5` | roster/auth/config (deployment): a Roster, authentication, or configuration failure, fixed by the deployment | abort and flag the deployment |
 | `6` | network failure | the one retryable class |
 
 One nuance to `4`: `gitw-rebase` exits 4 on a conflict stop, which is

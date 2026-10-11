@@ -17,8 +17,8 @@ repo itself, reports on the registered primary checkout instead
 
 Exit codes: 0 success, 1 unclassified git failure, 2 usage error, 3 not
 found (label not in the roster, or the remote repository has vanished),
-4 refused (cwd or remote does not match the roster entry), 5 roster
-missing/malformed or auth failure, 6 network failure.
+4 refused (cwd or remote does not match the roster entry), 5
+roster/auth/config (deployment), 6 network failure.
 """
 
 from __future__ import annotations

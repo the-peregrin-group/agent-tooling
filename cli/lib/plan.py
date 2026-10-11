@@ -7,7 +7,7 @@ fjw verbs arrived, so pre-existing callers stay correct):
     2 -- usage error or policy refusal at argument-parse time
     3 -- not found (unattended callers treat this as an answer, not an error)
     4 -- validation/policy refusal past parse time -- a caller bug, never retry
-    5 -- auth failure (unattended callers abort and flag deployment)
+    5 -- roster/auth/config (deployment); unattended callers abort and flag it
     6 -- network failure (the one retryable class)
 
 Every fjw verb classifies from day one; ghw verbs still collapse 3-6 into 1

@@ -69,7 +69,7 @@ staged rename or deletion rides `gitw-commit`'s commit-all form.
     guard, local pre-push hook refusal). A caller bug — **never retry
     unchanged, never work around it with raw git.** The refusal is the
     contract doing its job.
-  - `5` roster/auth failure: abort and flag the deployment. Never retry.
+  - `5` roster/auth/config (deployment): abort and flag the deployment. Never retry.
   - `6` network failure: the one retryable class.
 - **Load `use-privacy` first, if listed.** If a `use-privacy` skill is
   listed among your available skills, load it before composing any text

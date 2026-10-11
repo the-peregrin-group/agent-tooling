@@ -54,7 +54,7 @@ the onto base missing on the remote), 4 refused (cwd/branch-prefix
 mismatch, dirty worktree, rebase already or not in progress, conflict
 stop, unresolved markers on continue, an onto base that is the default,
 HEAD, an alias of the default, or the branch itself, onto on a
-machine-local repo), 5 roster missing/malformed or auth failure, 6
+machine-local repo), 5 roster/auth/config (deployment), 6
 network failure.
 """
 

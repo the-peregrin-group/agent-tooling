@@ -295,10 +295,10 @@ every family's implemented codes live in
   branch push, machine-local push or integrate, local pre-push hook
   refusal. Also `gitw-rebase`'s conflict stop, which is expected,
   resumable state rather than a caller bug.
-- `5` Roster or authentication failure: Roster missing or malformed, a
-  registered checkout that no longer exists, remote auth failure. The
-  code's label for 5 is "auth failure"; gitw folds Roster problems in
-  because both mean "fix the deployment".
+- `5` roster/auth/config (deployment): Roster missing or malformed, a
+  registered checkout that no longer exists, remote auth failure. All
+  mean "fix the deployment"; the label matches the
+  [exit-code contract](../../index.md#exit-code-contract).
 - `6` network failure or remote timeout, the one retryable class.
   Remote failures are classified by git's English messages: auth markers
   to 5, "repository not found" to 3, anything else to 6.
