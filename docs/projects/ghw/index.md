@@ -24,7 +24,7 @@ How and why it works: [design.md](design.md).
 | Orientation: repo identity, labels, linked boards, priority regime, board conformance | shipped | `ghw-orient` |
 | Issue filing under the label contract | shipped | `ghw-issue-create` |
 | Issue comment, label edit, retitle, body rewrite | shipped | `ghw-issue-comment`, `ghw-issue-edit` |
-| Issue close with an optional reason | shipped | `ghw-issue-close` |
+| Issue close with a mandatory reason | shipped | `ghw-issue-close` |
 | Issue relationships: sub-issues and blocked-by | shipped | `ghw-issue-link` |
 | Board field writes (Priority, Status, other single-selects) | shipped | `ghw-board-set` |
 | Label schema sync, with deletion as a separate grantable mode | shipped | `ghw-label-sync` |
@@ -34,7 +34,6 @@ How and why it works: [design.md](design.md).
 | Repo tracking bootstrap: labels, board, backlog import | shipped | `setup-github-issues` |
 | Backlog triage and grooming, with autonomous writes through dedicated wrappers | shipped | `triage-issues`, `triage-*` |
 | Scheduled unattended triage via a guard-script background job | shipped | [DEPLOYMENT.md](../../../skills/triage-issues/reference/DEPLOYMENT.md) |
-| Mandatory closing comment on every issue close | planned | `ghw-issue-close`, `setup-github-issues`; [fjw issue-verbs proposal](../fjw/issue-verbs.md); `agent-tooling-75z` |
 | Full Exit-code contract (codes 3 to 6) for ghw | planned | [Exit-code contract](../../index.md#exit-code-contract); `agent-tooling-9qe` |
 | `triage-*` wrappers rebased onto the shared library | planned | [triage-library-rebase.md](triage-library-rebase.md); `agent-tooling-t7y` |
 

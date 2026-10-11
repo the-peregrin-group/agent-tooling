@@ -180,14 +180,12 @@ def issue_edit_title(repository: str, number: int, title: str) -> None:
     _run(["issue", "edit", str(number), "--repo", repository, "--title", title])
 
 
-def issue_close(repository: str, number: int, comment: str | None = None) -> None:
-    """Close an issue, optionally carrying its reason as a comment in the same
-    call. Raises GhError on any `gh` failure.
+def issue_close(repository: str, number: int, comment: str) -> None:
+    """Close an issue, carrying its reason as a comment in the same call.
+    Raises GhError on any `gh` failure.
     """
-    arguments = ["issue", "close", str(number), "--repo", repository]
-    if comment is not None:
-        arguments += ["--comment", comment]
-    _run(arguments)
+    _run(["issue", "close", str(number), "--repo", repository,
+          "--comment", comment])
 
 
 # The four sub-issue/dependency edits ghw-issue-link exposes. "X blocks Y" is

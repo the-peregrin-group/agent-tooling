@@ -183,13 +183,7 @@ class IssueVerbArgvTest(unittest.TestCase):
         self.assertIn(("--title", "New title"), pairs)
 
     @mock.patch("lib.github.gh.subprocess.run")
-    def test_issue_close_without_comment_omits_the_flag(self, run):
-        run.return_value = _completed()
-        gh.issue_close("o/r", 5)
-        self.assertNotIn("--comment", run.call_args.args[0])
-
-    @mock.patch("lib.github.gh.subprocess.run")
-    def test_issue_close_with_comment_passes_it_inline(self, run):
+    def test_issue_close_passes_the_comment_inline(self, run):
         # The comment rides argv, not a shell: subprocess never re-parses it.
         run.return_value = _completed()
         gh.issue_close("o/r", 5, "done via #6")

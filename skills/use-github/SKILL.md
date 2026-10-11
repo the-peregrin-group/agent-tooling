@@ -207,10 +207,11 @@ the `triage-issues` skill; don't invent them here.
       `- [ ] All children created (scope locked)`; the repo's `TRIAGE.md` may
       override it). The wrapper doesn't parse these; stomping them breaks
       triage.
-- **Close:** `ghw-issue-close <owner/repo> <issue#> [comment-file]` — use the
-  optional comment file so the close carries its reason in one call. Closing
-  an already-closed issue is a no-op success, and in that case the comment is
-  **not** posted (the plan's `note` says so — repost with
+- **Close:** `ghw-issue-close <owner/repo> <issue#> <comment-file>` — the comment
+  file is required: the close carries its reason in one call, and a missing
+  or blank comment is exit 2. The only comment-less close is the forge's
+  auto-close on PR merge. Closing an already-closed issue is a no-op
+  success, and in that case the comment is **not** posted (the plan's `note` says so — repost with
   `ghw-issue-comment` if the reason still needs to land).
 - **Link:** `ghw-issue-link <owner/repo> <add-sub|remove-sub|add-blocked-by|remove-blocked-by> <issue#> <other-issue#>`
   — issue numbers only; the wrapper resolves everything else. Argument order

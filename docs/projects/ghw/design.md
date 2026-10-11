@@ -136,10 +136,12 @@ resolution) before the write itself.
   `add-label` applies the attachment contract and refuses a second type
   label, naming the incumbent; reclassifying takes two visible calls. Each
   subverb converges to a no-op when already satisfied.
-- `ghw-issue-close <repo> <issue#> [comment-file]`: its own Verb, never a flag
-  on edit, so closing is independently grantable. The comment is optional.
-  Closing an already-closed issue is a converged no-op, and a supplied comment
-  is then not posted, since the close it explains did not happen here.
+- `ghw-issue-close <repo> <issue#> <comment-file>`: its own Verb, never a flag
+  on edit, so closing is independently grantable. The comment is mandatory (a
+  missing or blank one is exit 2): it is the audit record of why the issue was
+  closed, so a silent close is inexpressible; forge auto-close on PR merge is
+  the one comment-less close. Closing an already-closed issue is a converged
+  no-op, and the comment is then not posted, since the close it explains did not happen here.
 - `ghw-issue-link <repo> <add-sub|remove-sub|add-blocked-by|remove-blocked-by>
   <issue#> <other-issue#>`: a thin validating Verb over `gh issue edit`'s
   native flags, with a runtime check for `gh` 2.94.0 or later. `<issue#>` is
