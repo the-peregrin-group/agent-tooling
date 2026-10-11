@@ -11,26 +11,35 @@ exits 4 with a JSON listing of the conflicted paths.
 `onto <base-branch>`: the same, but onto the fetched
 <remote>/<base-branch> -- the rebase half of the loop into an
 integration branch a repo designates. It mirrors gitw-integrate's
-<base-branch>: the allowlist pins the base (an exact row per base; a
-row starred after the prefix admits any base), and the roster is not
+<base-branch>: Permission rules pin the base (an exact rule per base; a
+rule starred after the prefix admits any base), and the roster is not
 asked which bases are legitimate. The base must exist on the remote
-after the fetch (exit 3 otherwise). Naming the roster's default branch
-here is refused (exit 4): the bare form is the one spelling for the
-default, so a consumer granting exact rows grants the default and each
-designated base separately. Machine-local repos refuse the onto form: there is
-no fetched base to rebase onto. At a conflict stop the chosen base is
-recorded inside git's own rebase state directory, so every later stop
-and the final `continue` report the same `onto`; git deletes that
-directory, record included, when the rebase completes or aborts.
+after the fetch (exit 3 otherwise). Refused (exit 4): the roster's
+default branch, HEAD (or any base whose first level is HEAD), a
+symbolic remote-tracking ref aliasing the default -- the bare form is
+the one spelling for the default, so a consumer granting exact rules
+grants the default and each designated base separately -- and the
+branch itself as its own base. Machine-local repos refuse the onto form:
+there is no fetched base to rebase onto.
+
+The reported `onto`: at a conflict stop the base's display name and the
+commit it named are recorded in a gitw-onto file inside git's own rebase
+state directory, which git deletes when the rebase completes or aborts,
+so the record cannot outlive its rebase. Later stops and the final
+`continue` report the recorded name only while the recorded commit
+equals git's own onto commit; with no record, or a disagreeing one (a
+rebase gitw did not start), they report `"onto": null` and write no
+record, so a guessed name never sticks to someone else's rebase.
 
 `continue`: stage the resolutions (exactly the conflicted paths, nothing
 else) and proceed; the cycle repeats per conflict (each stop exits 4
 with the fresh conflict listing). Files still carrying a full conflict
 marker triple (<<<<<<< / ======= / >>>>>>>) are refused before anything
 is staged, as is a resolution set touching a local-only file
-(settings.local.json, .env*). `abort`: restore the pre-rebase branch. Both modes require an
-in-progress rebase and verify its branch (from the rebase state's
-head-name -- HEAD is detached mid-rebase) against the pinned prefix.
+(settings.local.json, .env*). `abort`: restore the pre-rebase branch.
+Both modes require an in-progress rebase and verify its branch (from
+the rebase state's head-name -- HEAD is detached mid-rebase) against
+the pinned prefix.
 A bare '/' prefix matches any branch except the authoritative default.
 There is deliberately no `skip`: silently dropping a commit is a
 human-decision moment.
@@ -43,9 +52,10 @@ Exit codes: 0 success, 1 unclassified git failure, 2 usage error, 3 not
 found (label not in the roster, the authoritative default missing, or
 the onto base missing on the remote), 4 refused (cwd/branch-prefix
 mismatch, dirty worktree, rebase already or not in progress, conflict
-stop, unresolved markers on continue, onto naming the default branch or
-used on a machine-local repo), 5 roster
-missing/malformed or auth failure, 6 network failure.
+stop, unresolved markers on continue, an onto base that is the default,
+HEAD, an alias of the default, or the branch itself, onto on a
+machine-local repo), 5 roster missing/malformed or auth failure, 6
+network failure.
 """
 
 from __future__ import annotations
@@ -137,18 +147,24 @@ def main(argv: list[str]) -> int:
 
 
 def _conflict_stop(
-    workspace: repo.Workspace, branch: str, onto: str, prefix: str
+    workspace: repo.Workspace,
+    branch: str,
+    onto: tuple[str, str] | None,
+    prefix: str,
 ) -> None:
     """A rebase stop is not a wrapper failure: emit the conflict listing
     as JSON (the machine-readable work order) and exit 4, leaving the
-    standard git conflict state in place."""
+    standard git conflict state in place. `onto` is the (display name,
+    commit) the rebase was started onto, or None when unknown -- then
+    nothing is recorded and the JSON reports `"onto": null`."""
     label = workspace.entry.label
-    _record_onto(workspace.root, onto)
+    if onto is not None:
+        _record_onto(workspace.root, *onto)
     plan.emit_plan(
         "conflict",
         repo=label,
         branch=branch,
-        onto=onto,
+        onto=onto[0] if onto is not None else None,
         conflicts=repo.conflicted_paths(workspace.root),
         worktree=str(workspace.root),
         hint=(
@@ -159,41 +175,62 @@ def _conflict_stop(
     sys.exit(plan.EXIT_REFUSED)
 
 
-def _record_onto(root: Path, onto: str) -> None:
-    """Keep the base's display name in the rebase state directory for the
-    stops a later `continue` reports. Best effort: a lost record only
-    costs those reports the authoritative-default fallback."""
+def _git_onto(state_dir: Path) -> str | None:
+    """The commit git itself records as the rebase's onto target."""
+    try:
+        return (state_dir / "onto").read_text(encoding="utf-8").strip() or None
+    except OSError:
+        return None
+
+
+def _record_onto(root: Path, display: str, commit: str) -> None:
+    """Keep the base's display name, and the commit it named when the
+    rebase started, in the rebase state directory for the stops a later
+    `continue` reports. Best effort: a lost record only costs those
+    reports their `onto` (null instead)."""
     state_dir = repo.rebase_state_dir(root)
     if state_dir is None:
         return
     try:
-        (state_dir / _ONTO_RECORD).write_text(onto + "\n", encoding="utf-8")
+        (state_dir / _ONTO_RECORD).write_text(
+            f"{display}\n{commit}\n", encoding="utf-8"
+        )
     except OSError:
         pass
 
 
-def _recorded_onto(workspace: repo.Workspace) -> str:
-    """The base the in-progress rebase was started onto: the record a
-    conflict stop left, or the authoritative default for a rebase that
-    carries none (one started by an older gitw-rebase, say)."""
-    state_dir = repo.rebase_state_dir(workspace.root)
-    if state_dir is not None:
-        try:
-            recorded = (state_dir / _ONTO_RECORD).read_text(
-                encoding="utf-8"
-            ).strip()
-        except OSError:
-            recorded = ""
-        if recorded:
-            return recorded
-    display, _ = repo.authoritative_ref(workspace.entry)
-    return display
+def _recorded_onto(root: Path) -> tuple[str, str] | None:
+    """The (display name, commit) the in-progress rebase was started onto,
+    from the record a gitw conflict stop left -- or None when there is no
+    record or it disagrees with git's own onto commit. A rebase gitw did
+    not start (raw git, or a record from some other rebase) therefore
+    reports `"onto": null` rather than a guessed name, and gets no
+    record. The recorded commit, not the base ref's current tip, is what
+    is compared: a fetch mid-rebase may legitimately move the ref."""
+    state_dir = repo.rebase_state_dir(root)
+    if state_dir is None:
+        return None
+    try:
+        lines = (state_dir / _ONTO_RECORD).read_text(
+            encoding="utf-8"
+        ).split()
+    except OSError:
+        return None
+    if len(lines) != 2:
+        return None
+    display, commit = lines
+    if commit != _git_onto(state_dir):
+        return None
+    return display, commit
 
 
-def _base_ref(entry, base: str | None, root: Path) -> tuple[str, str]:
+def _base_ref(
+    entry: roster.Entry, base: str | None, root: Path, prefix: str
+) -> tuple[str, str]:
     """The (display name, full refname) to rebase onto, resolved after the
     fetch: the authoritative default for the bare form, else the fetched
-    <remote>/<base>. Dies with exit 3 when the ref is missing."""
+    <remote>/<base>. Dies with exit 3 when the ref is missing; refuses
+    (exit 4) a base that is a symbolic alias of the default."""
     if base is None:
         display, refname = repo.authoritative_ref(entry)
         if not repo.ref_exists(root, refname):
@@ -211,6 +248,17 @@ def _base_ref(entry, base: str | None, root: Path) -> tuple[str, str]:
             f"{refname} after fetching)",
             plan.EXIT_NOT_FOUND,
         )
+    # A symbolic remote-tracking ref aliasing the default (origin/HEAD is
+    # the usual one) is the default under another spelling. Judged by the
+    # symref's target, not by commit equality: a freshly cut integration
+    # branch legitimately sits on the default's tip.
+    target = run.output(["symbolic-ref", "--quiet", refname], root)
+    _, default_refname = repo.authoritative_ref(entry)
+    if target is not None and target.casefold() == default_refname.casefold():
+        raise repo.RefusalError(
+            f"{base!r} resolves to the default branch; use the bare form, "
+            f"`gitw-rebase {entry.label} {prefix}`"
+        )
     return display, refname
 
 
@@ -226,7 +274,9 @@ def _rebase(
                 "fetched base to rebase onto. Use the bare form, which "
                 "rebases onto the local default"
             )
-        if repo.is_default_branch(base, entry.default_branch):
+        # HEAD (origin/HEAD) is the default under another spelling.
+        if (repo.is_default_branch(base, entry.default_branch)
+                or base.partition("/")[0].casefold() == "head"):
             raise repo.RefusalError(
                 f"{base!r} is the authoritative default branch; rebase "
                 f"onto it with the bare form, `gitw-rebase {entry.label} "
@@ -240,6 +290,11 @@ def _rebase(
     branch = repo.require_prefixed_branch(
         root, prefix, entry.label, entry.default_branch
     )
+    if base is not None and branch.casefold() == base.casefold():
+        raise repo.RefusalError(
+            f"branch and base are both {base!r}; rebase onto the base you "
+            "will land into, not onto the branch itself"
+        )
     dirty = repo.status_counts(root)
     if any(dirty.values()):
         raise repo.RefusalError(
@@ -248,7 +303,7 @@ def _rebase(
         )
     if not entry.machine_local:
         run.fetch(entry.remote, root)
-    display, refname = _base_ref(entry, base, root)
+    display, refname = _base_ref(entry, base, root, prefix)
     # Same TOCTOU stance as branch-start's switch: a file written during
     # the fetch must not ride through the rebase's checkouts.
     dirty = repo.status_counts(root)
@@ -258,10 +313,11 @@ def _rebase(
             "discard explicitly before rebasing"
         )
 
+    base_commit = run.must(["rev-parse", "--verify", refname], root)
     result = run.run(["rebase", refname], root)
     if result.returncode != 0:
         if repo.rebase_head_branch(root) is not None:
-            _conflict_stop(workspace, branch, display, prefix)
+            _conflict_stop(workspace, branch, (display, base_commit), prefix)
         detail = result.stderr.strip() or result.stdout.strip() or "no output"
         raise run.GitError(f"git rebase failed: {detail}")
 
@@ -349,7 +405,7 @@ def _continue(workspace: repo.Workspace, prefix: str) -> dict:
             )
             raise run.GitError(f"git add failed: {detail}")
     # Read before continuing: a completed rebase takes the record with it.
-    onto = _recorded_onto(workspace)
+    onto = _recorded_onto(root)
     result = run.run(["rebase", "--continue"], root)
     if result.returncode != 0:
         if repo.rebase_head_branch(root) is not None:
@@ -361,7 +417,7 @@ def _continue(workspace: repo.Workspace, prefix: str) -> dict:
         "repo": entry.label,
         "mode": "continue",
         "branch": branch,
-        "onto": onto,
+        "onto": onto[0] if onto is not None else None,
         "commit": repo.head_commit(root),
         "worktree": str(root),
     }
