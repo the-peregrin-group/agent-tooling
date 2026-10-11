@@ -100,6 +100,16 @@ def add_pre_push_hook(repository: Path, body: str) -> None:
     hook.chmod(0o755)
 
 
+def add_pre_receive_hook(remote: Path, body: str) -> None:
+    """Install an executable sh pre-receive hook in a bare fixture
+    remote; `body` follows the shebang line."""
+    hooks = remote / "hooks"
+    hooks.mkdir(exist_ok=True)
+    hook = hooks / "pre-receive"
+    hook.write_text("#!/bin/sh\n" + body)
+    hook.chmod(0o755)
+
+
 def proxies_off():
     """Patch os.environ so a push to a loopback URL cannot be sent
     off-host by a proxy configured on the machine: no_proxy for the

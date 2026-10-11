@@ -232,6 +232,38 @@ class GitwPushBehaviorTest(_PushFixtureTest):
         self.assertIn("worktree of", stderr)
 
 
+class GitwPushRemoteHookTest(_PushFixtureTest):
+    """A decline by the remote's own pre-receive hook is a refusal (4),
+    never the retryable network class (6)."""
+
+    def test_remote_hook_decline_is_exit_4_with_git_output_relayed(self):
+        gitw_test_support.add_pre_receive_hook(
+            self.remote,
+            'echo "policy: protected branch" >&2\nexit 1\n'
+        )
+        stderr = self.push_expecting_exit(4, "proj", "fix/")
+        self.assertIn("[remote rejected]", stderr)
+        self.assertIn("policy: protected branch", stderr)
+        self.assertIn("never retry unchanged", stderr)
+        self.assertNotIn("rejected by the lease", stderr)
+        self.assertIsNone(self.remote_tip("fix/topic"))
+
+    def test_remote_hook_text_with_auth_words_is_still_a_refusal(self):
+        gitw_test_support.add_pre_receive_hook(
+            self.remote, 'echo "permission denied: not yours" >&2\nexit 1\n'
+        )
+        stderr = self.push_expecting_exit(4, "proj", "fix/")
+        self.assertIn("remote's own hook", stderr)
+
+    def test_remote_hook_text_with_lease_words_is_not_the_lease(self):
+        gitw_test_support.add_pre_receive_hook(
+            self.remote, 'echo "stale info" >&2\nexit 1\n'
+        )
+        stderr = self.push_expecting_exit(4, "proj", "fix/")
+        self.assertIn("remote's own hook", stderr)
+        self.assertNotIn("rejected by the lease", stderr)
+
+
 class GitwPushHookTest(_PushFixtureTest):
     """A local pre-push hook: its output reaches the caller whether it
     passes or refuses, and a refusal is exit 4, never the retryable 6."""

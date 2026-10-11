@@ -157,6 +157,16 @@ def must(arguments: list[str], cwd: Path) -> str:
     return result.stdout.strip()
 
 
+def is_remote_rejection(detail: str) -> bool:
+    """True when push output carries git's per-ref status line for a
+    server-side decline ("! [remote rejected] <ref> (pre-receive hook
+    declined)"): the remote's own hook or policy refused the ref. That is
+    a refusal, not a network failure, and it can be checked before
+    classify_remote_failure because the hook's own text may contain auth
+    words. A lease failure prints "[rejected]", never this."""
+    return "[remote rejected]" in detail.lower()
+
+
 def classify_remote_failure(detail: str) -> int:
     """Map a failed remote operation's stderr to an exit code: auth (5),
     missing remote repository (3), else network (6)."""

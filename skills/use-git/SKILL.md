@@ -66,7 +66,8 @@ staged rename or deletion rides `gitw-commit`'s commit-all form.
     probes this is an answer, not an error.
   - `4` refused: the call violated wrapper-enforced policy (identity or
     prefix mismatch, dirty worktree, stale rebase, lease failure, sweep
-    guard, local pre-push hook refusal). A caller bug — **never retry
+    guard, local pre-push hook refusal, a decline by the remote's own
+    hook). A caller bug — **never retry
     unchanged, never work around it with raw git.** The refusal is the
     contract doing its job.
   - `5` roster/auth/config (deployment): abort and flag the deployment. Never retry.
@@ -302,8 +303,9 @@ refreshing the remote-tracking ref is exactly what would blind the lease.
 The wrapper relays git's own push output to stderr beside the JSON,
 including whatever the local pre-push hook prints; a local hook that
 refuses the push is an exit-4 refusal too — fix what it reported, never
-retry unchanged. A rejection by the remote's own hooks is still
-reported as exit 6 today (issue agent-tooling-h3c).
+retry unchanged. A rejection by the remote's own hooks (a
+`[remote rejected]` status, a protected branch for one) is an exit-4
+refusal too: fix what it reported, never retry unchanged.
 Pushing the trunk is structurally refused regardless of prefix; the push
 of your own branch is the boundary, and the forge skills own what happens
 next.
@@ -341,9 +343,10 @@ the JSON, including whatever the local pre-push hook prints; a local
 hook that refuses the push is an exit-4 refusal too, but it does not
 mean the base moved — fix what it reported on the branch, then loop
 again from the rebase; never retry unchanged. A rejection by the
-remote's own hooks is still reported as exit 6 today (issue
-agent-tooling-h3c). Afterwards your worktree is still on the
-(now-integrated) feature branch; bringing local trunk current is
+remote's own hooks (a `[remote rejected]` status) is an exit-4
+refusal as well; fix what it reported, never retry unchanged.
+Afterwards your worktree is still on the (now-integrated) feature
+branch; bringing local trunk current is
 `gitw-trunk-sync`'s job (next), and branch cleanup is left to the
 harness and the human.
 

@@ -73,8 +73,9 @@ the hook after the local lease rejection); both are exit 4, and the
 moved base surfaces on the next attempt. With no trace2 events
 (an unwritable trace path) the classification is text-only, a hook
 refusal reads as exit 6, and the error line says so. A rejection by
-the remote's own hooks (branch protection on the base, for one) is
-still reported as exit 6 today (issue agent-tooling-h3c).
+the remote's own hooks (branch protection on the base, for one) prints
+a "[remote rejected]" status and is exit 4 as well: it is checked before
+the base-moved text, and the fix is on the branch, not a retry.
 
 Hung hook: a push that times out with a pre-push hook started and never
 exited (detected from the trace2 events) relays the partial output and
@@ -88,9 +89,9 @@ the roster, or the base branch missing on the remote), 4 refused
 the fetched base tip, nothing to integrate, a base that is HEAD or a
 symbolic alias of the default branch, base moved during the
 attempt, more than one caller-written Executed-By trailer,
-machine-local, or a pre-push hook refusal or hang: fix what the hook
-reported, never retry unchanged), 5 roster/auth/config (deployment),
-6 network failure.
+machine-local, a pre-push hook refusal or hang, or a remote hook
+decline: fix what the hook reported, never retry unchanged), 5
+roster/auth/config (deployment), 6 network failure.
 """
 
 from __future__ import annotations
@@ -312,6 +313,14 @@ def _push_bubble(workspace: repo.Workspace, base: str, base_tip: str,
         )
     detail = result.stderr.strip() or result.stdout.strip() or "no output"
     lowered = detail.lower()
+    # Checked first: a remote hook's own text may contain base-moved words.
+    if run.is_remote_rejection(detail):
+        raise repo.RefusalError(
+            f"push of the bubble to {base!r} rejected by the remote's own "
+            "hook or policy (a [remote rejected] status); git's output is "
+            "relayed above. Fix what it reported on the branch, then loop "
+            "again from the rebase; never retry unchanged"
+        )
     if any(marker in lowered for marker in _BASE_MOVED_MARKERS):
         raise repo.RefusalError(
             f"{entry.remote}/{base} moved during the attempt (the push "

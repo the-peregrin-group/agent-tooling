@@ -94,6 +94,25 @@ class ClassifyRemoteFailureTest(unittest.TestCase):
                     run.classify_remote_failure(detail), plan.EXIT_NOT_FOUND
                 )
 
+    def test_remote_rejection_status_line(self):
+        for detail in (
+            " ! [remote rejected] topic -> topic (pre-receive hook declined)",
+            "remote: permission denied by policy\n"
+            " ! [remote rejected] topic -> topic (hook declined)",
+        ):
+            with self.subTest(detail=detail):
+                self.assertTrue(run.is_remote_rejection(detail))
+
+    def test_lease_and_transport_failures_are_not_remote_rejections(self):
+        for detail in (
+            " ! [rejected] topic -> topic (stale info)",
+            " ! [rejected] main -> main (non-fast-forward)",
+            "fatal: unable to access 'https://x/': Connection timed out",
+            "",
+        ):
+            with self.subTest(detail=detail):
+                self.assertFalse(run.is_remote_rejection(detail))
+
     def test_everything_else_is_network(self):
         for detail in (
             "ssh: Could not resolve hostname forge.example.com",
