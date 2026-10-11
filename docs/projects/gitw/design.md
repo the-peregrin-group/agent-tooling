@@ -88,7 +88,7 @@ gap in index.md's Status).
   mode depends on the base branch's type:
   - **Trunk (the default branch) or a protected branch:** attended,
     always. Trunk advances only with a human in the loop.
-  - **An integration branch the project designates:** may run
+  - **An agent integration branch the project designates:** may run
     unattended, on the project's own terms (its instructions and
     Permission rules). Where a project is silent, push + PR is the
     unattended ceiling.
@@ -376,13 +376,13 @@ conflicted paths, and continues; the cycle repeats per conflicted commit.
 silently dropping a commit is a human decision.
 
 The `onto <base>` form makes the same checks and rebases onto the fetched
-`<remote>/<base>` instead: the rebase half of the loop into an
+`<remote>/<base>` instead: the rebase half of the loop into an agent
 integration branch a project designates, whose other half is
 `gitw-integrate` (or a forge merge) into the same base. It mirrors
 `gitw-integrate`'s `<base-branch>`:
 
 - **The Permission rule pins the base; nothing else declares it.** There
-  is no Roster field or config file listing designated branches. A
+  is no Roster field or config file listing agent integration branches. A
   second declaration would have to agree with the rules that already
   grant the landing Verb, and two sources of truth for one policy drift.
   The Wrapper checks only what is machine-checkable: `<base>` has the
@@ -395,8 +395,8 @@ integration branch a project designates, whose other half is
   legible: under exact rules, the bare rule is the only grant for
   rebasing onto trunk and each onto rule grants exactly its base. The
   alias check reads the symref's target, not commit equality: a freshly
-  cut integration branch sits exactly on the default's tip and must
-  stay rebasable.
+  cut agent integration branch sits exactly on the default's tip and
+  must stay rebasable.
 - **The branch itself is refused as its base**, as `gitw-integrate`
   refuses branch equals base.
 - **Machine-local repos refuse it**: with no remote there is no fetched
@@ -521,7 +521,7 @@ Rules pin Verb, label, and Branch prefix as literal prefixes:
 - **`Bash(gitw-rebase rocket-sled fix/ *)` covers the bare call, its
   `continue`/`abort` modes, and the `onto` form with any base,
   deliberately.** A rebase rewrites only the agent's own branch and
-  never moves the base, so the pin protecting a designated integration
+  never moves the base, so the pin protecting an agent integration
   branch sits on the landing Verb's exact rule (`gitw-integrate`'s or
   the forge merge's). A consumer that wants rebase bases pinned too
   grants exact rules, one per mode and one per base

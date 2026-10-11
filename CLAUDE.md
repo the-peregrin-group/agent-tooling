@@ -68,10 +68,10 @@ PR**; its issue-filing and board conventions are suspended for the trial, and a
 PR body names the issue it lands (`Lands agent-tooling-xyz`) instead of
 `Closes #N`.
 
-## Integration branches
+## Agent integration branches
 
-Branches under the `integrate/` prefix are designated integration branches,
-one per run and disposable (`integrate/workjam-2026-10-10`, say). Agents may
+Branches under the `integrate/` prefix are agent integration branches, one
+per run and disposable (`integrate/workjam-2026-10-10`, say). Agents may
 rebase onto one (`gitw-rebase agent-tooling <prefix> onto integrate/<run>`)
 and merge PRs into it unattended
 (`ghw-pr-merge the-peregrin-group/agent-tooling integrate/<run> merge <pr#>`).

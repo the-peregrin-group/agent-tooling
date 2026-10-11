@@ -9,7 +9,7 @@ standard git conflict state in place -- it IS the work product -- and
 exits 4 with a JSON listing of the conflicted paths.
 
 `onto <base-branch>`: the same, but onto the fetched
-<remote>/<base-branch> -- the rebase half of the loop into an
+<remote>/<base-branch> -- the rebase half of the loop into an agent
 integration branch a repo designates. It mirrors gitw-integrate's
 <base-branch>: Permission rules pin the base (an exact rule per base; a
 rule starred after the prefix admits any base), and the roster is not
@@ -250,8 +250,8 @@ def _base_ref(
         )
     # A symbolic remote-tracking ref aliasing the default (origin/HEAD is
     # the usual one) is the default under another spelling. Judged by the
-    # symref's target, not by commit equality: a freshly cut integration
-    # branch legitimately sits on the default's tip.
+    # symref's target, not by commit equality: a freshly cut agent
+    # integration branch legitimately sits on the default's tip.
     target = run.output(["symbolic-ref", "--quiet", refname], root)
     _, default_refname = repo.authoritative_ref(entry)
     if target is not None and target.casefold() == default_refname.casefold():

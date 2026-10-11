@@ -142,10 +142,11 @@ Three operating modes, escalating in required trust:
   there).
 - **(b) Worktree + feature branch, direct integration.** Only where the
   repo's CLAUDE.md grants it; attended when the base is trunk or a
-  protected branch, on the repo's own terms into an integration branch it
-  designates. Rebase onto the current base (`gitw-rebase`'s bare form for
-  trunk, its `onto` form for a designated branch), run the full
-  merge-readiness loop, then `gitw-integrate` into that same base. No PR.
+  protected branch, on the repo's own terms into an agent integration
+  branch it designates. Rebase onto the current base (`gitw-rebase`'s
+  bare form for trunk, its `onto` form for an agent integration branch),
+  run the full merge-readiness loop, then `gitw-integrate` into that same
+  base. No PR.
 - **(c) Work directly on the default branch.** Very rare: repo exemption
   + attended + the user's explicit assurance of zero parallel agents for
   the session's duration. Sync the branch to its authoritative instance
@@ -266,7 +267,7 @@ pre-rebase branch. There is deliberately no `skip`: silently dropping a
 commit is a human decision.
 
 `onto` form: the same, onto the fetched `<remote>/<base-branch>`, for
-an integration branch the repo designates. As with `gitw-integrate`'s
+an agent integration branch the repo designates. As with `gitw-integrate`'s
 base, the Permission rules pin which bases you may name; the wrapper
 only checks that the base exists on the remote after the fetch (exit 3
 if not). Refused: the default branch and `HEAD` (the bare form is the
@@ -311,10 +312,10 @@ gitw-integrate <repo> <base-branch> <branch-prefix> <message-file>
 ```
 
 Mode (b) only — only where the repo grants it; attended when the base is
-trunk or a protected branch, on the repo's own terms into an integration
-branch it designates. The loop: `gitw-rebase` onto the same base you
-will integrate into (bare form for trunk, `onto <base-branch>` for a
-designated branch), then the full merge-readiness validation
+trunk or a protected branch, on the repo's own terms into an agent
+integration branch it designates. The loop: `gitw-rebase` onto the same
+base you will integrate into (bare form for trunk, `onto <base-branch>`
+for an agent integration branch), then the full merge-readiness validation
 (skill-side, driven by the repo's own CLAUDE.md — the wrapper runs no
 validation), then integrate. The wrapper verifies your branch tip
 descends from the freshly fetched base tip, builds the two-parent bubble
@@ -356,10 +357,10 @@ hand-edit, not yours.
   stop: `abort`, push what you have, and say so in the same place.
 - **Trunk advances only with a human in the loop.** Integrating into the
   default branch, or any branch the project protects, is attended,
-  always. A project may designate its own integration branches and let
-  agents land there unattended; its CLAUDE.md and settings rule. The
-  loop into a designated branch is the trunk loop with a named base:
-  `gitw-rebase <repo> <prefix> onto <base>`, validate, land (by
+  always. A project may designate its own agent integration branches and
+  let agents land there unattended; its CLAUDE.md and settings rule. The
+  loop into an agent integration branch is the trunk loop with a named
+  base: `gitw-rebase <repo> <prefix> onto <base>`, validate, land (by
   `gitw-integrate <repo> <base> ...` or the forge merge the project
   names), and loop from the rebase if the base moved. Where CLAUDE.md
   and settings are silent, push-and-PR is the unattended ceiling.
@@ -405,7 +406,7 @@ the bare call (see Wildcard patterns, code.claude.com/docs/en/permissions),
 so the starred `gitw-rebase` row covers its bare form, its
 `continue`/`abort` modes, and the `onto` form with any base. That is
 deliberate: a rebase rewrites only your own branch and never moves the
-base, so the pin protecting a designated integration branch sits on the
+base, so the pin protecting an agent integration branch sits on the
 landing Verb's exact row (`gitw-integrate`'s or the forge merge's), not
 on the rebase row. A consumer that wants rebase bases pinned too grants
 exact rows: the bare form, `continue`, and `abort` each as its own row,
