@@ -86,7 +86,11 @@ tooling-install adopt <source-checkout> <superseded-source-repo> [--cohort <name
   collisions as `adoptable` or `conflicting`, and lists what an install
   would destroy: `unowned_replaced` (unclaimed files inside a unit being
   swapped) and `foreign_replaced` (files another record claims that the
-  incoming unit does not ship). All of these count as drift. It reports an
+  incoming unit does not ship). It also checks the Receipt's own per-file
+  hashes against disk and lists disagreements, including recorded files
+  missing from disk, as `receipt_mismatch`, distinct from `changed` (source
+  versus disk); `apply` overwrites and restamps them. All of these count as
+  drift. It reports an
   interrupted swap but never repairs one, so it stays safe to grant.
   `--force` is illegal with `diff`.
 - **`apply`** installs. It refuses a dirty source unless `--force`, judging

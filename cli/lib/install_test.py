@@ -285,6 +285,34 @@ class DiffTest(InstallTestCase):
             report["cohorts"]["bin"]["installed_commit"], report["source_commit"]
         )
 
+    def test_clean_install_has_no_receipt_mismatch(self):
+        self.install()
+        for cohort in self.report()["cohorts"].values():
+            self.assertEqual(cohort["receipt_mismatch"], [])
+
+    def test_staled_receipt_hash_is_reported_and_apply_restamps(self):
+        self.install()
+        path = target_for("bin", self.home) / "install-receipt.json"
+        receipt = json.loads(path.read_text())
+        record = next(iter(receipt["sources"].values()))
+        record["files"]["tool-a"] = "sha256:" + "0" * 64
+        path.write_text(json.dumps(receipt))
+        report = self.report()
+        self.assertEqual(report["cohorts"]["bin"]["receipt_mismatch"], ["tool-a"])
+        self.assertEqual(report["cohorts"]["bin"]["changed"], [])
+        self.assertEqual(report["cohorts"]["bin"]["status"], "drift")
+        self.assertEqual(report["status"], "drift")
+        self.install()
+        self.assertEqual(self.report()["status"], "in-sync")
+
+    def test_recorded_file_missing_on_disk_is_a_receipt_mismatch(self):
+        self.install()
+        (target_for("bin", self.home) / "tool-a").unlink()
+        cohort = self.report()["cohorts"]["bin"]
+        self.assertEqual(cohort["receipt_mismatch"], ["tool-a"])
+        self.assertEqual(cohort["only_in_source"], ["tool-a"])
+        self.assertEqual(cohort["status"], "drift")
+
     def test_changed_source_file_shows_as_changed(self):
         self.install()
         write(self.source / "bin1" / "tool-a", "#!/bin/sh\necho edited\n")
