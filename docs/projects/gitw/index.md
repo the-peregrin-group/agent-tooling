@@ -38,9 +38,6 @@ Code: the `cli/gitw-*` Verbs over `cli/lib/git/` and the shared
 - Mutating Verbs refuse a cwd admitted only by `operable_from` (exit 4),
   while `use-git` still promises cross-repo writes under that interlock
   (`agent-tooling-1790288522193-11-242cbfe6`).
-- `use-git` still describes the retired third operating mode (work
-  directly on the default branch) and lacks the session-start ceremony
-  (`agent-tooling-4t9`).
 - `use-git` attributes the Permission-rule token boundary to the Branch
   prefix's trailing slash; the boundary is the space before the star
   (`agent-tooling-4zo`).
