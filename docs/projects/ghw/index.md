@@ -50,8 +50,6 @@ How and why it works: [design.md](design.md).
   issue with raw `gh issue create` instead of a Verb; needs a decision first
   on whether the triage-excluded ledger issue takes the type and `area:`
   labels `ghw-issue-create` requires (`agent-tooling-5kf`).
-- `triage-inventory` silently omits open issues beyond the first 500
-  (`agent-tooling-lo7`).
 - `ghw-board-sync`'s write path, including `new`, has never run against the
   live GitHub API; it is verified by schema introspection and unit tests only
   (`agent-tooling-2ul`).
