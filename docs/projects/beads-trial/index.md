@@ -54,8 +54,6 @@ Why the trial has this shape, and the alternatives it rules out, is in
 - Prefix rules cannot see a verb hidden inside a nested shell string, so
   the Permission rules are not safe in auto mode until a parsed-command deny
   hook lands (`agent-tooling-1790288522490-13-6d52b051`).
-- A denied verb's `--help` is denied too, so agents cannot read the flags of
-  the commands they document (`agent-tooling-0bd`).
 - A deny rule also matches a write whose Issue text names a denied verb or
   flag, so Issue text spells those in words (`agent-tooling-9nx`).
 - The Permission rules' spec docstring still calls the bare-call match of
