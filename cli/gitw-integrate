@@ -16,7 +16,8 @@ prefix matches any branch except the authoritative default. The steps:
    first, then loop again");
 2. build the two-parent integration bubble with `git commit-tree` (tree:
    the branch tip's tree; first parent: the fetched base tip; second
-   parent: the branch tip; message from the staged message file);
+   parent: the branch tip; message from the staged message file plus an
+   `Executed-By: <actor>` trailer, below);
 3. push the new commit to the base branch under an exact lease --
    `--force-with-lease=refs/heads/<base>:<fetched-tip>` -- a
    compare-and-swap on the very tip the descendant check used. When the
@@ -29,6 +30,20 @@ prefix matches any branch except the authoritative default. The steps:
    remote is caught earlier: the fetch prunes its tracking ref, so the
    existence check fails with exit 3 instead of a plain push silently
    recreating it.
+
+Executed-By trailer: the bubble carries the same trailer gitw-commit
+writes, `Executed-By: <actor>`, the session actor from
+lib.actor.derive_actor (`claude-job-<job-id>` in a background job,
+`attended-<user>` otherwise), so the one commit that moves the base is
+attributable too. The rules are gitw-commit's, from one shared
+implementation (lib.git.repo.trailered_message): a caller-written
+Executed-By trailer is replaced by the derived actor, and a message
+holding more than one is refused (exit 4) before anything is pushed. The
+message is copied, with a guaranteed final newline, to a private
+temporary file and the trailer added there; the staged message file is
+never modified. The JSON output reports the actor as `executed_by`. A
+bubble made by a forge's merge button is outside gitw and carries no
+trailer.
 
 <base-branch> names the integration target; the allowlist pins it. It is
 deliberately not required to equal the roster's default_branch (a repo
@@ -66,19 +81,22 @@ the roster, or the base branch missing on the remote), 4 refused
 (cwd/branch-prefix mismatch, dirty worktree, branch not a descendant of
 the fetched base tip, nothing to integrate, a base that is HEAD or a
 symbolic alias of the default branch, base moved during the
-attempt, machine-local, or a pre-push hook refusal: fix what the hook
+attempt, more than one caller-written Executed-By trailer,
+machine-local, or a pre-push hook refusal: fix what the hook
 reported, never retry unchanged), 5 roster missing/malformed or auth
 failure, 6 network failure.
 """
 
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from lib import plan, staging
+from lib.actor import derive_actor
 from lib.git import arguments, repo, roster, run
 
 _USAGE = "gitw-integrate <repo> <base-branch> <branch-prefix> <message-file>"
@@ -137,7 +155,9 @@ def main(argv: list[str]) -> int:
                 "would move a possibly-checked-out local base branch -- "
                 "exactly the primary-checkout mutation this verb avoids"
             )
-        payload = _integrate(workspace, base, prefix, message_file)
+        payload = _integrate(
+            workspace, base, prefix, message, derive_actor(os.environ)
+        )
     except repo.RefusalError as error:
         run.die(str(error), plan.EXIT_REFUSED)
     except run.GitError as error:
@@ -148,7 +168,8 @@ def main(argv: list[str]) -> int:
 
 
 def _integrate(
-    workspace: repo.Workspace, base: str, prefix: str, message_file: Path
+    workspace: repo.Workspace, base: str, prefix: str, message: str,
+    actor: str,
 ) -> dict:
     entry = workspace.entry
     root = workspace.root
@@ -214,16 +235,21 @@ def _integrate(
         run.must(["rev-list", "--count", f"{base_tip}..{branch_tip}"], root)
     )
 
-    merge_commit = run.must(
-        [
-            "commit-tree",
-            f"{branch_tip}^{{tree}}",
-            "-p", base_tip,
-            "-p", branch_tip,
-            "-F", str(message_file),
-        ],
-        root,
-    )
+    # The trailered copy is built before anything moves, so a refusal
+    # (two caller-written Executed-By trailers) leaves the remote alone.
+    with repo.trailered_message(
+        message, actor, root, "gitw-integrate"
+    ) as trailered_path:
+        merge_commit = run.must(
+            [
+                "commit-tree",
+                f"{branch_tip}^{{tree}}",
+                "-p", base_tip,
+                "-p", branch_tip,
+                "-F", str(trailered_path),
+            ],
+            root,
+        )
 
     _push_bubble(workspace, base, base_tip, merge_commit)
 
@@ -236,6 +262,7 @@ def _integrate(
         "first_parent": base_tip,
         "second_parent": branch_tip,
         "commits": commits,
+        "executed_by": actor,
         "worktree": str(root),
     }
 

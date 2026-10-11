@@ -305,16 +305,19 @@ every family's implemented codes live in
 
 ### Attribution
 
-`gitw-commit` writes an `Executed-By: <Actor>` trailer on every commit:
+`gitw-commit` writes an `Executed-By: <Actor>` trailer on every commit,
+and `gitw-integrate` on the merge bubble:
 `claude-job-<id>` in a background job, `attended-<user>` otherwise,
 derived from the environment and replacing any one the caller wrote
 (more than one is exit 4). A reader of history needs to know which
 session made a commit without trusting the message author. The Actor
 derivation is shared with bdw (see [ADR 0002, Beads
 identity](../../adr/0002-beads-identity.md): one Actor per background
-job, a visibly distinct fallback for attended sessions). Only
-`gitw-commit` writes the trailer; `gitw-integrate`'s merge bubble carries
-the caller's message unchanged.
+job, a visibly distinct fallback for attended sessions). Both Verbs use
+one implementation (`lib.git.repo.trailered_message`): the trailer is
+added to a private copy of the staged message, never the caller's file.
+Bubbles made by a forge's merge button (mode (a)) are outside gitw and
+carry no trailer; that is a limit of the forge, not of the Verb.
 
 ## Verbs
 
@@ -471,7 +474,9 @@ primary-checkout mutation it avoids). It never checks out the base:
    are exit 4, nothing to integrate.
 3. Build the two-parent bubble with `git commit-tree`: the branch tip's
    tree, first parent the base tip, second parent the branch tip, message
-   from the staged file.
+   from a private copy of the staged file with the `Executed-By` trailer
+   added (see Attribution; two caller-written trailers are exit 4, before
+   anything is pushed).
 4. Push it to `refs/heads/<base>` under the exact lease
    `--force-with-lease=refs/heads/<base>:<fetched-tip>`, a compare-and-swap
    on the tip the descendant check used. If the base has moved or been

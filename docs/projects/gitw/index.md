@@ -23,7 +23,7 @@ Code: the `cli/gitw-*` Verbs over `cli/lib/git/` and the shared
 | Commit all or by pathspec, with sweep guard and `Executed-By` trailer | shipped | `gitw-commit` |
 | Rebase own branch onto the default branch or a named base branch, with conflict stop, continue, abort | shipped | `gitw-rebase` |
 | Push own branch under lease, or move a named pointer ref | shipped | `gitw-push` |
-| Direct integration: bubble onto a base branch under an exact lease | shipped | `gitw-integrate` |
+| Direct integration: bubble onto a base branch under an exact lease, with `Executed-By` trailer | shipped | `gitw-integrate` |
 | Scope a mutating Verb to any branch except the default with a bare `/` prefix | shipped | `gitw-branch-start`, `gitw-commit`, `gitw-rebase`, `gitw-push`, `gitw-integrate` |
 | Roster registration ceremony | shipped | `gitw-repo-register` |
 | Git discipline for agents (hygiene, modes, history policy, Verb usage) | shipped | `use-git` Skill |

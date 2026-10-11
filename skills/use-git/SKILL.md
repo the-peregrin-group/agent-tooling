@@ -256,8 +256,8 @@ refuses staged sets touching `settings.local.json` or `.env*`; its
 refusal message is self-documenting (including the one sanctioned
 `.env.example` exception) — fix the gitignore or narrow the pathspec,
 and beyond that it's the user's call. The wrapper appends an
-`Executed-By:` trailer derived from the session environment; do not
-write one yourself.
+`Executed-By:` trailer derived from the session environment (so does
+`gitw-integrate` on its bubble); do not write one yourself.
 
 ```bash
 gitw-rebase <repo> <branch-prefix> [continue|abort]
@@ -327,6 +327,9 @@ for an agent integration branch), then the full merge-readiness validation
 validation), then integrate. The wrapper verifies your branch tip
 descends from the freshly fetched base tip, builds the two-parent bubble
 without ever checking out the base, and pushes it under an exact lease.
+The bubble's message is your message file plus the same `Executed-By:`
+trailer, written to a private copy (two trailers in your file is an exit-4
+refusal; a forge's merge button adds none).
 Both refusals — "not a descendant" and "moved during the attempt" — mean
 the same thing: **the base moved; loop again from the rebase.** As with
 `gitw-push`, the wrapper relays git's own push output to stderr beside
