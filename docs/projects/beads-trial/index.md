@@ -25,8 +25,9 @@ Beads. The freeze has held since 2026-09-24:
 - **Agents go through [`bdw`](../bdw/index.md).** Raw `bd` and `beads`
   are denied, reads included.
 - **Permission rules** in `.claude/settings.json` decide which Beads calls
-  run, prompt, or are refused. `cli/repo_policy_test.py` is their spec: its
-  tuples generate the expected rules, and the test requires the JSON to
+  run, prompt, or are refused. `cli/repo_policy_test.py` is their spec: it
+  generates the expected rules from use-bd's canonical rule set
+  (`skills/use-bd/rules.json`) plus a local layer, and requires the JSON to
   equal them.
 - **The loop** and everything else about working Beads is taught by the
   [use-bd](../use-bd/index.md) Skill; this repo's conventions (labels, the

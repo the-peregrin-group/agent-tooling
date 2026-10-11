@@ -115,13 +115,22 @@ them.
   lands, how a `TODO` comment cites an Issue). It states conventions and
   points; it never grants or denies an operation, because what agents may
   run is decided only by the reviewed Permission rules.
-- [ ] Add Permission rules for `bdw` to the repo's `.claude/settings.json`:
+- [ ] Add the canonical Permission rules for `bdw` to the repo's
+  `.claude/settings.json`. They ship beside this file as `rules.json`:
   reads and reversible writes allowed through `bdw`; raw `bd` and `beads`
   denied outright, reads included; the irreversible, off-machine, and
   record-falsifying verbs denied; and what steps around a safeguard
-  (taking over a claim, forcing a close) asked for. Until use-bd ships its canonical rule
-  set, agent-tooling's own `.claude/settings.json` and the spec that
-  generates it (`cli/repo_policy_test.py`) are the model to copy.
+  (taking over a claim, forcing a close) asked for. Each of its `deny`,
+  `ask`, and `allow` lists is a list of groups, and each group says why it
+  exists and gives its rows outright (`rows`) or as `verbs` that fill in
+  each of its `shapes` at `{v}`. Expand every group into the matching
+  list of the repo's settings. The repo may add rules of its own but
+  keeps every canonical row. Shell indirections (`env *`, `sh -c *`,
+  `xargs *`, `eval *`, and similar) hide a verb from prefix matching, so
+  asking for them is worth considering too; they are not in the canonical
+  set because they rule on every shell command, not only on Beads. Give
+  the repo a spec test that checks its settings contain the canonical set;
+  agent-tooling's `cli/repo_policy_test.py` is one to copy.
 - [ ] Point the repo's `CLAUDE.md` at this skill rather than restating
   Beads procedure: "Issues are tracked in Beads; load `/use-bd`."
 

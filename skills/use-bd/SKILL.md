@@ -51,7 +51,10 @@ stop and report it.
 
 The repo's own conventions are in `.beads/PRIME.md`, which `bdw prime`
 prints. Read this skill's `quirks.md` when bd surprises you, and
-`onboarding.md` only when setting Beads up in a new repo.
+`onboarding.md` only when setting Beads up in a new repo. `rules.json`
+beside it is the canonical Permission rule set for Beads: every command
+this skill teaches is allowed by it, so a command shown here that prompts
+or is denied means the repo's rules have drifted from it.
 
 ## The loop
 
