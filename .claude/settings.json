@@ -120,6 +120,8 @@
       "Bash(beads)"
     ],
     "ask": [
+      "Bash(rm *)",
+      "Bash(mv *)",
       "Bash(bash -c *)",
       "Bash(bdw assign *)",
       "Bash(bdw backup add *)",
