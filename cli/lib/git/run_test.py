@@ -213,6 +213,34 @@ class ParsePushTraceTest(unittest.TestCase):
         )
         self.assertEqual(run.parse_push_trace(failing), (True, 7))
 
+    def test_nested_session_hook_is_ignored(self):
+        nested = [
+            {"event": "child_start", "sid": "a/b", "child_id": 0,
+             "child_class": "hook", "hook_name": "pre-push"},
+            {"event": "child_exit", "sid": "a/b", "child_id": 0, "code": 1},
+        ]
+        text = _trace(
+            _VERSION, _PRE_PUSH_START,
+            {"event": "child_exit", "sid": "a", "child_id": 0, "code": 0},
+            *nested,
+        )
+        self.assertEqual(run.parse_push_trace(text), (True, None))
+        # The root hook's own refusal is still reported.
+        failing = _trace(
+            _VERSION, _PRE_PUSH_START, *nested,
+            {"event": "child_exit", "sid": "a", "child_id": 0, "code": 7},
+        )
+        self.assertEqual(run.parse_push_trace(failing), (True, 7))
+
+    def test_hook_without_a_string_sid_is_ignored(self):
+        text = _trace(
+            _VERSION,
+            {"event": "child_start", "child_id": 0, "child_class": "hook",
+             "hook_name": "pre-push"},
+            {"event": "child_exit", "child_id": 0, "code": 1},
+        )
+        self.assertEqual(run.parse_push_trace(text), (True, None))
+
     def test_non_integer_exit_code_is_no_signal(self):
         for code in (None, "1", 1.0, True):
             with self.subTest(code=code):
