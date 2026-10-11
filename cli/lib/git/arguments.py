@@ -14,8 +14,10 @@ from lib import arguments as shared
 
 # Repo labels are the short stable literals allowlist rules pin
 # (`Bash(gitw-commit <label> <prefix> *)`). Single token, lowercase, no
-# slash: the slash is the branch-prefix terminator, and keeping it out of
-# labels keeps the two token kinds visually unmistakable in a rule.
+# slash: the slash terminates the branch prefix in the wrapper's own grammar
+# (and its prefix check), and keeping it out of labels keeps the two token
+# kinds visually unmistakable in a rule. The permission matcher's boundary
+# is a different thing: the space before the rule's trailing star.
 _LABEL_PATTERN = re.compile(r"^[a-z0-9][a-z0-9._-]*$")
 
 # Branch names (the part after the prefix): a conservative slice of what

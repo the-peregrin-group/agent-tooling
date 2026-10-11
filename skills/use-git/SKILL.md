@@ -398,7 +398,12 @@ pending a consumer that proves need. Stash is not deferred — it is banned
 ## Allowlisting a Consumer
 
 Project `settings.json` rules pin verb + label + branch prefix as literal
-prefixes; the trailing slash on the prefix is the token boundary:
+prefixes. Two boundaries, one per layer: in a rule, the space before the
+trailing star ends the token (exact rows without a star match by whole-string
+equality, so there the slash is just the end of the literal); the trailing
+slash on the prefix does its work in the wrapper's own prefix check (`fix/`
+must not match `fixture-cleanup`) and keeps prefixes visually distinct from
+labels:
 
 ```json
 "Bash(gitw-orient rocket-sled)",
