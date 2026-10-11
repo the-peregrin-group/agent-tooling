@@ -293,7 +293,7 @@ every family's implemented codes live in
 - `4` refusal: identity or prefix mismatch, dirty worktree, stale rebase,
   lease failure, sweep guard, nothing to commit or integrate, default-
   branch push, machine-local push or integrate, local pre-push hook
-  refusal. Also `gitw-rebase`'s conflict stop, which is expected,
+  refusal or hang. Also `gitw-rebase`'s conflict stop, which is expected,
   resumable state rather than a caller bug.
 - `5` roster/auth/config (deployment): Roster missing or malformed, a
   registered checkout that no longer exists, remote auth failure. All
@@ -463,8 +463,12 @@ hook refusal is exit 4, detected from git's trace2 event stream (a
 nonzero exit of the `pre-push` hook child), because git otherwise prints
 only a generic "failed to push some refs". The hook verdict is checked
 before lease text, since a refusing hook ends the push before git prints
-any ref status. If trace2 events are unavailable, classification falls
-back to text and a hook refusal reads as exit 6, which the error line
+any ref status. A push that times out with a pre-push hook started but
+not exited (a `child_start` with no `child_exit`, read from the trace
+before it is discarded) is a hung hook, also exit 4 with the output so
+far relayed, because a retry would re-run the hook; a timeout with no
+hung hook stays network (6). If trace2 events are unavailable,
+classification falls back to text and a hook refusal reads as exit 6, which the error line
 states. Lease markers ("stale info", "remote ref updated since checkout")
 are exit 4; other failures are classified as auth (5), not found (3), or
 network (6).

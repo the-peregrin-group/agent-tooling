@@ -33,8 +33,6 @@ Code: the `cli/gitw-*` Verbs over `cli/lib/git/` and the shared
 
 - A push rejected by the remote's own hooks reports exit 6 (retryable)
   instead of a refusal (`agent-tooling-h3c`).
-- A hung local pre-push hook times out as exit 6, inviting a retry
-  (`agent-tooling-bl4`).
 - Mutating Verbs refuse a cwd admitted only by `operable_from` (exit 4),
   while `use-git` still promises cross-repo writes under that interlock
   (`agent-tooling-1790288522193-11-242cbfe6`).

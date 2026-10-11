@@ -237,13 +237,19 @@ def _run_push(workspace: repo.Workspace, ref: str,
     lease (4), else the shared remote classification."""
     entry = workspace.entry
     root = workspace.root
-    result, hook_code, traced = run.traced_push(
+    result, hook_code, traced, hook_hung = run.traced_push(
         arguments, root, run.remote_environment(root),
     )
     run.relay(result.stdout)
     run.relay(result.stderr)
     if result.returncode == 0:
         return
+    if hook_hung:
+        raise repo.RefusalError(
+            f"push of {ref!r} timed out with the local pre-push hook "
+            "still running; its output so far is relayed above. The hook "
+            "hung: fix it; never retry unchanged"
+        )
     # The hook verdict comes first: when the hook refused, git printed no
     # ref status, so any lease marker in the text is the hook's own.
     if hook_code is not None:

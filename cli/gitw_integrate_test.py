@@ -508,6 +508,21 @@ class GitwIntegrateHookTest(_IntegrateFixtureTest):
             self.remote_git("rev-parse", "refs/heads/main"), old_main
         )
 
+    def test_hung_hook_is_exit_4_with_output_so_far_relayed(self):
+        old_main = self.remote_git("rev-parse", "refs/heads/main")
+        gitw_test_support.add_pre_push_hook(
+            self.clone, 'echo "pre-push: working" >&2\nexec sleep 30\n'
+        )
+        with mock.patch.object(_MODULE.run, "_TIMEOUT_SECONDS", 3):
+            stderr = self.integrate_expecting_exit(
+                4, "proj", "main", "fix/", self.message_path
+            )
+        self.assertIn("pre-push: working\n", stderr)
+        self.assertIn("pre-push hook still running", stderr)
+        self.assertEqual(
+            self.remote_git("rev-parse", "refs/heads/main"), old_main
+        )
+
     def test_hook_refusal_keeps_the_hook_exit_code(self):
         old_main = self.remote_git("rev-parse", "refs/heads/main")
         gitw_test_support.add_pre_push_hook(

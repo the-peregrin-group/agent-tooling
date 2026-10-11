@@ -300,6 +300,16 @@ class GitwPushHookTest(_PushFixtureTest):
         self.assertIn("refused by the local pre-push hook (exit 1)", stderr)
         self.assertNotIn("rejected by the lease", stderr)
 
+    def test_hung_hook_is_exit_4_with_output_so_far_relayed(self):
+        gitw_test_support.add_pre_push_hook(
+            self.clone, 'echo "pre-push: working" >&2\nexec sleep 30\n'
+        )
+        with mock.patch.object(_MODULE.run, "_TIMEOUT_SECONDS", 3):
+            stderr = self.push_expecting_exit(4, "proj", "fix/")
+        self.assertIn("pre-push: working\n", stderr)
+        self.assertIn("pre-push hook still running", stderr)
+        self.assertIsNone(self.remote_tip("fix/topic"))
+
     def test_stale_lease_with_a_refusing_hook_reports_the_hook(self):
         # git still runs the hook after the local stale-lease rejection,
         # and the hook's failure leaves no lease text: the hook is what

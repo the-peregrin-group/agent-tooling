@@ -275,7 +275,7 @@ def _push_bubble(workspace: repo.Workspace, base: str, base_tip: str,
     remote classification."""
     entry = workspace.entry
     root = workspace.root
-    result, hook_code, traced = run.traced_push(
+    result, hook_code, traced, hook_hung = run.traced_push(
         [
             "push",
             f"--force-with-lease=refs/heads/{base}:{base_tip}",
@@ -289,6 +289,12 @@ def _push_bubble(workspace: repo.Workspace, base: str, base_tip: str,
     run.relay(result.stderr)
     if result.returncode == 0:
         return
+    if hook_hung:
+        raise repo.RefusalError(
+            f"push of the bubble to {base!r} timed out with the local "
+            "pre-push hook still running; its output so far is relayed "
+            "above. The hook hung: fix it; never retry unchanged"
+        )
     # The hook verdict comes first: when the hook refused, git printed no
     # ref status, so any base-moved marker in the text is the hook's own.
     if hook_code is not None:
