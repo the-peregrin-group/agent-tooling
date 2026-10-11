@@ -63,10 +63,16 @@ needs attention; do not retry and do not go looking for credentials.
   - `1` unclassified API failure.
   - `2` usage error: read the message, fix the call.
   - `3` not found (no such PR/repo). For probes this is data, not an error.
+    Forgejo answers 404 for a repo the caller may not see, so exit 3 on a
+    repo can mean a missing grant (see below).
   - `4` refused: the call violated a wrapper-enforced policy (head-prefix
     mismatch, duplicate PR create). A caller bug — never retry unchanged.
   - `5` roster/auth/config (deployment): abort and flag the deployment. Never retry.
   - `6` network failure: the one retryable class.
+- **A repo-level exit 3 with a correct slug is a missing grant.** The server
+  gives the same 404 for a nonexistent repo and one the machine account
+  cannot see. Check the slug once; if it is right, report it to the user.
+  Never retry, never hunt for credentials, never push again.
 - **On exit 2 or 4, fix the call.** Never work around a refusal with raw
   API calls, `curl`, or `tea` — the refusal is the contract doing its job.
 - **Load `use-privacy` first, if listed.** If a `use-privacy` skill is

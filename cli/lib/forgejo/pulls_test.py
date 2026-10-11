@@ -154,15 +154,66 @@ class CreatePrTest(unittest.TestCase):
 
 class BranchExistsTest(unittest.TestCase):
     @mock.patch("lib.forgejo.pulls.api.request")
-    def test_not_found_is_false_other_errors_raise(self, request):
-        request.side_effect = api.ApiError("gone", plan.EXIT_NOT_FOUND, 404)
-        self.assertFalse(pulls.branch_exists(_CONFIG, "o/r", "b"))
-        request.side_effect = api.ApiError("boom", plan.EXIT_RUNTIME, 500)
-        with self.assertRaises(api.ApiError):
-            pulls.branch_exists(_CONFIG, "o/r", "b")
-        request.side_effect = None
+    def test_happy_path_makes_exactly_one_request(self, request):
         request.return_value = {"name": "b"}
         self.assertTrue(pulls.branch_exists(_CONFIG, "o/r", "b"))
+        self.assertEqual(request.call_count, 1)
+
+    @mock.patch("lib.forgejo.pulls.api.request")
+    def test_missing_branch_in_visible_repo_is_false(self, request):
+        request.side_effect = [
+            api.ApiError("gone", plan.EXIT_NOT_FOUND, 404),
+            {"name": "r"},
+        ]
+        self.assertFalse(pulls.branch_exists(_CONFIG, "o/r", "b"))
+        self.assertEqual(
+            [c.args[2] for c in request.call_args_list],
+            ["/repos/o/r/branches/b", "/repos/o/r"],
+        )
+
+    @mock.patch("lib.forgejo.pulls.api.request")
+    def test_invisible_repo_raises_exit_3_naming_both_causes(self, request):
+        request.side_effect = [
+            api.ApiError("gone", plan.EXIT_NOT_FOUND, 404),
+            api.ApiError("gone", plan.EXIT_NOT_FOUND, 404),
+        ]
+        with self.assertRaises(api.ApiError) as caught:
+            pulls.branch_exists(_CONFIG, "o/r", "b")
+        self.assertEqual(caught.exception.exit_code, plan.EXIT_NOT_FOUND)
+        message = str(caught.exception)
+        self.assertIn("does not exist", message)
+        self.assertIn("cannot see it", message)
+        self.assertIn("grant", message)
+
+    @mock.patch("lib.forgejo.pulls.api.request")
+    def test_non_404_errors_pass_through_without_probing(self, request):
+        request.side_effect = api.ApiError("boom", plan.EXIT_RUNTIME, 500)
+        with self.assertRaises(api.ApiError) as caught:
+            pulls.branch_exists(_CONFIG, "o/r", "b")
+        self.assertEqual(caught.exception.exit_code, plan.EXIT_RUNTIME)
+        self.assertEqual(request.call_count, 1)
+
+    @mock.patch("lib.forgejo.pulls.api.request")
+    def test_probe_error_other_than_404_raises(self, request):
+        request.side_effect = [
+            api.ApiError("gone", plan.EXIT_NOT_FOUND, 404),
+            api.ApiError("boom", plan.EXIT_RUNTIME, 500),
+        ]
+        with self.assertRaises(api.ApiError) as caught:
+            pulls.branch_exists(_CONFIG, "o/r", "b")
+        self.assertEqual(caught.exception.exit_code, plan.EXIT_RUNTIME)
+
+
+class RepoVisibleTest(unittest.TestCase):
+    @mock.patch("lib.forgejo.pulls.api.request")
+    def test_visible_invisible_and_error(self, request):
+        request.return_value = {"name": "r"}
+        self.assertTrue(pulls.repo_visible(_CONFIG, "o/r"))
+        request.side_effect = api.ApiError("gone", plan.EXIT_NOT_FOUND, 404)
+        self.assertFalse(pulls.repo_visible(_CONFIG, "o/r"))
+        request.side_effect = api.ApiError("boom", plan.EXIT_RUNTIME, 500)
+        with self.assertRaises(api.ApiError):
+            pulls.repo_visible(_CONFIG, "o/r")
 
 
 class PaginationTest(unittest.TestCase):

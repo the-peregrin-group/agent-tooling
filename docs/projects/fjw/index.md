@@ -26,6 +26,4 @@ its own project ([installer](../installer/index.md)).
 
 ### Known gaps
 
-- `fjw-pr-create` reports a repo the machine account cannot see as a
-  missing branch ("push it first", exit 2) instead of exit 3 naming both
-  possibilities (`agent-tooling-5np`).
+None.

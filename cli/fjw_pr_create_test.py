@@ -110,6 +110,21 @@ class FjwPrCreateBehaviorTest(unittest.TestCase):
         create.assert_not_called()
         self.assertIn("push it first", stderr.getvalue())
 
+    def test_invisible_repo_exits_3_not_push_it_first(self):
+        error = _MODULE.api.ApiError(
+            "repository 'o/r' was not found: either it does not exist, or "
+            "this identity cannot see it", 3, 404)
+        with mock.patch.object(_MODULE.fjw_config, "load", return_value=_CONFIG), \
+                mock.patch.object(_MODULE.pulls, "branch_exists", side_effect=error), \
+                mock.patch.object(_MODULE.pulls, "create_pr") as create, \
+                contextlib.redirect_stderr(io.StringIO()) as stderr:
+            with self.assertRaises(SystemExit) as caught:
+                _MODULE.main(["o/r", "main", "b", "T", self._body_path])
+        self.assertEqual(caught.exception.code, 3)
+        create.assert_not_called()
+        self.assertIn("cannot see it", stderr.getvalue())
+        self.assertNotIn("push it first", stderr.getvalue())
+
     def test_created_pr_emits_applied_with_the_number(self):
         with mock.patch.object(_MODULE.fjw_config, "load", return_value=_CONFIG), \
                 mock.patch.object(_MODULE.pulls, "branch_exists", return_value=True), \
