@@ -33,6 +33,9 @@ concepts, not implementation.
 - A session is unattended only if its prompt says "unattended"; otherwise it
   is attended. Never edit the lexicon in an unattended session: write a
   proposal instead (procedure C).
+- If a `use-privacy` skill is listed among your available skills, load it
+  before composing any text bound for outside this machine: a commit message,
+  a PR or issue body, a comment, LEXICON.md, a proposal file.
 - Use lexicon terms exactly, everywhere: conversation, documents, code,
   commit messages, PRs. Coin a term only through procedure B or C.
 - Before running any of procedures B-F, read `writing-lexicon.md` (bundled
@@ -93,6 +96,13 @@ term's line names what replaced it; use that.
 3. Update every reference to the old file in state documents (CLAUDE.md,
    README, docs, skills) to point to `LEXICON.md`. Never rewrite stream
    documents (ADRs, logs, changelogs, commit messages).
+
+Terms in a converted glossary were never ratified, so the conversion is the
+lexicon's first ratified state. Dropping or renaming a converted term adds no
+Retired terms line. Instead, sweep state documents and open issues for the old
+term, leaving stream documents and closed issues as written, and put the
+question in procedure E, step 5 (in `writing-lexicon.md`) to the user for
+each code identifier that uses it.
 
 ## G. Correct drift in language
 
