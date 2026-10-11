@@ -80,13 +80,15 @@ gap in index.md's Status).
 - **(a) Push + PR.** Worktree, own branch, `gitw-push`, then a PR through
   the forge's Skill. The default everywhere. The only act affecting a
   shared branch is pushing your own branch.
-- **(b) Direct integration.** Worktree, own branch, rebase, the full
-  merge-readiness loop, then `gitw-integrate`. No PR. Only where the
+- **(b) Direct integration.** Worktree, own branch, rebase onto the base
+  being integrated into (`gitw-rebase`'s bare form for trunk, its `onto`
+  form for any other base), the full merge-readiness loop, then
+  `gitw-integrate` into that base. No PR. Only where the
   repo's instructions and Permission rules grant it. The gate inside this
   mode depends on the base branch's type:
   - **Trunk (the default branch) or a protected branch:** attended,
     always. Trunk advances only with a human in the loop.
-  - **An integration branch the project designates:** may run
+  - **An agent integration branch the project designates:** may run
     unattended, on the project's own terms (its instructions and
     Permission rules). Where a project is silent, push + PR is the
     unattended ceiling.
@@ -360,18 +362,57 @@ an implementation one. The refusal message states the policy and the
 exemption. The other half of the guard is repo hygiene: local-only files
 belong in `.gitignore`.
 
-**`gitw-rebase <repo> <prefix> [continue|abort]`.** Bare form: refuses
-an in-progress rebase, a prefix mismatch, standing on the default branch,
-and a dirty worktree (before and after the fetch); then fetches and
-rebases the current branch onto the remote-tracking default branch, the
-only base it supports. A conflict leaves git's conflict state in place,
-since it is the work product, and exits 4 with `"action": "conflict"`,
-the conflicted paths, and a hint. `continue` verifies the in-progress
+**`gitw-rebase <repo> <prefix> [continue|abort | onto <base>]`.** Bare
+form: refuses an in-progress rebase, a prefix mismatch, standing on the
+default branch, and a dirty worktree (before and after the fetch); then
+fetches and rebases the current branch onto the remote-tracking default
+branch. A conflict leaves git's conflict state in place, since it is the
+work product, and exits 4 with `"action": "conflict"`, the conflicted
+paths, the `onto` base, and a hint. `continue` verifies the in-progress
 branch against the prefix, refuses files still carrying a full
 conflict-marker triple, applies the sweep guard, stages exactly the
 conflicted paths, and continues; the cycle repeats per conflicted commit.
 `abort` restores the pre-rebase branch. There is deliberately no `skip`:
 silently dropping a commit is a human decision.
+
+The `onto <base>` form makes the same checks and rebases onto the fetched
+`<remote>/<base>` instead: the rebase half of the loop into an agent
+integration branch a project designates, whose other half is
+`gitw-integrate` (or a forge merge) into the same base. It mirrors
+`gitw-integrate`'s `<base-branch>`:
+
+- **The Permission rule pins the base; nothing else declares it.** There
+  is no Roster field or config file listing agent integration branches. A
+  second declaration would have to agree with the rules that already
+  grant the landing Verb, and two sources of truth for one policy drift.
+  The Wrapper checks only what is machine-checkable: `<base>` has the
+  same conservative branch-name charset as `gitw-integrate`'s base, and
+  it exists on the remote after the fetch (exit 3 otherwise).
+- **The default branch is refused in the onto form, under every
+  spelling** (exit 4, pointing at the bare form): its name, `HEAD` (or
+  any base whose first level is `HEAD`), and a symbolic remote-tracking
+  ref aliasing it. One spelling per base keeps a grant's meaning
+  legible: under exact rules, the bare rule is the only grant for
+  rebasing onto trunk and each onto rule grants exactly its base. The
+  alias check reads the symref's target, not commit equality: a freshly
+  cut agent integration branch sits exactly on the default's tip and
+  must stay rebasable.
+- **The branch itself is refused as its base**, as `gitw-integrate`
+  refuses branch equals base.
+- **Machine-local repos refuse it**: with no remote there is no fetched
+  base, and the bare form already covers the local default.
+- **`continue` and `abort` take no base.** Git's rebase state already
+  holds the onto commit, but not its name, so a conflict stop writes the
+  base's display name and that commit to a `gitw-onto` file inside
+  git's rebase state directory. Git deletes the directory when the
+  rebase completes or aborts, so the record cannot outlive its rebase.
+  Later stops and the final `continue` report the recorded name as
+  `onto` only while the recorded commit equals git's own onto commit.
+  With no record, or a disagreeing one (a rebase gitw did not start),
+  they report `"onto": null` and write nothing: a guessed name, such as
+  the default's, must never stick to a rebase onto some other base.
+  Comparing the recorded commit rather than the base ref's current tip
+  keeps a mid-rebase fetch from voiding the record.
 
 **`gitw-push <repo> <prefix> [<name>]`.** Must run inside the repo on a
 branch matching the prefix; refuses a machine-local repo, and refuses if
@@ -472,13 +513,19 @@ Rules pin Verb, label, and Branch prefix as literal prefixes:
 ```
 
 - **A rule ending in a space and a star, with no other wildcard, also
-  matches the bare command.** `Bash(gitw-rebase rocket-sled fix/ *)`
-  covers the bare call and its `continue`/`abort` modes. This is
-  documented Claude Code behavior and has been observed directly. A
-  harness that did not honor it would make the bare call prompt, so an
-  allow rule fails closed; a deny rule would fail open, so exact deny
-  rules are kept beside starred ones (whether they stay is
-  `agent-tooling-na2`).
+  matches the bare command.** This is documented Claude Code behavior
+  and has been observed directly. A harness that did not honor it would
+  make the bare call prompt, so an allow rule fails closed; a deny rule
+  would fail open, so exact deny rules are kept beside starred ones
+  (whether they stay is `agent-tooling-na2`).
+- **`Bash(gitw-rebase rocket-sled fix/ *)` covers the bare call, its
+  `continue`/`abort` modes, and the `onto` form with any base,
+  deliberately.** A rebase rewrites only the agent's own branch and
+  never moves the base, so the pin protecting an agent integration
+  branch sits on the landing Verb's exact rule (`gitw-integrate`'s or
+  the forge merge's). A consumer that wants rebase bases pinned too
+  grants exact rules, one per mode and one per base
+  (`Bash(gitw-rebase rocket-sled fix/ onto integrate/workjam-2026-10-10)`).
 - **`gitw-push` never takes a star.** The set of refs a consumer may move
   is a deliberate enumeration: the bare form is one exact rule and each
   named target its own exact rule

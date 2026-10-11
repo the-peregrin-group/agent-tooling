@@ -21,7 +21,7 @@ Code: the `cli/gitw-*` Verbs over `cli/lib/git/` and the shared
 | Orient: identity check, fetch, branch/dirt/ahead-behind report | shipped | `gitw-orient` |
 | Start or resume a branch from the authoritative default | shipped | `gitw-branch-start` |
 | Commit all or by pathspec, with sweep guard and `Executed-By` trailer | shipped | `gitw-commit` |
-| Rebase own branch onto the default branch, with conflict stop, continue, abort | shipped | `gitw-rebase` |
+| Rebase own branch onto the default branch or a named base branch, with conflict stop, continue, abort | shipped | `gitw-rebase` |
 | Push own branch under lease, or move a named pointer ref | shipped | `gitw-push` |
 | Direct integration: bubble onto a base branch under an exact lease | shipped | `gitw-integrate` |
 | Scope a mutating Verb to any branch except the default with a bare `/` prefix | shipped | `gitw-branch-start`, `gitw-commit`, `gitw-rebase`, `gitw-push`, `gitw-integrate` |
@@ -38,9 +38,6 @@ Code: the `cli/gitw-*` Verbs over `cli/lib/git/` and the shared
 - Mutating Verbs refuse a cwd admitted only by `operable_from` (exit 4),
   while `use-git` still promises cross-repo writes under that interlock
   (`agent-tooling-1790288522193-11-242cbfe6`).
-- `gitw-rebase` rebases only onto the default branch, so integrating
-  into a designated non-default base has no rebase step
-  (`agent-tooling-ndt`).
 - `use-git` still describes the retired third operating mode (work
   directly on the default branch) and lacks the session-start ceremony
   (`agent-tooling-4t9`).

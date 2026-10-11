@@ -289,6 +289,7 @@ class ReadPrimitivesTest(_FixtureTest):
 
     def test_no_rebase_in_progress_reports_none(self):
         self.assertIsNone(repo.rebase_head_branch(self.clone))
+        self.assertIsNone(repo.rebase_state_dir(self.clone))
         self.assertEqual(repo.conflicted_paths(self.clone), [])
         self.assertIsNone(repo.pending_operation(self.clone))
 

@@ -308,22 +308,31 @@ def rebase_head_branch(root: Path) -> str | None:
     """The branch an in-progress rebase is rewriting (HEAD is detached
     mid-rebase, so the state directory's head-name is the identity), or
     None when no rebase is in progress."""
+    state_dir = rebase_state_dir(root)
+    if state_dir is None:
+        return None
+    try:
+        name = (state_dir / "head-name").read_text(encoding="utf-8").strip()
+    except OSError:
+        return None
+    if name.startswith("refs/heads/"):
+        return name[len("refs/heads/") :]
+    return name or None
+
+
+def rebase_state_dir(root: Path) -> Path | None:
+    """The in-progress rebase's state directory (rebase-merge or
+    rebase-apply under the worktree's git dir), or None when no rebase is
+    in progress -- the one place the in-progress test lives. Git removes
+    it when the rebase completes or aborts, so a file a verb keeps there
+    lives exactly as long as the rebase."""
     for state_dir in ("rebase-merge", "rebase-apply"):
-        location = run.output(
-            ["rev-parse", "--git-path", f"{state_dir}/head-name"], root
-        )
+        location = run.output(["rev-parse", "--git-path", state_dir], root)
         if location is None:
             continue
-        head_name = Path(root) / location
-        if not head_name.is_file():
-            continue
-        try:
-            name = head_name.read_text(encoding="utf-8").strip()
-        except OSError:
-            continue
-        if name.startswith("refs/heads/"):
-            return name[len("refs/heads/") :]
-        return name or None
+        path = Path(root) / location
+        if (path / "head-name").is_file():
+            return path
     return None
 
 
