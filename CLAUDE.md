@@ -68,6 +68,17 @@ PR**; its issue-filing and board conventions are suspended for the trial, and a
 PR body names the issue it lands (`Lands agent-tooling-xyz`) instead of
 `Closes #N`.
 
+## Integration branches
+
+Branches under the `integrate/` prefix are designated integration branches,
+one per run and disposable (`integrate/workjam-2026-10-10`, say). Agents may
+rebase onto one (`gitw-rebase agent-tooling <prefix> onto integrate/<run>`)
+and merge PRs into it unattended
+(`ghw-pr-merge the-peregrin-group/agent-tooling integrate/<run> merge <pr#>`).
+The exact branch for a run is pinned by the maintainer's local allowlist
+rows, and deleting those rows retires it. `main` stays human-only: the only
+PRs to `main` are the ones a human asked for.
+
 ## Documentation
 
 - `README.md` is the front door and the fresh-machine bootstrap;
