@@ -29,5 +29,3 @@ that agent tooling runs only from installed copies, is
 - `tooling-install` resolves `python3` through `/usr/bin/env` instead of
   pinning the system interpreter like the fjw and gitw Verbs
   (`agent-tooling-1790288520721-1-86415521`).
-- The README's minimum Permission rules omit the Edit deny on the Install
-  Targets and the allow for `tooling-install diff` (`agent-tooling-9v4`).
