@@ -63,10 +63,10 @@ class RequestTest(unittest.TestCase):
     def test_query_values_are_url_encoded(self, urlopen):
         urlopen.return_value = _response([])
         api.request(
-            _CONFIG, "GET", "/repos/o/r/pulls", query={"head": "reconcile/a b"}
+            _CONFIG, "GET", "/repos/o/r/pulls", query={"head": "bot/a b"}
         )
         self.assertIn(
-            "?head=reconcile%2Fa+b", urlopen.call_args[0][0].full_url
+            "?head=bot%2Fa+b", urlopen.call_args[0][0].full_url
         )
 
     @mock.patch("lib.forgejo.api.urllib.request.urlopen")

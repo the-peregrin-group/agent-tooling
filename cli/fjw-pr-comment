@@ -2,7 +2,7 @@
 """fjw-pr-comment <owner/repo> <head-prefix> <pr#> <body-file> -- comment on a PR whose head branch matches a claimed prefix.
 
 The head-prefix is a positional scope token: an allowlist rule pins it (e.g.
-`Bash(fjw-pr-comment owner/repo reconcile/ *)`), and the wrapper
+`Bash(fjw-pr-comment owner/repo bot/ *)`), and the wrapper
 trust-but-verifies the claim -- it fetches the PR and refuses (exit 4) when
 the actual head branch does not match the claimed prefix. Policy lives
 in the allowlist layer; this wrapper stays consumer-generic. The prefix

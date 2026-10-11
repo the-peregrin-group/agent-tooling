@@ -308,7 +308,7 @@ Named-target form: push the same branch's tip to `<branch-prefix><name>`
 on the remote instead, and set that ref as the branch's upstream. This is
 the pointer move for flows that keep one stable review ref that no branch
 ever commits on (a scheduled job, say: fresh dated branch each run,
-`reconcile/current` moved to its tip, PR opened once from that ref). The
+`bot/current` moved to its tip, PR opened once from that ref). The
 lease is the target's remote-tracking value as last fetched, or "must not
 exist yet" if it never was, so a target that a human or another run moved
 since your fetch is a refusal, not a clobber. The dated branch itself
@@ -429,7 +429,7 @@ rather than run, so an allow row fails closed; a deny row would fail
 open. `gitw-push` never takes a star: the set of refs a consumer
 may move is a deliberate enumeration, so its bare form is one exact row
 and each named target is its own exact row
-(`"Bash(gitw-push rocket-sled reconcile/ current)"`).
+(`"Bash(gitw-push rocket-sled bot/ current)"`).
 
 The bare `/` prefix is granted like any other
 (`"Bash(gitw-commit rocket-sled / *)"`, `"Bash(gitw-push rocket-sled /)"`);

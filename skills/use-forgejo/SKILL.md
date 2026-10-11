@@ -9,7 +9,7 @@ description: >
   comment on a PR within a pinned head-branch prefix. Load this before any
   Forgejo PR operation, attended or unattended. Also relevant for "open a PR
   on the forge", "is there an open PR for this branch", "close the stale
-  reconcile PR". Merge is deliberately not covered: it is a human-only act.
+  bot PR". Merge is deliberately not covered: it is a human-only act.
   For GitHub repos use use-github instead.
 ---
 
@@ -136,7 +136,7 @@ fjw-pr-comment <owner/repo> <head-prefix> <pr#> <body-file>
 ```
 
 Standalone comment, scoped: `<head-prefix>` is a positional scope token that
-allowlist rules pin (e.g. `Bash(fjw-pr-comment owner/repo reconcile/ *)`),
+allowlist rules pin (e.g. `Bash(fjw-pr-comment owner/repo bot/ *)`),
 and the wrapper verifies the PR's actual head branch matches it —
 mismatch is exit 4. The prefix follows gitw's grammar (lowercase,
 single-level, ending in `/`). A bare `/`, written unquoted, admits any
@@ -153,7 +153,7 @@ e.g.:
 "Bash(fjw-pr-query owner/repo *)",
 "Bash(fjw-pr-create owner/repo main *)",
 "Bash(fjw-pr-close owner/repo *)",
-"Bash(fjw-pr-comment owner/repo reconcile/ *)"
+"Bash(fjw-pr-comment owner/repo bot/ *)"
 ```
 
 Grant only the verbs the consumer exercises. There is no merge verb to

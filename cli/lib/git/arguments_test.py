@@ -26,7 +26,7 @@ class IsValidLabelTest(unittest.TestCase):
 
 class IsValidBranchPrefixTest(unittest.TestCase):
     def test_accepts_grammar_conforming_prefixes(self):
-        for prefix in ("fix/", "reconcile/", "a2/", "long-name/"):
+        for prefix in ("fix/", "bot/", "a2/", "long-name/"):
             with self.subTest(prefix=prefix):
                 self.assertTrue(arguments.is_valid_branch_prefix(prefix))
 
