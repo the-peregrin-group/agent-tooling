@@ -54,9 +54,6 @@ How and why it works: [design.md](design.md).
   labels `ghw-issue-create` requires (`agent-tooling-5kf`).
 - `triage-inventory` silently omits open issues beyond the first 500
   (`agent-tooling-lo7`).
-- `ghw-label-sync` and `label_schema.py` docstrings say all nine GitHub stock
-  labels become deletions; it is eight, since stock `bug` is a canonical type
-  label (`agent-tooling-ln2`).
 - `ghw-board-sync`'s write path, including `new`, has never run against the
   live GitHub API; it is verified by schema introspection and unit tests only
   (`agent-tooling-2ul`).
