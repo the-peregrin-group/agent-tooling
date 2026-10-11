@@ -374,6 +374,12 @@ paths, the `onto` base, and a hint. `continue` verifies the in-progress
 branch against the prefix, refuses files still carrying a full
 conflict-marker triple, applies the sweep guard, stages exactly the
 conflicted paths, and continues; the cycle repeats per conflicted commit.
+Each stop also appends its conflicted paths to a `gitw-conflicts` record
+(NUL-separated) beside the `gitw-onto` record in git's rebase state
+directory, which git deletes on completion or abort, so no stale record
+can exist; the final successful `continue` reports the sorted,
+de-duplicated union as `resolved`, so a context compaction mid-rebase
+loses nothing.
 `abort` restores the pre-rebase branch. There is deliberately no `skip`:
 silently dropping a commit is a human decision.
 

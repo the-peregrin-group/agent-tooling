@@ -269,8 +269,10 @@ authoritative default. A conflict leaves the standard git conflict state
 in place — it IS the work product — and exits 4 with a JSON listing of
 conflicted paths. Resolve, then `continue` (which stages exactly the
 resolutions and refuses files still carrying a full conflict-marker
-triple); the cycle repeats per conflicted commit. `abort` restores the
-pre-rebase branch. There is deliberately no `skip`: silently dropping a
+triple); the cycle repeats per conflicted commit, each stop listing its
+own `conflicts`. The wrapper records every stop's paths, and the final
+successful `continue` reports their sorted union as `resolved`. `abort`
+restores the pre-rebase branch. There is deliberately no `skip`: silently dropping a
 commit is a human decision.
 
 `onto` form: the same, onto the fetched `<remote>/<base-branch>`, for
@@ -361,7 +363,8 @@ hand-edit, not yours.
   boundary. `gitw-rebase` rewrites only the branch you stand on, never
   its base.
 - **Disclose conflicts you resolved unattended**, naming every file (the
-  union of each stop's `conflicts` list) in the PR body, or in a PR
+  final `continue` payload's `resolved` list, the union of each stop's
+  files, which survives a context compaction) in the PR body, or in a PR
   comment when the PR already exists, so the reviewer checks those
   resolutions. A conflict you cannot resolve with confidence is still a
   stop: `abort`, push what you have, and say so in the same place.

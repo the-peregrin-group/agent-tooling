@@ -551,6 +551,80 @@ class GitwRebaseContinueTest(_RebaseFixtureTest):
         )
 
 
+class GitwRebaseResolvedTest(_RebaseFixtureTest):
+    def two_file_conflicts(self):
+        """Two branch commits, each colliding with main on its own file."""
+        for name in ("a.txt", "b.txt"):
+            gitw_test_support.commit_on(
+                self.clone, name, "branch\n", f"branch {name}"
+            )
+            gitw_test_support.commit_on(
+                self.seed, name, "main\n", f"main {name}"
+            )
+        gitw_test_support.git(self.seed, "push", "origin", "main")
+
+    def test_final_continue_reports_the_union_of_every_stop(self):
+        self.two_file_conflicts()
+        payload, code = self.rebase_raw("proj", "fix/")
+        self.assertEqual((code, payload["conflicts"]), (4, ["a.txt"]))
+        (self.clone / "a.txt").write_text("resolved\n")
+        payload, code = self.rebase_raw("proj", "fix/", "continue")
+        self.assertEqual((code, payload["conflicts"]), (4, ["b.txt"]))
+        (self.clone / "b.txt").write_text("resolved\n")
+        payload = self.rebase("proj", "fix/", "continue")
+        self.assertEqual(payload["resolved"], ["a.txt", "b.txt"])
+
+    def test_single_stop_yields_a_one_file_union(self):
+        self.make_conflict()
+        self.rebase_raw("proj", "fix/")
+        (self.clone / "conflict.txt").write_text("resolved\n")
+        payload = self.rebase("proj", "fix/", "continue")
+        self.assertEqual(payload["resolved"], ["conflict.txt"])
+
+    def test_repeated_file_is_deduplicated(self):
+        gitw_test_support.commit_on(
+            self.clone, "conflict.txt", "one\n", "branch 1"
+        )
+        gitw_test_support.commit_on(
+            self.clone, "conflict.txt", "two\n", "branch 2"
+        )
+        gitw_test_support.commit_on(
+            self.seed, "conflict.txt", "main\n", "main"
+        )
+        gitw_test_support.git(self.seed, "push", "origin", "main")
+        self.rebase_raw("proj", "fix/")
+        (self.clone / "conflict.txt").write_text("r1\n")
+        self.rebase_raw("proj", "fix/", "continue")
+        (self.clone / "conflict.txt").write_text("r2\n")
+        payload = self.rebase("proj", "fix/", "continue")
+        self.assertEqual(payload["resolved"], ["conflict.txt"])
+
+    def test_record_is_gone_after_completion_and_abort(self):
+        self.make_conflict()
+        self.rebase_raw("proj", "fix/")
+        state_dir = repo.rebase_state_dir(self.clone)
+        self.assertTrue((state_dir / "gitw-conflicts").exists())
+        self.rebase("proj", "fix/", "abort")
+        self.assertFalse(state_dir.exists())
+        # A fresh rebase starts with an empty union.
+        self.rebase_raw("proj", "fix/")
+        (self.clone / "conflict.txt").write_text("resolved\n")
+        payload = self.rebase("proj", "fix/", "continue")
+        self.assertEqual(payload["resolved"], ["conflict.txt"])
+        self.assertFalse(state_dir.exists())
+
+    def test_continue_on_a_rebase_gitw_did_not_start(self):
+        self.make_conflict()
+        gitw_test_support.git(self.clone, "fetch", "origin")
+        subprocess.run(
+            ["git", "rebase", "origin/main"], cwd=self.clone,
+            capture_output=True,
+        )
+        (self.clone / "conflict.txt").write_text("resolved\n")
+        payload = self.rebase("proj", "fix/", "continue")
+        self.assertEqual(payload["resolved"], ["conflict.txt"])
+
+
 class GitwRebaseAbortTest(_RebaseFixtureTest):
     def test_abort_restores_the_pre_rebase_branch(self):
         self.make_conflict()
