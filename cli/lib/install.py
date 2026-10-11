@@ -67,8 +67,10 @@ same target-relative path are refused, never silently shadowed.
 source directory is one skill, installed and swapped independently, so
 installing this repo's skills never disturbs another repo's. A unit is owned
 wholesale: the swap replaces the whole directory, so anything inside an
-installed skill that the incoming unit does not ship is gone after an install.
-`diff` reports that loss in two buckets, by who claimed what was lost:
+installed skill that the incoming unit does not ship is gone after an install,
+and a unit the source used to ship and no longer does is removed whole.
+Noise-excluded files (bytecode caches and the like) inside such a unit go with
+it and are deliberately neither preserved nor reported. `diff` reports that loss in two buckets, by who claimed what was lost:
 `unowned_replaced` for what no record claims (bytecode caches, hand-drops) and
 `foreign_replaced` for what another source's record claims.
 
@@ -811,14 +813,19 @@ def diff(source: Path, home=None, cohorts=None) -> dict:
             # it; content elsewhere in the target is never touched. Which
             # bucket a casualty lands in is a question of who claimed it.
             incoming_units = {unit_of(name) for name in sources}
-            replaced = [name for name in unowned if unit_of(name) in incoming_units]
-            unowned = [name for name in unowned if unit_of(name) not in incoming_units]
+            # A unit this source shipped before and no longer ships is retired
+            # by apply through the same wholesale removal, so what sits
+            # unclaimed inside it is lost exactly as inside a swapped unit.
+            retiring_units = {unit_of(name) for name in owned} - incoming_units
+            doomed = incoming_units | retiring_units
+            replaced = [name for name in unowned if unit_of(name) in doomed]
+            unowned = [name for name in unowned if unit_of(name) not in doomed]
             foreign_replaced = sorted(
                 name
                 for name in installed
                 if name not in sources
                 and name in foreign
-                and unit_of(name) in incoming_units
+                and unit_of(name) in doomed
             )
             names = sorted(incoming_units | {unit_of(name) for name in owned})
             restorable, orphaned = pending_recoveries(target, names)
@@ -1081,6 +1088,18 @@ def _apply_units(
         _two_rename_swap(target / unit, staging)
 
     retired = [unit for unit in previous if unit not in incoming]
+    # Reported before the swap destroys them, under the key `diff` uses: files
+    # no record claims inside any unit this run swaps or retires.
+    foreign = owned_by_others(receipt, config.source_repo)
+    swapped = set(incoming) | set(retired)
+    unowned_replaced = sorted(
+        name
+        for name in installed
+        if name not in sources
+        and name not in owned
+        and name not in foreign
+        and unit_of(name) in swapped
+    )
     for unit in retired:
         _retire(target / unit)
 
@@ -1100,6 +1119,7 @@ def _apply_units(
         "units": incoming,
         "adopted": adopted,
         "retired": retired,
+        "unowned_replaced": unowned_replaced,
         "foreign_units": sorted(
             unit for unit in foreign_units if unit not in adopted
         ),
