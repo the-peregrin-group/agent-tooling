@@ -56,7 +56,7 @@ this machine: a state doc in a repo that is pushed or shared.
 - **Currency stamps should not be updated:** You're rewriting, not changing the actual state. If you observe that the
   state already described suggests a newer currency stamp, raise it with the user, but don't unilaterally change it.
 
-- **Mention detected staleness, but don't act on it:** if you notice that a doc outdated information in it, mention it to
+- **Mention detected staleness, but don't act on it:** if you notice that a doc has outdated information in it, mention it to
   the user in the form of a single-sentence generic FYI at the end (see below). The reason for _NOT_ enumerating all issues
   discovered without prompting is that often the user already knows and wants to focus on your revision, not the staleness
   (which, in context, is more noise than signal).
@@ -142,7 +142,7 @@ TODO lists are especially tricky because they have a tendency to represent _both
 
 The role of a TODO list should ONLY be tracking progress through a project/initiative. _Tracking_, not _defining_.
 
-That, in turn, means two things:
+That, in turn, means three things:
 
 1. With one exception, the plan of work to be done should be defined as part of the core state of a doc, not only in the
    doc's "TODO" stream section. The one exception: meta-TODOs about altering the state doc itself (e.g., "extend the plan to
