@@ -351,9 +351,7 @@ a stray proposed mutation.
 
 The launch form this design endorses is a background job dispatched by a
 guard script
-([DEPLOYMENT.md](../../../skills/triage-issues/reference/DEPLOYMENT.md) §4's
-fallback recipe today; the shipped triage docs still lead with retired forms,
-see Known gaps in [index.md](index.md)): a `launchd` agent or `SessionStart`
+([DEPLOYMENT.md](../../../skills/triage-issues/reference/DEPLOYMENT.md) §4): a `launchd` agent or `SessionStart`
 hook runs a script that skips if today's pass already ran, takes an atomic
 lock, and dispatches `claude --bg` from the project directory with
 `--permission-mode dontAsk` and Edit grants scoped to the run's own worktree

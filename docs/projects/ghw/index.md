@@ -42,9 +42,6 @@ How and why it works: [design.md](design.md).
 
 - `ghw-pr-merge` still accepts a `squash` strategy token, although squash is
   banned in every repo (`agent-tooling-589`).
-- The triage Skill and `DEPLOYMENT.md` still document launch forms besides
-  the guard-script background job, and scope the ghw-grant caveat to project
-  settings only, omitting local settings (`agent-tooling-za1`).
 - Unattended triage cannot run in a repo whose project or local settings
   grant ghw write Verbs; no mechanism isolates the pass from those grants
   (`agent-tooling-ys3`).
