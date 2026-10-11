@@ -267,11 +267,14 @@ commit is a human decision.
 
 `onto` form: the same, onto the fetched `<remote>/<base-branch>`, for
 an integration branch the repo designates. As with `gitw-integrate`'s
-base, the allowlist pins which bases you may name; the wrapper only
-checks that the base exists on the remote after the fetch (exit 3 if
-not). Naming the default branch here is refused: the bare form is the
-one way to reach it. `continue` and `abort` take no base, because git's
-rebase state already knows it, and their JSON reports the same `onto`.
+base, the Permission rules pin which bases you may name; the wrapper
+only checks that the base exists on the remote after the fetch (exit 3
+if not). Refused: the default branch and `HEAD` (the bare form is the
+one way to reach the default), and your own branch as its base.
+Machine-local repos refuse the form outright: there is no fetched base.
+`continue` and `abort` take no base, because git's rebase state already
+knows it; their JSON reports the same `onto`, or `null` for a rebase
+gitw did not start.
 
 ```bash
 gitw-push <repo> <branch-prefix> [<name>]
@@ -313,19 +316,20 @@ branch it designates. The loop: `gitw-rebase` onto the same base you
 will integrate into (bare form for trunk, `onto <base-branch>` for a
 designated branch), then the full merge-readiness validation
 (skill-side, driven by the repo's own CLAUDE.md — the wrapper runs no
-validation), then integrate. The wrapper verifies your branch tip descends from the freshly
-fetched base tip, builds the two-parent bubble without ever checking out
-the base, and pushes it under an exact lease. Both refusals — "not a
-descendant" and "moved during the attempt" — mean the same thing: **the
-base moved; loop again from the rebase.** As with `gitw-push`, the
-wrapper relays git's own push output to stderr beside the JSON,
-including whatever the local pre-push hook prints; a local hook that
-refuses the push is an exit-4 refusal too, but it does not mean the base
-moved — fix what it reported on the branch, then loop again from the
-rebase; never retry unchanged. A rejection by the remote's own hooks is
-still reported as exit 6 today (issue agent-tooling-h3c). Afterwards your
-worktree is still on the (now-integrated) feature branch; leave local
-trunk syncing and branch cleanup to the harness and the human.
+validation), then integrate. The wrapper verifies your branch tip
+descends from the freshly fetched base tip, builds the two-parent bubble
+without ever checking out the base, and pushes it under an exact lease.
+Both refusals — "not a descendant" and "moved during the attempt" — mean
+the same thing: **the base moved; loop again from the rebase.** As with
+`gitw-push`, the wrapper relays git's own push output to stderr beside
+the JSON, including whatever the local pre-push hook prints; a local
+hook that refuses the push is an exit-4 refusal too, but it does not
+mean the base moved — fix what it reported on the branch, then loop
+again from the rebase; never retry unchanged. A rejection by the
+remote's own hooks is still reported as exit 6 today (issue
+agent-tooling-h3c). Afterwards your worktree is still on the
+(now-integrated) feature branch; leave local trunk syncing and branch
+cleanup to the harness and the human.
 
 ```bash
 gitw-repo-register <label> <checkout-path> [<remote-name>] [apply]
@@ -399,16 +403,18 @@ prefixes; the trailing slash on the prefix is the token boundary:
 A rule ending in a space and a star, with no other star, also matches
 the bare call (see Wildcard patterns, code.claude.com/docs/en/permissions),
 so the starred `gitw-rebase` row covers its bare form, its
-`continue`/`abort` modes, and the `onto` form with any base. Rebasing
-never moves the base, so that is usually fine; a consumer that wants
-the base pinned grants exact rows instead, the bare form and
-`continue`/`abort` each as their own row plus one per designated base
+`continue`/`abort` modes, and the `onto` form with any base. That is
+deliberate: a rebase rewrites only your own branch and never moves the
+base, so the pin protecting a designated integration branch sits on the
+landing Verb's exact row (`gitw-integrate`'s or the forge merge's), not
+on the rebase row. A consumer that wants rebase bases pinned too grants
+exact rows: the bare form, `continue`, and `abort` each as its own row,
+plus one per base
 (`"Bash(gitw-rebase rocket-sled fix/ onto integrate/workjam-2026-10-10)"`).
-The base pin that guards a designated branch is on whatever lands
-there: `gitw-integrate`'s exact row, or the forge merge's. A harness that does not honour the rule makes
-the bare call prompt rather than run, so an allow row fails closed; a
-deny row would fail open, which is why agent-tooling's own policy spec
-carries exact deny rows as well. `gitw-push` never takes a star: the set
+A harness that does not honour the rule makes the bare call prompt
+rather than run, so an allow row fails closed; a deny row would fail
+open, which is why agent-tooling's own policy spec carries exact deny
+rows as well. `gitw-push` never takes a star: the set
 of refs a consumer may move is a deliberate enumeration, so its bare
 form is one exact row and each named target is its own exact row
 (`"Bash(gitw-push rocket-sled reconcile/ current)"`).

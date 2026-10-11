@@ -388,19 +388,31 @@ integration branch a project designates, whose other half is
   The Wrapper checks only what is machine-checkable: `<base>` has the
   same conservative branch-name charset as `gitw-integrate`'s base, and
   it exists on the remote after the fetch (exit 3 otherwise).
-- **The default branch is refused in the onto form** (exit 4, pointing
-  at the bare form). One spelling per base keeps a grant's meaning
-  legible: under exact rules, the bare row is the only grant for
-  rebasing onto trunk and each onto row grants exactly its base.
+- **The default branch is refused in the onto form, under every
+  spelling** (exit 4, pointing at the bare form): its name, `HEAD` (or
+  any base whose first level is `HEAD`), and a symbolic remote-tracking
+  ref aliasing it. One spelling per base keeps a grant's meaning
+  legible: under exact rules, the bare rule is the only grant for
+  rebasing onto trunk and each onto rule grants exactly its base. The
+  alias check reads the symref's target, not commit equality: a freshly
+  cut integration branch sits exactly on the default's tip and must
+  stay rebasable.
+- **The branch itself is refused as its base**, as `gitw-integrate`
+  refuses branch equals base.
 - **Machine-local repos refuse it**: with no remote there is no fetched
   base, and the bare form already covers the local default.
 - **`continue` and `abort` take no base.** Git's rebase state already
   holds the onto commit, but not its name, so a conflict stop writes the
-  base's display name to a `gitw-onto` file inside git's rebase state
-  directory. Every later stop and the final `continue` report it as
-  `onto`. Git deletes the directory when the rebase completes or aborts,
-  so the record cannot outlive its rebase. A rebase without the record
-  (started by raw git, say) reports the default.
+  base's display name and that commit to a `gitw-onto` file inside
+  git's rebase state directory. Git deletes the directory when the
+  rebase completes or aborts, so the record cannot outlive its rebase.
+  Later stops and the final `continue` report the recorded name as
+  `onto` only while the recorded commit equals git's own onto commit.
+  With no record, or a disagreeing one (a rebase gitw did not start),
+  they report `"onto": null` and write nothing: a guessed name, such as
+  the default's, must never stick to a rebase onto some other base.
+  Comparing the recorded commit rather than the base ref's current tip
+  keeps a mid-rebase fetch from voiding the record.
 
 **`gitw-push <repo> <prefix> [<name>]`.** Must run inside the repo on a
 branch matching the prefix; refuses a machine-local repo, and refuses if
@@ -501,19 +513,19 @@ Rules pin Verb, label, and Branch prefix as literal prefixes:
 ```
 
 - **A rule ending in a space and a star, with no other wildcard, also
-  matches the bare command.** `Bash(gitw-rebase rocket-sled fix/ *)`
-  covers the bare call, its `continue`/`abort` modes, and the `onto`
-  form with any base. Rebasing never moves the base, so the base pin
-  that guards a designated branch is on the landing Verb; a consumer
-  that wants rebase bases pinned too grants exact rows, one per mode
-  and one per base
+  matches the bare command.** This is documented Claude Code behavior
+  and has been observed directly. A harness that did not honor it would
+  make the bare call prompt, so an allow rule fails closed; a deny rule
+  would fail open, so exact deny rules are kept beside starred ones
+  (whether they stay is `agent-tooling-na2`).
+- **`Bash(gitw-rebase rocket-sled fix/ *)` covers the bare call, its
+  `continue`/`abort` modes, and the `onto` form with any base,
+  deliberately.** A rebase rewrites only the agent's own branch and
+  never moves the base, so the pin protecting a designated integration
+  branch sits on the landing Verb's exact rule (`gitw-integrate`'s or
+  the forge merge's). A consumer that wants rebase bases pinned too
+  grants exact rules, one per mode and one per base
   (`Bash(gitw-rebase rocket-sled fix/ onto integrate/workjam-2026-10-10)`).
-  This is
-  documented Claude Code behavior and has been observed directly. A
-  harness that did not honor it would make the bare call prompt, so an
-  allow rule fails closed; a deny rule would fail open, so exact deny
-  rules are kept beside starred ones (whether they stay is
-  `agent-tooling-na2`).
 - **`gitw-push` never takes a star.** The set of refs a consumer may move
   is a deliberate enumeration: the bare form is one exact rule and each
   named target its own exact rule
