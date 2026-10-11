@@ -426,8 +426,7 @@ plus one per base
 (`"Bash(gitw-rebase rocket-sled fix/ onto integrate/workjam-2026-10-10)"`).
 A harness that does not honour the rule makes the bare call prompt
 rather than run, so an allow row fails closed; a deny row would fail
-open, which is why agent-tooling's own policy spec carries exact deny
-rows as well. `gitw-push` never takes a star: the set of refs a consumer
+open. `gitw-push` never takes a star: the set of refs a consumer
 may move is a deliberate enumeration, so its bare form is one exact row
 and each named target is its own exact row
 (`"Bash(gitw-push rocket-sled reconcile/ current)"`).
