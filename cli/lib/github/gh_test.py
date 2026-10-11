@@ -327,5 +327,70 @@ class PullVerbArgvTest(unittest.TestCase):
             gh.pr_create("o/r", "main", "feat", "T", "B", False)
 
 
+class ExitCodeClassificationTest(unittest.TestCase):
+    def _failure(self, run, stderr: str) -> gh.GhError:
+        run.return_value = _completed(returncode=1, stderr=stderr)
+        with self.assertRaises(gh.GhError) as caught:
+            gh.rest("GET", "repos/o/r")
+        return caught.exception
+
+    @mock.patch("lib.github.gh.subprocess.run")
+    def test_not_found_is_3(self, run):
+        for stderr in ("gh: Not Found (HTTP 404)",
+                       "GraphQL: Could not resolve to a Repository with the name 'o/r'."):
+            with self.subTest(stderr=stderr):
+                self.assertEqual(self._failure(run, stderr).exit_code, 3)
+
+    @mock.patch("lib.github.gh.subprocess.run")
+    def test_auth_is_5(self, run):
+        for stderr in ("HTTP 401: Bad credentials",
+                       "To get started with GitHub CLI, please run:  gh auth login",
+                       "gh: Forbidden (HTTP 403)"):
+            with self.subTest(stderr=stderr):
+                self.assertEqual(self._failure(run, stderr).exit_code, 5)
+
+    @mock.patch("lib.github.gh.subprocess.run")
+    def test_rate_limit_and_saml_403_stay_1(self, run):
+        for stderr in ("HTTP 403: API rate limit exceeded",
+                       "HTTP 403: Resource protected by organization SAML enforcement"):
+            with self.subTest(stderr=stderr):
+                self.assertEqual(self._failure(run, stderr).exit_code, 1)
+
+    @mock.patch("lib.github.gh.subprocess.run")
+    def test_network_is_6(self, run):
+        for stderr in ("dial tcp 140.82.0.1:443: connect: connection refused",
+                       "Get x: dial tcp: lookup api.github.com: no such host",
+                       "could not resolve host: api.github.com",
+                       "net/http: TLS handshake timeout"):
+            with self.subTest(stderr=stderr):
+                self.assertEqual(self._failure(run, stderr).exit_code, 6)
+
+    @mock.patch("lib.github.gh.subprocess.run")
+    def test_timeout_is_6(self, run):
+        run.side_effect = subprocess.TimeoutExpired(["gh"], 120)
+        with self.assertRaises(gh.GhError) as caught:
+            gh.rest("GET", "repos/o/r")
+        self.assertEqual(caught.exception.exit_code, 6)
+
+    @mock.patch("lib.github.gh.subprocess.run")
+    def test_unrecognized_failures_and_missing_gh_stay_1(self, run):
+        self.assertEqual(self._failure(run, "something odd").exit_code, 1)
+        run.side_effect = FileNotFoundError()
+        with self.assertRaises(gh.GhError) as caught:
+            gh.rest("GET", "repos/o/r")
+        self.assertEqual(caught.exception.exit_code, 1)
+
+    @mock.patch("lib.github.gh.subprocess.run")
+    def test_graphql_not_found_type_is_3(self, run):
+        run.return_value = _completed(
+            stdout='{"errors": [{"type": "NOT_FOUND", "message": "gone"}]}')
+        with self.assertRaises(gh.GhError) as caught:
+            gh.graphql("query { x }")
+        self.assertEqual(caught.exception.exit_code, 3)
+
+    def test_default_exit_code_is_1(self):
+        self.assertEqual(gh.GhError("x").exit_code, 1)
+
+
 if __name__ == "__main__":
     unittest.main()

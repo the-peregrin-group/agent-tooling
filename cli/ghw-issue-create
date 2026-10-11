@@ -57,7 +57,7 @@ def main(argv: list[str]) -> int:
     try:
         registry = {label["name"] for label in boards.fetch_labels(repository)}
     except gh.GhError as error:
-        gh.die(str(error), plan.EXIT_RUNTIME)
+        gh.die(str(error), error.exit_code)
 
     try:
         labels.validate_creation_labels(type_label, extra_labels, registry)
@@ -68,7 +68,7 @@ def main(argv: list[str]) -> int:
     try:
         url = gh.issue_create(repository, title, body, all_labels)
     except gh.GhError as error:
-        gh.die(str(error), plan.EXIT_RUNTIME)
+        gh.die(str(error), error.exit_code)
 
     plan.emit_plan(
         "applied",

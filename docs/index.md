@@ -81,7 +81,7 @@ families adopt them at their own pace. What each family implements today:
 |---|---|
 | `gitw-*` (7 Verbs) | the full taxonomy, 0 to 6 |
 | `fjw-*` (7 Verbs) | the full taxonomy, 0 to 6 (HTTP 401/403 → 5, 404 → 3, other HTTP → 1, connection or timeout → 6, config error → 5, 409 on create → 4) |
-| `ghw-*` (12 Verbs) | 0, 1, 2 only: every `gh` failure is 1, every refusal is 2; adopting 3 to 6 is planned and is a contract change for callers keying on 2 |
+| `ghw-*` (12 Verbs) | 0, 1, 2, 3, 5, 6: `gh` failures classify (not found → 3, auth → 5, network or timeout → 6, anything unrecognized → 1); every policy refusal stays 2, so 4 is unused |
 | `triage-*` (reference wrappers of `triage-issues`) | 0, 1, 2 only |
 | `bdw` | 4 on an argument refusal (bd's `--actor` flag, a database-switching flag, a flag before the verb), 5 on a configuration refusal (no workspace config, a write on an unverified bd version), 3 when no `bd` is on PATH, 1 when bd cannot be started; otherwise bd's own exit code (128 + N when signal N ends it) |
 | `tooling-install` | its own set: 0 in sync, 1 drift, 2 usage, 4 refused |

@@ -44,7 +44,7 @@ def main(argv: list[str]) -> int:
     try:
         orientation = boards.fetch_orientation(repository)
     except gh.GhError as error:
-        gh.die(str(error), plan.EXIT_RUNTIME)
+        gh.die(str(error), error.exit_code)
 
     triage_profile = boards.find_triage_profile(Path.cwd())
     canonical, rule, note = boards.resolve_canonical_board(

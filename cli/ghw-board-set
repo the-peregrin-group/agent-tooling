@@ -70,7 +70,7 @@ def main(argv: list[str]) -> int:
     try:
         linked_boards = boards.fetch_boards(repository)
     except gh.GhError as error:
-        gh.die(str(error), plan.EXIT_RUNTIME)
+        gh.die(str(error), error.exit_code)
 
     board = _select_board(repository, linked_boards, project_override)
     field = board["fields"].get(field_name)
@@ -118,7 +118,7 @@ def main(argv: list[str]) -> int:
             board["node_id"], item_id, field["id"], option_id
         )
     except gh.GhError as error:
-        gh.die(str(error), plan.EXIT_RUNTIME)
+        gh.die(str(error), error.exit_code)
 
     plan.emit_plan(
         "applied",

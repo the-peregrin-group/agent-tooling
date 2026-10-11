@@ -84,7 +84,7 @@ def main(argv: list[str]) -> int:
         if changed:
             gh.issue_edit_dependency(repository, number, subverb, other)
     except gh.GhError as error:
-        gh.die(str(error), plan.EXIT_RUNTIME)
+        gh.die(str(error), error.exit_code)
 
     plan.emit_plan(
         "applied",

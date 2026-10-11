@@ -254,14 +254,18 @@ writes to this repo, and the flag only narrows which board is touched.
 ## Shared conventions
 
 - **Exit codes, as implemented:** `0` success, including a converged no-op;
-  `1` any `gh` or API failure; `2` a usage error or any policy refusal, at
-  parse time or after (label contract, merge gates, an unlinked `--project`,
-  a missing head or base branch, `ghw-board-sync new` on an already-boarded
-  repo). The `triage-*` wrappers use the same three codes. ghw does not yet
-  use the shared taxonomy's codes 3 to 6; see the
-  [Exit-code contract](../../index.md#exit-code-contract). Callers key on
-  exit 2 for every refusal today, so splitting refusals across the taxonomy
-  changes that contract for them.
+  `2` a usage error or a policy refusal at parse time or after (label
+  contract, merge gates, an unlinked `--project`, a missing head or base
+  branch, `ghw-board-sync new` on an already-boarded repo); and, for `gh` or
+  API failures, the shared taxonomy's classes (see the
+  [Exit-code contract](../../index.md#exit-code-contract)): `3` not found, `5`
+  auth, `6` network, `1` anything unrecognized. `gh.GhError` carries the code
+  and every Verb exits with it; classification lives in one place,
+  `gh.classify`, which matches `gh`'s stderr loosely and case-insensitively
+  (its wording is not a stable interface). A 403 counts as auth only when
+  nothing points at rate limiting or SAML enforcement; a missing `gh` binary
+  stays `1`. Policy refusals stay `2` rather than `4`, because callers key on
+  `2`. The `triage-*` wrappers still use `1` and `2` only.
 - **JSON output:** write Verbs print a JSON plan with `"action": "applied"`
   (or `"plan"`, from `ghw-label-sync plan` only), most with a `changed`
   field. `ghw-orient` prints its own blob.

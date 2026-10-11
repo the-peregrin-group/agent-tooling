@@ -60,7 +60,7 @@ def main(argv: list[str]) -> int:
              "url", "headRefOid"],
         )
     except gh.GhError as error:
-        gh.die(str(error), plan.EXIT_RUNTIME)
+        gh.die(str(error), error.exit_code)
 
     refusals = pulls.merge_refusals(pull, base)
     if refusals:
@@ -75,7 +75,7 @@ def main(argv: list[str]) -> int:
         # and the merge itself: a push in that window fails the merge loudly.
         gh.pr_merge(repository, number, strategy, pull.get("headRefOid"))
     except gh.GhError as error:
-        gh.die(str(error), plan.EXIT_RUNTIME)
+        gh.die(str(error), error.exit_code)
 
     plan.emit_plan(
         "applied",

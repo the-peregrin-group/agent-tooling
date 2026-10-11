@@ -42,7 +42,7 @@ def main(argv: list[str]) -> int:
     try:
         gh.issue_comment(repository, number, body)
     except gh.GhError as error:
-        gh.die(str(error), plan.EXIT_RUNTIME)
+        gh.die(str(error), error.exit_code)
 
     plan.emit_plan("applied", repository=repository, issue=number, changed=True)
     return plan.EXIT_OK

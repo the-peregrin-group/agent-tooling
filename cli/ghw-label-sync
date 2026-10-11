@@ -75,7 +75,7 @@ def main(argv: list[str]) -> int:
         _warn_about_attached_issues(deletions, mode)
         _apply(repository, difference, mode, done)
     except gh.GhError as error:
-        gh.die(_failure_message(error, done), plan.EXIT_RUNTIME)
+        gh.die(_failure_message(error, done), error.exit_code)
 
     plan.emit_plan(
         "plan" if mode == "plan" else "applied",

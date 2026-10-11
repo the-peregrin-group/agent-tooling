@@ -74,7 +74,7 @@ def main(argv: list[str]) -> int:
     try:
         existence = boards.fetch_branches_exist(repository, [base, head])
     except gh.GhError as error:
-        gh.die(str(error), plan.EXIT_RUNTIME)
+        gh.die(str(error), error.exit_code)
     if not existence[head]:
         gh.die(
             f"head branch {head!r} does not exist on {repository}; push it first",
@@ -86,7 +86,7 @@ def main(argv: list[str]) -> int:
     try:
         response = gh.pr_create(repository, base, head, title, body, draft)
     except gh.GhError as error:
-        gh.die(str(error), plan.EXIT_RUNTIME)
+        gh.die(str(error), error.exit_code)
 
     plan.emit_plan(
         "applied",

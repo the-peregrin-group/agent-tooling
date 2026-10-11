@@ -71,7 +71,7 @@ def main(argv: list[str]) -> int:
             return plan.EXIT_OK
         gh.issue_close(repository, number, comment)
     except gh.GhError as error:
-        gh.die(str(error), plan.EXIT_RUNTIME)
+        gh.die(str(error), error.exit_code)
 
     plan.emit_plan(
         "applied",

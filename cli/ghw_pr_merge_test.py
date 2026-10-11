@@ -111,6 +111,16 @@ class GhwPrMergeBehaviorTest(unittest.TestCase):
                 _MODULE.main(["o/r", "main", "merge", "5"])
         self.assertEqual(caught.exception.code, 1)
 
+    def test_classified_gh_failures_exit_with_their_code(self):
+        for code in (3, 5, 6):
+            with self.subTest(code=code):
+                error = _MODULE.gh.GhError("boom", code)
+                with mock.patch.object(_MODULE.gh, "pr_view", side_effect=error), \
+                        contextlib.redirect_stderr(io.StringIO()):
+                    with self.assertRaises(SystemExit) as caught:
+                        _MODULE.main(["o/r", "main", "squash", "5"])
+                self.assertEqual(caught.exception.code, code)
+
     def test_clean_merge_pins_the_verified_head_and_emits_applied(self):
         # Pinning the merge to the viewed head oid closes the race between
         # the green-checks read and the merge itself.
