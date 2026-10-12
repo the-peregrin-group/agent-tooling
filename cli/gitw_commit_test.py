@@ -371,12 +371,13 @@ class GitwCommitExecutedByTest(_CommitFixtureTest):
     def commit_with_environ(self, environ: dict, *arguments: str,
                             expecting_exit: int | None = None):
         """Commit with the session identity pinned to `environ` (the
-        developer running the suite may well be inside a background job
-        with CLAUDE_JOB_DIR set). Returns the JSON payload, or the stderr
+        developer running the suite may well be inside a session with
+        CLAUDE_CODE_SESSION_ID and CLAUDE_JOB_DIR set). Returns the JSON payload, or the stderr
         text when `expecting_exit` names the refusal code."""
         with mock.patch.dict(os.environ, environ):
-            if "CLAUDE_JOB_DIR" not in environ:
-                os.environ.pop("CLAUDE_JOB_DIR", None)
+            for name in ("CLAUDE_JOB_DIR", "CLAUDE_CODE_SESSION_ID"):
+                if name not in environ:
+                    os.environ.pop(name, None)
             if expecting_exit is not None:
                 return self.commit_expecting_exit(expecting_exit, *arguments)
             return self.commit(*arguments)
@@ -409,6 +410,21 @@ class GitwCommitExecutedByTest(_CommitFixtureTest):
             "Executed-By: claude-job-ae218998\n\n",
         )
         self.assertEqual(payload["executed_by"], "claude-job-ae218998")
+
+    def test_session_id_actor_is_the_trailer(self):
+        (self.clone / "new.txt").write_text("new\n")
+        payload = self.commit_with_environ(
+            {**self._JOB_ENVIRON,
+             "CLAUDE_CODE_SESSION_ID": "ae218998-1111-2222"},
+            "proj", "fix/", self.message_path,
+        )
+        self.assertEqual(
+            self.head_trailers("Executed-By"),
+            ["claude-job-ae218998-1111-2222"],
+        )
+        self.assertEqual(
+            payload["executed_by"], "claude-job-ae218998-1111-2222"
+        )
 
     def test_attended_fallback_is_the_trailer(self):
         (self.clone / "new.txt").write_text("new\n")
