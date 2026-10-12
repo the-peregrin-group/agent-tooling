@@ -462,8 +462,10 @@ Pushes only to the authoritative remote.
 Both forms relay git's own push output verbatim to stderr beside the JSON,
 so whatever a pre-push hook prints reaches the caller. A local pre-push
 hook refusal is exit 4, detected from git's trace2 event stream (a
-nonzero exit of the `pre-push` hook child), because git otherwise prints
-only a generic "failed to push some refs". The hook verdict is checked
+nonzero exit of the push's own `pre-push` hook child; a push that the hook
+itself runs appends to the same trace under a nested session id and is
+ignored), because git otherwise prints only a generic "failed to push some
+refs". The hook verdict is checked
 before lease text, since a refusing hook ends the push before git prints
 any ref status. A push that times out with a pre-push hook started but
 not exited (a `child_start` with no `child_exit`, read from the trace

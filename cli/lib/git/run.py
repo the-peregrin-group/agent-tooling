@@ -205,6 +205,9 @@ def traced_push(arguments: list[str], cwd: Path, env: dict) -> TracedPush:
     with tempfile.TemporaryDirectory(prefix="gitw-traced-push-") as scratch:
         trace = Path(scratch) / "trace2.json"
         environment["GIT_TRACE2_EVENT"] = str(trace)
+        # An inherited parent sid would make the root session's own sid
+        # contain a slash, which parse_push_trace reads as nested.
+        environment.pop("GIT_TRACE2_PARENT_SID", None)
         try:
             result = _spawn(arguments, cwd, environment)
         except subprocess.TimeoutExpired as expired:
@@ -268,8 +271,12 @@ def parse_push_trace(text: str) -> Tuple[bool, Optional[int]]:
     "pre-push"; its verdict is the `child_exit` with the same key. Events
     are keyed by (sid, child_id): child git processes inherit the
     environment and append to the same file under their own session id,
-    each numbering its children from 0. A `child_exit` whose code is
-    missing or not an integer is no signal."""
+    each numbering its children from 0. Only the root session counts: a
+    child git's sid is "<parent-sid>/<own>", so a sid containing a slash
+    (or a missing or non-string sid) is a nested process, for example a
+    second push that the outer pre-push hook runs, whose own hook refuses
+    while the outer hook tolerates that. A
+    `child_exit` whose code is missing or not an integer is no signal."""
     traced = False
     hooks = set()
     for line in text.splitlines():
@@ -284,7 +291,8 @@ def parse_push_trace(text: str) -> Tuple[bool, Optional[int]]:
         if kind == "version":
             traced = True
         elif (kind == "child_start" and event.get("child_class") == "hook"
-                and event.get("hook_name") == "pre-push"):
+                and event.get("hook_name") == "pre-push"
+                and isinstance(key[0], str) and "/" not in key[0]):
             hooks.add(key)
         elif kind == "child_exit" and key in hooks:
             code = event.get("code")
