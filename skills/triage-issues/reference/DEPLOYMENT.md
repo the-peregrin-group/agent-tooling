@@ -87,7 +87,7 @@ distinguishes them operationally:
 - **Interactive** (a human is present): normal session. Proposed mutations prompt;
   the human approves in-session. Any permission mode is fine.
 - **Unattended** (headless): must run **deny-by-default** — `--permission-mode
-  dontAsk` (CLI) or the Desktop equivalent — with the allowlist above. This is the
+  dontAsk` — with the allowlist above. This is the
   enforcement, not a suggestion: it is the mechanism that turns "no wrapper for
   proposed mutations" into "proposed mutations cannot happen."
 
@@ -96,10 +96,11 @@ distinguishes them operationally:
 > fail closed — collapsing the autonomy boundary to an instruction the model is
 > merely asked to honor. If a scheduler offers only `bypassPermissions` (no
 > deny-by-default), it is **not** an acceptable host for the unattended pass; use
-> the background-job fallback (§4), which runs `--permission-mode dontAsk`, instead.
+> the guard-script background job (§4), which runs `--permission-mode dontAsk`, instead.
 
-> ⚠️ **Caveat: project-level write rules.** An unattended pass launched in a
-> repo whose project settings allowlist `ghw-*` write verbs gains a write path
+> ⚠️ **Caveat: project and local write rules.** An unattended pass launched in a
+> repo whose project settings (`.claude/settings.json`) or local settings
+> (`.claude/settings.local.json`) allowlist `ghw-*` write verbs gains a write path
 > outside the triage wrappers, so its permission boundary no longer equals its
 > autonomy boundary. Until that is resolved, do not host unattended triage in
 > such a repo.
@@ -117,25 +118,9 @@ distinguishes them operationally:
 
 ## 4. Deployment options
 
-### Recommended — Claude Desktop *Local* routine
+### A background job dispatched by a guard script
 
-Runs against the real local repo, honors `~/.claude/settings.json` (so the
-allowlist + deny-by-default boundary apply unchanged), and lets the Desktop app own
-scheduling and subscription auth — no trigger script to maintain.
-
-- Configure it **deny-by-default** (`dontAsk` or equivalent). See the §3 warning:
-  if the routine only exposes `bypassPermissions`, do not use it for autonomous
-  mutation — use the background-job fallback.
-- Point it at the project directory so `TRIAGE.md` is found from cwd.
-
-> **Open verification:** confirm a Local routine actually exposes a
-> deny-by-default posture (not just allow / `bypassPermissions`). If it does not,
-> the unattended pass must run via the background-job fallback, where
-> `--permission-mode dontAsk` is explicit.
-
-### Fallback — a background job dispatched by a guard script
-
-A trigger runs a small guard script, and the script dispatches the pass as a
+This is the one launch form for the unattended pass. A trigger runs a small guard script, and the script dispatches the pass as a
 Claude Code background job:
 
 - **Trigger:** a `launchd` agent (or cron) on a schedule, or a `SessionStart`
@@ -175,13 +160,13 @@ Claude Code background job:
   since the last scheduled pass (a silent failure otherwise looks like "nothing
   to do").
 
-**Alternative — `claude -p`.** The same trigger can run
-`claude -p "<prompt>" --permission-mode dontAsk` with the same Edit grants
-instead, which needs no job naming or worktree. `claude -p` may be billed
-differently from interactive use on subscription plans; check your plan's terms
-before adopting it.
-
 ### Ruled out
+
+- **`claude -p`** (headless/print mode) — billed as programmatic API usage, not
+  against the subscription. Never use it for the unattended pass.
+- **Claude Desktop *Local* routine** — not shown to expose a deny-by-default
+  posture, and the Desktop app owns the scheduling outside this skill's guard,
+  marker, lock, and cleanup model.
 
 - **Claude Desktop *Cloud* routine** — executes against a repo *clone* with
   connector-based writes, bypassing this skill's local wrapper/allowlist model.
@@ -194,8 +179,7 @@ before adopting it.
 ## 5. Billing guardrails
 
 An unattended pass should never be able to produce a surprise bill. `claude -p`
-may be billed differently from interactive use on subscription plans; check your
-plan's terms before adopting it (§4). Beyond that:
+is billed as programmatic API usage and is ruled out (§4). Beyond that:
 
 - **Authenticate via the subscription**, never `ANTHROPIC_API_KEY` (that switch is
   all-or-nothing pay-as-you-go).
