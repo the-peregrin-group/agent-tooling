@@ -34,8 +34,8 @@ def main(argv: list[str]) -> int:
     if len(argv) != 3:
         plan.usage_die(
             "expected three arguments; the closing comment is required: write "
-            "the reason to a unique file under /tmp/claude/ and pass it as "
-            "<comment-file>",
+            "the reason to a unique file under /tmp/claude/ (or your job's "
+            "tmp directory) and pass it as <comment-file>",
             _USAGE,
         )
     repository, issue_argument, comment_path = argv
@@ -46,7 +46,7 @@ def main(argv: list[str]) -> int:
         plan.usage_die(
             f"issue number must be a positive integer, got {issue_argument!r}", _USAGE
         )
-    comment = staging.read_staged_body(comment_path)
+    comment = staging.read_staged_body(comment_path, description="comment file")
     if not comment.strip():
         plan.usage_die(
             f"comment file {comment_path!r} is blank; the closing comment is "

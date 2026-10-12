@@ -64,7 +64,7 @@ class GhwIssueCloseArgumentsTest(unittest.TestCase):
     def test_missing_comment_file_is_refused(self):
         result = _run("o/r", "5", _MISSING_COMMENT)
         self.assertEqual(result.returncode, 2)
-        self.assertIn("refusing body file", result.stderr)
+        self.assertIn("refusing comment file", result.stderr)
 
     def test_help_prints_doc_and_exits_zero(self):
         result = _run("--help")

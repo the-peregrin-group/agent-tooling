@@ -139,9 +139,10 @@ resolution) before the write itself.
 - `ghw-issue-close <repo> <issue#> <comment-file>`: its own Verb, never a flag
   on edit, so closing is independently grantable. The comment is mandatory (a
   missing or blank one is exit 2): it is the audit record of why the issue was
-  closed, so a silent close is inexpressible; forge auto-close on PR merge is
-  the one comment-less close. Closing an already-closed issue is a converged
-  no-op, and the comment is then not posted, since the close it explains did not happen here.
+  closed, so a silent close is inexpressible through this Verb; forge
+  auto-close on PR merge is the one sanctioned comment-less close. Closing an
+  already-closed issue is a converged no-op, and the comment is then not
+  posted, since the close it explains did not happen here.
 - `ghw-issue-link <repo> <add-sub|remove-sub|add-blocked-by|remove-blocked-by>
   <issue#> <other-issue#>`: a thin validating Verb over `gh issue edit`'s
   native flags, with a runtime check for `gh` 2.94.0 or later. `<issue#>` is
