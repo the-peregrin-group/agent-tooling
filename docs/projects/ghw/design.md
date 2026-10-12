@@ -271,7 +271,9 @@ writes to this repo, and the flag only narrows which board is touched.
 - **Why refusals past parse time are `4`, not `2`:** the maintainer ratified
   the migration (`agent-tooling-bus`) because it complies with the Exit-code
   contract, which reserves `2` for "fix the call" and `4` for "the call was
-  well formed and policy refused it"; gitw and fjw split them the same way.
+  well formed and policy refused it". gitw splits them that way, and so
+  does fjw except for `fjw-pr-create`'s missing head or base branch check,
+  which still exits `2` after its network call (`agent-tooling-46p`).
   Collapsing both into `2` would leave a caller unable to tell a typo from
   a refusal. The split follows when the check runs, not what it checks: a
   refusal made before any network call is `2`, one made after is `4`. So

@@ -39,10 +39,10 @@ Shared conventions:
 - `<owner/repo>` is always an explicit argument. The cwd never decides where
   a write lands.
 - Exit codes: `0` success (including an already-converged no-op), `1` unclassified
-  gh/API failure, `2` usage error (including a refusal made from the
-  arguments alone, before any network call, such as `squash`), `3` not
-  found, `4` refused: the call was well formed but violated policy against
-  live state (the label contract, a merge gate, an unlinked board, a missing
+  gh/API failure, `2` usage error (including a refusal made at
+  argument-parse time, before any network call, such as `squash`), `3` not
+  found, `4` refused: a policy refusal past parse time, the call well formed
+  but violating policy against live state (the label contract, a merge gate, an unlinked board, a missing
   branch), `5` auth or deployment failure, such as a `gh` below `ghw-issue-link`'s version floor (abort and flag it), `6` network failure (the one retryable class; on create and comment Verbs and `ghw-board-sync new` a timeout or reset exits `1`, since the write may have landed, and `ghw-issue-close` exits `1` on any network failure during the close, since the comment is posted first). Write wrappers print a JSON
   plan with `"action": "plan"` or `"applied"`.
 - **On exit 2, read the message and fix the call. On exit 4, never retry
