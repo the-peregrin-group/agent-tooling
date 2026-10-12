@@ -126,11 +126,52 @@ def query_state(
     return "conflicted", pr
 
 
+def repo_visible(config: Config, repository: str) -> bool:
+    """True when `GET /repos/{repository}` succeeds, False on 404, other
+    errors raise. Forgejo answers 404 for a repo the caller may not see, so
+    False means "does not exist or this identity cannot see it"."""
+    try:
+        api.request(config, "GET", f"/repos/{repository}")
+    except api.ApiError as error:
+        if error.exit_code == plan.EXIT_NOT_FOUND:
+            return False
+        raise
+    return True
+
+
+def disambiguate_not_found(
+    config: Config, repository: str, error: api.ApiError
+) -> None:
+    """Call from a handler for a resource-level GET that 404ed, before
+    treating the resource as missing. Probes the repo once; when the repo
+    is also invisible, raises ApiError exit 3 naming both possibilities.
+    Returns None when the repo is visible (the resource is really missing,
+    so the caller keeps its contextual handling). Not for the happy path:
+    the probe costs one request. Only a 404 is disambiguated; any other
+    error is not this helper's to relabel."""
+    if error.exit_code != plan.EXIT_NOT_FOUND:
+        return
+    if repo_visible(config, repository):
+        return
+    raise api.ApiError(
+        f"repository {repository!r} was not found: either it does not "
+        "exist, or this identity cannot see it (the server answers 404 "
+        "for both). If the slug is correct, the machine account lacks a "
+        "grant on it; report that to the user and do not retry "
+        f"({error})",
+        plan.EXIT_NOT_FOUND,
+        error.status,
+    )
+
+
 def branch_exists(config: Config, repository: str, branch: str) -> bool:
+    """True when the branch exists; False when it is missing from a
+    visible repo; ApiError exit 3 when the repo itself is not visible."""
     try:
         api.request(config, "GET", f"/repos/{repository}/branches/{branch}")
     except api.ApiError as error:
         if error.exit_code == plan.EXIT_NOT_FOUND:
+            disambiguate_not_found(config, repository, error)
             return False
         raise
     return True

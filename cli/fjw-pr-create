@@ -10,9 +10,10 @@ no draft field, so --draft applies the instance's WIP title prefix ("WIP: "),
 which is what makes the created PR report draft=true.
 
 Exit codes: 0 success, 1 unclassified API failure, 2 usage error,
-3 repository not found, 4 refused (an open PR for this head/base already
-exists -- query first, never retry), 5 roster/auth/config (deployment),
-6 network failure.
+3 repository not found (or not visible to the machine account: a
+missing grant; report it, never retry), 4 refused (an open PR for this
+head/base already exists -- query first, never retry), 5 roster/auth/config
+(deployment), 6 network failure.
 """
 
 from __future__ import annotations

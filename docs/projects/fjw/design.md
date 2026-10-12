@@ -58,7 +58,9 @@ numbers to be positive integers.
 - `fjw-pr-create <owner/repo> <base> <head> <title> <body-file> [--draft]`
   opens a PR. It refuses an empty base, head, or title, and head equal to
   base (exit 2), and checks that head and base exist on the forge before
-  posting (missing branch: exit 2, "push it first"). `--draft` is the one
+  posting (missing branch in a visible repo: exit 2, "push it first"; if the repo
+  itself also 404s, it is missing or not visible to the machine account:
+  exit 3 naming both causes). `--draft` is the one
   trailing flag, allowed because it only de-escalates. Forgejo's create
   API has no draft field, so `--draft` prepends `WIP: ` to the title,
   which is what makes the forge report the PR as draft. A 409 (an open PR
@@ -128,6 +130,14 @@ no dependencies. It sends `Authorization: token …` and a fixed
   branches already on the forge, comment, and close PRs it opened. The
   fallback is write permission with a branch-protection merge whitelist
   that excludes the account.
+- **A 404 on a repo is ambiguous, so the probe is lazy.** Forgejo answers
+  404 for a repo the caller cannot see, the same as for one that does not
+  exist. `pulls.branch_exists` therefore probes `GET /repos/{repo}` only
+  after a branch 404 (no extra request on the happy path). A visible repo
+  means the branch is really missing (exit 2); an invisible one raises exit
+  3 naming both causes. It is exit 3, not 5: the server makes a mistyped
+  slug and a missing grant indistinguishable, so neither is classifiable as
+  auth. Callers report a missing grant to the user and never retry.
 - **Branch pushes are outside fjw.** A consumer pushes its head branches
   over git with its own SSH identity, while fjw's API writes act as the
   machine account. Attribution is split; this is accepted for now and is
@@ -171,7 +181,7 @@ family's coverage live in
 | 0 | success, including a converged no-op and every `fjw-pr-query` answer |
 | 1 | unclassified: HTTP statuses other than 401, 403, and 404, or a non-JSON response |
 | 2 | usage error or refusal at parse time, including a bad staging path and a missing branch on create |
-| 3 | not found: HTTP 404 |
+| 3 | not found: HTTP 404; on a repo this can mean a missing grant, since the server answers 404 for an invisible repo |
 | 4 | policy refusal past parse: a 409 on create, or a head-prefix mismatch |
 | 5 | auth or config: HTTP 401 or 403, and every config error |
 | 6 | network: connection failure or timeout; the one retryable class |
