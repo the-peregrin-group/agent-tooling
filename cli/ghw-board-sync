@@ -23,8 +23,10 @@ a linked open board, so a repeated bootstrap cannot silently produce two.
 By convention (skill text, not enforced here) the create mode belongs to
 setup-github-issues.
 
-Exit codes: 0 success (including a converged no-op), 1 unclassified gh/API failure, 2 usage error or policy refusal,
-3 not found, 5 auth failure, 6 network failure (retryable).
+Exit codes: 0 success (including a converged no-op), 1 unclassified gh/API
+failure, 2 usage error, 3 not found, 4 refused: the project number is not an
+open board linked to <repo>, or `new` met a repo that already has one, 5 auth
+failure, 6 network failure (retryable).
 """
 
 from __future__ import annotations
@@ -96,7 +98,7 @@ def _sync_board(repository: str, number: int) -> dict:
         gh.die(
             f"project #{number} is not an open board linked to {repository}. "
             f"Linked boards: {candidates}. Use 'new' to create and link one.",
-            plan.EXIT_USAGE,
+            plan.EXIT_REFUSED,
         )
     created: list[str] = []
     try:
@@ -125,7 +127,7 @@ def _create_board(repository: str) -> dict:
             f"{repository} already has linked open board(s): {candidates}. "
             "Pass a project number instead of 'new' to sync one of them; "
             "creating a second board is a deliberate act for a human.",
-            plan.EXIT_USAGE,
+            plan.EXIT_REFUSED,
         )
     identity = boards.fetch_repository_identity(repository)
     try:

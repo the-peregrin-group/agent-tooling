@@ -14,8 +14,10 @@ and lists the candidates. A trailing --project <number> picks a linked board
 explicitly -- trailing position is safe because it only narrows a grant
 already given.
 
-Exit codes: 0 success (including a converged no-op), 1 unclassified gh/API failure, 2 usage error or policy refusal,
-3 not found, 5 auth failure, 6 network failure (retryable).
+Exit codes: 0 success (including a converged no-op), 1 unclassified gh/API
+failure, 2 usage error, 3 not found, 4 refused: --project names a board not
+linked to <repo>, no canonical board resolves, or the board has no such
+single-select field or option, 5 auth failure, 6 network failure (retryable).
 """
 
 from __future__ import annotations
@@ -78,20 +80,20 @@ def main(argv: list[str]) -> int:
         gh.die(
             f"board #{board['number']} ({board['title']}) has no field "
             f"{field_name!r}. Fields: {', '.join(sorted(board['fields']))}",
-            plan.EXIT_USAGE,
+            plan.EXIT_REFUSED,
         )
     if field["data_type"] != "SINGLE_SELECT":
         gh.die(
             f"field {field_name!r} is {field['data_type']}, not SINGLE_SELECT; "
             "only single-select fields are settable by option name",
-            plan.EXIT_USAGE,
+            plan.EXIT_REFUSED,
         )
     option_id = field["options"].get(option_name)
     if option_id is None:
         gh.die(
             f"field {field_name!r} has no option {option_name!r}. "
             f"Options: {', '.join(field['options'])}",
-            plan.EXIT_USAGE,
+            plan.EXIT_REFUSED,
         )
 
     try:
@@ -136,7 +138,7 @@ def main(argv: list[str]) -> int:
 def _select_board(
     repository: str, linked_boards: list[dict], project_override: int | None
 ) -> dict:
-    """Pick the target board, refusing (exit 2) when none resolves."""
+    """Pick the target board, refusing (exit 4) when none resolves."""
     if project_override is not None:
         for board in linked_boards:
             if board["number"] == project_override:
@@ -147,7 +149,7 @@ def _select_board(
         gh.die(
             f"project #{project_override} is not linked to {repository}. "
             f"Linked boards: {candidates}",
-            plan.EXIT_USAGE,
+            plan.EXIT_REFUSED,
         )
     profile = boards.find_triage_profile(Path.cwd())
     board, rule, note = boards.resolve_canonical_board(
@@ -158,7 +160,7 @@ def _select_board(
             f"cannot resolve a canonical board ({rule}): "
             f"{note or f'no boards linked to {repository}'}. "
             "Pass --project <number> to choose one explicitly.",
-            plan.EXIT_USAGE,
+            plan.EXIT_REFUSED,
         )
     return board
 

@@ -12,7 +12,7 @@ Canonical-board rules (which board a wrapper acts on):
       matches the repo argument (trust-but-verify) and the board it names is
       among those linked;
     - otherwise: no canonical board -- ghw-orient reports the candidates,
-      write wrappers refuse with exit 2.
+      write wrappers refuse with exit 4.
 """
 
 from __future__ import annotations

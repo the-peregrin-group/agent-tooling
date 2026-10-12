@@ -8,8 +8,10 @@ the attachment contract: the label must exist in the repo's live registry, and
 a second type label is refused naming the incumbent -- reclassifying an issue
 is two visible calls, remove-label then add-label.
 
-Exit codes: 0 success (including a converged no-op), 1 unclassified gh/API failure, 2 usage error or policy refusal,
-3 not found, 5 auth failure, 6 network failure (retryable).
+Exit codes: 0 success (including a converged no-op), 1 unclassified gh/API
+failure, 2 usage error, 3 not found, 4 refused: add-label violates the
+attachment contract (a label missing from the registry, a second type label),
+5 auth failure, 6 network failure (retryable).
 """
 
 from __future__ import annotations
@@ -64,7 +66,7 @@ def main(argv: list[str]) -> int:
         else:
             changed = _set_body(repository, number, body)
     except labels.LabelContractError as error:
-        gh.die(str(error), plan.EXIT_USAGE)
+        gh.die(str(error), plan.EXIT_REFUSED)
     except gh.GhError as error:
         gh.die(str(error), error.exit_code)
 

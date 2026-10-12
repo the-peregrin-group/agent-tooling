@@ -12,8 +12,10 @@ comes from a staged file, never inline text. Linkage keywords are skill-text
 guidance: `Closes #N` auto-closes; furthers/part of/towards deliberately
 don't.
 
-Exit codes: 0 success, 1 unclassified gh/API failure, 2 usage error or policy refusal,
-3 not found, 5 auth failure, 6 network failure (retryable). A failure whose request may
+Exit codes: 0 success, 1 unclassified gh/API failure, 2 usage error (including
+head equal to base), 3 not found, 4 refused: the head or base branch does not
+exist on the remote, 5 auth failure, 6 network failure (retryable). A failure
+whose request may
 already have landed (a timeout or reset) exits 1 instead of 6 on the
 non-idempotent write Verbs, so a retry cannot duplicate it.
 """
@@ -81,10 +83,11 @@ def main(argv: list[str]) -> int:
     if not existence[head]:
         gh.die(
             f"head branch {head!r} does not exist on {repository}; push it first",
-            plan.EXIT_USAGE,
+            plan.EXIT_REFUSED,
         )
     if not existence[base]:
-        gh.die(f"base branch {base!r} does not exist on {repository}", plan.EXIT_USAGE)
+        gh.die(f"base branch {base!r} does not exist on {repository}",
+               plan.EXIT_REFUSED)
 
     try:
         response = gh.pr_create(repository, base, head, title, body, draft)

@@ -5,8 +5,8 @@ The body comes from a staged file under /tmp/claude/ or
 ~/.claude/jobs/<job-id>/tmp/, never inline text. For pull requests use
 ghw-pr-comment; `gh issue comment` refuses PR numbers.
 
-Exit codes: 0 success, 1 unclassified gh/API failure, 2 usage error or policy refusal,
-3 not found, 5 auth failure, 6 network failure (retryable). A failure whose request may
+Exit codes: 0 success, 1 unclassified gh/API failure, 2 usage error (including
+a body file outside the staging directories), 3 not found, 5 auth failure, 6 network failure (retryable). A failure whose request may
 already have landed (a timeout or reset) exits 1 instead of 6 on the
 non-idempotent write Verbs, so a retry cannot duplicate it.
 """

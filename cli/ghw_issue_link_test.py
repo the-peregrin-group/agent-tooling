@@ -125,7 +125,7 @@ class GhwIssueLinkBehaviorTest(unittest.TestCase):
             with contextlib.redirect_stderr(io.StringIO()) as stderr:
                 with self.assertRaises(SystemExit) as caught:
                     _MODULE.main(["o/r", "remove-sub", "7", "8"])
-        self.assertEqual(caught.exception.code, 1)
+        self.assertEqual(caught.exception.code, 4)
         self.assertIn("120", stderr.getvalue())
         self.assertIn("gh issue edit", stderr.getvalue())
         edit.assert_not_called()
@@ -135,7 +135,7 @@ class GhwIssueLinkBehaviorTest(unittest.TestCase):
             with contextlib.redirect_stderr(io.StringIO()):
                 with self.assertRaises(SystemExit) as caught:
                     _MODULE.main(["o/r", "add-sub", "7", "8"])
-        self.assertEqual(caught.exception.code, 1)
+        self.assertEqual(caught.exception.code, 4)
         edit.assert_not_called()
 
     def test_a_target_found_on_the_first_page_is_actionable_despite_truncation(self):

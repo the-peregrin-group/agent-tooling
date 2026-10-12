@@ -89,19 +89,29 @@ class GhwPrMergeArgumentsTest(unittest.TestCase):
 
 
 class GhwPrMergeBehaviorTest(unittest.TestCase):
-    def test_policy_refusal_exits_2_and_never_merges(self):
-        # Exit-code contract: a policy refusal exits 2 while a gh/runtime
-        # failure exits 1 -- the load-bearing mapping for allowlist callers
-        # (test_gh_failure_exits_1 covers the other half).
-        with mock.patch.object(_MODULE.gh, "pr_view",
-                               return_value=_pull(isDraft=True)), \
-                mock.patch.object(_MODULE.gh, "pr_merge") as merge, \
-                contextlib.redirect_stderr(io.StringIO()) as stderr:
-            with self.assertRaises(SystemExit) as caught:
-                _MODULE.main(["o/r", "main", "merge", "5"])
-        self.assertEqual(caught.exception.code, 2)
-        merge.assert_not_called()
-        self.assertIn("draft", stderr.getvalue())
+    def test_merge_gate_refusals_exit_4_and_never_merge(self):
+        # Exit-code contract: a merge gate failing past parse time is a
+        # refusal, exit 4 (never retry unchanged), distinct from a usage
+        # error (2) and a gh/runtime failure (1, test_gh_failure_exits_1).
+        cases = (
+            ({"isDraft": True}, "draft"),
+            ({"state": "CLOSED"}, "not OPEN"),
+            ({"baseRefName": "develop"}, "actual base branch is 'develop'"),
+            ({"statusCheckRollup": [{"name": "ci", "status": "COMPLETED",
+                                     "conclusion": "FAILURE"}]},
+             "checks are not green"),
+        )
+        for overrides, message in cases:
+            with self.subTest(overrides=overrides):
+                with mock.patch.object(_MODULE.gh, "pr_view",
+                                       return_value=_pull(**overrides)), \
+                        mock.patch.object(_MODULE.gh, "pr_merge") as merge, \
+                        contextlib.redirect_stderr(io.StringIO()) as stderr:
+                    with self.assertRaises(SystemExit) as caught:
+                        _MODULE.main(["o/r", "main", "merge", "5"])
+                self.assertEqual(caught.exception.code, 4)
+                merge.assert_not_called()
+                self.assertIn(message, stderr.getvalue())
 
     def test_gh_failure_exits_1(self):
         with mock.patch.object(_MODULE.gh, "pr_view",
