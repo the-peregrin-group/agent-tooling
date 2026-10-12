@@ -68,11 +68,17 @@ hook: git still runs the hook after a local stale-lease rejection (with
 empty stdin). Both are exit 4; the stale lease surfaces on the next
 push.
 
+Hung hook: if the push times out while a pre-push hook has started and not
+exited (a `child_start` with no `child_exit` in the trace), the wrapper
+relays the partial output and refuses with exit 4: a retry would re-run
+the hook. It needs trace2; with it unavailable, a hung hook reads as the
+timeout's exit 6. The hook process itself may outlive the killed git.
+
 Exit codes: 0 success, 1 unclassified git failure, 2 usage error, 3 not
 found (label not in the roster, or the remote repository has vanished),
 4 refused (cwd/branch-prefix mismatch, default-branch push, lease
 failure -- fetch and reconcile, never blind-retry -- or a pre-push hook
-refusal: fix what the hook reported, never retry unchanged), 5
+refusal or hang: fix what the hook reported, never retry unchanged), 5
 roster/auth/config (deployment), 6 network failure.
 """
 

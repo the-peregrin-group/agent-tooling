@@ -266,7 +266,8 @@ gitw's own:
   the editor set to `true`, the pager to `cat`, askpass to
   `/usr/bin/false`, optional locks off, `LC_ALL=C`, and ssh in batch mode
   unless the user controls ssh. A 300-second timeout ends any call: exit
-  6 for a remote call, else 1.
+  6 for a remote call, else 1, except a push that times out inside a
+  still-running pre-push hook, which is exit 4.
 - **Fetch prunes.** Every fetch is `git fetch --prune <remote>`, so a ref
   deleted on the remote reads as absent instead of leaving a stale
   tracking ref that wedges later Verbs.
@@ -299,7 +300,8 @@ every family's implemented codes live in
   registered checkout that no longer exists, remote auth failure. All
   mean "fix the deployment"; the label matches the
   [exit-code contract](../../index.md#exit-code-contract).
-- `6` network failure or remote timeout, the one retryable class.
+- `6` network failure or remote timeout (other than a hung pre-push
+  hook, which is 4), the one retryable class.
   Remote failures are classified by git's English messages: auth markers
   to 5, "repository not found" to 3, anything else to 6.
 
