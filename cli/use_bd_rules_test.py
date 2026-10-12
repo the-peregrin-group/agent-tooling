@@ -38,6 +38,9 @@ NOT_TAUGHT = {
     # A template for asking a verb for its own help; it matches the verb's
     # own rules, which is why the Skill teaches `bdw help <verb>` instead.
     "bdw X --help": "template the Skill warns can prompt or be denied",
+    # Named only as an exception to bdw's own flag-first refusal; the
+    # spelling the canonical set allows is `bdw version`.
+    "bdw --version": "named as a refusal exception, not taught",
     # Comments, then closes at once; the Skill says never to close this way.
     "bdw human respond": "the Skill says never to close through it",
 }
