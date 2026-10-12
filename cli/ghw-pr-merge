@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/python3
 """ghw-pr-merge <repo> <base-branch> <merge|squash> <pr#> -- merge a pull request.
 
 The merge strategy is a positional mode, not a flag, so per-repo merge policy

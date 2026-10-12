@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/python3
 """ghw-pr-comment <repo> <pr#> <body-file> -- post a comment on a pull request.
 
 Its own verb because `gh issue comment` refuses PR numbers, so

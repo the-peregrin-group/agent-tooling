@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/python3
 """ghw-board-sync <repo> <project#|new> -- provision the canonical board schema.
 
 One schema is baked in for every repo: `Priority` (P0-P3), `Status` (the eight

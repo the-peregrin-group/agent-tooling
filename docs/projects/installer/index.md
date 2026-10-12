@@ -27,6 +27,4 @@ that agent tooling runs only from installed copies, is
 
 ### Known gaps
 
-- `tooling-install` resolves `python3` through `/usr/bin/env` instead of
-  pinning the system interpreter like the fjw and gitw Verbs
-  (`agent-tooling-1790288520721-1-86415521`).
+None.

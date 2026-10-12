@@ -54,6 +54,5 @@ How and why it works: [design.md](design.md).
 - `ghw-board-sync`'s write path, including `new`, has never run against the
   live GitHub API; it is verified by schema introspection and unit tests only
   (`agent-tooling-2ul`).
-- The ghw Verbs and `triage-*` run the first `python3` on PATH rather than
-  the system interpreter the other Wrappers pin
-  (`agent-tooling-1790288520721-1-86415521`).
+- The six `triage-*` reference scripts run the first `python3` on PATH
+  rather than the system interpreter the Wrappers pin (`agent-tooling-15u`).

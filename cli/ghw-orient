@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/python3
 """ghw-orient <repo> -- one read-only JSON orientation blob for a GitHub repo.
 
 Replaces the multi-call Step-1 dance of the use-github skill: repo identity,

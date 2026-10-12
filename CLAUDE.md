@@ -23,8 +23,7 @@ The `use-git`, `use-github`, and `use-forgejo` skills are the operating manuals.
 
 ## Tests
 
-Run from `cli/` with the system interpreter that some shebangs pin (others
-use `/usr/bin/env python3`):
+Run from `cli/` with the system interpreter that every shebang pins:
 
 ```sh
 cd cli && /usr/bin/python3 -m unittest discover -s . -p '*_test.py'

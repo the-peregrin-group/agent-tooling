@@ -84,7 +84,10 @@ resolution) before the write itself.
 - Verbs are invoked by bare name, never by path or through `python3`. The
   permission matcher is a literal prefix match, so exactly one invocation form
   can match the rules that grant it.
-- Python 3 stdlib only, shebang `#!/usr/bin/env python3`. There is no venv or
+- Python 3 stdlib only, shebang `#!/usr/bin/python3`, the
+  same pin as the gitw, fjw, and bdw wrappers (the system interpreter is the
+  one macOS grants privacy permissions to; no PATH lookup can land elsewhere).
+  There is no venv or
   lockfile a bare command name could express, so any third-party dependency
   would be an unmanaged machine-local install; stdlib-only removes
   supply-chain risk and cross-machine skew at no cost, since `gh` does the API
