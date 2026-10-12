@@ -1313,6 +1313,32 @@ class SupersedeTest(TwoSourceFixture):
         self.assertEqual(report["conflicting"], ["alpha"])
         self.assertEqual(report["status"], "drift")
 
+    def test_diff_lists_foreign_files_lost_with_a_retiring_unit(self):
+        """A foreign claim inside a unit this source used to ship is at risk.
+
+        Hand-written receipt: `adopt` makes the other record give up adopted
+        content, so this state only arises from a legacy or edited receipt.
+        `apply` would retire `gamma` whole, deleting `widget-kit`'s file too.
+        """
+        self.install()
+        skills = target_for("skills", self.home)
+        write(skills / "gamma" / "mine.md", "mine\n")
+        write(skills / "gamma" / "theirs.md", "theirs\n")
+        receipt_path = skills / RECEIPT_NAME
+        receipt = json.loads(receipt_path.read_text())
+        receipt["sources"]["gadget-kit"] = {
+            "kind": "skills",
+            "files": {"gamma/mine.md": "sha256:0"},
+            "units": ["gamma"],
+        }
+        receipt["sources"]["widget-kit"]["files"]["gamma/theirs.md"] = "sha256:0"
+        receipt_path.write_text(json.dumps(receipt))
+
+        report = self.inspect()["cohorts"]["skills"]
+        self.assertEqual(report["foreign_replaced"], ["gamma/theirs.md"])
+        self.assertNotIn("gamma/theirs.md", report["foreign_files"])
+        self.assertEqual(report["status"], "drift")
+
     def test_adopt_destroys_exactly_what_diff_named(self):
         self.install()
         (self.other / "kits" / "alpha" / "notes.md").unlink()
