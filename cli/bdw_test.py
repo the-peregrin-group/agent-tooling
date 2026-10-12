@@ -10,8 +10,12 @@ fake bd's pins /bin/sh, both by absolute path, so PATH needs nothing else.
 The fake bd answers bdw's two probes (`where --json` from FAKE_BEADS_DIR,
 `version --json` from FAKE_BD_VERSION), logs every invocation to
 FAKE_BD_LOG, and otherwise prints BD_ACTOR, BEADS_ACTOR, and
-CLAUDE_SESSION_ID, then its arguments one per line, writes FAKE_BD_STDERR
-to stderr, and exits FAKE_BD_EXIT.
+CLAUDE_SESSION_ID, then its arguments one per line, then its stdin when
+FAKE_BD_ECHO_STDIN is set, writes FAKE_BD_STDERR to stderr, and exits
+FAKE_BD_EXIT, or kills itself with signal FAKE_BD_SELF_SIGNAL.
+
+The tests of live relaying and signal forwarding use a second fake,
+_SLOW_BD, which reports on stderr that it is running and then waits.
 
 Run from the cli/ directory:
     python3 -m unittest discover -s . -p '*_test.py'
@@ -21,6 +25,7 @@ from __future__ import annotations
 
 import os
 import shutil
+import signal
 import stat
 import subprocess
 import tempfile
@@ -52,10 +57,37 @@ printf '%s\\n' "CLAUDE_SESSION_ID=${CLAUDE_SESSION_ID-<unset>}"
 for argument in "$@"; do
     printf '%s\\n' "$argument"
 done
+if [ -n "${FAKE_BD_ECHO_STDIN-}" ]; then
+    /bin/cat
+fi
 if [ -n "${FAKE_BD_STDERR-}" ]; then
     printf '%s\\n' "$FAKE_BD_STDERR" >&2
 fi
+if [ -n "${FAKE_BD_SELF_SIGNAL-}" ]; then
+    kill -"$FAKE_BD_SELF_SIGNAL" $$
+fi
 exit "${FAKE_BD_EXIT:-0}"
+"""
+
+# Answers the probes, then: writes `running` on stderr, records SIGTERM in
+# FAKE_BD_TRAP and exits 143 on it, and otherwise exits 0 once
+# FAKE_BD_RELEASE exists.
+_SLOW_BD = """#!/bin/sh
+if [ "$1" = where ]; then
+    printf '{"path": "%s"}\\n' "$FAKE_BEADS_DIR"
+    exit 0
+fi
+if [ "$1" = version ]; then
+    printf '%s\\n' '{"version": "1.3.0"}'
+    exit 0
+fi
+trap 'echo trapped > "$FAKE_BD_TRAP"; exit 143' TERM
+echo running >&2
+while [ ! -e "$FAKE_BD_RELEASE" ]; do
+    /bin/sleep 0.05
+done
+echo released >&2
+exit 0
 """
 
 _HEADER_LINES = 3
@@ -74,12 +106,12 @@ class BdwTest(unittest.TestCase):
         (self.beads / "metadata.json").write_text("{}\n")
         self.log = root / "bd.log"
 
-    def install_fake_bd(self) -> None:
+    def install_fake_bd(self, script: str = _FAKE_BD) -> None:
         fake = self.bin / "bd"
-        fake.write_text(_FAKE_BD)
+        fake.write_text(script)
         fake.chmod(fake.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
 
-    def run_bdw(self, *arguments: str, **environment: str) -> subprocess.CompletedProcess:
+    def bdw_environment(self, **environment: str) -> dict:
         env = {
             "PATH": str(self.bin),
             "FAKE_BEADS_DIR": str(self.beads),
@@ -87,15 +119,44 @@ class BdwTest(unittest.TestCase):
             "FAKE_BD_LOG": str(self.log),
             **environment,
         }
-        env = {name: value for name, value in env.items() if value is not None}
+        return {name: value for name, value in env.items() if value is not None}
+
+    def run_bdw(self, *arguments: str, stdin_text: str | None = None,
+                **environment: str) -> subprocess.CompletedProcess:
         return subprocess.run(
             [str(_SCRIPT), *arguments],
-            env=env,
-            stdin=subprocess.DEVNULL,
+            env=self.bdw_environment(**environment),
+            input=stdin_text,
+            stdin=subprocess.DEVNULL if stdin_text is None else None,
             capture_output=True,
             text=True,
             timeout=30,
         )
+
+    def start_slow_bdw(self, *arguments: str) -> tuple:
+        """Start bdw over _SLOW_BD and wait until bd reports it is
+        running; return the bdw process, the trap file, and the release
+        file."""
+        self.install_fake_bd(_SLOW_BD)
+        trap = self.bin.parent / "trap"
+        release = self.bin.parent / "release"
+        process = subprocess.Popen(
+            [str(_SCRIPT), *arguments],
+            env=self.bdw_environment(USER="dan", FAKE_BD_TRAP=str(trap),
+                                     FAKE_BD_RELEASE=str(release)),
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        self.addCleanup(process.kill)
+        self.addCleanup(process.stderr.close)
+        self.addCleanup(release.touch)
+        # readline blocks until bd's first stderr line has been relayed;
+        # the subprocess timeout above does not apply here, so a hang
+        # shows up as the suite's own timeout.
+        self.assertEqual(process.stderr.readline(), "running\n")
+        return process, trap, release
 
     def bd_calls(self) -> list:
         if not self.log.exists():
@@ -187,6 +248,36 @@ class BdwTest(unittest.TestCase):
         self.assertEqual(result.stderr, "Issue x-1 not found\n")
         self.assertEqual(result.stdout.splitlines()[_HEADER_LINES:],
                          ["show", "x-1"])
+
+    def test_a_signal_exit_maps_to_128_plus_the_signal(self):
+        self.install_fake_bd()
+        result = self.run_bdw("show", "x-1", USER="dan",
+                              FAKE_BD_SELF_SIGNAL="KILL")
+        self.assertEqual(result.returncode, 137, result.stderr)
+
+    def test_stdin_reaches_bd(self):
+        self.install_fake_bd()
+        result = self.run_bdw("create", "x", USER="dan",
+                              FAKE_BD_ECHO_STDIN="1",
+                              stdin_text="line one\nline two\n")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.splitlines()[_HEADER_LINES + 2:],
+                         ["line one", "line two"])
+
+    def test_stderr_is_relayed_while_bd_runs(self):
+        process, _trap, release = self.start_slow_bdw("list")
+        # bd is still waiting for the release file, so `running` reached
+        # us before bd exited.
+        self.assertIsNone(process.poll())
+        release.touch()
+        self.assertEqual(process.stderr.read(), "released\n")
+        self.assertEqual(process.wait(timeout=30), 0)
+
+    def test_sigterm_to_bdw_is_forwarded_to_bd(self):
+        process, trap, _release = self.start_slow_bdw("list")
+        process.send_signal(signal.SIGTERM)
+        self.assertEqual(process.wait(timeout=30), 143)
+        self.assertEqual(trap.read_text(), "trapped\n")
 
     def test_bdw_returns_after_bd_and_probes_run_first(self):
         self.install_fake_bd()
@@ -377,6 +468,42 @@ class BdwTest(unittest.TestCase):
                 )
                 self.assertEqual(result.stdout.splitlines()[_HEADER_LINES:],
                                  list(arguments))
+
+    def test_read_and_write_classification_on_an_unverified_version(self):
+        self.install_fake_bd()
+        reads = (
+            ("blocked",), ("children", "x-1"), ("list", "--all"),
+            ("list", "--desc-contains=words", "--all"),
+            ("list", "--desc-contains", "words", "--limit", "5"),
+            ("prime",), ("ready",), ("ready", "--json"), ("search", "words"),
+            ("show", "x-1", "--children"), ("types",), ("where",),
+            ("config", "get", "k"), ("config", "list"), ("dep", "tree", "x"),
+            ("epic", "status", "--eligible-only"), ("gate", "list"),
+            ("gate", "show", "g"), ("human", "list"), ("label", "list", "x"),
+            ("label", "list-all"),
+        )
+        writes = (
+            ("ready", "--claim"), ("ready", "--claim=true"),
+            ("ready", "--json", "--claim=x"), ("list", "--fix"),
+            ("lint", "--fix"), ("find-duplicates", "--merge"),
+            ("show", "x-1", "-q"), ("list", "--", "--claim"),
+            ("config", "set", "k", "v"), ("config",),
+            ("label", "add", "x", "l"), ("gate", "resolve", "g"),
+            ("gate", "create"), ("epic", "close-eligible"), ("dep", "add"),
+            ("human", "respond", "x"), ("close", "x-1"), ("update", "x-1"),
+            ("note", "x-1"), ("unknown-verb",),
+        )
+        for arguments in reads:
+            with self.subTest(read=arguments):
+                result = self.run_bdw(*arguments, USER="dan",
+                                      FAKE_BD_VERSION="1.4.0")
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertIn("reading anyway", result.stderr)
+        for arguments in writes:
+            with self.subTest(write=arguments):
+                result = self.run_bdw(*arguments, USER="dan",
+                                      FAKE_BD_VERSION="1.4.0")
+                self.assert_refused(result, "refusing a write")
 
     def test_unreadable_version_counts_as_unverified(self):
         self.install_fake_bd()

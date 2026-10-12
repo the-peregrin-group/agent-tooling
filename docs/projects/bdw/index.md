@@ -47,18 +47,23 @@ What one call does:
    - `bd where --json` must name a Beads directory holding
      `metadata.json`; otherwise exit 4. bd 1.3.0 falls back silently to an
      empty database when that file is missing, so this refusal keeps
-     writes from going to the wrong database. bd's own discovery (its
-     `BEADS_DIR`, worktrees, redirects) decides which directory counts.
+     writes from going to the wrong database. bd's own discovery
+     (worktrees, redirects, and a caller-set `BEADS_DIR`) decides which
+     directory counts; see Known gaps.
    - `bd version --json` must name a version in `VERIFIED_BD_VERSIONS`
      (`1.3.0` today). On any other version, or one it cannot read, a
      write exits 4 and a read runs after a warning on stderr. A read is
      one of the verbs `blocked`, `children`, `context`, `count`, `diff`,
      `find-duplicates`, `graph`, `history`, `info`, `lint`, `list`,
-     `prime`, `query`, `ready` (without `--claim`), `schema`, `search`,
-     `show`, `stale`, `status`, `statuses`, `types`, `where`, or one of the
-     subcommands `config get|list|show`, `dep list|tree`, `epic status`,
-     `gate list|show`, `human list`, `label list|list-all`. Everything
-     else counts as a write.
+     `prime`, `query`, `ready`, `schema`, `search`, `show`, `stale`,
+     `status`, `statuses`, `types`, `where`, or one of the subcommands
+     `config get|list|show`, `dep list|tree`, `epic status`,
+     `gate list|show`, `human list`, `label list|list-all`, whose every
+     argument starting with `-` is one of the flags the use-bd Skill
+     teaches for reads: `--all`, `--children`, `--desc-contains`,
+     `--eligible-only`, `--json`, `--limit` (bare or with `=`). Everything
+     else counts as a write, `ready --claim` included, so a flag a newer
+     bd adds to a read verb cannot write unchecked.
 4. Derive the Actor (`cli/lib/actor.py`), taking the first shape that
    applies: `claude-job-<session-id>` in a background job and
    `claude-session-<session-id>` in an attended session, from the
@@ -75,14 +80,17 @@ What one call does:
    set to the session ID, or removed when there is none. All three
    override whatever the caller supplied. Arguments pass unchanged; stdin
    and stdout are bd's own, and bd's stderr is relayed line by line as it
-   arrives, so `bdw` can read it. If bd cannot be started, exit 1;
-   otherwise the exit code is bd's own (128 + N when signal N ends it).
+   arrives, so `bdw` can read it. `SIGTERM`, `SIGHUP`, and `SIGQUIT`
+   sent to `bdw` are forwarded to bd, and `bdw` keeps waiting for bd to
+   exit; `SIGINT` is not forwarded, since a terminal delivers it to bd as
+   well. If bd cannot be started, exit 1; otherwise the exit code is bd's
+   own (128 + N when signal N ends it).
 6. Print `Agents, load /use-bd immediately.` on stderr after a help call,
    after any call whose arguments before a `--` include `--help` or `-h`,
    after bd reports a usage error (a stderr line starting with cobra's
    usage-error messages, such as `Error: unknown command`,
    `Error: unknown flag:`, or `Run 'bd --help' for usage.`), and after
-   every refusal of its own (exits 3 and 4).
+   every failure of its own (exits 1, 3, and 4).
 
 These are bdw's codes under the
 [Exit-code contract](../../index.md#exit-code-contract): its own codes
@@ -101,11 +109,14 @@ its commits carry one identity.
 | Refusal of the database-switching flags in any position, and of a flag before the verb | shipped | `bdw` |
 | Refusal to run without the workspace's Beads config | shipped | `bdw` |
 | Verified bd versions: writes refused and reads warned on any other version | shipped | `bdw` |
-| `bd` run as a child process, arguments unchanged, output and exit status relayed | shipped | `bdw` |
+| `bd` run as a child process, arguments unchanged, output, exit status, and termination signals relayed | shipped | `bdw` |
 | The use-bd help line on every help output, usage error, and refusal | shipped | `bdw` |
 | Exit codes per the [Exit-code contract](../../index.md#exit-code-contract) | shipped | `bdw` |
 
 ### Known gaps
+
+- A caller-set `BEADS_DIR` still moves bd to another database, which the
+  refused database-switching flags cannot (`agent-tooling-24u`).
 
 - Sub-agents share their session's environment, session ID included, so
   they record one Actor and the trail cannot tell an orchestrator from its

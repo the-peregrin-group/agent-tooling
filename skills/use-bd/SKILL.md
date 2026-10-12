@@ -43,7 +43,8 @@ database (`-C`, `--directory`, `--db`, `--database`, `--global`) anywhere;
 any call when the workspace's `.beads/metadata.json` cannot be found,
 since bd would otherwise fall back to an empty database; and, on a bd
 version it has not been verified against, any call that is not a plain
-read (reads run with a warning). A refusal is not something to rephrase
+read: a read verb with no flags beyond the ones this skill uses for
+reads (reads run with a warning). A refusal is not something to rephrase
 around: fix the call, or report the gap.
 
 The repo's own conventions are in `.beads/PRIME.md`, which `bdw prime`

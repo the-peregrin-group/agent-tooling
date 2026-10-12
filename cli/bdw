@@ -24,12 +24,14 @@ One call, in order:
      `metadata.json`; otherwise refuse (exit 4). bd 1.3.0 falls back
      silently to an empty database when that file is missing, so the
      refusal is what stops a write going to the wrong database. bd's own
-     discovery (BEADS_DIR, worktrees, redirects) decides the directory.
+     discovery decides the directory, so a caller-set BEADS_DIR still
+     moves it (a known gap: see docs/projects/bdw/index.md).
    - `bd version --json` names the bd version. On a version outside
      VERIFIED_BD_VERSIONS, a write is refused (exit 4) and a read runs with
      a warning on stderr. A read is a verb in READ_VERBS or a verb and
-     subcommand pair in READ_SUBCOMMANDS, without any flag listed for it
-     in WRITE_FLAGS; anything else counts as a write (fail closed).
+     subcommand pair in READ_SUBCOMMANDS whose every flag-like argument
+     (one starting with `-`) is in READ_FLAGS; anything else counts as a
+     write (fail closed).
 4. Run `bd` as a child process with the session actor
    (lib.actor.derive_actor) in both BD_ACTOR and BEADS_ACTOR, and the
    session ID (lib.actor.session_id) in CLAUDE_SESSION_ID, the variable bd
@@ -37,11 +39,15 @@ One call, in order:
    whatever the caller supplied; with no usable session ID,
    CLAUDE_SESSION_ID is removed rather than left to the caller. Arguments
    pass unchanged; stdin and stdout are bd's own, and bd's stderr is
-   relayed line by line as it arrives, so bdw can read it.
+   relayed line by line as it arrives, so bdw can read it. SIGTERM,
+   SIGHUP, and SIGQUIT sent to bdw are forwarded to bd, and bdw goes on
+   waiting for bd's own exit; SIGINT is left to the terminal, which
+   delivers it to bd as well.
 5. Print HELP_LINE on stderr after a help call, after any call whose
    arguments (before a `--`) include `--help` or `-h`, after bd's output
    when bd reports a usage error (a stderr line starting with one of
-   USAGE_ERROR_MARKERS), and after every refusal of bdw's own.
+   USAGE_ERROR_MARKERS), and after every failure of bdw's own (exits 1,
+   3, and 4).
 
 Beads records who acted from an environment variable, and every harness
 Bash call is a fresh shell, so nothing exported once survives to the next
@@ -64,6 +70,7 @@ from __future__ import annotations
 import json
 import os
 import shutil
+import signal
 import subprocess
 import sys
 from pathlib import Path
@@ -86,7 +93,8 @@ HELP_ANYWHERE = ("--help", "-h")
 
 DATABASE_FLAGS = ("--directory", "--db", "--database", "--global")
 
-# Verbs whose every form only reads (bd 1.3.0).
+# Verbs that read when given only READ_FLAGS (bd 1.3.0). The table is
+# consulted only on an unverified bd version.
 READ_VERBS = frozenset({
     "blocked", "children", "context", "count", "diff", "find-duplicates",
     "graph", "history", "info", "lint", "list", "prime", "query", "ready",
@@ -104,10 +112,20 @@ READ_SUBCOMMANDS = frozenset({
     ("label", "list"), ("label", "list-all"),
 })
 
-# Flags that turn a read verb into a write.
-WRITE_FLAGS = {
-    "ready": ("--claim",),
-}
+# The only flags a read may carry on an unverified bd version: the ones
+# the use-bd Skill teaches for its reads. Any other flag-like argument,
+# such as `ready --claim` or a flag a newer bd adds, makes the call count
+# as a write, since no one has checked what it does on that version.
+READ_FLAGS = (
+    "--all", "--children", "--desc-contains", "--eligible-only", "--json",
+    "--limit",
+)
+
+# Signals bdw forwards to bd while it runs.
+FORWARDED_SIGNALS = tuple(
+    getattr(signal, name) for name in ("SIGTERM", "SIGHUP", "SIGQUIT")
+    if hasattr(signal, name)
+)
 
 # cobra's and pflag's usage-error messages, as bd 1.3.0 prints them.
 USAGE_ERROR_MARKERS = (
@@ -198,14 +216,12 @@ def is_read(argv: Sequence[str]) -> bool:
     if not argv:
         return False
     verb = argv[0]
-    if verb in READ_VERBS:
-        pass
-    elif len(argv) >= 2 and (verb, argv[1]) in READ_SUBCOMMANDS:
-        pass
-    else:
+    if verb not in READ_VERBS and not (
+            len(argv) >= 2 and (verb, argv[1]) in READ_SUBCOMMANDS):
         return False
-    for flag in WRITE_FLAGS.get(verb, ()):
-        if any(_names_flag(argument, flag) for argument in argv):
+    for argument in argv[1:]:
+        if argument.startswith("-") and argument.split("=", 1)[0] not in (
+                READ_FLAGS):
             return False
     return True
 
@@ -266,18 +282,13 @@ def _child_environment(environ: Mapping[str, str]) -> dict:
     return environment
 
 
-def _run_bd(bd: str, argv: Sequence[str],
-            environment: Mapping[str, str]) -> tuple[int, bool]:
-    """Run bd, relaying its stderr line by line; return its exit code and
-    whether it reported a usage error."""
-    child = subprocess.Popen(
-        ["bd", *argv],
-        executable=bd,
-        env=dict(environment),
-        stderr=subprocess.PIPE,
-    )
+def _relay(child: subprocess.Popen) -> bool:
+    """Relay bd's stderr line by line until it closes; return whether it
+    reported a usage error. If bdw's own stderr goes away, keep draining
+    bd's so bd never blocks or dies on a full or broken pipe."""
     usage_error = False
     sink = sys.stderr.buffer
+    sink_open = True
     assert child.stderr is not None
     while True:
         try:
@@ -285,18 +296,50 @@ def _run_bd(bd: str, argv: Sequence[str],
         except KeyboardInterrupt:
             continue  # bd got the same interrupt; let it decide
         if not line:
-            break
-        sink.write(line)
-        sink.flush()
-        text = line.decode("utf-8", "replace")
-        if text.startswith(USAGE_ERROR_MARKERS):
+            return usage_error
+        if sink_open:
+            try:
+                sink.write(line)
+                sink.flush()
+            except OSError:
+                sink_open = False
+        if line.decode("utf-8", "replace").startswith(USAGE_ERROR_MARKERS):
             usage_error = True
-    while True:
+
+
+def _run_bd(bd: str, argv: Sequence[str],
+            environment: Mapping[str, str]) -> tuple[int, bool]:
+    """Run bd, relaying its stderr line by line and forwarding
+    FORWARDED_SIGNALS to it; return its exit code and whether it reported
+    a usage error. Only starting bd can raise OSError: once bd runs, its
+    own exit code is the answer."""
+    child = subprocess.Popen(
+        ["bd", *argv],
+        executable=bd,
+        env=dict(environment),
+        stderr=subprocess.PIPE,
+    )
+
+    def forward(signum, _frame):
         try:
-            code = child.wait()
-            break
-        except KeyboardInterrupt:
-            continue
+            child.send_signal(signum)
+        except OSError:
+            pass  # bd has already gone
+
+    previous = {}
+    try:
+        for signum in FORWARDED_SIGNALS:
+            previous[signum] = signal.signal(signum, forward)
+        usage_error = _relay(child)
+        while True:
+            try:
+                code = child.wait()
+                break
+            except KeyboardInterrupt:
+                continue
+    finally:
+        for signum, handler in previous.items():
+            signal.signal(signum, handler)
     if code < 0:
         code = 128 - code
     return code, usage_error
