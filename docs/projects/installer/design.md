@@ -85,18 +85,22 @@ tooling-install adopt <source-checkout> <superseded-source-repo> [--cohort <name
 - **`diff`** is read-only. It reports drift per Cohort, classifies
   collisions as `adoptable` or `conflicting`, and lists what an install
   would destroy: `unowned_replaced` (unclaimed files inside a unit being
-  swapped) and `foreign_replaced` (files another record claims that the
-  incoming unit does not ship). It also checks the Receipt's own per-file
-  hashes against disk and lists disagreements, including recorded files
-  missing from disk, as `receipt_mismatch`, distinct from `changed` (source
-  versus disk); `apply` overwrites and restamps them. All of these count as
-  drift. It reports an
-  interrupted swap but never repairs one, so it stays safe to grant.
+  swapped or retired) and `foreign_replaced` (files another record claims
+  that the incoming unit does not ship, or that sit in a retiring unit).
+  Noise-excluded files (bytecode caches) are deliberately not preserved or
+  reported when a unit is swapped or retired. It also checks the Receipt's
+  own per-file hashes against disk and lists disagreements, including
+  recorded files missing from disk, as `receipt_mismatch`, distinct from
+  `changed` (source versus disk); `apply` overwrites and restamps them. All
+  of these count as drift. It reports an interrupted swap but never repairs
+  one, so it stays safe to grant.
   `--force` is illegal with `diff`.
 - **`apply`** installs. It refuses a dirty source unless `--force`, judging
   dirtiness only over the selected Cohorts' source directories. It never
   overwrites another Source repo's content, except by byte-identical
-  Adoption, and reports adopted names.
+  Adoption, and reports adopted names. Its report lists the unclaimed
+  files lost with swapped or retired units under `unowned_replaced`, the
+  same key `diff` previews them under.
 - **`adopt`** installs exactly as `apply` does, except that a collision
   with the *named* superseded record transfers whatever the content: the
   incoming copy wins, and the superseded checkout still holds what it gave

@@ -370,6 +370,25 @@ class DiffTest(InstallTestCase):
         self.assertEqual(report["unowned_replaced"], ["beta/drop.md"])
         self.assertEqual(report["status"], "drift")
 
+    def test_unowned_file_in_a_retiring_unit_is_reported_as_replaced(self):
+        self.install()
+        write(target_for("skills", self.home) / "beta" / "notes.txt", "mine\n")
+        shutil.rmtree(self.source / "kits" / "beta")
+        self.commit_all()
+        report = self.report()["cohorts"]["skills"]
+        self.assertEqual(report["unowned_replaced"], ["beta/notes.txt"])
+        self.assertNotIn("beta/notes.txt", report["unowned_preserved"])
+        self.assertEqual(report["status"], "drift")
+        self.assertEqual(self.report()["status"], "drift")
+
+    def test_retiring_a_unit_with_only_owned_files_has_no_unowned_replaced(self):
+        self.install()
+        shutil.rmtree(self.source / "kits" / "beta")
+        self.commit_all()
+        report = self.report()["cohorts"]["skills"]
+        self.assertEqual(report["unowned_replaced"], [])
+        self.assertEqual(report["unowned_preserved"], [])
+
     def test_unowned_file_in_a_merge_target_is_reported_as_preserved(self):
         self.install()
         write(target_for("bin", self.home) / "hand-drop", "local\n")
@@ -455,6 +474,25 @@ class ApplyTest(InstallTestCase):
         self.assertEqual(result["cohorts"]["skills"]["retired"], ["beta"])
         self.assertFalse((target_for("skills", self.home) / "beta").exists())
         self.assertTrue((target_for("skills", self.home) / "alpha").exists())
+
+    def test_apply_reports_unowned_files_lost_with_a_retired_unit(self):
+        self.install()
+        notes = target_for("skills", self.home) / "beta" / "notes.txt"
+        write(notes, "mine\n")
+        shutil.rmtree(self.source / "kits" / "beta")
+        self.commit_all()
+        preview = self.report()["cohorts"]["skills"]["unowned_replaced"]
+        result = self.install()
+        self.assertEqual(result["cohorts"]["skills"]["unowned_replaced"], preview)
+        self.assertEqual(preview, ["beta/notes.txt"])
+        self.assertFalse(notes.exists())
+
+    def test_apply_reports_no_unowned_replaced_for_a_clean_retirement(self):
+        self.install()
+        shutil.rmtree(self.source / "kits" / "beta")
+        self.commit_all()
+        result = self.install()
+        self.assertEqual(result["cohorts"]["skills"]["unowned_replaced"], [])
 
     def test_unowned_file_in_a_merge_target_survives_the_swap(self):
         self.install()
@@ -1273,6 +1311,32 @@ class SupersedeTest(TwoSourceFixture):
         self.assertEqual(report["unowned_replaced"], ["alpha/scratch.md"])
         self.assertEqual(report["foreign_files"], ["beta/SKILL.md"])
         self.assertEqual(report["conflicting"], ["alpha"])
+        self.assertEqual(report["status"], "drift")
+
+    def test_diff_lists_foreign_files_lost_with_a_retiring_unit(self):
+        """A foreign claim inside a unit this source used to ship is at risk.
+
+        Hand-written receipt: `adopt` makes the other record give up adopted
+        content, so this state only arises from a legacy or edited receipt.
+        `apply` would retire `gamma` whole, deleting `widget-kit`'s file too.
+        """
+        self.install()
+        skills = target_for("skills", self.home)
+        write(skills / "gamma" / "mine.md", "mine\n")
+        write(skills / "gamma" / "theirs.md", "theirs\n")
+        receipt_path = skills / RECEIPT_NAME
+        receipt = json.loads(receipt_path.read_text())
+        receipt["sources"]["gadget-kit"] = {
+            "kind": "skills",
+            "files": {"gamma/mine.md": "sha256:0"},
+            "units": ["gamma"],
+        }
+        receipt["sources"]["widget-kit"]["files"]["gamma/theirs.md"] = "sha256:0"
+        receipt_path.write_text(json.dumps(receipt))
+
+        report = self.inspect()["cohorts"]["skills"]
+        self.assertEqual(report["foreign_replaced"], ["gamma/theirs.md"])
+        self.assertNotIn("gamma/theirs.md", report["foreign_files"])
         self.assertEqual(report["status"], "drift")
 
     def test_adopt_destroys_exactly_what_diff_named(self):

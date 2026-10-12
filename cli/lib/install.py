@@ -67,9 +67,12 @@ same target-relative path are refused, never silently shadowed.
 source directory is one skill, installed and swapped independently, so
 installing this repo's skills never disturbs another repo's. A unit is owned
 wholesale: the swap replaces the whole directory, so anything inside an
-installed skill that the incoming unit does not ship is gone after an install.
-`diff` reports that loss in two buckets, by who claimed what was lost:
-`unowned_replaced` for what no record claims (bytecode caches, hand-drops) and
+installed skill that the incoming unit does not ship is gone after an install,
+and a unit the source used to ship and no longer does is removed whole.
+Noise-excluded files (bytecode caches and the like) inside such a unit go with
+it and are deliberately neither preserved nor reported. `diff` reports the
+rest of that loss in two buckets, by who claimed what was lost:
+`unowned_replaced` for what no record claims (hand-drops, stray notes) and
 `foreign_replaced` for what another source's record claims.
 
 Ownership and the receipt
@@ -739,9 +742,11 @@ def diff(source: Path, home=None, cohorts=None) -> dict:
     the cohort drift; `apply` overwrites and restamps, refusing nothing new.
 
     Unit cohorts also report `foreign_replaced`: files another record claims
-    that sit inside a unit this source ships *without* them, so the wholesale
-    unit swap would delete them. `unowned_replaced` is the same statement for
-    files no record claims. The four foreign categories partition -- a foreign
+    that sit inside a unit this source ships *without* them, or inside a unit
+    it used to ship and is now retiring, so the wholesale unit swap or removal
+    would delete them. `unowned_replaced` is the same statement for files no
+    record claims. Noise-excluded files are neither preserved nor reported.
+    The four foreign categories partition -- a foreign
     name appears in exactly one of `adoptable`, `conflicting`,
     `foreign_replaced`, or `foreign_files` -- so `foreign_files` means foreign
     and untouched by this run.
@@ -811,14 +816,19 @@ def diff(source: Path, home=None, cohorts=None) -> dict:
             # it; content elsewhere in the target is never touched. Which
             # bucket a casualty lands in is a question of who claimed it.
             incoming_units = {unit_of(name) for name in sources}
-            replaced = [name for name in unowned if unit_of(name) in incoming_units]
-            unowned = [name for name in unowned if unit_of(name) not in incoming_units]
+            # A unit this source shipped before and no longer ships is retired
+            # by apply through the same wholesale removal, so what sits
+            # unclaimed inside it is lost exactly as inside a swapped unit.
+            retiring_units = {unit_of(name) for name in owned} - incoming_units
+            doomed = incoming_units | retiring_units
+            replaced = [name for name in unowned if unit_of(name) in doomed]
+            unowned = [name for name in unowned if unit_of(name) not in doomed]
             foreign_replaced = sorted(
                 name
                 for name in installed
                 if name not in sources
                 and name in foreign
-                and unit_of(name) in incoming_units
+                and unit_of(name) in doomed
             )
             names = sorted(incoming_units | {unit_of(name) for name in owned})
             restorable, orphaned = pending_recoveries(target, names)
@@ -902,6 +912,10 @@ def apply(
     regardless of content, while collisions with any other record refuse as
     usual. It must name a record in a selected target's receipt. None is a
     plain `apply`, which adopts only byte-identical collisions.
+
+    Unit cohorts also report `unowned_replaced`, the key `diff` uses: files no
+    record claims inside any unit this run swaps or retires, which the
+    wholesale replacement deletes. Merge cohorts have no such key.
     """
     source = source.resolve()
     config = load_config(source)
@@ -1081,6 +1095,19 @@ def _apply_units(
         _two_rename_swap(target / unit, staging)
 
     retired = [unit for unit in previous if unit not in incoming]
+    # Computed from the `installed` snapshot taken before any swap, under the
+    # key `diff` uses: files no record claims inside any unit this run swaps
+    # or retires.
+    foreign = owned_by_others(receipt, config.source_repo)
+    swapped = set(incoming) | set(retired)
+    unowned_replaced = sorted(
+        name
+        for name in installed
+        if name not in sources
+        and name not in owned
+        and name not in foreign
+        and unit_of(name) in swapped
+    )
     for unit in retired:
         _retire(target / unit)
 
@@ -1100,6 +1127,7 @@ def _apply_units(
         "units": incoming,
         "adopted": adopted,
         "retired": retired,
+        "unowned_replaced": unowned_replaced,
         "foreign_units": sorted(
             unit for unit in foreign_units if unit not in adopted
         ),

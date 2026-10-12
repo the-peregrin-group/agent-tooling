@@ -54,8 +54,8 @@ of its per-cohort lists are what to read before approving one:
     conflicting        what `adopt` takes over -- minus any entry owned by a
                        repo other than the one it names, which it refuses
                        over instead
-    unowned_replaced   files no record claims, inside a unit being swapped,
-                       that the transfer destroys
+    unowned_replaced   files no record claims, inside a unit being swapped
+                       or retired, that the transfer destroys
     foreign_replaced   the same for files another record claims: the outgoing
                        owner shipped them inside the unit and the incoming
                        owner does not
