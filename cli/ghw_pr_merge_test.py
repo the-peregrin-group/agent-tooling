@@ -118,7 +118,7 @@ class GhwPrMergeBehaviorTest(unittest.TestCase):
                 with mock.patch.object(_MODULE.gh, "pr_view", side_effect=error), \
                         contextlib.redirect_stderr(io.StringIO()):
                     with self.assertRaises(SystemExit) as caught:
-                        _MODULE.main(["o/r", "main", "squash", "5"])
+                        _MODULE.main(["o/r", "main", "merge", "5"])
                 self.assertEqual(caught.exception.code, code)
 
     def test_clean_merge_pins_the_verified_head_and_emits_applied(self):
