@@ -156,7 +156,7 @@ resolution) before the write itself.
   spelled `add-blocked-by Y X`; there are no blocking subverbs, so each
   relationship has one spelling. Issue numbers only. Self-links are refused,
   edges to other repos are ignored, and when the edge list comes back
-  truncated without the target in it, the Verb refuses (exit 1) rather than
+  truncated without the target in it, the Verb refuses (exit 4) rather than
   guess.
 - `ghw-board-set <repo> <field-name> <option-name> <issue#> [--project <n>]`:
   the field name at position 2 lets `ghw-board-set <repo> Priority *` grant
@@ -231,7 +231,7 @@ linked boards by these rules, which `ghw-orient` names in its output:
   board it names is linked (trust but verify: otherwise a session in an
   unrelated directory would apply another repo's profile);
 - `none-linked` and `ambiguous`: no canonical board; `ghw-orient` reports the
-  candidates and write Verbs refuse with exit 2.
+  candidates and write Verbs refuse with exit 4.
 
 `TRIAGE.md` discovery walks upward from the working directory and stops at
 the enclosing git work tree's root; outside a work tree there is no
@@ -253,13 +253,35 @@ writes to this repo, and the flag only narrows which board is touched.
 
 ## Shared conventions
 
-- **Exit codes, as implemented:** `0` success, including a converged no-op;
-  `2` a usage error or a policy refusal at parse time or after (label
-  contract, merge gates, an unlinked `--project`, a missing head or base
-  branch, `ghw-board-sync new` on an already-boarded repo); and, for `gh` or
-  API failures, the shared taxonomy's classes (see the
-  [Exit-code contract](../../index.md#exit-code-contract)): `3` not found, `5`
-  auth, `6` network, `1` anything unrecognized. `gh.GhError` carries the code
+- **Exit codes, as implemented:** the full
+  [Exit-code contract](../../index.md#exit-code-contract). `0` success,
+  including a converged no-op. `2` a usage error, which includes a refusal
+  made at argument-parse time, before any network call: argument shape, a
+  surplus positional or unknown flag, the `squash` ban, a type label outside
+  the canonical five, a self-link, a body or schema file outside the staging
+  directories or malformed, a blank closing comment. `4` a policy refusal
+  past parse time, once the Verb has read live state: the label attachment
+  contract (`ghw-issue-create`, `ghw-issue-edit add-label`), the merge gates
+  (`ghw-pr-merge`), an unlinked `--project`, an unresolvable canonical board
+  or an unknown field or option (`ghw-board-set`), a project number not
+  linked to the repo or `new` on an already-boarded repo (`ghw-board-sync`),
+  a head or base branch missing on the remote (`ghw-pr-create`), and an edge
+  list too long to verify (`ghw-issue-link`). A `4` is a caller bug: never
+  retry it unchanged, never work around it with raw `gh`.
+- **Why refusals past parse time are `4`, not `2`:** the maintainer ratified
+  the migration (`agent-tooling-bus`) because it complies with the Exit-code
+  contract, which reserves `2` for "fix the call" and `4` for "the call was
+  well formed and policy refused it"; gitw and fjw split them the same way.
+  Collapsing both into `2` would leave a caller unable to tell a typo from
+  a refusal. The split follows when the check runs, not what it checks: a
+  refusal made before any network call is `2`, one made after is `4`. So
+  `ghw-issue-create`, which checks its whole label set against the
+  attachment contract after fetching the registry, exits `4` for every
+  contract violation, the `area:` and second-type-label rules included,
+  while its parse-time check that the type label is one of the canonical
+  five stays `2`.
+- **`gh` and API failures** take the shared taxonomy's classes: `3` not
+  found, `5` auth, `6` network, `1` anything unrecognized. `gh.GhError` carries the code
   and every Verb exits with it; classification lives in one place,
   `gh.classify`, which matches `gh`'s stderr loosely and case-insensitively
   (its wording is not a stable interface). A 403 counts as auth only when
@@ -270,9 +292,7 @@ writes to this repo, and the flag only narrows which board is touched.
   a scope (`gh auth refresh`) is auth. A Verb's own not-found (a missing issue
   or board node) is `3`. `ghw-board-sync new` exits `1` once the project
   exists, whatever the underlying code, because `6` would invite a retry that
-  creates a second orphan project. Policy refusals, at parse time or
-  after, exit `2`; `4` is unused (the open question is tracked by
-  `agent-tooling-bus`). Bare `timeout` is not a network hint (a repository
+  creates a second orphan project. Bare `timeout` is not a network hint (a repository
   name can contain it), and a GraphQL error payload (including the stdout body of a
   nonzero `gh` exit) is never classified as network, since `gh` got a
   response. A timeout or reset may land after the

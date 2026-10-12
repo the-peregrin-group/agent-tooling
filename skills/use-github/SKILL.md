@@ -39,11 +39,16 @@ Shared conventions:
 - `<owner/repo>` is always an explicit argument. The cwd never decides where
   a write lands.
 - Exit codes: `0` success (including an already-converged no-op), `1` unclassified
-  gh/API failure, `2` usage error or policy refusal, `3` not found, `5` auth
-  failure (abort and flag it), `6` network failure (the one retryable class; on create and comment Verbs and `ghw-board-sync new` a timeout or reset exits `1`, since the write may have landed, and `ghw-issue-close` exits `1` on any network failure during the close, since the comment is posted first). Write wrappers print a JSON
+  gh/API failure, `2` usage error (including a refusal made from the
+  arguments alone, before any network call, such as `squash`), `3` not
+  found, `4` refused: the call was well formed but violated policy against
+  live state (the label contract, a merge gate, an unlinked board, a missing
+  branch), `5` auth failure (abort and flag it), `6` network failure (the one retryable class; on create and comment Verbs and `ghw-board-sync new` a timeout or reset exits `1`, since the write may have landed, and `ghw-issue-close` exits `1` on any network failure during the close, since the comment is posted first). Write wrappers print a JSON
   plan with `"action": "plan"` or `"applied"`.
-- **On exit 2, read the message and fix the call.** Never work around a
-  refusal by dropping to raw `gh` — the refusal is the contract doing its
+- **On exit 2, read the message and fix the call. On exit 4, never retry
+  unchanged:** read the message; fix the call or the state it names (push
+  the branch, add the `area:` label), or stop and report. Never work around
+  a refusal by dropping to raw `gh` — the refusal is the contract doing its
   job, not an obstacle.
 - **Load `use-privacy` first, if listed.** If a `use-privacy` skill is
   listed among your available skills, load it before composing any text
@@ -271,9 +276,9 @@ first (Steps 2–4) and use its number. When an issue closes, grep for
   The strategy slot accepts only `merge`; the Verb refuses `squash` with exit 2
   (squash is banned; see `use-git`). The
   wrapper verifies the PR's actual base matches `<base-branch>`, refuses
-  drafts, and refuses red or pending checks. There is no override: merging
-  over red checks is a human decision made with raw `gh` at a human-attended
-  prompt. The wrapper never deletes branches (worktree hazard).
+  drafts, and refuses red or pending checks, each with exit 4. There is no
+  override: merging over red checks is a human decision made with raw `gh`
+  at a human-attended prompt. The wrapper never deletes branches (worktree hazard).
 
 ## Boundary with `triage-issues`
 
