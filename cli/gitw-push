@@ -78,7 +78,9 @@ A decline by the remote's own pre-receive or update hook (a protected
 branch, for one) prints "! [remote rejected] <ref> (pre-receive hook
 declined)" with git exit 1. It is checked before the lease text, because
 the hook's own output may contain anything, and before the shared
-classification, which would read it as the retryable exit 6.
+classification, which would read it as the retryable exit 6. If the
+parenthesised reason names a lost ref-update race ("failed to update
+ref" and kin), the advice is the lease case instead: fetch and reconcile.
 
 Exit codes: 0 success, 1 unclassified git failure, 2 usage error, 3 not
 found (label not in the roster, or the remote repository has vanished),

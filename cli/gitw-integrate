@@ -75,7 +75,10 @@ moved base surfaces on the next attempt. With no trace2 events
 refusal reads as exit 6, and the error line says so. A rejection by
 the remote's own hooks (branch protection on the base, for one) prints
 a "[remote rejected]" status and is exit 4 as well: it is checked before
-the base-moved text, and the fix is on the branch, not a retry.
+the base-moved text, and the fix is on the branch, not a retry. The
+exception is a reason in parentheses naming a lost ref-update race
+("failed to update ref" and kin): that gets the base-moved advice,
+loop again from the rebase.
 
 Hung hook: a push that times out with a pre-push hook started and never
 exited (detected from the trace2 events) relays the partial output and

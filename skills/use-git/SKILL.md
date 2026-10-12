@@ -67,7 +67,8 @@ staged rename or deletion rides `gitw-commit`'s commit-all form.
   - `4` refused: the call violated wrapper-enforced policy (identity or
     prefix mismatch, dirty worktree, stale rebase, lease failure, sweep
     guard, local pre-push hook refusal, a decline by the remote's own
-    hook). A caller bug — **never retry
+    hook, except a lost ref-update race, which means fetch and reconcile).
+A caller bug — **never retry
     unchanged, never work around it with raw git.** The refusal is the
     contract doing its job.
   - `5` roster/auth/config (deployment): abort and flag the deployment. Never retry.
@@ -305,7 +306,10 @@ including whatever the local pre-push hook prints; a local hook that
 refuses the push is an exit-4 refusal too — fix what it reported, never
 retry unchanged. A rejection by the remote's own hooks (a
 `[remote rejected]` status, a protected branch for one) is an exit-4
-refusal too: fix what it reported, never retry unchanged.
+refusal too: fix what it reported, never retry unchanged. The exception
+is a reason in parentheses that names a lost ref-update race ("failed to
+update ref" and kin): that reads as the lease case, so fetch and
+reconcile.
 Pushing the trunk is structurally refused regardless of prefix; the push
 of your own branch is the boundary, and the forge skills own what happens
 next.
@@ -344,7 +348,10 @@ hook that refuses the push is an exit-4 refusal too, but it does not
 mean the base moved — fix what it reported on the branch, then loop
 again from the rebase; never retry unchanged. A rejection by the
 remote's own hooks (a `[remote rejected]` status) is an exit-4
-refusal as well; fix what it reported, never retry unchanged.
+refusal as well; fix what it reported, never retry unchanged. The
+exception is a reason in parentheses that names a lost ref-update race
+("failed to update ref" and kin): that is the base-moved case, so loop
+again from the rebase.
 Afterwards your worktree is still on the (now-integrated) feature
 branch; bringing local trunk current is
 `gitw-trunk-sync`'s job (next), and branch cleanup is left to the
