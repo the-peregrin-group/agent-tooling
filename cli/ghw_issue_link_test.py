@@ -150,7 +150,8 @@ class GhwIssueLinkBehaviorTest(unittest.TestCase):
                 contextlib.redirect_stderr(io.StringIO()) as stderr:
             with self.assertRaises(SystemExit) as caught:
                 _MODULE.main(["o/r", "add-sub", "7", "8"])
-        self.assertEqual(caught.exception.code, 1)
+        # A deployment fault (exit 5), like bdw's unverified bd version.
+        self.assertEqual(caught.exception.code, _MODULE.plan.EXIT_AUTH)
         self.assertIn("2.94.0", stderr.getvalue())
         self.assertIn("2.93.9", stderr.getvalue())
         edit.assert_not_called()

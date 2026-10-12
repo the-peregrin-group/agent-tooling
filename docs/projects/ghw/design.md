@@ -291,7 +291,9 @@ writes to this repo, and the flag only narrows which board is touched.
   `gh.classify`, which matches `gh`'s stderr loosely and case-insensitively
   (its wording is not a stable interface). A 403 counts as auth only when
   nothing points at rate limiting or SAML enforcement; a missing `gh` binary
-  stays `1`. A GraphQL `errors` payload is classified by its `type` first
+  stays `1`. A `gh` below `ghw-issue-link`'s version floor is `5`: a
+  deployment fault that re-running cannot fix, the same class `bdw` uses for
+  an unverified `bd` version. A GraphQL `errors` payload is classified by its `type` first
   (`NOT_FOUND` is `3`, `INSUFFICIENT_SCOPES` is `5`), because `gh` exits
   nonzero on those and prints only a terse message to stderr; a token missing
   a scope (`gh auth refresh`) is auth. A Verb's own not-found (a missing issue
