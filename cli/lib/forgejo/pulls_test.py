@@ -216,6 +216,29 @@ class RepoVisibleTest(unittest.TestCase):
             pulls.repo_visible(_CONFIG, "o/r")
 
 
+class DisambiguateNotFoundTest(unittest.TestCase):
+    @mock.patch("lib.forgejo.pulls.api.request")
+    def test_non_404_error_is_not_probed_or_relabelled(self, request):
+        error = api.ApiError("boom", plan.EXIT_RUNTIME, 500)
+        self.assertIsNone(pulls.disambiguate_not_found(_CONFIG, "o/r", error))
+        request.assert_not_called()
+
+    @mock.patch("lib.forgejo.pulls.api.request")
+    def test_404_with_visible_repo_returns_none(self, request):
+        request.return_value = {"name": "r"}
+        error = api.ApiError("gone", plan.EXIT_NOT_FOUND, 404)
+        self.assertIsNone(pulls.disambiguate_not_found(_CONFIG, "o/r", error))
+        self.assertEqual(request.call_count, 1)
+
+    @mock.patch("lib.forgejo.pulls.api.request")
+    def test_404_with_invisible_repo_raises_exit_3(self, request):
+        error = api.ApiError("gone", plan.EXIT_NOT_FOUND, 404)
+        request.side_effect = error
+        with self.assertRaises(api.ApiError) as caught:
+            pulls.disambiguate_not_found(_CONFIG, "o/r", error)
+        self.assertEqual(caught.exception.exit_code, plan.EXIT_NOT_FOUND)
+
+
 class PaginationTest(unittest.TestCase):
     @mock.patch("lib.forgejo.pulls.api.request")
     def test_list_open_prs_paginates_to_exhaustion(self, request):

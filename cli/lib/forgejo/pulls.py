@@ -147,7 +147,10 @@ def disambiguate_not_found(
     is also invisible, raises ApiError exit 3 naming both possibilities.
     Returns None when the repo is visible (the resource is really missing,
     so the caller keeps its contextual handling). Not for the happy path:
-    the probe costs one request."""
+    the probe costs one request. Only a 404 is disambiguated; any other
+    error is not this helper's to relabel."""
+    if error.exit_code != plan.EXIT_NOT_FOUND:
+        return
     if repo_visible(config, repository):
         return
     raise api.ApiError(
