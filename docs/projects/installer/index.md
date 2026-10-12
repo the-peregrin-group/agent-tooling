@@ -17,6 +17,7 @@ that agent tooling runs only from installed copies, is
 | Capability | State | Where |
 |---|---|---|
 | Report drift between a source checkout and what is installed | shipped | `tooling-install diff` |
+| Report Receipt hashes that disagree with disk, or recorded files missing | shipped | `tooling-install diff`, `receipt_mismatch` |
 | Install a Source repo's tooling, refusing a dirty source | shipped | `tooling-install apply` |
 | Install from a dirty source, marked in the Receipt | shipped | `--force` |
 | Install selected Cohorts only | shipped | `--cohort` |

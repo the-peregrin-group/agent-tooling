@@ -733,6 +733,11 @@ def diff(source: Path, home=None, cohorts=None) -> dict:
     exit-code contract is unchanged and now honest: 0 means `apply` would do
     nothing, 1 means it would act (including rewriting ownership) or refuse.
 
+    `receipt_mismatch` lists recorded files whose installed bytes no longer
+    match the receipt's hash, or that are missing on disk: the receipt
+    contradicting disk, distinct from `changed` (source versus disk). It makes
+    the cohort drift; `apply` overwrites and restamps, refusing nothing new.
+
     Unit cohorts also report `foreign_replaced`: files another record claims
     that sit inside a unit this source ships *without* them, so the wholesale
     unit swap would delete them. `unowned_replaced` is the same statement for
@@ -768,6 +773,20 @@ def diff(source: Path, home=None, cohorts=None) -> dict:
         owned = owned_by(receipt, config.source_repo)
         foreign = owned_by_others(receipt, config.source_repo)
         installed = present_files(target, cohort.noise)
+
+        recorded_files = record.get("files")
+        receipt_mismatch = []
+        if target.is_dir() and isinstance(recorded_files, dict):
+            # Judged against disk directly, not `installed`: that map drops
+            # noise, and a recorded file is the installer's own claim.
+            for name, recorded in sorted(recorded_files.items()):
+                path = target / name
+                if not isinstance(recorded, str) or not (
+                    path.is_symlink() or path.is_file()
+                ):
+                    receipt_mismatch.append(name)
+                elif digest(path) != recorded:
+                    receipt_mismatch.append(name)
 
         only_in_source = sorted(name for name in sources if name not in installed)
         changed = sorted(
@@ -830,6 +849,7 @@ def diff(source: Path, home=None, cohorts=None) -> dict:
             or foreign_replaced
             or adoptable
             or conflicting
+            or receipt_mismatch
         ):
             status = "drift"
         else:
@@ -844,6 +864,7 @@ def diff(source: Path, home=None, cohorts=None) -> dict:
             "ships": len(sources),
             "only_in_source": only_in_source,
             "changed": changed,
+            "receipt_mismatch": receipt_mismatch,
             "only_installed": only_installed,
             "unowned_preserved": unowned,
             "unowned_replaced": replaced,
