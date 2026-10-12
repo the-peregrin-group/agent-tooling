@@ -100,7 +100,7 @@ slot for it:
   flag-shaped or not, is refused.
 - **Optional slots.** A flag-shaped token in an optional positional
   slot is refused at parse time, never taken as the value: a remote
-  name, a target name, a mode word, or a staged-file path.
+  name, a target name, or a mode word.
 - **Variadic tails** consume every element, and refuse a flag-shaped
   one at parse time. `gitw-commit`'s pathspecs and `ghw-issue-create`'s
   labels take no flags (a path that really begins with `-` is spelled
@@ -113,7 +113,9 @@ slot for it:
   and a message or body file named `--bogus` is read when, resolved
   against the working directory, it names a file in a staging directory.
   A Permission rule that leaves a required slot to a wildcard grants
-  every value that slot accepts.
+  every value that slot accepts. One required slot is stricter:
+  `ghw-issue-close`'s comment file refuses a flag-shaped path at parse
+  time (spell such a path `./-name`).
 
 The reason is the Permission system. A rule may put its wildcard in the
 middle (`Bash(foo bar * baz)`), and that rule matches

@@ -361,5 +361,12 @@ class GitwTrunkSyncTest(unittest.TestCase):
             self.sync_expecting_exit(6)
 
 
+class GitwTrunkSyncArgumentContractTest(
+    ghw_test_support.ArgumentContractTests, unittest.TestCase
+):
+    SCRIPT = _SCRIPT
+    LONGEST = ("proj",)
+
+
 if __name__ == "__main__":
     unittest.main()
