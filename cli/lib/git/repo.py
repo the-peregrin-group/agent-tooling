@@ -110,7 +110,7 @@ def verify_remote(workspace: Workspace) -> None:
     For a machine-local entry there is no remote to check, but an
     operable_from workspace still verifies that the registered checkout
     actually is a git repo (a stale roster path is a deployment problem:
-    GitError with the auth/config code, the fjw precedent).
+    GitError with the exit-5 code, the fjw precedent).
     Raises RefusalError on a missing remote or a URL mismatch.
     """
     entry = workspace.entry

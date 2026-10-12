@@ -83,8 +83,8 @@ the fetched base tip, nothing to integrate, a base that is HEAD or a
 symbolic alias of the default branch, base moved during the
 attempt, more than one caller-written Executed-By trailer,
 machine-local, or a pre-push hook refusal: fix what the hook
-reported, never retry unchanged), 5 roster missing/malformed or auth
-failure, 6 network failure.
+reported, never retry unchanged), 5 roster/auth/config (deployment),
+6 network failure.
 """
 
 from __future__ import annotations

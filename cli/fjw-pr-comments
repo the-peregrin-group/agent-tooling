@@ -7,8 +7,8 @@ fetched -- comments ride the shared issue routes, and this verb must not
 become a covert issue reader. Acts as the deployment's machine account.
 
 Exit codes: 0 success (an empty array is success), 1 unclassified API
-failure, 2 usage error, 3 no such PR (or no such repository), 5 auth/config
-failure, 6 network failure.
+failure, 2 usage error, 3 no such PR (or no such repository), 5
+roster/auth/config (deployment), 6 network failure.
 """
 
 from __future__ import annotations
