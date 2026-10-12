@@ -21,6 +21,9 @@ context this repo addresses.
 - Technical specifications: IP ranges, ports, paths, schemas, model numbers,
   capacities, versions.
 - Configuration values.
+- Terms that are a third-party product's own vocabulary, such as a tracker's
+  or agent harness's feature names. The project's own concepts that merely
+  involve such a product, such as a Wrapper over it, are fine.
 - Implementation choices that could change without changing the concept.
 - Tradeoff rationale (that belongs in an ADR).
 - Operational state: deployment dates, current status, who owns what.
@@ -131,6 +134,8 @@ does not own (e.g., another Account's Posts).
 
 - The term in bold, then a colon, then the definition sentences.
 - `_Invariants_` is optional: clauses separated by semicolons.
+  List every invariant here even when the definition already states or
+  implies it, so agents can find constraints without parsing prose.
 - `_Avoid_` is optional: words separated by commas.
 - Put a blank line between entries.
 - Refer to another entry by its term name, capitalized as defined (plural:
