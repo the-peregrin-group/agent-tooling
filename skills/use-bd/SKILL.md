@@ -18,10 +18,12 @@ description: >
 # Use Beads
 
 Beads (`bd`) is the Issue Tracker; `bdw` is the wrapper every agent runs it
-through. `bdw` records which session acted (the Actor) and otherwise passes
-the arguments to `bd` untouched, so bd's own help is the reference for
-flags: `bdw help <verb> [<subcommand>]`. (`bdw <verb> --help` can prompt
-or match a deny rule; `bdw help` never does.)
+through. `bdw` records which session acted (the Actor), runs `bd` with
+the arguments unchanged, and refuses the few calls listed below, so bd's
+own help is the reference for flags: `bdw help <verb> [<subcommand>]`.
+(`bdw <verb> --help` can prompt or match a deny rule; `bdw help` never
+does.) Every help output, bd usage error, and `bdw` refusal ends with
+"Agents, load /use-bd immediately.": that line is pointing here.
 
 Three rules hold for every call:
 
@@ -29,10 +31,20 @@ Three rules hold for every call:
   not record the Actor, and a repo set up for use-bd denies them.
 - **Verb first, global flags after:** `bdw ready --json`, never
   `bdw --json ready`. Permission rules are prefix rules, and a flag-first
-  spelling either prompts or trips a deny meant for something else.
+  spelling either prompts or trips a deny meant for something else; `bdw`
+  refuses it anyway (exit 4), except `bdw --help` and `bdw --version`.
 - **A denied call is the policy working.** Do not look for another
   spelling of it. If the normal path for a real need is denied or prompts,
   that is a gap: say so (see Friction, below).
+
+`bdw` refuses, with exit 4 and before bd runs: `--actor` anywhere (the
+Actor comes from the session); the flags that point bd at another
+database (`-C`, `--directory`, `--db`, `--database`, `--global`) anywhere;
+any call when the workspace's `.beads/metadata.json` cannot be found,
+since bd would otherwise fall back to an empty database; and, on a bd
+version it has not been verified against, any call that is not a plain
+read (reads run with a warning). A refusal is not something to rephrase
+around: fix the call, or report the gap.
 
 The repo's own conventions are in `.beads/PRIME.md`, which `bdw prime`
 prints. Read this skill's `quirks.md` when bd surprises you, and
@@ -58,18 +70,21 @@ prints. Read this skill's `quirks.md` when bd surprises you, and
 
 ## Who may claim, close, and rewrite
 
-The Actor `bdw` records comes from the session's environment, and a
+The Actor `bdw` records comes from the session's environment: one Actor
+ID per session, derived from the session ID the harness sets, and bd
+also records that session ID as the one that closed an Issue. A
 sub-agent's environment cannot be told from its parent's. So **an agent
 that shares its session's Actor (a sub-agent, a workflow agent) reads,
 files new Issues, and appends notes and comments, but never claims,
 closes, or rewrites an Issue.** The session that holds the conversation
 does those. An orchestrator puts this rule in every brief it hands down.
 
-Attended sessions of one user share one Actor today, and `--claim`
-succeeds silently when the Issue is already claimed by the same Actor.
-So a successful claim does not prove the Issue is yours: if `bdw show`
-already showed it `in_progress` under your Actor before you claimed it,
-another session may hold it; stop and ask. Never pass `--actor`; `bdw`
+`--claim` succeeds silently when the Issue is already claimed by the
+same Actor, and a session whose session ID is missing falls back to a
+shared `attended-<user>` Actor. So a successful claim does not prove the
+Issue is yours: if `bdw show` already showed it `in_progress` under your
+Actor before you claimed it, another agent or session may hold it; stop
+and ask. Never pass `--actor`; `bdw`
 refuses it. Never take over someone else's claim (`unclaim --force`,
 `update --assignee`); ask.
 

@@ -7,10 +7,11 @@ Shared tooling for Claude Code agents:
   wrapper, so permission rules can grant narrow, literal command prefixes instead
   of raw `git` or `gh`. `gitw-commit` appends an `Executed-By:` trailer naming
   the session actor to every commit.
-- **The Beads wrapper** (`cli/bdw`): runs the real `bd` with `BD_ACTOR` and
-  `BEADS_ACTOR` set to the session actor, and passes the arguments through
-  unchanged except bd's own `--actor` flag, which it refuses. See
-  [ADR 0002](docs/adr/0002-beads-identity.md).
+- **The Beads wrapper** (`cli/bdw`): runs the real `bd` as a child process
+  with `BD_ACTOR` and `BEADS_ACTOR` set to the session actor, refusing the
+  calls that would falsify the actor or point bd at another database, and
+  writes on bd versions it has not been verified against. See
+  [bdw](docs/projects/bdw/index.md).
 - **Ten skills** (`skills/`): `use-git`, `use-github`, `use-forgejo`,
   `setup-github-issues`, `triage-issues`, `refine-state-doc`, `use-lexicon`,
   `use-adrs`, `home-in`, `handoff`.

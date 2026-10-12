@@ -83,7 +83,7 @@ families adopt them at their own pace. What each family implements today:
 | `fjw-*` (7 Verbs) | the full taxonomy, 0 to 6 (HTTP 401/403 → 5, 404 → 3, other HTTP → 1, connection or timeout → 6, config error → 5, 409 on create → 4) |
 | `ghw-*` (12 Verbs) | 0, 1, 2 only: every `gh` failure is 1, every refusal is 2; adopting 3 to 6 is planned and is a contract change for callers keying on 2 |
 | `triage-*` (reference wrappers of `triage-issues`) | 0, 1, 2 only |
-| `bdw` | 4 on bd's own `--actor` flag, 3 when no `bd` is on PATH, 1 when the exec fails; otherwise bd's own exit code, untouched |
+| `bdw` | 4 on every refusal (bd's `--actor` flag, a database-switching flag, a flag before the verb, no workspace config, a write on an unverified bd version), 3 when no `bd` is on PATH, 1 when bd cannot be started; otherwise bd's own exit code (128 + N when signal N ends it) |
 | `tooling-install` | its own set: 0 in sync, 1 drift, 2 usage, 4 refused |
 
 Each family's Skill and `design.md` state the family's codes and link here.

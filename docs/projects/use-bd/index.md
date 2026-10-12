@@ -31,9 +31,9 @@ carrying policy in tiers is
 | Known bd 1.3.0 behavior | shipped | `skills/use-bd/quirks.md` |
 | Onboarding a repo: init cleanup, `PRIME.md`, Permission rules, pinning bd | shipped | `skills/use-bd/onboarding.md` |
 | This repo's conventions in `.beads/PRIME.md`, printed by `bd prime` | shipped | `.beads/PRIME.md` |
-| `bdw` runs bd as a child process and points every help output and usage error at use-bd | planned | [v1-proposal.md](v1-proposal.md); `agent-tooling-aio.2` |
-| `bdw` refuses flag-first calls, database-switching flags, a missing workspace config, and writes on unverified bd versions | planned | [v1-proposal.md](v1-proposal.md); `agent-tooling-aio.2` |
-| One Actor ID per session, from the harness's session ID | planned | [v1-proposal.md](v1-proposal.md); `agent-tooling-aio.2` |
+| `bdw` runs bd as a child process and points every help output and usage error at use-bd | shipped | `cli/bdw`; `skills/use-bd/SKILL.md` |
+| `bdw` refuses flag-first calls, database-switching flags, a missing workspace config, and writes on unverified bd versions | shipped | `cli/bdw`; `skills/use-bd/SKILL.md` |
+| One Actor ID per session, from the harness's session ID | shipped | `cli/lib/actor.py`; `cli/bdw` |
 | This repo's Permission rules aligned with the Skill: raw `bd` and `beads` denied, the Skill's "never" calls denied or asked for, and its normal path allowed | shipped | `.claude/settings.json`; `cli/repo_policy_test.py` |
 | The canonical Beads rule set shipped with the Skill as data, and a test that every command the Skill teaches is allowed by it | planned | [v1-proposal.md](v1-proposal.md); `agent-tooling-aio.3` |
 | `bdw ready` without Branch Issues that have open children, and the pass rules enforced (claim refusal, claim release on breakdown, branch-kind check) | planned | [v1-proposal.md](v1-proposal.md); `agent-tooling-aio.4` |
