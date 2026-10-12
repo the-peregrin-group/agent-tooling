@@ -130,7 +130,7 @@ def issue_list_open(repository: str, limit: int = 500) -> list[dict]:
     if len(issues) >= limit:
         raise GhError(
             f"{repository} has {len(issues)} open issues, the listing limit; "
-            f"the listing may be truncated (raise the limit to proceed)")
+            f"the listing may be truncated, so it is refused")
     return issues
 
 
