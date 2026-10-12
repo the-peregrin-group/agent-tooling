@@ -21,13 +21,13 @@ One call, in order:
    `help`, `--help`, or `-h`) or the version (`version`, `--version`,
    `-V`), two probes, each a child `bd` run with output captured:
    - `bd where --json` must succeed and name a Beads directory that holds
-     `metadata.json`; otherwise refuse (exit 4). bd 1.3.0 falls back
+     `metadata.json`; otherwise refuse (exit 5). bd 1.3.0 falls back
      silently to an empty database when that file is missing, so the
      refusal is what stops a write going to the wrong database. bd's own
      discovery decides the directory, so a caller-set BEADS_DIR still
      moves it (a known gap: see docs/projects/bdw/index.md).
    - `bd version --json` names the bd version. On a version outside
-     VERIFIED_BD_VERSIONS, a write is refused (exit 4) and a read runs with
+     VERIFIED_BD_VERSIONS, a write is refused (exit 5) and a read runs with
      a warning on stderr. A read is a verb in READ_VERBS or a verb and
      subcommand pair in READ_SUBCOMMANDS whose every flag-like argument
      (one starting with `-`) is in READ_FLAGS; anything else counts as a
@@ -48,7 +48,7 @@ One call, in order:
    arguments (before a `--`) include `--help` or `-h`, after bd's output
    when bd reports a usage error (a stderr line starting with one of
    USAGE_ERROR_MARKERS), and after every failure of bdw's own (exits 1,
-   3, and 4).
+   3, 4, and 5).
 
 Beads records who acted from an environment variable, and every harness
 Bash call is a fresh shell, so nothing exported once survives to the next
@@ -58,9 +58,12 @@ honours BD_ACTOR (its created_by field shows it) although its help names
 only BEADS_ACTOR, so both are set.
 
 Exit codes: bd's own once bd runs (128 + N when a signal N ends it). 3
-when no `bd` is on PATH. 4 for every refusal above. 1 when bd is found
-but cannot be started (a broken interpreter line, say), or a probe cannot
-be started.
+when no `bd` is on PATH. 4 for the argument refusals in step 1, which
+are caller bugs. 5 for the step 3 refusals (no workspace config, a write
+on an unverified bd version), which no change to the call can fix: the
+Exit-code contract maps configuration problems to 5, "abort and flag the
+deployment". 1 when bd is found but cannot be started (a broken
+interpreter line, say), or a probe cannot be started.
 
 Design record: docs/adr/0002-beads-identity.md and
 docs/adr/0010-bdw-carries-beads-policy-in-tiers.md.
@@ -388,7 +391,7 @@ def main(argv: list[str]) -> int:
         if not help_call and argv[0] not in VERSION_FIRST:
             config_refusal = _config_refusal(bd, environment)
             if config_refusal is not None:
-                return _fail(plan.EXIT_REFUSED, config_refusal)
+                return _fail(plan.EXIT_AUTH, config_refusal)
             version = _bd_version(bd, environment)
             if version not in VERIFIED_BD_VERSIONS:
                 unverified = (
@@ -396,7 +399,7 @@ def main(argv: list[str]) -> int:
                     f"(verified: {', '.join(VERIFIED_BD_VERSIONS)})"
                 )
                 if not is_read(argv):
-                    return _fail(plan.EXIT_REFUSED,
+                    return _fail(plan.EXIT_AUTH,
                                  f"refusing a write: {unverified}")
                 _say(f"warning: {unverified}; reading anyway")
         code, usage_error = _run_bd(bd, argv, environment)

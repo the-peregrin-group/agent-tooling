@@ -45,14 +45,14 @@ What one call does:
    `help`, `--help`, or `-h`) or a version call, probe bd twice, each a
    child run with its output captured:
    - `bd where --json` must name a Beads directory holding
-     `metadata.json`; otherwise exit 4. bd 1.3.0 falls back silently to an
+     `metadata.json`; otherwise exit 5. bd 1.3.0 falls back silently to an
      empty database when that file is missing, so this refusal keeps
      writes from going to the wrong database. bd's own discovery
      (worktrees, redirects, and a caller-set `BEADS_DIR`) decides which
      directory counts; see Known gaps.
    - `bd version --json` must name a version in `VERIFIED_BD_VERSIONS`
      (`1.3.0` today). On any other version, or one it cannot read, a
-     write exits 4 and a read runs after a warning on stderr. A read is
+     write exits 5 and a read runs after a warning on stderr. A read is
      one of the verbs `blocked`, `children`, `context`, `count`, `diff`,
      `find-duplicates`, `graph`, `history`, `info`, `lint`, `list`,
      `prime`, `query`, `ready`, `schema`, `search`, `show`, `stale`,
@@ -92,11 +92,15 @@ What one call does:
    after bd reports a usage error (a stderr line starting with cobra's
    usage-error messages, such as `Error: unknown command`,
    `Error: unknown flag:`, or `Run 'bd --help' for usage.`), and after
-   every failure of its own (exits 1, 3, and 4).
+   every failure of its own (exits 1, 3, 4, and 5).
 
 These are bdw's codes under the
 [Exit-code contract](../../index.md#exit-code-contract): its own codes
-are 1, 3, and 4; any other code is bd's.
+are 1, 3, 4, and 5; any other code is bd's. The argument refusals in
+step 1 exit 4, a caller bug to fix in the call. The step 3 refusals
+exit 5, a configuration problem: a missing workspace config or an
+unverified bd version cannot be fixed by changing the call, so the
+caller stops and flags the deployment.
 
 `gitw-commit` derives the same Actor from the same module and writes it as
 the `Executed-By:` commit trailer, so a session's Issue Tracker writes and

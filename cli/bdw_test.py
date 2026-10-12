@@ -167,8 +167,9 @@ class BdwTest(unittest.TestCase):
             return []
         return self.log.read_text().splitlines()
 
-    def assert_refused(self, result, message_part: str) -> None:
-        self.assertEqual(result.returncode, 4, result.stderr)
+    def assert_refused(self, result, message_part: str,
+                       code: int = 4) -> None:
+        self.assertEqual(result.returncode, code, result.stderr)
         self.assertIn(message_part, result.stderr)
         self.assertEqual(result.stderr.splitlines()[-1], _HELP_LINE)
         self.assertEqual(result.stdout, "")
@@ -269,7 +270,7 @@ class BdwTest(unittest.TestCase):
             (("frobnicate",), "Error: unknown command \"frobnicate\" for \"bd\"",
              "1", 1),
             (("--help",), "", "0", 0),
-            (("create", "x"), "", "0", 4),  # refused: unverified version
+            (("create", "x"), "", "0", 5),  # refused: unverified version
         )
         for arguments, stderr_line, bd_exit, expected in cases:
             with self.subTest(arguments=arguments):
@@ -278,7 +279,7 @@ class BdwTest(unittest.TestCase):
                     env=self.bdw_environment(
                         USER="dan", FAKE_BD_SLEEP="0.5",
                         FAKE_BD_STDERR=stderr_line, FAKE_BD_EXIT=bd_exit,
-                        FAKE_BD_VERSION="1.4.0" if expected == 4 else "1.3.0"),
+                        FAKE_BD_VERSION="1.4.0" if expected == 5 else "1.3.0"),
                     stdin=subprocess.DEVNULL,
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.PIPE,
@@ -451,7 +452,7 @@ class BdwTest(unittest.TestCase):
     def test_no_workspace_is_refused(self):
         self.install_fake_bd()
         result = self.run_bdw("list", USER="dan", FAKE_BEADS_DIR=None)
-        self.assert_refused(result, "no Beads workspace config found")
+        self.assert_refused(result, "no Beads workspace config found", 5)
         self.assertIn("No active beads workspace found.", result.stderr)
         self.assertEqual(self.bd_calls(), ["where --json"])
 
@@ -459,7 +460,7 @@ class BdwTest(unittest.TestCase):
         self.install_fake_bd()
         (self.beads / "metadata.json").unlink()
         result = self.run_bdw("list", USER="dan")
-        self.assert_refused(result, "has no metadata.json")
+        self.assert_refused(result, "has no metadata.json", 5)
         self.assertEqual(self.bd_calls(), ["where --json"])
 
     def test_version_runs_without_a_workspace(self):
@@ -481,7 +482,7 @@ class BdwTest(unittest.TestCase):
                                       FAKE_BD_VERSION="1.4.0")
                 self.assert_refused(
                     result, "refusing a write: bd version 1.4.0 is not "
-                    "verified (verified: 1.3.0)")
+                    "verified (verified: 1.3.0)", 5)
                 self.assertEqual(self.bd_calls(),
                                  ["where --json", "version --json"])
 
@@ -535,14 +536,15 @@ class BdwTest(unittest.TestCase):
             with self.subTest(write=arguments):
                 result = self.run_bdw(*arguments, USER="dan",
                                       FAKE_BD_VERSION="1.4.0")
-                self.assert_refused(result, "refusing a write")
+                self.assert_refused(result, "refusing a write", 5)
 
     def test_unreadable_version_counts_as_unverified(self):
         self.install_fake_bd()
         # Without FAKE_BD_VERSION the fake answers `version --json` with
         # its ordinary non-JSON output.
         result = self.run_bdw("create", "x", USER="dan", FAKE_BD_VERSION=None)
-        self.assert_refused(result, "bd version unknown is not verified")
+        self.assert_refused(result, "bd version unknown is not verified",
+                            5)
 
     def test_verified_version_runs_writes_silently(self):
         self.install_fake_bd()

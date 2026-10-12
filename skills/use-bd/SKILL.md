@@ -38,14 +38,16 @@ Three rules hold for every call:
   that is a gap: say so (see Friction, below).
 
 `bdw` refuses, with exit 4 and before bd runs: `--actor` anywhere (the
-Actor comes from the session); the flags that point bd at another
-database (`-C`, `--directory`, `--db`, `--database`, `--global`) anywhere;
-any call when the workspace's `.beads/metadata.json` cannot be found,
-since bd would otherwise fall back to an empty database; and, on a bd
-version it has not been verified against, any call that is not a plain
-read: a read verb with no flags beyond the ones this skill uses for
-reads (reads run with a warning). A refusal is not something to rephrase
-around: fix the call, or report the gap.
+Actor comes from the session), and the flags that point bd at another
+database (`-C`, `--directory`, `--db`, `--database`, `--global`) anywhere.
+It refuses with exit 5, a deployment problem no change to the call can
+fix: any call when the workspace's `.beads/metadata.json` cannot be
+found, since bd would otherwise fall back to an empty database; and, on
+a bd version it has not been verified against, any call that is not a
+plain read: a read verb with no flags beyond the ones this skill uses
+for reads (reads run with a warning). A refusal is not something to
+rephrase around: on exit 4 fix the call or report the gap; on exit 5
+stop and report it.
 
 The repo's own conventions are in `.beads/PRIME.md`, which `bdw prime`
 prints. Read this skill's `quirks.md` when bd surprises you, and
