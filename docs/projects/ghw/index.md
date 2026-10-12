@@ -39,8 +39,6 @@ How and why it works: [design.md](design.md).
 
 ### Known gaps
 
-- `ghw-pr-merge` still accepts a `squash` strategy token, although squash is
-  banned in every repo (`agent-tooling-589`).
 - The triage Skill still closes approved issues with raw `gh issue close`,
   which posts no comment (`agent-tooling-0fm`).
 - Unattended triage cannot run in a repo whose project or local settings

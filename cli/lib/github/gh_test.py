@@ -281,19 +281,23 @@ class PullVerbArgvTest(unittest.TestCase):
     @mock.patch("lib.github.gh.subprocess.run")
     def test_pr_merge_uses_strategy_flag_and_never_delete_branch(self, run):
         run.return_value = _completed()
-        for strategy in ("merge", "squash"):
-            with self.subTest(strategy=strategy):
-                gh.pr_merge("o/r", 5, strategy)
-                argv = run.call_args.args[0]
-                self.assertIn(f"--{strategy}", argv)
-                self.assertNotIn("--delete-branch", argv)
+        gh.pr_merge("o/r", 5, "merge")
+        argv = run.call_args.args[0]
+        self.assertIn("--merge", argv)
+        self.assertNotIn("--delete-branch", argv)
+
+    def test_pr_merge_refuses_squash(self):
+        with mock.patch("lib.github.gh.subprocess.run") as run:
+            with self.assertRaisesRegex(ValueError, "squash is banned"):
+                gh.pr_merge("o/r", 5, "squash")
+        run.assert_not_called()
 
     @mock.patch("lib.github.gh.subprocess.run")
     def test_pr_merge_pins_the_reviewed_head_commit(self, run):
         # Pinning the head oid closes the race between the caller's
         # green-checks read and the merge itself.
         run.return_value = _completed()
-        gh.pr_merge("o/r", 5, "squash", "abc123")
+        gh.pr_merge("o/r", 5, "merge", "abc123")
         self.assertIn(
             ("--match-head-commit", "abc123"), _flag_pairs(run.call_args.args[0])
         )

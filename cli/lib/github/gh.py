@@ -287,7 +287,10 @@ def pr_create(repository: str, base: str, head: str, title: str, body: str,
 def pr_merge(
     repository: str, number: int, strategy: str, expected_head_oid: str | None = None
 ) -> None:
-    """Merge a pull request with the given strategy ("merge" | "squash").
+    """Merge a pull request with the only permitted strategy, "merge".
+
+    Squash is banned in every repo (use-git history policy), so any other
+    strategy raises ValueError.
 
     `expected_head_oid` pins the merge to the head commit the caller just
     verified (--match-head-commit): a push landing between the green-checks
@@ -295,11 +298,12 @@ def pr_merge(
     passes --delete-branch (worktree hazard). Raises GhError on any `gh`
     failure, ValueError on an unknown strategy (callers validate first).
     """
-    if strategy not in ("merge", "squash"):
+    if strategy != "merge":
         raise ValueError(
-            f"merge strategy must be 'merge' or 'squash', got {strategy!r}"
+            "merge strategy must be 'merge' (squash is banned in every repo "
+            f"by the use-git history policy), got {strategy!r}"
         )
-    arguments = ["pr", "merge", str(number), "--repo", repository, f"--{strategy}"]
+    arguments = ["pr", "merge", str(number), "--repo", repository, "--merge"]
     if expected_head_oid:
         arguments += ["--match-head-commit", expected_head_oid]
     _run(arguments)

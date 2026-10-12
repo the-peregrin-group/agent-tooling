@@ -45,33 +45,40 @@ def _pull(**overrides) -> dict:
 
 class GhwPrMergeArgumentsTest(unittest.TestCase):
     def test_wrong_argument_count_is_usage_error(self):
-        for arguments in ((), ("o/r", "main", "squash"),
-                          ("o/r", "main", "squash", "5", "extra")):
+        for arguments in ((), ("o/r", "main", "merge"),
+                          ("o/r", "main", "merge", "5", "extra")):
             with self.subTest(arguments=arguments):
                 result = _run(*arguments)
                 self.assertEqual(result.returncode, 2)
                 self.assertIn("usage: ghw-pr-merge", result.stderr)
 
     def test_malformed_repo_is_usage_error(self):
-        result = _run("not-a-repo", "main", "squash", "5")
+        result = _run("not-a-repo", "main", "merge", "5")
         self.assertEqual(result.returncode, 2)
         self.assertIn("owner/name", result.stderr)
 
     def test_unknown_strategy_is_usage_error(self):
         # Rebase is deliberately unsupported; the strategy is a positional mode.
-        for strategy in ("rebase", "--squash", "Squash"):
+        for strategy in ("rebase", "Merge"):
             with self.subTest(strategy=strategy):
                 result = _run("o/r", "main", strategy, "5")
                 self.assertEqual(result.returncode, 2)
-                self.assertIn("'merge' or 'squash'", result.stderr)
+                self.assertIn("must be 'merge'", result.stderr)
+
+    def test_squash_is_refused_with_a_hint_naming_the_ban(self):
+        for strategy in ("squash", "--squash", "Squash"):
+            with self.subTest(strategy=strategy):
+                result = _run("o/r", "main", strategy, "5")
+                self.assertEqual(result.returncode, 2)
+                self.assertIn("squash is banned", result.stderr)
 
     def test_empty_base_branch_is_usage_error(self):
-        result = _run("o/r", "  ", "squash", "5")
+        result = _run("o/r", "  ", "merge", "5")
         self.assertEqual(result.returncode, 2)
         self.assertIn("must not be empty", result.stderr)
 
     def test_bad_pr_number_is_usage_error(self):
-        result = _run("o/r", "main", "squash", "five")
+        result = _run("o/r", "main", "merge", "five")
         self.assertEqual(result.returncode, 2)
         self.assertIn("positive integer", result.stderr)
 
@@ -91,7 +98,7 @@ class GhwPrMergeBehaviorTest(unittest.TestCase):
                 mock.patch.object(_MODULE.gh, "pr_merge") as merge, \
                 contextlib.redirect_stderr(io.StringIO()) as stderr:
             with self.assertRaises(SystemExit) as caught:
-                _MODULE.main(["o/r", "main", "squash", "5"])
+                _MODULE.main(["o/r", "main", "merge", "5"])
         self.assertEqual(caught.exception.code, 2)
         merge.assert_not_called()
         self.assertIn("draft", stderr.getvalue())
@@ -101,7 +108,7 @@ class GhwPrMergeBehaviorTest(unittest.TestCase):
                                side_effect=_MODULE.gh.GhError("boom")), \
                 contextlib.redirect_stderr(io.StringIO()):
             with self.assertRaises(SystemExit) as caught:
-                _MODULE.main(["o/r", "main", "squash", "5"])
+                _MODULE.main(["o/r", "main", "merge", "5"])
         self.assertEqual(caught.exception.code, 1)
 
     def test_clean_merge_pins_the_verified_head_and_emits_applied(self):
@@ -110,11 +117,11 @@ class GhwPrMergeBehaviorTest(unittest.TestCase):
         with mock.patch.object(_MODULE.gh, "pr_view", return_value=_pull()), \
                 mock.patch.object(_MODULE.gh, "pr_merge") as merge, \
                 contextlib.redirect_stdout(io.StringIO()) as stdout:
-            self.assertEqual(_MODULE.main(["o/r", "main", "squash", "5"]), 0)
-        merge.assert_called_once_with("o/r", 5, "squash", "abc123")
+            self.assertEqual(_MODULE.main(["o/r", "main", "merge", "5"]), 0)
+        merge.assert_called_once_with("o/r", 5, "merge", "abc123")
         payload = json.loads(stdout.getvalue())
         self.assertEqual(payload["action"], "applied")
-        self.assertEqual(payload["strategy"], "squash")
+        self.assertEqual(payload["strategy"], "merge")
 
 
 if __name__ == "__main__":

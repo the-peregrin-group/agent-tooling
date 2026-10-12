@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-"""ghw-pr-merge <repo> <base-branch> <merge|squash> <pr#> -- merge a pull request.
+"""ghw-pr-merge <repo> <base-branch> <merge> <pr#> -- merge a pull request.
 
 The merge strategy is a positional mode, not a flag, so per-repo merge policy
 is expressed by which strategy token an allowlist rule pins. Before merging,
@@ -23,7 +23,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from lib import arguments, plan
 from lib.github import gh, pulls
 
-_USAGE = "ghw-pr-merge <owner/repo> <base-branch> <merge|squash> <pr#>"
+_USAGE = "ghw-pr-merge <owner/repo> <base-branch> <merge> <pr#>"
 
 
 def main(argv: list[str]) -> int:
@@ -39,10 +39,13 @@ def main(argv: list[str]) -> int:
         plan.usage_die(f"repo must be 'owner/name', got {repository!r}", _USAGE)
     if not base.strip():
         plan.usage_die("base branch name must not be empty", _USAGE)
-    if strategy not in ("merge", "squash"):
+    if strategy.lstrip("-").lower() == "squash":
         plan.usage_die(
-            f"merge strategy must be 'merge' or 'squash', got {strategy!r}", _USAGE
+            "squash is banned in every repo (use-git history policy); use 'merge'",
+            _USAGE,
         )
+    if strategy != "merge":
+        plan.usage_die(f"merge strategy must be 'merge', got {strategy!r}", _USAGE)
     number = arguments.parse_issue_number(pull_argument)
     if number is None:
         plan.usage_die(
