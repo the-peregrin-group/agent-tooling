@@ -62,7 +62,10 @@ change is committed, then installed.
   record, apart from entries Adoption moves out of another. Files another
   record claims are *foreign* and carried through untouched. Files no
   record claims are *unowned*: reported, preserved on merge targets, never
-  claimed.
+  claimed. A record that would claim no files and no units is not written:
+  a source that ships nothing into a target (after retiring what it owned)
+  leaves no record, and absence reads as in sync. A receipt left with no
+  records keeps an empty `sources` object.
 - **Adoption.** A source that ships a path, or a unit, another record
   claims has a collision. If the incoming copy is byte-identical to the
   installed one, ownership moves to the incoming record and the bytes do

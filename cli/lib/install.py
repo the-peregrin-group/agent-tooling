@@ -118,7 +118,10 @@ agree, and a stale claim is a human's to resolve.
 An other-source record that adoption empties -- no files left, and no units
 on a unit target -- is dropped from the receipt outright. A record claiming
 nothing is a stale stamp, not ownership, and keeping it would have the next
-run report a foreign source with no foreign content.
+run report a foreign source with no foreign content. The applying source's own
+record is dropped the same way when its run ships nothing (after retiring what
+it previously owned). If that leaves no records, the receipt file stays, with
+an empty `sources` object.
 
 Superseding a source repo: `adopt`
 ----------------------------------
@@ -1104,7 +1107,10 @@ def _write_receipt(
 
     `adopted` names target-relative paths and `adopted_units` names units; a
     run passes one or the other, never both. Every other source's record gives
-    the adopted content up, and a record left claiming nothing is dropped.
+    the adopted content up, and a record left claiming nothing is dropped. This
+    source's own record is dropped the same way when the run ships nothing, so
+    no record is the steady state; a receipt left with no records keeps an
+    empty `sources` object.
     """
     adopted = frozenset(adopted)
     adopted_units = frozenset(adopted_units)
@@ -1117,7 +1123,8 @@ def _write_receipt(
             if entry is None:
                 continue
         merged[name] = entry
-    merged[config.source_repo] = record
+    if record.get("files") or record.get("units"):
+        merged[config.source_repo] = record
     ordered = {
         "version": RECEIPT_VERSION,
         "sources": {name: merged[name] for name in sorted(merged)},

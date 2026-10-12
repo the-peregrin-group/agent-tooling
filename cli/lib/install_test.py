@@ -686,6 +686,104 @@ class MultiSourceTest(InstallTestCase):
             self.install()
 
 
+class OwnRecordDropTest(InstallTestCase):
+    """A source that ships nothing into a target leaves no record there."""
+
+    def setUp(self):
+        super().setUp()
+        self.other = self.tmp / "gadget-kit"
+        self.other.mkdir()
+        manifest = {
+            "version": 1,
+            "source_repo": "gadget-kit",
+            "exclude": ["*_test.py"],
+            "cohorts": {
+                "bin": {"kind": "bin", "sources": ["tools"]},
+                "skills": {"kind": "skills", "sources": ["kits"]},
+            },
+        }
+        write(self.other / "install.json", json.dumps(manifest, indent=2) + "\n")
+        write(self.other / "tools" / "tool-z", "#!/bin/sh\necho z\n", executable=True)
+        write(self.other / "kits" / "gamma" / "SKILL.md", "gamma\n")
+        self.commit_all(self.other)
+
+    def retire(self, cohort, patterns):
+        manifest = json.loads((self.source / "install.json").read_text())
+        manifest["cohorts"][cohort]["exclude"] = patterns
+        write(self.source / "install.json", json.dumps(manifest, indent=2) + "\n")
+        self.commit_all()
+
+    def retire_bin(self):
+        self.retire("bin", ["tool-a", "tool-b.sh", "lib", "skip-me.sh"])
+
+    def retire_skills(self):
+        self.retire("skills", ["alpha", "beta"])
+
+    def test_merged_kind_drops_own_record_and_keeps_the_others(self):
+        self.install(cohorts=["bin"])
+        apply(self.other, home=self.home, cohorts=["bin"])
+        self.retire_bin()
+        self.install(cohorts=["bin"])
+        binary = target_for("bin", self.home)
+        sources = read_receipt(binary)["sources"]
+        self.assertEqual(sorted(sources), ["gadget-kit"])
+        self.assertEqual(sorted(sources["gadget-kit"]["files"]), ["tool-z"])
+        self.assertFalse((binary / "tool-a").exists())
+        self.assertTrue((binary / "tool-z").exists())
+        self.assertEqual(self.report()["cohorts"]["bin"]["status"], "in-sync")
+
+    def test_unit_kind_drops_own_record_and_keeps_the_others(self):
+        self.install(cohorts=["skills"])
+        apply(self.other, home=self.home, cohorts=["skills"])
+        self.retire_skills()
+        self.install(cohorts=["skills"])
+        skills = target_for("skills", self.home)
+        sources = read_receipt(skills)["sources"]
+        self.assertEqual(sorted(sources), ["gadget-kit"])
+        self.assertEqual(sources["gadget-kit"]["units"], ["gamma"])
+        self.assertFalse((skills / "alpha").exists())
+        self.assertTrue((skills / "gamma").exists())
+        self.assertEqual(self.report()["cohorts"]["skills"]["status"], "in-sync")
+
+    def test_last_record_gone_keeps_an_empty_sources_object(self):
+        self.install(cohorts=["bin", "skills"])
+        self.retire_bin()
+        self.retire_skills()
+        self.install(cohorts=["bin", "skills"])
+        for kind in ("bin", "skills"):
+            target = target_for(kind, self.home)
+            self.assertTrue(target.is_dir())
+            self.assertEqual(read_receipt(target)["sources"], {})
+        report = self.report()
+        self.assertEqual(report["cohorts"]["bin"]["status"], "in-sync")
+        self.assertEqual(report["cohorts"]["skills"]["status"], "in-sync")
+
+    def test_legacy_empty_record_reads_in_sync_and_apply_drops_it(self):
+        self.install(cohorts=["bin", "skills"])
+        self.retire_bin()
+        self.retire_skills()
+        for kind in ("bin", "skills"):
+            target = target_for(kind, self.home)
+            for item in sorted(target.iterdir()):
+                if item.name != RECEIPT_NAME:
+                    if item.is_dir():
+                        shutil.rmtree(str(item))
+                    else:
+                        item.unlink()
+            receipt = read_receipt(target)
+            record = receipt["sources"]["widget-kit"]
+            record["files"] = {}
+            if kind == "skills":
+                record["units"] = []
+            (target / RECEIPT_NAME).write_text(json.dumps(receipt), encoding="utf-8")
+        report = self.report()
+        self.assertEqual(report["cohorts"]["bin"]["status"], "in-sync")
+        self.assertEqual(report["cohorts"]["skills"]["status"], "in-sync")
+        self.install(cohorts=["bin", "skills"])
+        for kind in ("bin", "skills"):
+            self.assertEqual(read_receipt(target_for(kind, self.home))["sources"], {})
+
+
 class TwoSourceFixture(InstallTestCase):
     """A cohort mid-migration between source repos. No tests of its own.
 
