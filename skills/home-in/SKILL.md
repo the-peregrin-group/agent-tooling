@@ -193,16 +193,25 @@ between two LOI Exits.
 
 ## The Resolution Queue
 
-Show the queue in one or two lines at the foot of a reply whenever it has
-changed, and always at a LOI Exit; a queue repeated unchanged on every
-turn is noise competing with the question:
+Keep the queue visible without letting it crowd the question that ends
+the reply. The default is a one-line summary at the foot of every reply in
+which the queue changed, with the remaining count and a count per category
+(working names, candidate decisions, assumptions under test, gathering).
+List in full only the items added or resolved in that reply, beneath the
+summary line:
 
-> Resolution Queue: working names *open list*, *the burnout question*;
-> candidate decision: stay through the vesting date; assumption under test:
-> the new role changes the thing the user wants changed; gather: the Foo
-> retrospective.
+> Resolution Queue (7 remaining): working names (2), candidate decisions
+> (3), assumptions under test (1), gathering (1).
+> Added: working name *the burnout question*. Resolved: assumption that the
+> new role changes the thing the user wants changed (refuted).
 
-Between LOI Exits the queue also lives in the artifact's open-items
+A queue that did not change this reply gets no line; a count repeated
+unchanged every turn is noise competing with the question.
+
+The full queue, every item, appears at a LOI Exit, in the wrap-up check,
+and whenever the user asks for it.
+
+Between LOI Exits the full queue also lives in the artifact's open-items
 section, so a dropped session loses nothing.
 
 ## The artifact
