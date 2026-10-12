@@ -100,8 +100,9 @@ term's line names what replaced it; use that.
 Terms in a converted glossary were never ratified. A glossary term that the
 conversion does not carry over under its old name (dropped, or renamed with
 the user's ratification) adds no Retired terms line: it was never a lexicon
-term. Instead, sweep state documents for the old term, leaving stream
-documents as written. For each code identifier that uses it, ask the user the
+term. Instead, sweep state documents and open issues for the old term (where
+the tracker accepts edits), leaving stream documents and closed issues as
+written. For each code identifier that uses it, ask the user the
 question in procedure E, step 5 (in `writing-lexicon.md`). Once the
 conversion lands, procedure E applies as normal.
 
