@@ -192,5 +192,6 @@ costs nothing; the Edit deny and the Receipts protect the installed set.
   is deliberate friction; for iterative live work, install the work in
   progress.
 - A fresh machine bootstraps by running the Installer once from its own
-  checkout, `python3 <checkout>/cli/tooling-install apply <checkout>`. It
-  ships in the `bin` Cohort, so it installs itself.
+  checkout,
+  `/usr/bin/python3 <checkout>/cli/tooling-install apply <checkout>`. It ships
+  in the `bin` Cohort, so it installs itself.

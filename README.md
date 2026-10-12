@@ -50,17 +50,16 @@ is in the docstring of `cli/lib/install.py`.
 ## Bootstrap on a fresh machine
 
 Prerequisites: `git`; a system `/usr/bin/python3` of 3.9 or later, which every
-executable's shebang pins; `gh`,
-authenticated, if you use the `ghw-*` wrappers; and Beads' `bd` on PATH if
-you use `bdw`. On macOS, `/usr/bin/python3`
-comes with the Xcode Command Line Tools (`xcode-select --install`). The
-interpreter is the system one, not your usual Homebrew, pyenv, or conda one:
-macOS grants OS-level permissions (privacy prompts such as Local Network
-access) to the Apple-signed `/usr/bin/python3`, and silently denies them to
-other interpreters when a wrapper runs from an unattended or background
-session. The board
-wrappers (`ghw-board-*`, `ghw-orient`) need the `project` scope on the `gh`
-token: `gh auth refresh -s project`.
+executable's shebang pins; `gh`, authenticated, if you use the `ghw-*`
+wrappers; and Beads' `bd` on PATH if you use `bdw`. On macOS,
+`/usr/bin/python3` comes with the Xcode Command Line Tools
+(`xcode-select --install`). The interpreter is the system one, not your usual
+Homebrew, pyenv, or conda one: macOS grants OS-level permissions (privacy
+prompts such as Local Network access) to the Apple-signed `/usr/bin/python3`,
+and silently denies them to other interpreters when a wrapper runs from an
+unattended or background session. The board wrappers (`ghw-board-*`,
+`ghw-orient`) need the `project` scope on the `gh` token:
+`gh auth refresh -s project`.
 
 1. Clone this repo wherever you keep checkouts.
 2. Install everything from it:
