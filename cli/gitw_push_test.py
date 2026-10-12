@@ -248,6 +248,15 @@ class GitwPushRemoteHookTest(_PushFixtureTest):
         self.assertNotIn("rejected by the lease", stderr)
         self.assertIsNone(self.remote_tip("fix/topic"))
 
+    def test_lost_ref_update_race_gets_reconcile_advice(self):
+        gitw_test_support.add_pre_receive_hook(
+            self.remote, gitw_test_support.RACE_PRE_RECEIVE_HOOK
+        )
+        stderr = self.push_expecting_exit(4, "proj", "fix/")
+        self.assertIn("[remote rejected]", stderr)
+        self.assertIn("lost a ref-update race", stderr)
+        self.assertNotIn("refused by the remote", stderr)
+
     def test_remote_hook_text_with_auth_words_is_still_a_refusal(self):
         gitw_test_support.add_pre_receive_hook(
             self.remote, 'echo "permission denied: not yours" >&2\nexit 1\n'

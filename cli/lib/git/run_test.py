@@ -107,7 +107,8 @@ class ClassifyRemoteFailureTest(unittest.TestCase):
         for reason in (
             "failed to update ref",
             "failed to lock",
-            "cannot lock ref 'refs/heads/main'",
+            "incorrect old value provided",
+            "reference already exists",
         ):
             detail = f" ! [remote rejected] main -> main ({reason})"
             with self.subTest(reason=reason):

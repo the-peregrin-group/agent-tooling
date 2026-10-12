@@ -167,18 +167,26 @@ def is_remote_rejection(detail: str) -> bool:
     return "[remote rejected]" in detail.lower()
 
 
+# Reasons receive-pack prints in parentheses on the "[remote rejected]"
+# status line when the remote ref moved under the push. "failed to update
+# ref" is what git 2.43 and 2.50 print; "incorrect old value provided" and
+# "reference already exists" are what batched receive-pack (newer git)
+# reports for a lost old-value check and for two pushers creating the same
+# branch. "failed to lock" is older-git wording, kept for remotes running
+# old builds. ("cannot lock ref" appears only on the "remote: error:"
+# line, never on the status line, so it is not matched.)
 _REF_RACE_REASONS = (
     "failed to update ref",
+    "incorrect old value provided",
+    "reference already exists",
     "failed to lock",
-    "cannot lock ref",
 )
 
 
 def is_ref_update_race(detail: str) -> bool:
     """True when a "[remote rejected]" status line carries a reason that
     means the remote ref moved under the push (receive-pack lost a
-    ref-update race: "failed to update ref", "failed to lock",
-    "cannot lock ref"). That is the lease/base-moved situation, not a
+    ref-update race: see _REF_RACE_REASONS). That is the lease/base-moved situation, not a
     hook declining the content; the recovery is to fetch and reconcile."""
     for line in detail.lower().splitlines():
         if "[remote rejected]" in line and any(

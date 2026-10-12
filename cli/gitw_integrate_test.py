@@ -500,6 +500,17 @@ class GitwIntegrateRemoteHookTest(_IntegrateFixtureTest):
             self.remote_git("rev-parse", "refs/heads/main"), old_main
         )
 
+    def test_lost_ref_update_race_is_base_moved(self):
+        gitw_test_support.add_pre_receive_hook(
+            self.remote, gitw_test_support.RACE_PRE_RECEIVE_HOOK
+        )
+        stderr = self.integrate_expecting_exit(
+            4, "proj", "main", "fix/", self.message_path
+        )
+        self.assertIn("[remote rejected]", stderr)
+        self.assertIn("moved during the attempt", stderr)
+        self.assertNotIn("refused by the remote", stderr)
+
     def test_remote_hook_text_with_base_moved_words_is_not_base_moved(self):
         gitw_test_support.add_pre_receive_hook(
             self.remote,
