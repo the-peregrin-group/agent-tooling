@@ -83,7 +83,7 @@
       ]
     },
     {
-      "why": "Closes epics because their children closed, skipping the Branch Issue's verifying pass.",
+      "why": "Closes epics because their children closed, skipping the Branch Issue's verifying pass (ADR 0009).",
       "verbs": [
         "epic close-eligible"
       ],
@@ -104,7 +104,7 @@
       ]
     },
     {
-      "why": "The lease reaper reverts every claim whose lease has expired to open. A lapsed lease is inert until reclaim runs, and sessions sit for hours waiting on a human, so a reclaim would rob live work. Denied rather than asked for.",
+      "why": "The lease reaper reverts every claim whose lease has expired to open. A lapsed lease is inert until reclaim runs, and sessions sit for hours waiting on a human, so a reclaim would rob live work. Denied rather than asked for, by the maintainer's ruling.",
       "verbs": [
         "reclaim"
       ],
