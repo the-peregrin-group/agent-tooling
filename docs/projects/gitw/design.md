@@ -62,7 +62,9 @@ Non-optional. The root invariant: **never act on unverified-fresh state.**
 **Universal worktree isolation.** Every agent session, attended or
 background, in every repo, runs in a harness-provided worktree on its own
 branch. The primary checkout, and the local default branch inside it,
-belong to the human. Git enforces the split: a worktree cannot check out
+belong to the human; the one sanctioned exception is `gitw-trunk-sync`,
+which may only fast-forward that branch, under the guards in its Verb
+section. Git enforces the split: a worktree cannot check out
 a branch the primary checkout holds, so an isolated agent cannot stand on
 the default branch even by accident. A consumer needs this because no
 process list can see the agent a human is about to start; only isolation
@@ -110,7 +112,8 @@ resolutions reaching a shared branch, which disclosure addresses.
 **Implications:** an agent owns getting its changes committed; it never
 leaves untracked files or uncommitted changes in a working copy, its own
 worktree included (the harness may remove it at session exit). It never
-mutates the primary checkout. Untracked `settings.local.json` is a grey
+mutates the primary checkout, except that `gitw-trunk-sync` may
+fast-forward the default branch there. Untracked `settings.local.json` is a grey
 area: clobbering it is invisible to git, so outside user-blessed
 automation, changes to it are attended-only and need a competing-work
 check and an explicit go-ahead.
@@ -215,8 +218,10 @@ prefix](../../adr/0008-bare-slash-means-no-branch-prefix.md)).
 Two guards are properties of the branch name, not of how the prefix token
 was spelled, so they apply under every prefix:
 
-- **No Verb acts on the default branch.** `repo.require_branch_in_scope`,
-  the scope check every mutating Verb shares, refuses it (exit 4). A
+- **No prefix-scoped Verb acts on the default branch.**
+  `repo.require_branch_in_scope`, the scope check every mutating Verb
+  shares, refuses it (exit 4). `gitw-trunk-sync` takes no prefix and is
+  the one exception: it only fast-forwards the local default branch. A
   slashless default like `main` can match only `/`, but a slashed one
   like `release/main` can match a real prefix too. The comparison
   ignores letter case, because on a case-insensitive filesystem (macOS's
@@ -295,9 +300,10 @@ every family's implemented codes live in
   lease failure, sweep guard, nothing to commit or integrate, default-
   branch push, machine-local push or integrate, local pre-push hook
   refusal or hang, and `gitw-trunk-sync`'s refusals (dirty primary
-  checkout, default branch held by a linked worktree, local default
-  branch not an ancestor of the fetched tip). Also `gitw-rebase`'s
-  conflict stop, which is expected,
+  checkout, default branch held by a linked worktree, a rebase of it in
+  progress in any worktree, local default branch not an ancestor of the
+  fetched tip, or the branch moved concurrently during the update). Also
+  `gitw-rebase`'s conflict stop, which is expected,
   resumable state rather than a caller bug.
 - `5` roster/auth/config (deployment): Roster missing or malformed, a
   registered checkout that no longer exists, remote auth failure. All
@@ -516,7 +522,7 @@ command. Output relay and hook detection match `gitw-push`; a hook
 refusal is exit 4 but does not mean the base moved. Afterwards the
 worktree is still on the integrated feature branch; syncing the human's
 local trunk is `gitw-trunk-sync`'s job, and cleaning up branches is left
-to the harness and the human. `gitw-integrate` is the only Verb that writes to trunk.
+to the harness and the human. `gitw-integrate` is the only Verb that writes to the remote trunk.
 
 **`gitw-trunk-sync <repo>`.** Fast-forwards the local default branch to
 the fetched tip without ever switching a worktree: switching the invoking
@@ -531,10 +537,15 @@ ancestor of the fetched tip, whether diverged or merely ahead, is exit
 branch is never moved backwards. The move then depends on where
 `git worktree list --porcelain` says the branch is checked out:
 
+- **Rebase in progress:** before any move, every worktree is checked for
+  a rebase of the default branch. A rebasing worktree is detached, so the
+  holder lookup below cannot see it; any such rebase is exit 4.
 - **Nowhere:** `git update-ref refs/heads/<default> <tip> <old>`, guarded
-  by the old value so a concurrent mover is a refusal, not a clobber.
+  by the old value. On failure the ref is re-read: changed means a
+  concurrent mover (exit 4, not retryable unchanged); unchanged means a
+  git error such as a stale lock file (exit 1, with git's message).
 - **The primary checkout:** refused if it is dirty (untracked files
-  count) or mid-merge, rebase, cherry-pick, or revert; otherwise
+  count) or mid-merge, cherry-pick, or revert; otherwise
   `git merge --ff-only <tip-sha>` run with the primary checkout as its
   working directory, never relying on the invoker's cwd.
 - **A linked worktree:** refused. The case the proposal left open is

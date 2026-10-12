@@ -358,9 +358,10 @@ decides how it moves: in a clean primary checkout, a fast-forward merge in
 place; checked out nowhere, a ref move guarded by the old value. Run from
 any worktree of the repo; the invoking worktree stays on its own branch.
 Already at the tip, and a machine-local repo, are converged no-ops (exit
-0). It refuses (exit 4) a dirty primary checkout or one mid-merge, rebase,
-cherry-pick, or revert (the dirt is the human's), a default branch checked
-out in a linked worktree (another agent may be live there), and a local
+0). It refuses (exit 4) a dirty primary checkout or one mid-merge,
+cherry-pick, or revert (the dirt is the human's), a rebase of the default
+branch in progress in any worktree, a default branch checked out in a
+linked worktree (another agent may be live there), and a local
 default branch holding commits the remote lacks, whether diverged or
 merely ahead (unpushed trunk commits are the human's parked work). It
 never moves the branch backwards and cannot lose commits. Those refusals
