@@ -44,10 +44,12 @@ That's also why the **read** verbs are wrapped here (unlike `ghw`, which
 leans on `gh` for reads): there is no allowlistable read substrate either.
 
 Identity and credentials are deployment configuration
-(`~/.config/fjw/config.toml`): the machine-account token, the API host, and
-the git-over-SSH host/port all live there. **Never read, write, or work
-around that file** — deny rules cover it, the wrappers handle hostname
-differences internally, and token rotation is the deployment's job. On auth
+(`~/.config/fjw/config.toml`): the machine-account token and the API host,
+which the wrappers use, plus optional `ssh_host`/`ssh_port` keys reserved for
+git-over-SSH (parsed but unused: no `fjw` Verb touches git over SSH, and
+pushing is `gitw`'s job over the remote as configured). **Never read, write,
+or work around that file** — deny rules cover it and token rotation is the
+deployment's job. On auth
 failures (exit 5), report to the user that the deployment config or token
 needs attention; do not retry and do not go looking for credentials.
 

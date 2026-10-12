@@ -11,10 +11,11 @@ Keys:
                 a trailing /api/v1 is tolerated and normalized away
     token    -- the machine-account API token (scopes: write:repository +
                 write:issue)
-    ssh_host -- optional: the git-over-SSH host, which differs from the API
-                host (hostname reconciliation is deployment config, never a
-                caller concern)
-    ssh_port -- optional: the git-over-SSH port
+    ssh_host -- optional: the git-over-SSH host, which may differ from
+                the API host; reserved for git-over-SSH, parsed and
+                validated but read by no Verb
+    ssh_port -- optional: the git-over-SSH port (reserved, unused, like
+                ssh_host)
 
 Config problems exit with the auth code (5): to an unattended caller a
 missing or malformed config is indistinguishable from revoked credentials --

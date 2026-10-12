@@ -29,7 +29,5 @@ its own project ([installer](../installer/index.md)).
 - `fjw-pr-create` reports a repo the machine account cannot see as a
   missing branch ("push it first", exit 2) instead of exit 3 naming both
   possibilities (`agent-tooling-5np`).
-- use-forgejo says the Wrapper reconciles the API and SSH hosts, but no Verb
-  reads the `ssh_host`/`ssh_port` config keys (`agent-tooling-1t4`).
 - use-forgejo and the `fjw-pr-comment` docstring carry a
   non-generic example head prefix (`agent-tooling-c57`).
