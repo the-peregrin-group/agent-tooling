@@ -341,8 +341,31 @@ mean the base moved — fix what it reported on the branch, then loop
 again from the rebase; never retry unchanged. A rejection by the
 remote's own hooks is still reported as exit 6 today (issue
 agent-tooling-h3c). Afterwards your worktree is still on the
-(now-integrated) feature branch; leave local trunk syncing and branch
-cleanup to the harness and the human.
+(now-integrated) feature branch; bringing local trunk current is
+`gitw-trunk-sync`'s job (next), and branch cleanup is left to the
+harness and the human.
+
+```bash
+gitw-trunk-sync <repo>
+```
+
+Fast-forward the local default branch to the freshly fetched authoritative
+tip, **without switching any worktree**. It fits after a forge merge or a
+`gitw-integrate`, so the human's primary checkout is current the next
+time they look; nothing depends on it (`gitw-branch-start` branches from
+the remote-tracking ref). Where the local default branch is checked out
+decides how it moves: in a clean primary checkout, a fast-forward merge in
+place; checked out nowhere, a ref move guarded by the old value. Run from
+any worktree of the repo; the invoking worktree stays on its own branch.
+Already at the tip, and a machine-local repo, are converged no-ops (exit
+0). It refuses (exit 4) a dirty primary checkout or one mid-merge, rebase,
+cherry-pick, or revert (the dirt is the human's), a default branch checked
+out in a linked worktree (another agent may be live there), and a local
+default branch holding commits the remote lacks, whether diverged or
+merely ahead (unpushed trunk commits are the human's parked work). It
+never moves the branch backwards and cannot lose commits. Those refusals
+are the contract working: report them, never work around them with raw
+git.
 
 ```bash
 gitw-repo-register <label> <checkout-path> [<remote-name>] [apply]
@@ -442,6 +465,11 @@ The bare `/` prefix is granted like any other
 a repo that wants prefix segmentation simply does not grant it. A row
 starred right after the label (`"Bash(gitw-commit rocket-sled *)"`)
 already admits it.
+
+`gitw-trunk-sync` takes the label alone, so its grant is the exact row
+`"Bash(gitw-trunk-sync rocket-sled)"`; it only ever fast-forwards, so a
+plain allow is safe where an agent is expected to keep the human's local
+trunk current.
 
 Grant only the verbs and prefixes the consumer exercises;
 `gitw-integrate` is granted per-repo, deliberately, and only where direct

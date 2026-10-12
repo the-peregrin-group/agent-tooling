@@ -11,7 +11,7 @@ Reads stay raw git under a curated, audited set of Permission rules.
 Code: the `cli/gitw-*` Verbs over `cli/lib/git/` and the shared
 `cli/lib/`, and `skills/use-git/SKILL.md`. How and why:
 [design.md](design.md). Dated docs beside it:
-[trunk-sync.md](trunk-sync.md) (proposal) and
+[trunk-sync.md](trunk-sync.md) (proposal, now built) and
 [read-allowlist-audit.md](read-allowlist-audit.md) (audit).
 
 ## Status
@@ -27,7 +27,7 @@ Code: the `cli/gitw-*` Verbs over `cli/lib/git/` and the shared
 | Scope a mutating Verb to any branch except the default with a bare `/` prefix | shipped | `gitw-branch-start`, `gitw-commit`, `gitw-rebase`, `gitw-push`, `gitw-integrate` |
 | Roster registration ceremony | shipped | `gitw-repo-register` |
 | Git discipline for agents (hygiene, modes, history policy, Verb usage) | shipped | `use-git` Skill |
-| Fast-forward the primary checkout's local default branch | planned | `gitw-trunk-sync`; [trunk-sync.md](trunk-sync.md); `agent-tooling-1790288521317-5-34a5f7c2` |
+| Fast-forward the primary checkout's local default branch | shipped | `gitw-trunk-sync` |
 
 ### Known gaps
 
