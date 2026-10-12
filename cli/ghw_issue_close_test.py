@@ -39,26 +39,32 @@ _MODULE = ghw_test_support.load_wrapper_module(_SCRIPT)
 
 class GhwIssueCloseArgumentsTest(unittest.TestCase):
     def test_wrong_argument_count_is_usage_error(self):
-        for arguments in ((), ("o/r",), ("o/r", "5", "c", "extra")):
+        for arguments in ((), ("o/r",), ("o/r", "5"), ("o/r", "5", "c", "extra")):
             with self.subTest(arguments=arguments):
                 result = _run(*arguments)
                 self.assertEqual(result.returncode, 2)
                 self.assertIn("usage: ghw-issue-close", result.stderr)
 
+    def test_missing_comment_names_the_required_file(self):
+        result = _run("o/r", "5")
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("comment is required", result.stderr)
+        self.assertIn("<comment-file>", result.stderr)
+
     def test_malformed_repo_is_usage_error(self):
-        result = _run("not-a-repo", "5")
+        result = _run("not-a-repo", "5", _MISSING_COMMENT)
         self.assertEqual(result.returncode, 2)
         self.assertIn("owner/name", result.stderr)
 
     def test_bad_issue_number_is_usage_error(self):
-        result = _run("o/r", "issue-five")
+        result = _run("o/r", "issue-five", _MISSING_COMMENT)
         self.assertEqual(result.returncode, 2)
         self.assertIn("positive integer", result.stderr)
 
     def test_missing_comment_file_is_refused(self):
         result = _run("o/r", "5", _MISSING_COMMENT)
         self.assertEqual(result.returncode, 2)
-        self.assertIn("refusing body file", result.stderr)
+        self.assertIn("refusing comment file", result.stderr)
 
     def test_help_prints_doc_and_exits_zero(self):
         result = _run("--help")
@@ -89,6 +95,19 @@ class GhwIssueCloseBehaviorTest(unittest.TestCase):
         payload = json.loads(stdout.getvalue())
         self.assertFalse(payload["changed"])
         self.assertIn("comment not posted", payload["note"])
+
+    def test_blank_comment_is_refused_before_any_api_call(self):
+        with open(self._comment_path, "w") as handle:
+            handle.write(" \n\t\n")
+        with mock.patch.object(_MODULE.gh, "issue_view") as view, \
+                mock.patch.object(_MODULE.gh, "issue_close") as close, \
+                contextlib.redirect_stderr(io.StringIO()) as stderr, \
+                self.assertRaises(SystemExit) as raised:
+            _MODULE.main(["o/r", "5", self._comment_path])
+        self.assertEqual(raised.exception.code, 2)
+        self.assertIn("blank", stderr.getvalue())
+        view.assert_not_called()
+        close.assert_not_called()
 
     def test_open_issue_closes_with_the_comment(self):
         with mock.patch.object(_MODULE.gh, "issue_view",

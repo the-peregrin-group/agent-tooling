@@ -365,10 +365,14 @@ ghw-issue-create <owner/repo> <type> "<title>" \
 ```
 
 **For historical/closed issues:** create them first (in chronological order,
-so they get the lowest numbers), then close each immediately:
+so they get the lowest numbers), then close each immediately. A close requires a comment, so stage one
+canned comment once (unique filename, per the staging rule) and reuse it for
+every historical close:
 
 ```bash
-ghw-issue-close <owner/repo> <number>
+# once: write "Imported as already-resolved history" to
+#   /tmp/claude/import_close_<unique>.md
+ghw-issue-close <owner/repo> <number> /tmp/claude/import_close_<unique>.md
 ```
 
 ### 6c: Set Priority and Status on the Board
