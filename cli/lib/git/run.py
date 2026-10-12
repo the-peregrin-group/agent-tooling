@@ -273,8 +273,9 @@ def parse_push_trace(text: str) -> Tuple[bool, Optional[int]]:
     environment and append to the same file under their own session id,
     each numbering its children from 0. Only the root session counts: a
     child git's sid is "<parent-sid>/<own>", so a sid containing a slash
-    (or a missing or non-string sid) is a nested process, such as a push
-    the outer pre-push hook runs and tolerates the refusal of. A
+    (or a missing or non-string sid) is a nested process, for example a
+    second push that the outer pre-push hook runs, whose own hook refuses
+    while the outer hook tolerates that. A
     `child_exit` whose code is missing or not an integer is no signal."""
     traced = False
     hooks = set()
