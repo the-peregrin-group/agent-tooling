@@ -56,6 +56,10 @@ _NETWORK_HINTS = (
 _AUTH_HINTS = (
     "gh auth login", "authentication required", "requires authentication",
     "bad credentials", "http 401", "authentication failed",
+    # A token missing a scope (the usual board-Verb failure): gh prints
+    # "This API operation needs the "read:project" scope ... gh auth refresh",
+    # and GraphQL reports INSUFFICIENT_SCOPES over HTTP 200.
+    "gh auth refresh", "required scopes", "insufficient_scopes",
 )
 _NOT_FOUND_HINTS = ("http 404", "could not resolve to a", "not found")
 
@@ -78,6 +82,37 @@ def classify(text: str) -> int:
     if any(hint in lowered for hint in _NOT_FOUND_HINTS):
         return plan.EXIT_NOT_FOUND
     return plan.EXIT_RUNTIME
+
+
+def _code_from_graphql_errors(errors: object) -> int | None:
+    """The exit code a GraphQL `errors` array's `type` fields imply, or None.
+
+    `type` is structured, so it beats text matching when present.
+    """
+    if not isinstance(errors, list):
+        return None
+    types = {item.get("type") for item in errors if isinstance(item, dict)}
+    if "NOT_FOUND" in types:
+        return plan.EXIT_NOT_FOUND
+    if "INSUFFICIENT_SCOPES" in types:
+        return plan.EXIT_AUTH
+    return None
+
+
+def _classify_failed_call(arguments: list[str], stdout: str, stderr: str) -> int:
+    """Exit code for a nonzero `gh` exit. For `gh api graphql`, gh exits
+    nonzero on any `errors` payload and prints the body to stdout, so try its
+    structured `type` before falling back to the stderr text."""
+    if arguments[:2] == ["api", "graphql"]:
+        try:
+            body = json.loads(stdout)
+        except (json.JSONDecodeError, TypeError):
+            body = None
+        if isinstance(body, dict):
+            code = _code_from_graphql_errors(body.get("errors"))
+            if code is not None:
+                return code
+    return classify(stderr)
 
 
 def graphql(query: str, variables: dict | None = None) -> dict:
@@ -110,11 +145,9 @@ def graphql(query: str, variables: dict | None = None) -> dict:
         raise GhError(f"gh api graphql returned a non-object response:\n{output[:500]}")
     if response.get("errors"):
         errors = response["errors"]
-        code = classify(json.dumps(errors))
-        if isinstance(errors, list) and any(
-                isinstance(item, dict) and item.get("type") == "NOT_FOUND"
-                for item in errors):
-            code = plan.EXIT_NOT_FOUND
+        code = _code_from_graphql_errors(errors)
+        if code is None:
+            code = classify(json.dumps(errors))
         raise GhError("GraphQL errors: " + json.dumps(errors, indent=2), code)
     if "data" not in response:
         raise GhError(f"GraphQL response carries no data object:\n{output[:500]}")
@@ -397,7 +430,7 @@ def _run(arguments: list[str], *, input_text: str | None = None) -> str:
         raise GhError(
             f"gh {' '.join(arguments)} failed (exit {process.returncode}):\n"
             f"{process.stderr.strip()}",
-            classify(process.stderr),
+            _classify_failed_call(arguments, process.stdout, process.stderr),
         )
     return process.stdout
 

@@ -345,7 +345,11 @@ class ExitCodeClassificationTest(unittest.TestCase):
     def test_auth_is_5(self, run):
         for stderr in ("HTTP 401: Bad credentials",
                        "To get started with GitHub CLI, please run:  gh auth login",
-                       "gh: Forbidden (HTTP 403)"):
+                       "gh: Forbidden (HTTP 403)",
+                       'gh: This API operation needs the "read:project" scope. '
+                       'To request it, run:  gh auth refresh -h github.com -s '
+                       'read:project',
+                       "your token has not been granted the required scopes"):
             with self.subTest(stderr=stderr):
                 self.assertEqual(self._failure(run, stderr).exit_code, 5)
 
@@ -388,8 +392,65 @@ class ExitCodeClassificationTest(unittest.TestCase):
             gh.graphql("query { x }")
         self.assertEqual(caught.exception.exit_code, 3)
 
+    @mock.patch("lib.github.gh.subprocess.run")
+    def test_real_gh_graphql_error_shape_is_classified_by_type(self, run):
+        # gh exits nonzero on any GraphQL `errors` payload, printing the body
+        # to stdout and only "gh: <message>" to stderr, so the structured
+        # `type` has to be read from stdout on the failure path.
+        cases = (
+            ("NOT_FOUND", "gh: Some wording we do not match", 3),
+            ("INSUFFICIENT_SCOPES", "gh: Some wording we do not match", 5),
+            ("OTHER", "gh: Some wording we do not match", 1),
+        )
+        for error_type, stderr, expected in cases:
+            with self.subTest(error_type=error_type):
+                run.return_value = _completed(
+                    returncode=1, stderr=stderr,
+                    stdout='{"errors": [{"type": "%s", "message": "m"}]}'
+                    % error_type)
+                with self.assertRaises(gh.GhError) as caught:
+                    gh.graphql("query { x }")
+                self.assertEqual(caught.exception.exit_code, expected)
+
+    @mock.patch("lib.github.gh.subprocess.run")
+    def test_graphql_failure_with_non_json_stdout_falls_back_to_stderr(self, run):
+        run.return_value = _completed(
+            returncode=1, stdout="not json",
+            stderr="gh: Could not resolve to a Repository with the name 'o/r'.")
+        with self.assertRaises(gh.GhError) as caught:
+            gh.graphql("query { x }")
+        self.assertEqual(caught.exception.exit_code, 3)
+
     def test_default_exit_code_is_1(self):
         self.assertEqual(gh.GhError("x").exit_code, 1)
+
+
+class VerbsUseTheClassifiedExitCodeTest(unittest.TestCase):
+    """Structural guard: a Verb's `except gh.GhError` must exit with the
+    error's own code, never a hard-coded EXIT_RUNTIME (which would silently
+    flatten 3/5/6 back to 1)."""
+
+    def test_no_verb_flattens_a_gh_error_to_exit_runtime(self):
+        cli = Path(__file__).resolve().parents[2]
+        verbs = sorted(cli.glob("ghw-*"))
+        self.assertTrue(verbs)
+        for verb in verbs:
+            lines = verb.read_text().splitlines()
+            for index, line in enumerate(lines):
+                if not line.lstrip().startswith("except gh.GhError"):
+                    continue
+                indent = len(line) - len(line.lstrip())
+                body = []
+                for following in lines[index + 1:]:
+                    if following.strip() and (
+                            len(following) - len(following.lstrip())) <= indent:
+                        break
+                    body.append(following)
+                text = "\n".join(body)
+                with self.subTest(verb=verb.name, line=index + 1):
+                    self.assertFalse("gh.die(" in text and "EXIT_RUNTIME" in text,
+                                     "gh.die in except gh.GhError must pass "
+                                     "error.exit_code")
 
 
 if __name__ == "__main__":

@@ -264,8 +264,17 @@ writes to this repo, and the flag only narrows which board is touched.
   `gh.classify`, which matches `gh`'s stderr loosely and case-insensitively
   (its wording is not a stable interface). A 403 counts as auth only when
   nothing points at rate limiting or SAML enforcement; a missing `gh` binary
-  stays `1`. Policy refusals stay `2` rather than `4`, because callers key on
-  `2`. The `triage-*` wrappers still use `1` and `2` only.
+  stays `1`. A GraphQL `errors` payload is classified by its `type` first
+  (`NOT_FOUND` is `3`, `INSUFFICIENT_SCOPES` is `5`), because `gh` exits
+  nonzero on those and prints only a terse message to stderr; a token missing
+  a scope (`gh auth refresh`) is auth. A Verb's own not-found (a missing issue
+  or board node) is `3`. `ghw-board-sync new` exits `1` once the project
+  exists, whatever the underlying code, because `6` would invite a retry that
+  creates a second orphan project. Policy refusals stay `2` rather than `4`,
+  because callers key on `2`; migrating them is rejected for now (a
+  maintainer decision, not made here). A `6` from a timeout or reset on a
+  create or comment Verb is ambiguous: the write may have landed, so a retry
+  can duplicate it. The `triage-*` wrappers still use `1` and `2` only.
 - **JSON output:** write Verbs print a JSON plan with `"action": "applied"`
   (or `"plan"`, from `ghw-label-sync plan` only), most with a `changed`
   field. `ghw-orient` prints its own blob.

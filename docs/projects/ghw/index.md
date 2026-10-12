@@ -34,7 +34,7 @@ How and why it works: [design.md](design.md).
 | Repo tracking bootstrap: labels, board, backlog import | shipped | `setup-github-issues` |
 | Backlog triage and grooming, with autonomous writes through dedicated wrappers | shipped | `triage-issues`, `triage-*` |
 | Scheduled unattended triage via a guard-script background job | shipped | [DEPLOYMENT.md](../../../skills/triage-issues/reference/DEPLOYMENT.md) |
-| Full Exit-code contract (codes 3 to 6) for ghw | shipped | [Exit-code contract](../../index.md#exit-code-contract); `lib/github/gh.py` |
+| `gh` failures classified into the shared Exit-codes 3, 5, and 6 | shipped | [Exit-code contract](../../index.md#exit-code-contract); `lib/github/gh.py` |
 | `triage-*` wrappers rebased onto the shared library | planned | [triage-library-rebase.md](triage-library-rebase.md); `agent-tooling-t7y` |
 
 ### Known gaps

@@ -154,7 +154,10 @@ def _create_board(repository: str) -> dict:
             f"({project['url']}) and is half-provisioned{landed}. Do not re-run "
             f"with 'new' -- finish it with `ghw-board-sync {repository} "
             f"{project['number']}`, or delete the project by hand.",
-            error.exit_code,
+            # Never the error's own code: 6 invites a retry of 'new' (a second
+            # orphan project) and 3 reads as an answer, yet the board is
+            # half-provisioned. 1 means stop and report.
+            plan.EXIT_RUNTIME,
         )
     return {
         "board": fresh,
