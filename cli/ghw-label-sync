@@ -5,8 +5,9 @@ Declarative and idempotent: the desired registry is the five canonical type
 labels (from the shared schema constants, never redeclared in a file) plus the
 repo-specific `area:` and scope families the JSON schema file declares, plus
 P0-P3 when the file sets "priority_labels": true. Anything in the repo and not
-in that set is a deletion candidate -- which is how GitHub's nine stock labels
-get cleared at bootstrap.
+in that set is a deletion candidate -- which is how eight of GitHub's nine
+stock labels get cleared at bootstrap (stock `bug` is a canonical type label, so
+it is kept).
 
 Modes are positional because deletion authority is granted by allowlisting a
 mode, never by a trailing flag:
