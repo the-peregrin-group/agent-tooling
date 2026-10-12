@@ -404,6 +404,79 @@ class GitwIntegrateBehaviorTest(_IntegrateFixtureTest):
         self.assertIn("checked out at cwd", stderr)
 
 
+class GitwIntegrateExecutedByTest(_IntegrateFixtureTest):
+    _JOB_ENVIRON = {"CLAUDE_JOB_DIR": "/Users/x/.claude/jobs/ae218998",
+                    "USER": "dan"}
+
+    def integrate_with_environ(self, environ: dict, *arguments: str,
+                               expecting_exit: int | None = None):
+        """Integrate with the session identity pinned to `environ` (the
+        developer running the suite may be inside a job with
+        CLAUDE_JOB_DIR set)."""
+        with mock.patch.dict(os.environ, environ):
+            if "CLAUDE_JOB_DIR" not in environ:
+                os.environ.pop("CLAUDE_JOB_DIR", None)
+            if expecting_exit is not None:
+                return self.integrate_expecting_exit(
+                    expecting_exit, *arguments
+                )
+            return self.integrate(*arguments)
+
+    def base_trailers(self) -> list:
+        output = self.remote_git(
+            "log", "-1", "--format=%(trailers:key=Executed-By,valueonly)",
+            "refs/heads/main",
+        )
+        return [line for line in output.splitlines() if line]
+
+    def test_job_dir_actor_is_the_trailer(self):
+        payload = self.integrate_with_environ(
+            self._JOB_ENVIRON, "proj", "main", "fix/", self.message_path
+        )
+        self.assertEqual(self.base_trailers(), ["claude-job-ae218998"])
+        self.assertEqual(payload["executed_by"], "claude-job-ae218998")
+        self.assertEqual(
+            self.remote_git("log", "-1", "--format=%B", "refs/heads/main"),
+            "Integrate fix/topic\n\nbubble body\n\n"
+            "Executed-By: claude-job-ae218998",
+        )
+
+    def test_attended_fallback_is_the_trailer(self):
+        payload = self.integrate_with_environ(
+            {"USER": "dan"}, "proj", "main", "fix/", self.message_path
+        )
+        self.assertEqual(self.base_trailers(), ["attended-dan"])
+        self.assertEqual(payload["executed_by"], "attended-dan")
+
+    def test_caller_trailer_is_replaced_and_the_file_untouched(self):
+        original = "Integrate\n\nbody\n\nExecuted-By: someone-else\n"
+        Path(self.message_path).write_text(original)
+        self.integrate_with_environ(
+            self._JOB_ENVIRON, "proj", "main", "fix/", self.message_path
+        )
+        self.assertEqual(self.base_trailers(), ["claude-job-ae218998"])
+        self.assertNotIn(
+            "someone-else",
+            self.remote_git("log", "-1", "--format=%B", "refs/heads/main"),
+        )
+        self.assertEqual(Path(self.message_path).read_text(), original)
+
+    def test_two_caller_trailers_are_refused_and_nothing_is_pushed(self):
+        Path(self.message_path).write_text(
+            "Integrate\n\nExecuted-By: a\nRefs: x\nexecuted-by: b\n"
+        )
+        old_main = self.remote_git("rev-parse", "refs/heads/main")
+        stderr = self.integrate_with_environ(
+            self._JOB_ENVIRON, "proj", "main", "fix/", self.message_path,
+            expecting_exit=4,
+        )
+        self.assertIn("2 Executed-By trailers", stderr)
+        self.assertIn("gitw-integrate", stderr)
+        self.assertEqual(
+            self.remote_git("rev-parse", "refs/heads/main"), old_main
+        )
+
+
 class GitwIntegrateHookTest(_IntegrateFixtureTest):
     """A local pre-push hook on the bubble's push: its output reaches the
     caller whether it passes or refuses, and a refusal is exit 4, never

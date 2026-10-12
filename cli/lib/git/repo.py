@@ -15,8 +15,12 @@ Everything here is read-only; RefusalError maps to exit 4 upstream.
 
 from __future__ import annotations
 
+import os
+import tempfile
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Iterator
 
 from lib import plan
 from lib.git import arguments, run
@@ -374,3 +378,65 @@ def worktree_holding_branch(root: Path, branch: str) -> Path | None:
         elif line == f"branch refs/heads/{branch}" and current is not None:
             return current.resolve()
     return None
+
+
+def add_executed_by(
+    message_file: Path, actor: str, root: Path, verb: str
+) -> None:
+    """Add an `Executed-By: <actor>` trailer to `message_file` in place (a
+    private copy of the caller's message, which must end in a newline), by
+    git's own trailer machinery: joined to an existing trailer block, else
+    as a new paragraph after the message. A caller's Executed-By trailer
+    is replaced (identity comes from the environment, not the caller).
+    git's replace deletes only the one trailer closest to the insertion
+    point, so a block holding several Executed-By trailers is refused
+    (RefusalError, naming `verb`) rather than left with a caller value
+    beside the derived one. --no-divider because a commit message is not a
+    patch: a `---` line in it must not end the message for trailer
+    placement."""
+    trailers = run.must(
+        ["interpret-trailers", "--no-divider", "--parse", str(message_file)],
+        root,
+    )
+    existing = [
+        line for line in trailers.splitlines()
+        if line.split(":", 1)[0].strip().lower() == "executed-by"
+    ]
+    if len(existing) > 1:
+        raise RefusalError(
+            f"the message carries {len(existing)} Executed-By trailers; "
+            f"{verb} writes that trailer itself from the session "
+            "environment -- remove them from the message file"
+        )
+    run.must(
+        [
+            "interpret-trailers",
+            "--in-place",
+            "--no-divider",
+            "--if-exists", "replace",
+            "--trailer", f"Executed-By: {actor}",
+            str(message_file),
+        ],
+        root,
+    )
+
+
+@contextmanager
+def trailered_message(
+    message: str, actor: str, root: Path, verb: str
+) -> Iterator[Path]:
+    """Yield the path of a private copy of `message` carrying the
+    `Executed-By: <actor>` trailer (see add_executed_by); the copy is
+    removed on exit. The caller's staged message file is never modified.
+    The guaranteed final newline matters: interpret-trailers glues a
+    trailer onto an unterminated last line instead of starting a new one.
+    mkstemp's default temp dir is intentional: the trailered copy must not
+    land in the caller's staging dir."""
+    handle, path = tempfile.mkstemp(prefix=f"{verb}-", suffix=".txt")
+    try:
+        with os.fdopen(handle, "w", encoding="utf-8") as copy:
+            copy.write(message if message.endswith("\n") else message + "\n")
+        add_executed_by(Path(path), actor, root, verb)
+        yield Path(path)
+    finally:
+        os.unlink(path)

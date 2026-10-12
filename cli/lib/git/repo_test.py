@@ -11,6 +11,7 @@ import shutil
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 import gitw_test_support
 from lib import plan
@@ -308,6 +309,36 @@ class ReadPrimitivesTest(_FixtureTest):
         self.assertEqual(
             repo.authoritative_ref(local), ("main", "refs/heads/main")
         )
+
+
+class TraileredMessageTest(_FixtureTest):
+    def test_copy_carries_the_trailer_and_is_removed_on_exit(self):
+        with repo.trailered_message(
+            "subject\n\nExecuted-By: other", "actor-1", self.clone, "gitw-x"
+        ) as path:
+            self.assertEqual(
+                path.read_text(), "subject\n\nExecuted-By: actor-1\n"
+            )
+        self.assertFalse(path.exists())
+
+    def test_two_trailers_are_refused_naming_the_verb_and_cleaned_up(self):
+        created = []
+        real = repo.tempfile.mkstemp
+
+        def recording(*args, **kwargs):
+            handle, name = real(*args, **kwargs)
+            created.append(name)
+            return handle, name
+
+        with mock.patch.object(repo.tempfile, "mkstemp", recording):
+            with self.assertRaises(repo.RefusalError) as caught:
+                with repo.trailered_message(
+                    "s\n\nExecuted-By: a\nexecuted-by: b\n",
+                    "actor-1", self.clone, "gitw-x",
+                ):
+                    self.fail("must not yield")
+        self.assertIn("gitw-x writes that trailer", str(caught.exception))
+        self.assertFalse(Path(created[0]).exists())
 
 
 if __name__ == "__main__":
