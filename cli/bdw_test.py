@@ -11,8 +11,9 @@ The fake bd answers bdw's two probes (`where --json` from FAKE_BEADS_DIR,
 `version --json` from FAKE_BD_VERSION), logs every invocation to
 FAKE_BD_LOG, and otherwise prints BD_ACTOR, BEADS_ACTOR, and
 CLAUDE_SESSION_ID, then its arguments one per line, then its stdin when
-FAKE_BD_ECHO_STDIN is set, writes FAKE_BD_STDERR to stderr, and exits
-FAKE_BD_EXIT, or kills itself with signal FAKE_BD_SELF_SIGNAL.
+FAKE_BD_ECHO_STDIN is set, sleeps FAKE_BD_SLEEP seconds when it is set,
+writes FAKE_BD_STDERR to stderr, and exits FAKE_BD_EXIT, or kills itself
+with signal FAKE_BD_SELF_SIGNAL.
 
 The tests of live relaying and signal forwarding use a second fake,
 _SLOW_BD, which reports on stderr that it is running and then waits.
@@ -59,6 +60,9 @@ for argument in "$@"; do
 done
 if [ -n "${FAKE_BD_ECHO_STDIN-}" ]; then
     /bin/cat
+fi
+if [ -n "${FAKE_BD_SLEEP-}" ]; then
+    /bin/sleep "$FAKE_BD_SLEEP"
 fi
 if [ -n "${FAKE_BD_STDERR-}" ]; then
     printf '%s\\n' "$FAKE_BD_STDERR" >&2
@@ -254,6 +258,34 @@ class BdwTest(unittest.TestCase):
         result = self.run_bdw("show", "x-1", USER="dan",
                               FAKE_BD_SELF_SIGNAL="KILL")
         self.assertEqual(result.returncode, 137, result.stderr)
+
+    def test_bd_exit_code_survives_a_closed_stderr(self):
+        # The caller closes its end of bdw's stderr before bd writes to
+        # it; bdw must still drain bd and return bd's own exit code, not
+        # Python's 120 from a failed flush at exit.
+        self.install_fake_bd()
+        cases = (
+            (("show", "x-1"), "boom", "7", 7),
+            (("frobnicate",), "Error: unknown command \"frobnicate\" for \"bd\"",
+             "1", 1),
+            (("--help",), "", "0", 0),
+            (("create", "x"), "", "0", 4),  # refused: unverified version
+        )
+        for arguments, stderr_line, bd_exit, expected in cases:
+            with self.subTest(arguments=arguments):
+                process = subprocess.Popen(
+                    [str(_SCRIPT), *arguments],
+                    env=self.bdw_environment(
+                        USER="dan", FAKE_BD_SLEEP="0.5",
+                        FAKE_BD_STDERR=stderr_line, FAKE_BD_EXIT=bd_exit,
+                        FAKE_BD_VERSION="1.4.0" if expected == 4 else "1.3.0"),
+                    stdin=subprocess.DEVNULL,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.PIPE,
+                )
+                self.addCleanup(process.kill)
+                process.stderr.close()
+                self.assertEqual(process.wait(timeout=30), expected)
 
     def test_stdin_reaches_bd(self):
         self.install_fake_bd()

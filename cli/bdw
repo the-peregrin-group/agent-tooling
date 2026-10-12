@@ -39,10 +39,11 @@ One call, in order:
    whatever the caller supplied; with no usable session ID,
    CLAUDE_SESSION_ID is removed rather than left to the caller. Arguments
    pass unchanged; stdin and stdout are bd's own, and bd's stderr is
-   relayed line by line as it arrives, so bdw can read it. SIGTERM,
-   SIGHUP, and SIGQUIT sent to bdw are forwarded to bd, and bdw goes on
-   waiting for bd's own exit; SIGINT is left to the terminal, which
-   delivers it to bd as well.
+   relayed line by line as it arrives, so bdw can read it. If bdw's own
+   stderr closes, bdw keeps draining bd's and still returns bd's exit
+   code. SIGTERM, SIGHUP, and SIGQUIT sent to bdw are forwarded to bd,
+   and bdw goes on waiting for bd's own exit; SIGINT is left to the
+   terminal, which delivers it to bd as well.
 5. Print HELP_LINE on stderr after a help call, after any call whose
    arguments (before a `--`) include `--help` or `-h`, after bd's output
    when bd reports a usage error (a stderr line starting with one of
@@ -144,13 +145,40 @@ USAGE_ERROR_MARKERS = (
 _PROBE_TIMEOUT = 60
 
 
+def _drop_stderr() -> None:
+    """Point file descriptor 2 at /dev/null once bdw's stderr has gone
+    away (a reader that closed the pipe, say). Bytes still buffered in
+    sys.stderr then flush harmlessly, so the interpreter's flush at exit
+    cannot fail and replace bd's exit code with Python's 120. This is the
+    remedy the CPython docs give for a broken pipe (the signal module's
+    "Note on SIGPIPE")."""
+    try:
+        devnull = os.open(os.devnull, os.O_WRONLY)
+    except OSError:
+        return
+    try:
+        os.dup2(devnull, sys.stderr.fileno())
+    except (OSError, ValueError):
+        pass
+    finally:
+        os.close(devnull)
+
+
+def _emit(text: str) -> None:
+    """Write one line on stderr; never raise if stderr has gone away."""
+    try:
+        print(text, file=sys.stderr, flush=True)
+    except OSError:
+        _drop_stderr()
+
+
 def _say(message: str) -> None:
-    print(f"bdw: {message}", file=sys.stderr)
+    _emit(f"bdw: {message}")
 
 
 def _fail(code: int, message: str) -> int:
     _say(message)
-    print(HELP_LINE, file=sys.stderr)
+    _emit(HELP_LINE)
     return code
 
 
@@ -285,7 +313,8 @@ def _child_environment(environ: Mapping[str, str]) -> dict:
 def _relay(child: subprocess.Popen) -> bool:
     """Relay bd's stderr line by line until it closes; return whether it
     reported a usage error. If bdw's own stderr goes away, keep draining
-    bd's so bd never blocks or dies on a full or broken pipe."""
+    bd's so bd never blocks or dies on a full or broken pipe, and drop
+    bdw's stderr (_drop_stderr) so bd's exit code still comes back."""
     usage_error = False
     sink = sys.stderr.buffer
     sink_open = True
@@ -303,6 +332,7 @@ def _relay(child: subprocess.Popen) -> bool:
                 sink.flush()
             except OSError:
                 sink_open = False
+                _drop_stderr()
         if line.decode("utf-8", "replace").startswith(USAGE_ERROR_MARKERS):
             usage_error = True
 
@@ -373,7 +403,7 @@ def main(argv: list[str]) -> int:
     except (OSError, subprocess.SubprocessError) as error:
         return _fail(plan.EXIT_RUNTIME, f"cannot run {bd}: {error}")
     if help_call or usage_error or _asks_for_help(argv):
-        print(HELP_LINE, file=sys.stderr)
+        _emit(HELP_LINE)
     return code
 
 

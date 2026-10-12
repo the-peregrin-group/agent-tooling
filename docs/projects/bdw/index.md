@@ -80,7 +80,9 @@ What one call does:
    set to the session ID, or removed when there is none. All three
    override whatever the caller supplied. Arguments pass unchanged; stdin
    and stdout are bd's own, and bd's stderr is relayed line by line as it
-   arrives, so `bdw` can read it. `SIGTERM`, `SIGHUP`, and `SIGQUIT`
+   arrives, so `bdw` can read it. If `bdw`'s own stderr closes (a caller
+   that stops reading it), `bdw` keeps draining bd's and still returns
+   bd's exit code. `SIGTERM`, `SIGHUP`, and `SIGQUIT`
    sent to `bdw` are forwarded to bd, and `bdw` keeps waiting for bd to
    exit; `SIGINT` is not forwarded, since a terminal delivers it to bd as
    well. If bd cannot be started, exit 1; otherwise the exit code is bd's
