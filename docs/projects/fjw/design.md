@@ -72,7 +72,8 @@ numbers to be positive integers.
 - `fjw-pr-comments <owner/repo> <pr#>` checks that the number names a PR
   (exit 3 otherwise), then prints its comments, paginated.
 - `fjw-pr-reviews <owner/repo> <pr#>` makes the same PR-ness check, then
-  prints the reviews (paginated), each gaining a `comments` key holding that
+  prints the reviews (paginated until an empty page, because Forgejo filters
+  reviews after paginating, so a short page is not the end), each gaining a `comments` key holding that
   review's raw inline comments (one extra request per review; that
   per-review route is unpaginated server-side, so it is a single GET; reviews
   with no inline comments still appear). It is a separate Verb rather than an

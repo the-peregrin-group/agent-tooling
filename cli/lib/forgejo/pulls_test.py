@@ -266,13 +266,14 @@ class ReviewsTest(unittest.TestCase):
         self.assertEqual(request.call_args.args[1:], ("GET", "/repos/o/r/pulls/5/reviews"))
 
     @mock.patch("lib.forgejo.pulls.api.request")
-    def test_list_reviews_fetches_next_page_when_full(self, request):
-        full = [{"id": i} for i in range(pulls._PAGE_SIZE)]
-        request.side_effect = [full, [{"id": 999}]]
+    def test_list_reviews_continues_past_a_short_page_until_empty(self, request):
+        # Forgejo filters after paginating, so a short page is not the end.
+        short = [{"id": i} for i in range(pulls._PAGE_SIZE - 1)]
+        request.side_effect = [short, [{"id": 999}], []]
         reviews = pulls.list_reviews(_CONFIG, "o/r", 5)
-        self.assertEqual(len(reviews), pulls._PAGE_SIZE + 1)
+        self.assertEqual(len(reviews), pulls._PAGE_SIZE)
         pages = [c.kwargs["query"]["page"] for c in request.call_args_list]
-        self.assertEqual(pages, ["1", "2"])
+        self.assertEqual(pages, ["1", "2", "3"])
 
     @mock.patch("lib.forgejo.pulls.api.request")
     def test_list_review_comments_is_one_unpaginated_call(self, request):

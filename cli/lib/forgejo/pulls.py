@@ -236,7 +236,13 @@ def list_comments(config: Config, repository: str, index: int) -> list[dict]:
 
 
 def list_reviews(config: Config, repository: str, index: int) -> list[dict]:
-    """Every review on PR `index`, paginated to exhaustion."""
+    """Every review on PR `index`, paginated until an empty page.
+
+    Not the short-page stop used for comments: Forgejo paginates reviews
+    and then filters them (pending reviews of other users are dropped),
+    so a page can be short while more pages remain. One extra GET buys
+    certainty.
+    """
     reviews: list[dict] = []
     page = 1
     while True:
@@ -246,9 +252,9 @@ def list_reviews(config: Config, repository: str, index: int) -> list[dict]:
             f"/repos/{repository}/pulls/{index}/reviews",
             query={"limit": str(_PAGE_SIZE), "page": str(page)},
         ) or []
-        reviews.extend(batch)
-        if len(batch) < _PAGE_SIZE:
+        if not batch:
             return reviews
+        reviews.extend(batch)
         page += 1
 
 
