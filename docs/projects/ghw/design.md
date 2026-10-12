@@ -281,7 +281,7 @@ writes to this repo, and the flag only narrows which board is touched.
   creation in `ghw-board-sync new` (which would otherwise orphan an unlinked
   board on a re-run) downgrade such a
   `6` to `1` (`gh.write_exit_code`); only provably pre-send failures (DNS,
-  refused connection) stay `6` there. `ghw-issue-close` with a comment file
+  refused connection) stay `6` there. `ghw-issue-close`, whose comment is mandatory,
   downgrades every network failure during the close to `1`, pre-send or not,
   because `gh issue close --comment` posts the comment in a first request and
   closes in a second, so a retry would post the comment twice (its read of the
