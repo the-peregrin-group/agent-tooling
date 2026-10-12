@@ -154,6 +154,16 @@ INDIRECTION_ASK_ROWS = (
     "Bash(eval *)",
 )
 
+# Shell deletion and move. Git fences `git rm` and `git mv` to tracked,
+# in-repo paths; the shell forms have no fence, and auto mode's classifier
+# was seen approving a shell rm of a tracked file unprompted. An ask row
+# puts the human back in front of them (the maintainer's ruling of
+# 2026-10-11, PR #49).
+SHELL_FILE_ASK_ROWS = (
+    "Bash(rm *)",
+    "Bash(mv *)",
+)
+
 # Human gate on top of an allow: flags that delete, override another actor's
 # claim, close Issues on the agent's behalf, write files, or send data off
 # the machine, and configuration or backup changes.
@@ -314,7 +324,7 @@ def expected_deny() -> set:
 
 
 def expected_ask() -> set:
-    return set(INDIRECTION_ASK_ROWS) | set(ASK_FLAGS)
+    return set(INDIRECTION_ASK_ROWS) | set(SHELL_FILE_ASK_ROWS) | set(ASK_FLAGS)
 
 
 def expected_allow() -> set:
