@@ -439,6 +439,15 @@ class AmbiguousWriteTest(unittest.TestCase):
         self.assertEqual(error.exit_code, 3)
 
     @mock.patch("lib.github.gh.subprocess.run")
+    def test_bare_not_found_wording_is_not_a_not_found(self, run):
+        # A schema error is a bug in the query, not an answer about a resource.
+        body = '{"errors": [{"message": "Field x not found on type Issue"}]}'
+        run.return_value = _completed(stdout=body)
+        with self.assertRaises(gh.GhError) as caught:
+            gh.graphql("query { x }")
+        self.assertEqual(caught.exception.exit_code, 1)
+
+    @mock.patch("lib.github.gh.subprocess.run")
     def test_graphql_error_payload_mentioning_timeout_is_not_network(self, run):
         body = '{"errors": [{"message": "operation timed out in validation"}]}'
         run.return_value = _completed(stdout=body)
@@ -471,6 +480,18 @@ class AmbiguousWriteTest(unittest.TestCase):
     def test_write_exit_code_passes_other_codes_through(self):
         for code in (1, 3, 5):
             self.assertEqual(gh.write_exit_code(gh.GhError("x", code)), code)
+
+
+class EarlierWriteLandedTest(unittest.TestCase):
+    def test_pre_send_network_failure_is_not_retryable_after_an_earlier_write(self):
+        error = gh.GhError("boom", 6, may_have_landed=False)
+        self.assertEqual(gh.write_exit_code(error, earlier_write_landed=True), 1)
+        self.assertEqual(gh.write_exit_code(error), 6)
+
+    def test_other_codes_pass_through(self):
+        for code in (1, 3, 5):
+            error = gh.GhError("x", code)
+            self.assertEqual(gh.write_exit_code(error, earlier_write_landed=True), code)
 
 
 class VerbsUseTheClassifiedExitCodeTest(unittest.TestCase):

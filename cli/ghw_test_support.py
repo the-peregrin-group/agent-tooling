@@ -92,3 +92,46 @@ class ArgumentContractTests:
     def test_unrecognized_flag_is_usage_error(self):
         for arguments in ((*self.LONGEST, "--bogus"), *self.FLAG_SLOT_FORMS):
             self._assert_usage_error(arguments, "--bogus")
+
+
+def exit_code_of(module, argv: list) -> int:
+    """Run a loaded wrapper's main(argv) and return its exit code, with stderr
+    swallowed. For Verbs that report failure through gh.die (SystemExit)."""
+    import contextlib
+    import io
+
+    with contextlib.redirect_stderr(io.StringIO()):
+        try:
+            return module.main(argv)
+        except SystemExit as stop:
+            return stop.code
+
+
+def assert_write_failure_codes(test, module, argv: list, write_name: str,
+                               extra_patches=()) -> None:
+    """Pin a non-idempotent write Verb's failure mapping: a network failure
+    that may have landed exits 1 (a retry could duplicate the write), a
+    provably pre-send one exits 6, and other classified codes pass through.
+
+    `write_name` is the gh function the Verb calls for the write; the staged
+    body read is patched out so no file is needed.
+    """
+    import contextlib
+    from unittest import mock
+
+    cases = (
+        (module.gh.GhError("boom", 6, may_have_landed=True), 1),
+        (module.gh.GhError("boom", 6, may_have_landed=False), 6),
+        (module.gh.GhError("boom", 3), 3),
+        (module.gh.GhError("boom", 5), 5),
+    )
+    for error, expected in cases:
+        with test.subTest(error_code=error.exit_code, landed=error.may_have_landed):
+            with contextlib.ExitStack() as stack:
+                stack.enter_context(mock.patch.object(
+                    module.staging, "read_staged_body", return_value="body"))
+                for target, name, value in extra_patches:
+                    stack.enter_context(mock.patch.object(target, name, **value))
+                stack.enter_context(mock.patch.object(
+                    module.gh, write_name, side_effect=error))
+                test.assertEqual(exit_code_of(module, argv), expected)

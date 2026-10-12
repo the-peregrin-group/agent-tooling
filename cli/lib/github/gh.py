@@ -50,14 +50,19 @@ class GhError(Exception):
         self.may_have_landed = may_have_landed
 
 
-def write_exit_code(error: GhError) -> int:
+def write_exit_code(error: GhError, *, earlier_write_landed: bool = False) -> int:
     """Exit code for a failed non-idempotent write (create, comment).
 
     A retryable 6 becomes 1 when the request may already have landed, because
     a retry could duplicate the write. A failure that provably happened before
     the request left (DNS, refused connection) stays 6.
+
+    `earlier_write_landed` is for a call that makes several requests where an
+    earlier one (`gh issue close --comment` posts the comment first) has
+    already succeeded: then no network failure is retryable, pre-send or not.
     """
-    if error.exit_code == plan.EXIT_NETWORK and error.may_have_landed:
+    if error.exit_code == plan.EXIT_NETWORK and (
+            error.may_have_landed or earlier_write_landed):
         return plan.EXIT_RUNTIME
     return error.exit_code
 
@@ -84,7 +89,10 @@ _AUTH_HINTS = (
     # and GraphQL reports INSUFFICIENT_SCOPES over HTTP 200.
     "gh auth refresh", "required scopes", "insufficient_scopes",
 )
-_NOT_FOUND_HINTS = ("http 404", "could not resolve to a", "not found")
+# Deliberately no bare "not found": a GraphQL schema error ("Field 'x' not
+# found on type") would read as an answer rather than a bug. gh prints REST
+# misses with "(HTTP 404)" and GraphQL misses as "Could not resolve to a ...".
+_NOT_FOUND_HINTS = ("http 404", "could not resolve to a")
 
 
 def may_have_landed(text: str) -> bool:

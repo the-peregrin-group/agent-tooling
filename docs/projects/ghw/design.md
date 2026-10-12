@@ -278,7 +278,13 @@ writes to this repo, and the flag only narrows which board is touched.
   request was sent, so the create and comment Verbs (`ghw-issue-create`,
   `ghw-issue-comment`, `ghw-pr-create`, `ghw-pr-comment`) downgrade such a
   `6` to `1` (`gh.write_exit_code`); only provably pre-send failures (DNS,
-  refused connection) stay `6` there. The `triage-*` wrappers still use `1` and `2` only.
+  refused connection) stay `6` there. `ghw-issue-close` with a comment file
+  downgrades every network failure during the close to `1`, pre-send or not,
+  because `gh issue close --comment` posts the comment in a first request and
+  closes in a second, so a retry would post the comment twice (its read of the
+  issue's state keeps its classified code). Bare "not found" is not a
+  not-found hint either (a GraphQL schema error says it); only `HTTP 404` and
+  `Could not resolve to a ...` are. The `triage-*` wrappers still use `1` and `2` only.
 - **JSON output:** write Verbs print a JSON plan with `"action": "applied"`
   (or `"plan"`, from `ghw-label-sync plan` only), most with a `changed`
   field. `ghw-orient` prints its own blob.
