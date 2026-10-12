@@ -170,13 +170,17 @@ def _sync(workspace: repo.Workspace) -> dict:
 
 
 def _worktree_paths(root: Path) -> list:
-    """Every worktree of the repo, from any worktree of it."""
+    """Every worktree of the repo whose directory still exists, from any
+    worktree of it. A stale entry (directory deleted without `git worktree
+    remove`) is listed by git until pruned, but git cannot be spawned inside
+    it and nothing can be rebasing there."""
     raw = run.must(["worktree", "list", "--porcelain"], root)
-    return [
+    paths = [
         Path(line[len("worktree ") :])
         for line in raw.splitlines()
         if line.startswith("worktree ")
     ]
+    return [path for path in paths if path.is_dir()]
 
 
 if __name__ == "__main__":

@@ -222,6 +222,15 @@ class GitwTrunkSyncTest(unittest.TestCase):
         self.assertIn("rebase", stderr)
         self.assertEqual(self.local_main(), before)
 
+    def test_deleted_linked_worktree_directory_does_not_block_a_sync(self):
+        gitw_test_support.advance_remote(self.seed)
+        gone = self.base / "gone-wt"
+        self.git(self.clone, "worktree", "add", "-b", "fix/gone", str(gone))
+        shutil.rmtree(gone)
+        payload = self.sync()
+        self.assertEqual(payload["result"], "fast-forwarded")
+        self.assertEqual(self.local_main(), self.remote_main())
+
     def test_cherry_pick_and_revert_in_progress_are_refused(self):
         for marker in ("CHERRY_PICK_HEAD", "REVERT_HEAD"):
             with self.subTest(marker=marker):
