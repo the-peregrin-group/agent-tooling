@@ -7,6 +7,8 @@ inline) is mandatory: the closing comment is the audit record of why the issue
 was closed, so a silent close is inexpressible. A blank comment is refused.
 Closing an already-closed issue is a converged no-op; the comment is NOT
 posted, since the close it was meant to explain did not happen here.
+The comment-file slot takes no flags: a path beginning with '-' is a usage
+error (spell such a path './-name').
 
 Exit codes: 0 success (including a converged no-op), 1 gh/API failure,
 2 usage error or policy refusal (including a missing or blank comment).
