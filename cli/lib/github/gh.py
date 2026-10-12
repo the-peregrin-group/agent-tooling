@@ -37,21 +37,44 @@ class GhError(Exception):
 
     `exit_code` is the shared taxonomy code (lib.plan) the failure maps to:
     3 not found, 5 auth, 6 network, otherwise 1. Verbs exit with it.
+    `may_have_landed` is True for a network failure that may have happened
+    after the request was sent (a timeout, a reset), so a write may have been
+    applied; non-idempotent Verbs use write_exit_code() to avoid advertising
+    such a failure as retryable.
     """
 
-    def __init__(self, message: str, exit_code: int = plan.EXIT_RUNTIME):
+    def __init__(self, message: str, exit_code: int = plan.EXIT_RUNTIME,
+                 may_have_landed: bool = False):
         super().__init__(message)
         self.exit_code = exit_code
+        self.may_have_landed = may_have_landed
+
+
+def write_exit_code(error: GhError) -> int:
+    """Exit code for a failed non-idempotent write (create, comment).
+
+    A retryable 6 becomes 1 when the request may already have landed, because
+    a retry could duplicate the write. A failure that provably happened before
+    the request left (DNS, refused connection) stays 6.
+    """
+    if error.exit_code == plan.EXIT_NETWORK and error.may_have_landed:
+        return plan.EXIT_RUNTIME
+    return error.exit_code
 
 
 # Matched case-insensitively against gh's stderr (or a GraphQL error payload).
 # gh's wording is not a stable interface, so the patterns are loose, and the
 # order of checks in classify() matters: "could not resolve host" (network)
 # must win over "could not resolve to a Repository" (not found).
-_NETWORK_HINTS = (
-    "dial tcp", "no such host", "connection refused", "connection reset",
-    "i/o timeout", "could not resolve host", "tls handshake",
-    "network is unreachable", "timed out", "timeout",
+_PRE_SEND_HINTS = (
+    "dial tcp", "no such host", "connection refused", "could not resolve host",
+    "network is unreachable",
+)
+# Deliberately no bare "timeout": a repository named "timeout-handler" shows
+# up in not-found text and must not read as a network failure.
+_NETWORK_HINTS = _PRE_SEND_HINTS + (
+    "connection reset", "i/o timeout", "tls handshake", "client.timeout",
+    "context deadline exceeded", "operation timed out", "connection timed out",
 )
 _AUTH_HINTS = (
     "gh auth login", "authentication required", "requires authentication",
@@ -64,15 +87,24 @@ _AUTH_HINTS = (
 _NOT_FOUND_HINTS = ("http 404", "could not resolve to a", "not found")
 
 
-def classify(text: str) -> int:
+def may_have_landed(text: str) -> bool:
+    """True if network-failure text does not prove the request never left."""
+    lowered = text.lower()
+    return not any(hint in lowered for hint in _PRE_SEND_HINTS)
+
+
+def classify(text: str, *, network: bool = True) -> int:
     """Map gh failure text to a shared exit code; unrecognized text is 1.
+
+    `network=False` skips the network check, for text that is a GraphQL error
+    payload: gh got a response, so the failure is not a transport one.
 
     A 403 counts as auth only when nothing in the text points at rate
     limiting, abuse detection, or SAML enforcement, which need different
     handling than a bad credential.
     """
     lowered = text.lower()
-    if any(hint in lowered for hint in _NETWORK_HINTS):
+    if network and any(hint in lowered for hint in _NETWORK_HINTS):
         return plan.EXIT_NETWORK
     if any(hint in lowered for hint in _AUTH_HINTS):
         return plan.EXIT_AUTH
@@ -147,7 +179,7 @@ def graphql(query: str, variables: dict | None = None) -> dict:
         errors = response["errors"]
         code = _code_from_graphql_errors(errors)
         if code is None:
-            code = classify(json.dumps(errors))
+            code = classify(json.dumps(errors), network=False)
         raise GhError("GraphQL errors: " + json.dumps(errors, indent=2), code)
     if "data" not in response:
         raise GhError(f"GraphQL response carries no data object:\n{output[:500]}")
@@ -425,12 +457,16 @@ def _run(arguments: list[str], *, input_text: str | None = None) -> str:
         raise GhError(
             f"gh {' '.join(arguments)} timed out after {GH_TIMEOUT_SECONDS}s",
             plan.EXIT_NETWORK,
+            may_have_landed=True,
         )
     if process.returncode != 0:
+        code = _classify_failed_call(arguments, process.stdout, process.stderr)
         raise GhError(
             f"gh {' '.join(arguments)} failed (exit {process.returncode}):\n"
             f"{process.stderr.strip()}",
-            _classify_failed_call(arguments, process.stdout, process.stderr),
+            code,
+            may_have_landed=(code == plan.EXIT_NETWORK
+                             and may_have_landed(process.stderr)),
         )
     return process.stdout
 

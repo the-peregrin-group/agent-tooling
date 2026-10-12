@@ -11,7 +11,10 @@ comes from a staged file under /tmp/claude/ or ~/.claude/jobs/<job-id>/tmp/
 (never inline text). Deliberately non-idempotent: search for duplicates before
 filing, per skill-text guidance.
 
-Exit codes: 0 success, 1 gh/API failure, 2 usage error or policy refusal.
+Exit codes: 0 success, 1 unclassified gh/API failure, 2 usage error or policy refusal,
+3 not found, 5 auth failure, 6 network failure (retryable). A failure whose request may
+already have landed (a timeout or reset) exits 1 instead of 6 on the
+non-idempotent write Verbs, so a retry cannot duplicate it.
 """
 
 from __future__ import annotations
@@ -68,7 +71,7 @@ def main(argv: list[str]) -> int:
     try:
         url = gh.issue_create(repository, title, body, all_labels)
     except gh.GhError as error:
-        gh.die(str(error), error.exit_code)
+        gh.die(str(error), gh.write_exit_code(error))
 
     plan.emit_plan(
         "applied",

@@ -425,6 +425,54 @@ class ExitCodeClassificationTest(unittest.TestCase):
         self.assertEqual(gh.GhError("x").exit_code, 1)
 
 
+class AmbiguousWriteTest(unittest.TestCase):
+    def _failure(self, run, stderr: str) -> gh.GhError:
+        run.return_value = _completed(returncode=1, stderr=stderr)
+        with self.assertRaises(gh.GhError) as caught:
+            gh.rest("GET", "repos/o/r")
+        return caught.exception
+
+    @mock.patch("lib.github.gh.subprocess.run")
+    def test_bare_timeout_in_a_not_found_message_is_not_network(self, run):
+        error = self._failure(
+            run, "GraphQL: Could not resolve to a Repository with the name 'o/timeout-handler'.")
+        self.assertEqual(error.exit_code, 3)
+
+    @mock.patch("lib.github.gh.subprocess.run")
+    def test_graphql_error_payload_mentioning_timeout_is_not_network(self, run):
+        body = '{"errors": [{"message": "operation timed out in validation"}]}'
+        run.return_value = _completed(stdout=body)
+        with self.assertRaises(gh.GhError) as caught:
+            gh.graphql("query { x }")
+        self.assertEqual(caught.exception.exit_code, 1)
+
+    @mock.patch("lib.github.gh.subprocess.run")
+    def test_subprocess_timeout_and_reset_may_have_landed(self, run):
+        run.side_effect = subprocess.TimeoutExpired(["gh"], 120)
+        with self.assertRaises(gh.GhError) as caught:
+            gh.issue_comment("o/r", 1, "x")
+        self.assertTrue(caught.exception.may_have_landed)
+        self.assertEqual(gh.write_exit_code(caught.exception), 1)
+        run.side_effect = None
+        error = self._failure(run, "read tcp: connection reset by peer")
+        self.assertEqual(error.exit_code, 6)
+        self.assertEqual(gh.write_exit_code(error), 1)
+
+    @mock.patch("lib.github.gh.subprocess.run")
+    def test_pre_send_failures_stay_retryable_for_writes(self, run):
+        for stderr in ("dial tcp: lookup api.github.com: no such host",
+                       "dial tcp 1.2.3.4:443: connect: connection refused",
+                       "could not resolve host: api.github.com"):
+            with self.subTest(stderr=stderr):
+                error = self._failure(run, stderr)
+                self.assertFalse(error.may_have_landed)
+                self.assertEqual(gh.write_exit_code(error), 6)
+
+    def test_write_exit_code_passes_other_codes_through(self):
+        for code in (1, 3, 5):
+            self.assertEqual(gh.write_exit_code(gh.GhError("x", code)), code)
+
+
 class VerbsUseTheClassifiedExitCodeTest(unittest.TestCase):
     """Structural guard: a Verb's `except gh.GhError` must exit with the
     error's own code, never a hard-coded EXIT_RUNTIME (which would silently
