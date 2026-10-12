@@ -11,7 +11,10 @@ case their setup is trusted to be non-interactive.
 Remote failures classify into the shared exit-code taxonomy (lib.plan):
 auth markers are 5, a missing remote repository is 3, everything else
 remote is network (6, the one retryable class). Local failures stay
-unclassified runtime (1) unless a verb reclassifies them.
+unclassified runtime (1) unless a verb reclassifies them. The one
+exception to "a remote timeout is network" is traced_push: a push that
+times out while a local pre-push hook has started but not exited is a hung
+hook, which the caller reports as a refusal, never as a retryable stall.
 """
 
 from __future__ import annotations
@@ -98,6 +101,23 @@ def remote_environment(cwd: Path) -> dict:
     return environment
 
 
+def _spawn(
+    arguments: list[str], cwd: Path, env: dict,
+) -> subprocess.CompletedProcess:
+    """The one place git is spawned: non-interactive (no stdin), output
+    captured as text, bounded by the timeout. Lets TimeoutExpired
+    propagate so each caller classifies it."""
+    return subprocess.run(
+        ["git", *arguments],
+        cwd=str(cwd),
+        env=env,
+        stdin=subprocess.DEVNULL,
+        capture_output=True,
+        text=True,
+        timeout=_TIMEOUT_SECONDS,
+    )
+
+
 def run(
     arguments: list[str],
     cwd: Path,
@@ -110,15 +130,7 @@ def run(
     unclassified runtime otherwise -- a local command that stalls (a hung
     hook, fsmonitor) must not invite a retry loop that re-runs it."""
     try:
-        return subprocess.run(
-            ["git", *arguments],
-            cwd=str(cwd),
-            env=env or base_environment(),
-            stdin=subprocess.DEVNULL,
-            capture_output=True,
-            text=True,
-            timeout=_TIMEOUT_SECONDS,
-        )
+        return _spawn(arguments, cwd, env or base_environment())
     except subprocess.TimeoutExpired:
         raise GitError(
             f"git {' '.join(arguments)} timed out after {_TIMEOUT_SECONDS}s",
@@ -160,11 +172,14 @@ class TracedPush(NamedTuple):
     """A push run under trace2: git's result, the nonzero exit code of a
     local pre-push hook that refused (None when none did), and whether
     trace2 produced any events at all (False means the hook verdict is
-    unknown, not negative)."""
+    unknown, not negative). `hook_hung` is True when the push timed out
+    with a pre-push hook started and never exited; `result` is then a
+    synthetic nonzero result carrying whatever output git had produced."""
 
     result: subprocess.CompletedProcess
     hook_code: Optional[int]
     traced: bool
+    hook_hung: bool = False
 
 
 def traced_push(arguments: list[str], cwd: Path, env: dict) -> TracedPush:
@@ -176,18 +191,73 @@ def traced_push(arguments: list[str], cwd: Path, env: dict) -> TracedPush:
     hook's output and the generic "failed to push some refs", which other
     failures print too -- so the trace is the reliable signal. The
     variable is set for this one git and its children only; a caller's
-    own trace2 setting does not apply to it."""
+    own trace2 setting does not apply to it.
+
+    A timeout is classified here, with the trace read before the temporary
+    directory is discarded: a hung pre-push hook yields a TracedPush with
+    hook_hung set (the caller refuses; a retry would re-run the hook),
+    and any other timeout raises GitError as network. Killing git on
+    timeout does not necessarily kill a hook it spawned; that process may
+    linger and is not reaped here."""
     environment = dict(env)
+    timed_out = None
+    result = None
     with tempfile.TemporaryDirectory(prefix="gitw-traced-push-") as scratch:
         trace = Path(scratch) / "trace2.json"
         environment["GIT_TRACE2_EVENT"] = str(trace)
-        result = run(arguments, cwd, env=environment, remote=True)
+        try:
+            result = _spawn(arguments, cwd, environment)
+        except subprocess.TimeoutExpired as expired:
+            timed_out = expired
         try:
             text = trace.read_text(encoding="utf-8", errors="replace")
         except OSError:
             text = ""
+    if timed_out is not None:
+        if not hung_pre_push_hook(text):
+            raise GitError(
+                f"git {' '.join(arguments)} timed out after "
+                f"{_TIMEOUT_SECONDS}s",
+                plan.EXIT_NETWORK,
+            )
+        result = subprocess.CompletedProcess(
+            ["git", *arguments], -1,
+            _decode(timed_out.stdout), _decode(timed_out.stderr),
+        )
+        return TracedPush(result, None, True, True)
     traced, hook_code = parse_push_trace(text)
     return TracedPush(result, hook_code, traced)
+
+
+def _decode(data) -> str:
+    """TimeoutExpired carries bytes or None even under text=True."""
+    if data is None:
+        return ""
+    if isinstance(data, bytes):
+        return data.decode("utf-8", errors="replace")
+    return str(data)
+
+
+def hung_pre_push_hook(text: str) -> bool:
+    """Whether the trace holds a pre-push hook `child_start` with no
+    `child_exit` under the same (sid, child_id) key. Parsed tolerantly: a
+    trace cut mid-write simply loses its last line."""
+    started = set()
+    for line in text.splitlines():
+        try:
+            event = json.loads(line)
+        except ValueError:
+            continue
+        if not isinstance(event, dict):
+            continue
+        kind = event.get("event")
+        key = (event.get("sid"), event.get("child_id"))
+        if (kind == "child_start" and event.get("child_class") == "hook"
+                and event.get("hook_name") == "pre-push"):
+            started.add(key)
+        elif kind == "child_exit":
+            started.discard(key)
+    return bool(started)
 
 
 def parse_push_trace(text: str) -> Tuple[bool, Optional[int]]:

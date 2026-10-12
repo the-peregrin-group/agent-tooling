@@ -266,7 +266,8 @@ gitw's own:
   the editor set to `true`, the pager to `cat`, askpass to
   `/usr/bin/false`, optional locks off, `LC_ALL=C`, and ssh in batch mode
   unless the user controls ssh. A 300-second timeout ends any call: exit
-  6 for a remote call, else 1.
+  6 for a remote call, else 1, except a push that times out inside a
+  still-running pre-push hook, which is exit 4.
 - **Fetch prunes.** Every fetch is `git fetch --prune <remote>`, so a ref
   deleted on the remote reads as absent instead of leaving a stale
   tracking ref that wedges later Verbs.
@@ -293,13 +294,14 @@ every family's implemented codes live in
 - `4` refusal: identity or prefix mismatch, dirty worktree, stale rebase,
   lease failure, sweep guard, nothing to commit or integrate, default-
   branch push, machine-local push or integrate, local pre-push hook
-  refusal. Also `gitw-rebase`'s conflict stop, which is expected,
+  refusal or hang. Also `gitw-rebase`'s conflict stop, which is expected,
   resumable state rather than a caller bug.
 - `5` roster/auth/config (deployment): Roster missing or malformed, a
   registered checkout that no longer exists, remote auth failure. All
   mean "fix the deployment"; the label matches the
   [exit-code contract](../../index.md#exit-code-contract).
-- `6` network failure or remote timeout, the one retryable class.
+- `6` network failure or remote timeout (other than a hung pre-push
+  hook, which is 4), the one retryable class.
   Remote failures are classified by git's English messages: auth markers
   to 5, "repository not found" to 3, anything else to 6.
 
@@ -463,8 +465,12 @@ hook refusal is exit 4, detected from git's trace2 event stream (a
 nonzero exit of the `pre-push` hook child), because git otherwise prints
 only a generic "failed to push some refs". The hook verdict is checked
 before lease text, since a refusing hook ends the push before git prints
-any ref status. If trace2 events are unavailable, classification falls
-back to text and a hook refusal reads as exit 6, which the error line
+any ref status. A push that times out with a pre-push hook started but
+not exited (a `child_start` with no `child_exit`, read from the trace
+before it is discarded) is a hung hook, also exit 4 with the output so
+far relayed, because a retry would re-run the hook; a timeout with no
+hung hook stays network (6). If trace2 events are unavailable,
+classification falls back to text and a hook refusal reads as exit 6, which the error line
 states. Lease markers ("stale info", "remote ref updated since checkout")
 are exit 4; other failures are classified as auth (5), not found (3), or
 network (6).

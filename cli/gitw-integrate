@@ -75,6 +75,11 @@ refusal reads as exit 6, and the error line says so. A rejection by
 the remote's own hooks (branch protection on the base, for one) is
 still reported as exit 6 today (issue agent-tooling-h3c).
 
+Hung hook: a push that times out with a pre-push hook started and never
+exited (detected from the trace2 events) relays the partial output and
+refuses with exit 4; a retry would re-run the hook. Without trace2 it reads
+as the timeout's exit 6.
+
 Exit codes: 0 success, 1 unclassified git failure, 2 usage error
 (including an unusable or empty message file), 3 not found (label not in
 the roster, or the base branch missing on the remote), 4 refused
@@ -82,7 +87,7 @@ the roster, or the base branch missing on the remote), 4 refused
 the fetched base tip, nothing to integrate, a base that is HEAD or a
 symbolic alias of the default branch, base moved during the
 attempt, more than one caller-written Executed-By trailer,
-machine-local, or a pre-push hook refusal: fix what the hook
+machine-local, or a pre-push hook refusal or hang: fix what the hook
 reported, never retry unchanged), 5 roster/auth/config (deployment),
 6 network failure.
 """
@@ -275,7 +280,7 @@ def _push_bubble(workspace: repo.Workspace, base: str, base_tip: str,
     remote classification."""
     entry = workspace.entry
     root = workspace.root
-    result, hook_code, traced = run.traced_push(
+    result, hook_code, traced, hook_hung = run.traced_push(
         [
             "push",
             f"--force-with-lease=refs/heads/{base}:{base_tip}",
@@ -289,6 +294,12 @@ def _push_bubble(workspace: repo.Workspace, base: str, base_tip: str,
     run.relay(result.stderr)
     if result.returncode == 0:
         return
+    if hook_hung:
+        raise repo.RefusalError(
+            f"push of the bubble to {base!r} timed out with the local "
+            "pre-push hook still running; its output so far is relayed "
+            "above. The hook hung: fix it; never retry unchanged"
+        )
     # The hook verdict comes first: when the hook refused, git printed no
     # ref status, so any base-moved marker in the text is the hook's own.
     if hook_code is not None:

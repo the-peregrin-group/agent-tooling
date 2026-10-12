@@ -228,5 +228,77 @@ class ParsePushTraceTest(unittest.TestCase):
         self.assertEqual(run.parse_push_trace(""), (False, None))
 
 
+class HungPrePushHookTest(unittest.TestCase):
+    def test_started_without_exit_is_hung(self):
+        text = _trace(_VERSION, _PRE_PUSH_START) + '{"event": "chi'
+        self.assertTrue(run.hung_pre_push_hook(text))
+
+    def test_completed_hook_is_not_hung(self):
+        text = _trace(
+            _VERSION, _PRE_PUSH_START,
+            {"event": "child_exit", "sid": "a", "child_id": 0, "code": 0},
+        )
+        self.assertFalse(run.hung_pre_push_hook(text))
+
+    def test_exit_in_another_session_does_not_complete_the_hook(self):
+        text = _trace(
+            _VERSION, _PRE_PUSH_START,
+            {"event": "child_exit", "sid": "b", "child_id": 0, "code": 0},
+        )
+        self.assertTrue(run.hung_pre_push_hook(text))
+
+    def test_other_children_and_empty_trace_are_not_hung(self):
+        text = _trace(
+            _VERSION,
+            {"event": "child_start", "sid": "a", "child_id": 0,
+             "child_class": "transport/ssh"},
+        )
+        self.assertFalse(run.hung_pre_push_hook(text))
+        self.assertFalse(run.hung_pre_push_hook(""))
+
+
+class TracedPushTimeoutTest(unittest.TestCase):
+    def _timeout_after(self, trace_events, stdout=None, stderr=None):
+        def fake_run(command, **kwargs):
+            trace = Path(kwargs["env"]["GIT_TRACE2_EVENT"])
+            trace.write_text(_trace(*trace_events), encoding="utf-8")
+            raise subprocess.TimeoutExpired(
+                cmd=command, timeout=300, output=stdout, stderr=stderr
+            )
+        return mock.patch.object(run.subprocess, "run", side_effect=fake_run)
+
+    def test_timeout_with_a_hung_hook_is_a_hook_verdict(self):
+        with self._timeout_after(
+            [_VERSION, _PRE_PUSH_START], b"out\n", b"hook said hi\n"
+        ):
+            pushed = run.traced_push(["push"], Path("."), {})
+        self.assertTrue(pushed.hook_hung)
+        self.assertIsNone(pushed.hook_code)
+        self.assertNotEqual(pushed.result.returncode, 0)
+        self.assertEqual(pushed.result.stdout, "out\n")
+        self.assertEqual(pushed.result.stderr, "hook said hi\n")
+
+    def test_timeout_without_output_decodes_to_empty(self):
+        with self._timeout_after([_VERSION, _PRE_PUSH_START]):
+            pushed = run.traced_push(["push"], Path("."), {})
+        self.assertEqual((pushed.result.stdout, pushed.result.stderr), ("", ""))
+
+    def test_timeout_without_a_hook_stays_network(self):
+        with self._timeout_after([_VERSION]):
+            with self.assertRaises(run.GitError) as caught:
+                run.traced_push(["push"], Path("."), {})
+        self.assertEqual(caught.exception.exit_code, plan.EXIT_NETWORK)
+
+    def test_timeout_after_the_hook_exited_stays_network(self):
+        events = [
+            _VERSION, _PRE_PUSH_START,
+            {"event": "child_exit", "sid": "a", "child_id": 0, "code": 0},
+        ]
+        with self._timeout_after(events):
+            with self.assertRaises(run.GitError) as caught:
+                run.traced_push(["push"], Path("."), {})
+        self.assertEqual(caught.exception.exit_code, plan.EXIT_NETWORK)
+
+
 if __name__ == "__main__":
     unittest.main()
