@@ -279,7 +279,12 @@ writes to this repo, and the flag only narrows which board is touched.
   attachment contract after fetching the registry, exits `4` for every
   contract violation, the `area:` and second-type-label rules included,
   while its parse-time check that the type label is one of the canonical
-  five stays `2`.
+  five stays `2`. Hoisting the rules that argv alone can decide (a missing
+  `area:` label, a second type label) ahead of the fetch, to keep them at
+  `2`, was rejected: the attachment contract is one check against one
+  authority, the registry, and splitting it by what happens to be derivable
+  offline would tie the exit code to an implementation detail rather than
+  to the policy.
 - **`gh` and API failures** take the shared taxonomy's classes: `3` not
   found, `5` auth, `6` network, `1` anything unrecognized. `gh.GhError` carries the code
   and every Verb exits with it; classification lives in one place,
