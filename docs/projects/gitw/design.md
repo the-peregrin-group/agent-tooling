@@ -246,6 +246,14 @@ Family-wide, shared with ghw and fjw:
   so a Permission rule's literal prefix is the grant. Escalation is a
   positional mode, never a trailing flag. No scope-relevant flags follow
   the positional block. Arguments are parsed by hand, positionally.
+- **Exactly the usage line.** A surplus positional or an unrecognized
+  flag is exit 2, including a flag-shaped token in an optional slot or a
+  variadic tail: `gitw-commit`'s pathspecs and `gitw-repo-register`'s
+  remote name refuse a leading `-`, and the target, base, and branch
+  names already refuse leading punctuation. A middle-wildcard
+  Permission rule is only as tight as this; the
+  [argument contract](../../index.md#argument-contract) states it and
+  its reason.
 - **Trust-but-verify.** Every scope claim is checked against reality;
   mismatch is a refusal (exit 4 in gitw and fjw; ghw reports refusals as
   2). In gitw: the label against the Roster and cwd, the Branch prefix
@@ -361,8 +369,10 @@ inside the repo on a branch matching the prefix. No pathspec: stage and
 commit the whole working tree (`add -A`), leaving it clean by
 construction, the mechanical form of "no droppings". With pathspecs:
 commit exactly those, refusing pre-existing staged changes outside them,
-and report remaining dirt in the JSON. Raw `git add` is never needed: the
-index stops being agent-visible state. Refusals (exit 4): a pending
+and report remaining dirt in the JSON. The pathspec tail takes no flags:
+a pathspec beginning with `-` is a usage error (exit 2), and a path that
+really begins with `-` is spelled `./-name`. Raw `git add` is never
+needed: the index stops being agent-visible state. Refusals (exit 4): a pending
 merge, cherry-pick, or revert; unresolved conflicts; nothing to commit;
 the sweep guard; more than one caller-written `Executed-By` trailer.
 

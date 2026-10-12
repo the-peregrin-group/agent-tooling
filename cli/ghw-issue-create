@@ -4,7 +4,9 @@
 Validates the label attachment contract before writing: exactly one canonical
 type label (feature|improvement|bug|debt|meta), at least one 'area:' label
 among the extra labels, and every label already present in the repo's live
-label registry (ghw-label-sync is the sole label-creation path). The body
+label registry (ghw-label-sync is the sole label-creation path). The label
+tail takes no flags: a label beginning with '-' is a usage error, refused
+before any network call. The body
 comes from a staged file under /tmp/claude/ or ~/.claude/jobs/<job-id>/tmp/
 (never inline text). Deliberately non-idempotent: search for duplicates before
 filing, per skill-text guidance.
@@ -45,6 +47,11 @@ def main(argv: list[str]) -> int:
         )
     if not title.strip():
         plan.usage_die("title must not be empty", _USAGE)
+    for label in extra_labels:
+        if arguments.is_flag_shaped(label):
+            plan.usage_die(
+                f"ghw-issue-create takes no flags, got {label!r}", _USAGE
+            )
     body = staging.read_staged_body(body_path)
 
     try:

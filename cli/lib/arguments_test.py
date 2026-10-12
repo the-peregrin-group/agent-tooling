@@ -67,5 +67,17 @@ class ParseIssueNumberTest(unittest.TestCase):
                 self.assertIsNone(arguments.parse_issue_number(value))
 
 
+class IsFlagShapedTest(unittest.TestCase):
+    def test_a_leading_dash_is_flag_shaped(self):
+        for token in ("-", "-x", "--force", "--cohort=bin", "--"):
+            with self.subTest(token=token):
+                self.assertTrue(arguments.is_flag_shaped(token))
+
+    def test_anything_else_is_not(self):
+        for token in ("", "x", "a-b", "./-x", "area:cli", "#5", " -x"):
+            with self.subTest(token=token):
+                self.assertFalse(arguments.is_flag_shaped(token))
+
+
 if __name__ == "__main__":
     unittest.main()

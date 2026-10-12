@@ -26,6 +26,9 @@ not the human user, with a credential the calling agent can never see.
   scope) sit in fixed leading positions. No ambient defaults, no
   reorderable arguments, no scope flags in the tail. `<owner/repo>` is
   always explicit; the working directory never decides where a write lands.
+  A surplus positional or an unrecognized flag is exit 2, so a
+  middle-wildcard Permission rule stays as tight as the usage line (the
+  [argument contract](../../index.md#argument-contract)).
 - **Non-interactive.** Missing input, a deployment failure (exit 5), or ambiguity exits
   non-zero at once with a diagnostic on stderr.
 - **Machine-readable.** Read Verbs print raw Forgejo API JSON

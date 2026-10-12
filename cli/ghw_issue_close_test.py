@@ -24,6 +24,7 @@ from unittest import mock
 import ghw_test_support
 
 _SCRIPT = Path(__file__).resolve().parent / "ghw-issue-close"
+_CONTRACT_BODY = "/tmp/claude/argument-contract-body.md"
 _MISSING_COMMENT = "/tmp/claude/ghw-issue-close-test-missing-comment.md"
 
 
@@ -65,6 +66,33 @@ class GhwIssueCloseArgumentsTest(unittest.TestCase):
         result = _run("o/r", "5", _MISSING_COMMENT)
         self.assertEqual(result.returncode, 2)
         self.assertIn("refusing comment file", result.stderr)
+
+    def test_flag_shaped_comment_file_is_refused_at_parse_time(self):
+        result = _run("o/r", "5", "--bogus")
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("takes no flags", result.stderr)
+
+    def test_flag_shaped_comment_file_is_refused_even_when_it_exists(self):
+        # A real file named '--bogus' in a staging directory, reached as a
+        # path relative to the cwd: staging alone would accept it, so only
+        # the parse-time check refuses it. An empty HOME and PATH keep a
+        # regression from reaching gh.
+        os.makedirs("/tmp/claude", exist_ok=True)
+        with tempfile.TemporaryDirectory(dir="/tmp/claude") as directory:
+            Path(directory, "--bogus").write_text("closing reason")
+            result = subprocess.run(
+                [sys.executable, str(_SCRIPT), "o/r", "5", "--bogus"],
+                cwd=directory,
+                env={
+                    **os.environ,
+                    "HOME": "/tmp/claude/ghw-issue-close-test-home-absent",
+                    "PATH": "/tmp/claude/ghw-issue-close-test-path-absent",
+                },
+                capture_output=True, text=True, stdin=subprocess.DEVNULL,
+                timeout=30,
+            )
+        self.assertEqual(result.returncode, 2, result.stderr)
+        self.assertIn("takes no flags", result.stderr)
 
     def test_help_prints_doc_and_exits_zero(self):
         result = _run("--help")
@@ -117,6 +145,16 @@ class GhwIssueCloseBehaviorTest(unittest.TestCase):
             self.assertEqual(_MODULE.main(["o/r", "5", self._comment_path]), 0)
         close.assert_called_once_with("o/r", 5, "closing reason")
         self.assertTrue(json.loads(stdout.getvalue())["changed"])
+
+
+class GhwIssueCloseArgumentContractTest(
+    ghw_test_support.ArgumentContractTests, unittest.TestCase
+):
+    SCRIPT = _SCRIPT
+    LONGEST = ("o/r", "5", _CONTRACT_BODY)
+    FLAG_SLOT_FORMS = (
+        ("o/r", "5", "--bogus"),
+    )
 
 
 if __name__ == "__main__":

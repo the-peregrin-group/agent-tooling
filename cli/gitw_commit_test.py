@@ -28,6 +28,7 @@ import gitw_test_support
 from lib.git.roster import Entry
 
 _SCRIPT = Path(__file__).resolve().parent / "gitw-commit"
+_CONTRACT_MESSAGE = "/tmp/claude/argument-contract-message.txt"
 _MODULE = ghw_test_support.load_wrapper_module(_SCRIPT)
 _MISSING_MESSAGE = "/tmp/claude/gitw-commit-test-missing-message.txt"
 
@@ -56,6 +57,20 @@ class GitwCommitArgumentsTest(unittest.TestCase):
         result = _run("proj", "fix/", _MISSING_MESSAGE, "a.txt", "  ")
         self.assertEqual(result.returncode, 2)
         self.assertIn("pathspecs must not be empty", result.stderr)
+
+    def test_flag_shaped_pathspec_is_usage_error(self):
+        # The tail takes no flags, so an unrecognized one is never absorbed
+        # as a pathspec; the refusal names the './' spelling for a real path.
+        result = _run("proj", "fix/", _MISSING_MESSAGE, "a.txt", "--amend")
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("takes no flags", result.stderr)
+        self.assertIn("./--amend", result.stderr)
+
+    def test_dot_slash_spelling_of_a_dash_path_passes_parsing(self):
+        # Gets as far as the message file, past the pathspec checks.
+        result = _run("proj", "fix/", _MISSING_MESSAGE, "./-notes.txt")
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("refusing message file", result.stderr)
 
     def test_missing_message_file_is_refused_before_roster(self):
         result = _run("proj", "fix/", _MISSING_MESSAGE)
@@ -542,6 +557,17 @@ class GitwCommitBareSlashTest(_CommitFixtureTest):
         (self.clone / "new.txt").write_text("new\n")
         stderr = self.commit_expecting_exit(4, "proj", "fix/", self.message_path)
         self.assertIn("default branch", stderr)
+
+
+class GitwCommitArgumentContractTest(
+    ghw_test_support.ArgumentContractTests, unittest.TestCase
+):
+    SCRIPT = _SCRIPT
+    LONGEST = ("proj", "fix/", _CONTRACT_MESSAGE, "a.txt")
+    FLAG_SLOT_FORMS = (
+        ("proj", "fix/", _CONTRACT_MESSAGE, "--bogus"),
+    )
+    VARIADIC = True
 
 
 if __name__ == "__main__":

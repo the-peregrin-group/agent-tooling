@@ -122,5 +122,12 @@ class FjwPrReviewsBehaviorTest(unittest.TestCase):
         self.assertEqual(caught.exception.code, 5)
 
 
+class FjwPrReviewsArgumentContractTest(
+    ghw_test_support.ArgumentContractTests, unittest.TestCase
+):
+    SCRIPT = _SCRIPT
+    LONGEST = ("o/r", "5")
+
+
 if __name__ == "__main__":
     unittest.main()

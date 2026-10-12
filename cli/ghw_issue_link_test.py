@@ -196,5 +196,12 @@ class LinkedIssueNumbersTest(unittest.TestCase):
         self.assertEqual(_MODULE._linked_issue_numbers(payload, "o/r"), set())
 
 
+class GhwIssueLinkArgumentContractTest(
+    ghw_test_support.ArgumentContractTests, unittest.TestCase
+):
+    SCRIPT = _SCRIPT
+    LONGEST = ("o/r", "add-sub", "5", "6")
+
+
 if __name__ == "__main__":
     unittest.main()

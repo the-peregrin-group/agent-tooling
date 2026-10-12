@@ -719,5 +719,17 @@ class GitwRebaseBareSlashTest(_RebaseFixtureTest):
                 self.assertIn("default branch", self.last_stderr)
 
 
+class GitwRebaseArgumentContractTest(
+    ghw_test_support.ArgumentContractTests, unittest.TestCase
+):
+    SCRIPT = _SCRIPT
+    LONGEST = ("proj", "fix/", "onto", "integrate/run")
+    FLAG_SLOT_FORMS = (
+        ("proj", "fix/", "--bogus"),
+        ("proj", "fix/", "continue", "--bogus"),
+        ("proj", "fix/", "onto", "--bogus"),
+    )
+
+
 if __name__ == "__main__":
     unittest.main()

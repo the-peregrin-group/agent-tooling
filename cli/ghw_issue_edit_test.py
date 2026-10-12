@@ -112,5 +112,12 @@ class GhwIssueEditBehaviorTest(unittest.TestCase):
         self.assertFalse(json.loads(stdout.getvalue())["changed"])
 
 
+class GhwIssueEditArgumentContractTest(
+    ghw_test_support.ArgumentContractTests, unittest.TestCase
+):
+    SCRIPT = _SCRIPT
+    LONGEST = ("o/r", "retitle", "5", "New")
+
+
 if __name__ == "__main__":
     unittest.main()

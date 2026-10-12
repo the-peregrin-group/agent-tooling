@@ -76,3 +76,12 @@ def parse_issue_number(value: str) -> int | None:
         return None
     number = int(digits)
     return number if number > 0 else None
+
+
+def is_flag_shaped(token: str) -> bool:
+    """True for a token that reads as a command-line flag: it begins with
+    '-'. An optional positional slot or a variadic tail refuses such a
+    token with a usage error unless the usage line names it, so an
+    unrecognized flag is never absorbed as a value (the argument contract
+    in docs/index.md)."""
+    return token.startswith("-")

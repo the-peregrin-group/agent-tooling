@@ -29,6 +29,7 @@ import gitw_test_support
 from lib.git.roster import Entry
 
 _SCRIPT = Path(__file__).resolve().parent / "gitw-integrate"
+_CONTRACT_MESSAGE = "/tmp/claude/argument-contract-message.txt"
 _MODULE = ghw_test_support.load_wrapper_module(_SCRIPT)
 _MISSING_MESSAGE = "/tmp/claude/gitw-integrate-test-missing-message.txt"
 
@@ -644,6 +645,13 @@ class GitwIntegrateBareSlashTest(_IntegrateFixtureTest):
             4, "proj", "develop", "/", self.message_path
         )
         self.assertIn("default branch", stderr)
+
+
+class GitwIntegrateArgumentContractTest(
+    ghw_test_support.ArgumentContractTests, unittest.TestCase
+):
+    SCRIPT = _SCRIPT
+    LONGEST = ("proj", "main", "fix/", _CONTRACT_MESSAGE)
 
 
 if __name__ == "__main__":

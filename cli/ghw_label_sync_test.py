@@ -352,5 +352,12 @@ class GhwLabelSyncBehaviorTest(unittest.TestCase):
         self.assertIn("P0", payload["unchanged"])
 
 
+class GhwLabelSyncArgumentContractTest(
+    ghw_test_support.ArgumentContractTests, unittest.TestCase
+):
+    SCRIPT = _SCRIPT
+    LONGEST = ("o/r", "plan", "f.json")
+
+
 if __name__ == "__main__":
     unittest.main()

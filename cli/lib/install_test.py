@@ -1540,6 +1540,39 @@ class CommandLineTest(InstallTestCase):
         self.assertEqual(result.returncode, 2)
         self.assertIn("--force applies to apply", result.stderr)
 
+    def test_surplus_positional_is_a_usage_error(self):
+        # The Wrapper argument contract (docs/index.md): anything the usage
+        # line does not define exits 2, wherever it sits in the option tail.
+        source = str(self.source)
+        for arguments in (
+            ("diff", source, "surplus"),
+            ("apply", source, "--cohort", "bin", "surplus"),
+            ("adopt", source, "widget-kit", "--force", "surplus"),
+        ):
+            with self.subTest(arguments=arguments):
+                result = self.run_cli(*arguments)
+                self.assertEqual(result.returncode, 2, result.stdout)
+                self.assertIn("unexpected argument 'surplus'", result.stderr)
+        self.assertFalse(target_for("bin", self.home).exists())
+
+    def test_unrecognized_flag_is_a_usage_error(self):
+        source = str(self.source)
+        for arguments in (
+            ("diff", source, "--bogus"),
+            ("apply", source, "--force", "--bogus"),
+            ("adopt", source, "widget-kit", "--bogus"),
+        ):
+            with self.subTest(arguments=arguments):
+                result = self.run_cli(*arguments)
+                self.assertEqual(result.returncode, 2, result.stdout)
+                self.assertIn("unexpected argument '--bogus'", result.stderr)
+        # In adopt's superseded-repo slot a flag is refused, not taken as
+        # the repo name.
+        result = self.run_cli("adopt", source, "--bogus")
+        self.assertEqual(result.returncode, 2, result.stdout)
+        self.assertIn("usage:", result.stderr)
+        self.assertFalse(target_for("bin", self.home).exists())
+
     def test_nonexistent_source_is_a_usage_error(self):
         result = self.run_cli("diff", str(self.tmp / "nowhere"))
         self.assertEqual(result.returncode, 2)

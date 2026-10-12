@@ -24,6 +24,7 @@ from unittest import mock
 import ghw_test_support
 
 _SCRIPT = Path(__file__).resolve().parent / "ghw-pr-create"
+_CONTRACT_BODY = "/tmp/claude/argument-contract-body.md"
 _MISSING_BODY = "/tmp/claude/ghw-pr-create-test-missing-body.md"
 
 
@@ -140,6 +141,16 @@ class GhwPrCreateBehaviorTest(unittest.TestCase):
         create.assert_called_once()
         self.assertIn("warning:", stderr.getvalue())
         self.assertIn("'elsewhere'", stderr.getvalue())
+
+
+class GhwPrCreateArgumentContractTest(
+    ghw_test_support.ArgumentContractTests, unittest.TestCase
+):
+    SCRIPT = _SCRIPT
+    LONGEST = ("o/r", "main", "feat", "Title", _CONTRACT_BODY, "--draft")
+    FLAG_SLOT_FORMS = (
+        ("o/r", "main", "feat", "Title", _CONTRACT_BODY, "--bogus"),
+    )
 
 
 if __name__ == "__main__":

@@ -257,5 +257,12 @@ class GitwOrientRefusalTest(_OrientFixtureTest):
         self.orient_expecting_exit(3, entries={"proj": broken})
 
 
+class GitwOrientArgumentContractTest(
+    ghw_test_support.ArgumentContractTests, unittest.TestCase
+):
+    SCRIPT = _SCRIPT
+    LONGEST = ("proj",)
+
+
 if __name__ == "__main__":
     unittest.main()

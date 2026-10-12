@@ -33,7 +33,13 @@ resolution) before the write itself.
    PR's actual base branch). `<repo>` is always passed explicitly, so the
    working directory can never redirect a write.
 3. **No scope overrides in the tail.** Verbs never honor scope-relevant flags
-   after the positional block (no late `--repo`).
+   after the positional block (no late `--repo`). More strictly, a Verb
+   accepts exactly its usage line: a surplus positional or an unrecognized
+   flag is exit 2, and `ghw-issue-create`'s label tail refuses a
+   flag-shaped label before it fetches the registry. A middle-wildcard
+   Permission rule is only as tight as this; the
+   [argument contract](../../index.md#argument-contract) states it and its
+   reason.
 4. **The Wrapper enforces the contracts.** The three GitHub Skills form one
    ecosystem, and every Verb enforces its shared contracts (label schema,
    priority regime, canonical board schema) in code rather than trusting the
