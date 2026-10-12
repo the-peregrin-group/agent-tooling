@@ -56,8 +56,6 @@ Why the trial has this shape, and the alternatives it rules out, is in
   hook lands (`agent-tooling-1790288522490-13-6d52b051`).
 - A deny rule also matches a write whose Issue text names a denied verb or
   flag, so Issue text spells those in words (`agent-tooling-9nx`).
-- The Permission rules' spec docstring still calls the bare-call match of
-  a trailing space-star unobserved (`agent-tooling-na2`).
 
 ## Beads 1.3.0 known behavior
 
