@@ -246,6 +246,14 @@ Family-wide, shared with ghw and fjw:
   so a Permission rule's literal prefix is the grant. Escalation is a
   positional mode, never a trailing flag. No scope-relevant flags follow
   the positional block. Arguments are parsed by hand, positionally.
+- **Exactly the usage line.** A surplus positional or an unrecognized
+  flag is exit 2, including a flag-shaped token in an optional slot or a
+  variadic tail: `gitw-commit`'s pathspecs and `gitw-repo-register`'s
+  remote name refuse a leading `-`, and the target, base, and branch
+  names already refuse leading punctuation. A middle-wildcard
+  Permission rule is only as tight as this; the
+  [argument contract](../../index.md#argument-contract) states it and
+  its reason.
 - **Trust-but-verify.** Every scope claim is checked against reality;
   mismatch is a refusal (exit 4 in gitw and fjw; ghw reports refusals as
   2). In gitw: the label against the Roster and cwd, the Branch prefix

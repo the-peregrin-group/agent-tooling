@@ -181,6 +181,11 @@ costs nothing; the Edit deny and the Receipts protect the installed set.
   `apply`, which never overwrites another repo's content, can then be
   granted differently from `adopt`, and the superseded repo is visible in
   the command the human approves.
+- The command line accepts exactly its usage line: any token the option
+  tail does not parse, surplus or flag-shaped, and a flag where `adopt`
+  expects the superseded repo, are usage errors (exit 2). A
+  middle-wildcard Permission rule is only as tight as this (the Wrappers'
+  [argument contract](../../index.md#argument-contract)).
 - Deny Edit on every Install Target. No file-tool rule grants a write
   there, so a change reaches installed tooling only through a committed
   source and an approved install. A residual shell channel remains: some
