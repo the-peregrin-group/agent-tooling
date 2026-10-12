@@ -2,8 +2,8 @@
 
 How and why the gitw Wrapper and the `use-git` Skill work, describing the
 code as it is. What is shipped, planned, or broken lives in
-[index.md](index.md)'s Status. A planned addition, `gitw-trunk-sync`, is
-specified in the dated proposal [trunk-sync.md](trunk-sync.md).
+[index.md](index.md)'s Status. The dated proposal behind `gitw-trunk-sync`
+is [trunk-sync.md](trunk-sync.md).
 
 ## Problem
 
@@ -62,7 +62,9 @@ Non-optional. The root invariant: **never act on unverified-fresh state.**
 **Universal worktree isolation.** Every agent session, attended or
 background, in every repo, runs in a harness-provided worktree on its own
 branch. The primary checkout, and the local default branch inside it,
-belong to the human. Git enforces the split: a worktree cannot check out
+belong to the human; the one sanctioned exception is `gitw-trunk-sync`,
+which may only fast-forward that branch, under the guards in its Verb
+section. Git enforces the split: a worktree cannot check out
 a branch the primary checkout holds, so an isolated agent cannot stand on
 the default branch even by accident. A consumer needs this because no
 process list can see the agent a human is about to start; only isolation
@@ -110,7 +112,8 @@ resolutions reaching a shared branch, which disclosure addresses.
 **Implications:** an agent owns getting its changes committed; it never
 leaves untracked files or uncommitted changes in a working copy, its own
 worktree included (the harness may remove it at session exit). It never
-mutates the primary checkout. Untracked `settings.local.json` is a grey
+mutates the primary checkout, except that `gitw-trunk-sync` may
+fast-forward the default branch there. Untracked `settings.local.json` is a grey
 area: clobbering it is invisible to git, so outside user-blessed
 automation, changes to it are attended-only and need a competing-work
 check and an explicit go-ahead.
@@ -215,8 +218,10 @@ prefix](../../adr/0008-bare-slash-means-no-branch-prefix.md)).
 Two guards are properties of the branch name, not of how the prefix token
 was spelled, so they apply under every prefix:
 
-- **No Verb acts on the default branch.** `repo.require_branch_in_scope`,
-  the scope check every mutating Verb shares, refuses it (exit 4). A
+- **No prefix-scoped Verb acts on the default branch.**
+  `repo.require_branch_in_scope`, the scope check every mutating Verb
+  shares, refuses it (exit 4). `gitw-trunk-sync` takes no prefix and is
+  the one exception: it only fast-forwards the local default branch. A
   slashless default like `main` can match only `/`, but a slashed one
   like `release/main` can match a real prefix too. The comparison
   ignores letter case, because on a case-insensitive filesystem (macOS's
@@ -294,7 +299,11 @@ every family's implemented codes live in
 - `4` refusal: identity or prefix mismatch, dirty worktree, stale rebase,
   lease failure, sweep guard, nothing to commit or integrate, default-
   branch push, machine-local push or integrate, local pre-push hook
-  refusal or hang. Also `gitw-rebase`'s conflict stop, which is expected,
+  refusal or hang, and `gitw-trunk-sync`'s refusals (dirty primary
+  checkout, default branch held by a linked worktree, a rebase of it in
+  progress in any worktree, local default branch not an ancestor of the
+  fetched tip, or the branch moved concurrently during the update). Also
+  `gitw-rebase`'s conflict stop, which is expected,
   resumable state rather than a caller bug.
 - `5` roster/auth/config (deployment): Roster missing or malformed, a
   registered checkout that no longer exists, remote auth failure. All
@@ -512,8 +521,40 @@ driven by the repo's own instructions; the Wrapper runs no repo-declared
 command. Output relay and hook detection match `gitw-push`; a hook
 refusal is exit 4 but does not mean the base moved. Afterwards the
 worktree is still on the integrated feature branch; syncing the human's
-local trunk and cleaning up branches are left to the harness and the
-human. `gitw-integrate` is the only Verb that writes to trunk.
+local trunk is `gitw-trunk-sync`'s job, and cleaning up branches is left
+to the harness and the human. `gitw-integrate` is the only Verb that writes to the remote trunk.
+
+**`gitw-trunk-sync <repo>`.** Fast-forwards the local default branch to
+the fetched tip without ever switching a worktree: switching the invoking
+worktree fails whenever the primary checkout holds the branch (one
+checkout per branch), and switching the primary checkout is the
+mutation of the human's copy the design forbids. Must run inside the
+repo; a machine-local repo is a converged no-op before any fetch. After
+the fetch it compares the local branch with the remote-tracking tip:
+equal is a no-op (even in a dirty tree); a local tip that is not an
+ancestor of the fetched tip, whether diverged or merely ahead, is exit
+4, since unpushed local trunk commits are the human's parked work and the
+branch is never moved backwards. The move then depends on where
+`git worktree list --porcelain` says the branch is checked out:
+
+- **Rebase in progress:** before any move, every worktree is checked for
+  a rebase of the default branch. A rebasing worktree is detached, so the
+  holder lookup below cannot see it; any such rebase is exit 4.
+- **Nowhere:** `git update-ref refs/heads/<default> <tip> <old>`, guarded
+  by the old value. On failure the ref is re-read: changed means a
+  concurrent mover (exit 4, not retryable unchanged); unchanged means a
+  git error such as a stale lock file (exit 1, with git's message).
+- **The primary checkout:** refused if it is dirty (untracked files
+  count) or mid-merge, cherry-pick, or revert; otherwise
+  `git merge --ff-only <tip-sha>` run with the primary checkout as its
+  working directory, never relying on the invoker's cwd.
+- **A linked worktree:** refused. The case the proposal left open is
+  settled as a refusal because the holder may be a live agent, the same
+  reasoning as `gitw-branch-start`'s `resume`.
+
+The payload's `result` is `fast-forwarded`, `ref-moved`, `up-to-date`, or
+`machine-local`. The Verb creates and deletes nothing, so a plain allow
+rule in exact form (`Bash(gitw-trunk-sync rocket-sled)`) is safe.
 
 **`gitw-repo-register <label> <checkout> [<remote-name>] [apply]`.**
 Derives the Roster entry from the checkout, which must be a primary
@@ -559,6 +600,9 @@ Rules pin Verb, label, and Branch prefix as literal prefixes:
   (`Bash(gitw-push rocket-sled review/ current)`).
 - **`gitw-integrate`** is granted per repo and per base, deliberately,
   only where direct integration is sanctioned.
+- **`gitw-trunk-sync` takes the label alone**, so its allow rule is the
+  exact `Bash(gitw-trunk-sync rocket-sled)`. It only fast-forwards, so a
+  plain allow is safe.
 - **The bare `/` prefix is granted like any other**
   (`Bash(gitw-commit rocket-sled / *)`, `Bash(gitw-push rocket-sled /)`),
   and a repo that wants prefix segmentation simply does not grant it. A
@@ -653,8 +697,8 @@ project](../installer/index.md).
 - **Trunk Verbs for that mode** (`gitw-trunk-commit`, `-push`, `-rebase`),
   retired unbuilt: with no agent ever on trunk, commit has no caller,
   rebase would move only the human's own commits, and push duplicates
-  `gitw-integrate`. Only the fast-forward convenience survives, as the
-  planned `gitw-trunk-sync`.
+  `gitw-integrate`. Only the fast-forward convenience survives, as
+  `gitw-trunk-sync`.
 - **Stash Verbs.** The stash stack is shared across worktrees and
   sessions; a WIP commit is the safe substitute.
 - **Squash merges.** They destroy bisect and revert granularity and
