@@ -109,7 +109,12 @@ Non-optional, not user preference:
 
 ## Orient First
 
-The mandated first call of any session touching a repo:
+Every session touching a repo starts with the same four steps, in order:
+
+1. **Enter the harness worktree.** The harness does this for isolated
+   sessions; otherwise enter one yourself (EnterWorktree). Worktree
+   creation belongs to the harness, never to git commands.
+2. **Orient.** The mandated first git call:
 
 ```bash
 gitw-orient <repo>
@@ -119,9 +124,14 @@ Fetches the authoritative remote (machine-local repos skip the fetch and
 measure against the local default) and reports branch, commit,
 dirty/untracked tallies, upstream, and ahead/behind vs. the fetched
 authoritative default — staleness is visible before work begins. When
-orient shows staleness, or dirt on a working copy that might be shared,
+orient shows staleness, or dirt you did not make,
 tell the user in one passing sentence — visibility, not ceremony — and
 apply the concurrency rules below before touching anything.
+
+3. **Start your branch.** `gitw-branch-start` (see The Verbs). The
+   harness's `worktree-*` placeholder branch is not a branch to work on.
+4. **Only then read or edit files,** from the worktree's paths, never the
+   primary checkout's.
 
 Exit 3 with an unknown label means the repo is not registered. Attended,
 propose the `gitw-repo-register` plan; unattended, stop and flag it.
@@ -129,12 +139,13 @@ Never fall back to raw mutating git because a label is missing.
 
 ## Whose Working Copy Is This?
 
-**A working copy is never presumed yours.** Either the user confirms, in an
-attended session, that nothing else is or will be in flight (checking a
-process list is NOT sufficient — it cannot see the agent the user is about
-to start), or you default to your own branch in your own worktree.
+**Every session, attended or background, in every repo, runs in a harness
+worktree on its own branch.** The primary checkout, and the local default
+branch inside it, belong to the human. No process list can see the agent
+the user is about to start, so isolation, not a check for company, is what
+makes concurrent sessions safe.
 
-Three operating modes, escalating in required trust:
+Two operating modes:
 
 - **(a) Worktree + feature branch + push + PR.** The default everywhere,
   absent a repo-CLAUDE.md exemption. The only trunk-affecting act is
@@ -147,10 +158,6 @@ Three operating modes, escalating in required trust:
   bare form for trunk, its `onto` form for an agent integration branch),
   run the full merge-readiness loop, then `gitw-integrate` into that same
   base. No PR.
-- **(c) Work directly on the default branch.** Very rare: repo exemption
-  + attended + the user's explicit assurance of zero parallel agents for
-  the session's duration. Sync the branch to its authoritative instance
-  first.
 
 Implications:
 
@@ -158,8 +165,8 @@ Implications:
   way, at the right time. No dropping untracked files or uncommitted
   changes into working copies — `gitw-commit`'s commit-all form leaves the
   tree clean by construction, and its JSON reports anything that lingers.
-- Do not mutate a shared working copy outside confirmed-exclusive mode (c).
-  Assume doing so corrupts someone else's work.
+- Never mutate the primary checkout. Assume doing so corrupts someone
+  else's work.
 - **`settings.local.json` is a grey area:** untracked, so clobbering it is
   git-invisible. Outside user-blessed automation, changes to it are
   attended-only and require both a competing-work check and an explicit

@@ -72,8 +72,7 @@ makes concurrent sessions safe by construction.
 harness does this for isolated sessions; otherwise the session enters one
 itself); `gitw-orient`; `gitw-branch-start` (the harness's placeholder
 branch is not a branch to work on); only then read or edit files, from the
-worktree's paths. `use-git` does not yet carry this ceremony (a known
-gap in index.md's Status).
+worktree's paths.
 
 **Two operating modes:**
 
