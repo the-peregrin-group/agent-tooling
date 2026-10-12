@@ -292,6 +292,43 @@ class GitwIntegrateBehaviorTest(_IntegrateFixtureTest):
             payload["merge_commit"],
         )
 
+    def test_head_spelled_base_is_refused_without_pushing(self):
+        old_main = self.remote_git("rev-parse", "refs/heads/main")
+        for base in ("HEAD", "head", "HEAD/x"):
+            with self.subTest(base=base):
+                stderr = self.integrate_expecting_exit(
+                    4, "proj", base, "fix/", self.message_path
+                )
+                self.assertIn("another spelling", stderr)
+                self.assertIn("'main'", stderr)
+                self.assertEqual(
+                    self.remote_git("rev-parse", "refs/heads/main"), old_main
+                )
+
+    def test_symbolic_alias_of_the_default_is_refused(self):
+        gitw_test_support.git(
+            self.clone, "symbolic-ref", "refs/remotes/origin/alias",
+            "refs/remotes/origin/main",
+        )
+        old_main = self.remote_git("rev-parse", "refs/heads/main")
+        stderr = self.integrate_expecting_exit(
+            4, "proj", "alias", "fix/", self.message_path
+        )
+        self.assertIn("symbolic ref", stderr)
+        self.assertEqual(
+            self.remote_git("rev-parse", "refs/heads/main"), old_main
+        )
+
+    def test_fresh_branch_on_the_default_tip_still_integrates(self):
+        # Judged by symref target, never by commit equality.
+        gitw_test_support.git(self.seed, "switch", "-c", "integrate/run")
+        gitw_test_support.git(self.seed, "push", "origin", "integrate/run")
+        gitw_test_support.git(self.clone, "fetch", "origin")
+        payload = self.integrate(
+            "proj", "integrate/run", "fix/", self.message_path
+        )
+        self.assertEqual(payload["base"], "integrate/run")
+
     def test_missing_base_branch_on_the_remote_is_not_found(self):
         stderr = self.integrate_expecting_exit(
             3, "proj", "ghost", "fix/", self.message_path

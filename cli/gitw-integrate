@@ -64,7 +64,8 @@ Exit codes: 0 success, 1 unclassified git failure, 2 usage error
 (including an unusable or empty message file), 3 not found (label not in
 the roster, or the base branch missing on the remote), 4 refused
 (cwd/branch-prefix mismatch, dirty worktree, branch not a descendant of
-the fetched base tip, nothing to integrate, base moved during the
+the fetched base tip, nothing to integrate, a base that is HEAD or a
+symbolic alias of the default branch, base moved during the
 attempt, machine-local, or a pre-push hook refusal: fix what the hook
 reported, never retry unchanged), 5 roster missing/malformed or auth
 failure, 6 network failure.
@@ -158,6 +159,13 @@ def _integrate(
         raise repo.RefusalError(
             f"branch and base are both {base!r}; nothing to integrate into"
         )
+    # HEAD (origin/HEAD) is the default under another spelling.
+    if base.partition("/")[0].casefold() == "head":
+        raise repo.RefusalError(
+            f"{base!r} names the default branch by another spelling "
+            f"(HEAD); name the default branch, {entry.default_branch!r}, "
+            "as the base instead"
+        )
     dirty = repo.status_counts(root)
     if any(dirty.values()):
         raise repo.RefusalError(
@@ -173,6 +181,17 @@ def _integrate(
             f"base branch {base!r} not found on {entry.remote} (no "
             f"{base_ref} after fetching)",
             plan.EXIT_NOT_FOUND,
+        )
+    # A symbolic remote-tracking ref aliasing the default is the default
+    # under another spelling. Judged by the symref's target, not by commit
+    # equality: a freshly cut integration branch sits on the default's tip.
+    target = run.output(["symbolic-ref", "--quiet", base_ref], root)
+    _, default_refname = repo.authoritative_ref(entry)
+    if target is not None and target.casefold() == default_refname.casefold():
+        raise repo.RefusalError(
+            f"{base!r} resolves to the default branch by another spelling "
+            f"(a symbolic ref); name the default branch, "
+            f"{entry.default_branch!r}, as the base instead"
         )
     base_tip = run.must(["rev-parse", "--verify", base_ref], root)
     branch_tip = run.must(["rev-parse", "--verify", f"refs/heads/{branch}"], root)

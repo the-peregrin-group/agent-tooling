@@ -395,7 +395,9 @@ integration branch a project designates, whose other half is
   rebasing onto trunk and each onto rule grants exactly its base. The
   alias check reads the symref's target, not commit equality: a freshly
   cut agent integration branch sits exactly on the default's tip and
-  must stay rebasable.
+  must stay rebasable. `gitw-integrate` applies the same two alias
+  checks to its base (see below); it differs only in still accepting the
+  default by its own name, since trunk integration is its main use.
 - **The branch itself is refused as its base**, as `gitw-integrate`
   refuses branch equals base.
 - **Machine-local repos refuse it**: with no remote there is no fetched
@@ -478,7 +480,13 @@ primary-checkout mutation it avoids). It never checks out the base:
 
 `<base-branch>` is whatever the Permission rule pins. It is deliberately
 not required to equal the Roster's default branch, because a repo may
-designate an agent integration branch. Validation stays in the Skill,
+designate an agent integration branch. The default may still not be
+reached by another spelling: a base whose first level is `HEAD`
+(case-insensitive) is refused before the fetch, and after it a base
+whose remote-tracking ref is a symbolic alias of the default (judged by
+the symref's target, never by commit equality, so a fresh integration
+branch on the default's tip passes) is refused too, both exit 4 telling
+the caller to name the default branch itself. Validation stays in the Skill,
 driven by the repo's own instructions; the Wrapper runs no repo-declared
 command. Output relay and hook detection match `gitw-push`; a hook
 refusal is exit 4 but does not mean the base moved. Afterwards the
