@@ -14,6 +14,7 @@ from __future__ import annotations
 import contextlib
 import io
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -187,6 +188,78 @@ class GitwTrunkSyncTest(unittest.TestCase):
         stderr = self.sync_expecting_exit(4)
         self.assertIn("in progress", stderr)
         self.assertEqual(self.local_main(), before)
+
+    def stop_rebase_of_main(self, cwd: Path) -> None:
+        """Stop an interactive rebase of main at an `edit`, over commits
+        that are already on the remote (so main stays an ancestor of it)."""
+        gitw_test_support.advance_remote(self.seed, "one.txt")
+        gitw_test_support.advance_remote(self.seed, "two.txt")
+        self.git(cwd, "pull", "--ff-only", "origin", "main")
+        env = dict(os.environ, GIT_SEQUENCE_EDITOR="sed -i.bak 's/^pick/edit/'")
+        proc = subprocess.run(
+            ["git", "rebase", "-i", "HEAD~1"], cwd=cwd, env=env,
+            capture_output=True, text=True,
+        )
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertEqual(self.git(cwd, "branch", "--show-current"), "")
+
+    def test_rebase_of_main_in_primary_checkout_is_refused(self):
+        self.stop_rebase_of_main(self.clone)
+        gitw_test_support.advance_remote(self.seed, "three.txt")
+        before = self.local_main()
+        stderr = self.sync_expecting_exit(4)
+        self.assertIn("rebase", stderr)
+        self.assertEqual(self.local_main(), before)
+
+    def test_rebase_of_main_in_a_linked_worktree_is_refused(self):
+        self.park_primary_elsewhere()
+        holder = self.base / "rebasing-wt"
+        self.git(self.clone, "worktree", "add", str(holder), "main")
+        self.stop_rebase_of_main(holder)
+        gitw_test_support.advance_remote(self.seed, "three.txt")
+        before = self.local_main()
+        stderr = self.sync_expecting_exit(4)
+        self.assertIn("rebase", stderr)
+        self.assertEqual(self.local_main(), before)
+
+    def test_cherry_pick_and_revert_in_progress_are_refused(self):
+        for marker in ("CHERRY_PICK_HEAD", "REVERT_HEAD"):
+            with self.subTest(marker=marker):
+                gitw_test_support.advance_remote(self.seed, marker + ".txt")
+                before = self.local_main()
+                path = self.clone / ".git" / marker
+                path.write_text(before + "\n")
+                self.addCleanup(lambda p=path: p.exists() and p.unlink())
+                self.sync_expecting_exit(4)
+                self.assertEqual(self.local_main(), before)
+                path.unlink()
+
+    def test_update_ref_failure_with_unmoved_ref_is_a_git_error(self):
+        gitw_test_support.advance_remote(self.seed)
+        self.park_primary_elsewhere()
+        lock = self.clone / ".git" / "refs" / "heads" / "main.lock"
+        lock.write_text("")
+        before = self.local_main()
+        self.sync_expecting_exit(1)
+        self.assertEqual(self.local_main(), before)
+
+    def test_concurrent_move_during_update_is_refused(self):
+        gitw_test_support.advance_remote(self.seed)
+        self.park_primary_elsewhere()
+        real = _MODULE.run.run
+        moved = {}
+
+        def racing(args, cwd, *rest, **kwargs):
+            if args[:1] == ["update-ref"] and not moved:
+                gitw_test_support.commit_on(self.clone, "race.txt", "r\n", "race")
+                moved["sha"] = self.git(self.clone, "rev-parse", "HEAD")
+                real(["update-ref", "refs/heads/main", moved["sha"]], cwd)
+            return real(args, cwd, *rest, **kwargs)
+
+        with mock.patch.object(_MODULE.run, "run", side_effect=racing):
+            stderr = self.sync_expecting_exit(4)
+        self.assertIn("moved while syncing", stderr)
+        self.assertEqual(self.local_main(), moved["sha"])
 
     def test_diverged_local_default_is_refused(self):
         gitw_test_support.commit_on(self.clone, "mine.txt", "m\n", "local only")

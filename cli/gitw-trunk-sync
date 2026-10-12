@@ -13,8 +13,10 @@ out decides how it moves:
   - in the primary checkout, worktree clean: `git merge --ff-only` run
     inside the primary checkout;
   - nowhere: `git update-ref`, guarded by the branch's old value;
-  - in the primary checkout with a dirty worktree (or a merge, rebase,
+  - in the primary checkout with a dirty worktree (or a merge,
     cherry-pick, or revert in progress): refused, the dirt is the human's;
+  - a rebase of the default branch in progress in any worktree (HEAD is
+    detached there, so the branch looks checked out nowhere): refused;
   - in a linked worktree: refused, another agent may be live on it.
 A local default branch that has commits the fetched tip lacks (diverged,
 or merely ahead) is refused: unpushed local trunk commits are the human's
@@ -30,8 +32,9 @@ Exit codes: 0 success, including a converged no-op, 1 unclassified git
 failure, 2 usage error, 3 not found (label not in the roster, vanished
 remote repository, or the local or fetched default branch missing),
 4 refused (identity mismatch, dirty primary checkout, default branch
-checked out in a linked worktree, local default branch not an ancestor of
-the fetched tip), 5 roster missing/malformed or auth failure, 6 network
+checked out in a linked worktree, rebase of it in progress, local default
+branch not an ancestor of the fetched tip, or the branch moved concurrently
+during the update), 5 roster missing/malformed or auth failure, 6 network
 failure.
 """
 
@@ -117,6 +120,14 @@ def _sync(workspace: repo.Workspace) -> dict:
         raise run.GitError(f"git merge-base --is-ancestor failed: {detail}")
 
     primary = entry.checkout.resolve()
+    # A worktree mid-rebase of the default branch is detached, so the
+    # holder lookup below cannot see it: check every worktree first.
+    for tree in _worktree_paths(root):
+        if repo.rebase_head_branch(tree) == branch:
+            raise repo.RefusalError(
+                f"a rebase of {branch!r} is in progress in {tree}; "
+                "not moving the branch underneath it"
+            )
     holder = repo.worktree_holding_branch(root, branch)
     if holder is None:
         # Compare-and-swap on the old value: a concurrent mover loses
@@ -124,10 +135,13 @@ def _sync(workspace: repo.Workspace) -> dict:
         result = run.run(["update-ref", local_ref, tip, old], root)
         if result.returncode != 0:
             detail = result.stderr.strip() or result.stdout.strip() or "no output"
-            raise repo.RefusalError(
-                f"{branch!r} moved while syncing (update-ref refused: "
-                f"{detail}); run again"
-            )
+            now = run.output(["rev-parse", "--verify", "--quiet", local_ref], root)
+            if now is not None and now != old:
+                raise repo.RefusalError(
+                    f"{branch!r} moved while syncing ({old[:12]} -> "
+                    f"{now[:12]}); not overwriting it"
+                )
+            raise run.GitError(f"git update-ref failed: {detail}")
         return {**moved, "result": "ref-moved"}
     if holder != primary:
         raise repo.RefusalError(
@@ -141,9 +155,7 @@ def _sync(workspace: repo.Workspace) -> dict:
             f"({repo.describe_dirty(dirty)}); the dirt is the human's, so "
             "not fast-forwarding"
         )
-    operation = repo.pending_operation(primary) or (
-        "rebase" if repo.rebase_state_dir(primary) else None
-    )
+    operation = repo.pending_operation(primary)
     if operation is not None:
         raise repo.RefusalError(
             f"the primary checkout {primary} has a {operation} in progress; "
@@ -155,6 +167,16 @@ def _sync(workspace: repo.Workspace) -> dict:
         detail = result.stderr.strip() or result.stdout.strip() or "no output"
         raise run.GitError(f"git merge --ff-only failed: {detail}")
     return {**moved, "result": "fast-forwarded"}
+
+
+def _worktree_paths(root: Path) -> list:
+    """Every worktree of the repo, from any worktree of it."""
+    raw = run.must(["worktree", "list", "--porcelain"], root)
+    return [
+        Path(line[len("worktree ") :])
+        for line in raw.splitlines()
+        if line.startswith("worktree ")
+    ]
 
 
 if __name__ == "__main__":
