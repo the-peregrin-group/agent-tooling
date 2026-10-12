@@ -47,11 +47,11 @@ class FindOpenPrsByHeadTest(unittest.TestCase):
     def test_server_filter_used_when_swagger_advertises_it(
         self, request, _supports, _swagger
     ):
-        request.return_value = [_pr(4, "reconcile/a")]
-        matches = pulls.find_open_prs_by_head(_CONFIG, "o/r", "reconcile/a")
+        request.return_value = [_pr(4, "bot/a")]
+        matches = pulls.find_open_prs_by_head(_CONFIG, "o/r", "bot/a")
         self.assertEqual([pr["number"] for pr in matches], [4])
         query = request.call_args.kwargs["query"]
-        self.assertEqual(query["head"], "reconcile/a")
+        self.assertEqual(query["head"], "bot/a")
         self.assertEqual(query["state"], "open")
 
     @mock.patch("lib.forgejo.pulls.api.supports_head_filter", return_value=True)
@@ -61,8 +61,8 @@ class FindOpenPrsByHeadTest(unittest.TestCase):
     ):
         # Trust but verify: a server bug (or a label-vs-ref mismatch) must not
         # let a foreign PR through.
-        request.return_value = [_pr(4, "reconcile/a"), _pr(5, "other/branch")]
-        matches = pulls.find_open_prs_by_head(_CONFIG, "o/r", "reconcile/a")
+        request.return_value = [_pr(4, "bot/a"), _pr(5, "other/branch")]
+        matches = pulls.find_open_prs_by_head(_CONFIG, "o/r", "bot/a")
         self.assertEqual([pr["number"] for pr in matches], [4])
 
     @mock.patch("lib.forgejo.pulls.api.supports_head_filter", return_value=False)
@@ -71,10 +71,10 @@ class FindOpenPrsByHeadTest(unittest.TestCase):
         self, request, _supports, _swagger
     ):
         request.return_value = [
-            _pr(1, "feature-x"), _pr(2, "reconcile/a"), _pr(3, "reconcile/ab"),
+            _pr(1, "feature-x"), _pr(2, "bot/a"), _pr(3, "bot/ab"),
         ]
-        matches = pulls.find_open_prs_by_head(_CONFIG, "o/r", "reconcile/a")
-        # Exact match only -- "reconcile/ab" is a different branch.
+        matches = pulls.find_open_prs_by_head(_CONFIG, "o/r", "bot/a")
+        # Exact match only -- "bot/ab" is a different branch.
         self.assertEqual([pr["number"] for pr in matches], [2])
 
     @mock.patch("lib.forgejo.pulls.api.supports_head_filter", return_value=True)

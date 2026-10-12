@@ -56,7 +56,7 @@ class FjwPrQueryBehaviorTest(unittest.TestCase):
                 mock.patch.object(_MODULE.pulls, "query_state",
                                   return_value=(state, pr)), \
                 contextlib.redirect_stdout(io.StringIO()) as stdout:
-            code = _MODULE.main(["o/r", "reconcile/x"])
+            code = _MODULE.main(["o/r", "bot/x"])
         return code, json.loads(stdout.getvalue())
 
     def test_none_is_an_answer_not_an_error(self):
@@ -64,10 +64,10 @@ class FjwPrQueryBehaviorTest(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertEqual(payload["state"], "none")
         self.assertIsNone(payload["pr"])
-        self.assertEqual(payload["head"], "reconcile/x")
+        self.assertEqual(payload["head"], "bot/x")
 
     def test_every_determinate_state_exits_zero_with_the_raw_pr(self):
-        pr = {"number": 4, "mergeable": False, "head": {"ref": "reconcile/x"}}
+        pr = {"number": 4, "mergeable": False, "head": {"ref": "bot/x"}}
         for state in ("draft", "mergeable", "conflicted"):
             with self.subTest(state=state):
                 code, payload = self._query(state, pr)

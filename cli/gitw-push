@@ -16,7 +16,7 @@ Named-target form (`<name>` given): push the same branch's tip to
 `<branch-prefix><name>` on the remote instead, and set that ref as the
 branch's upstream. This is the pointer-move primitive for recurring
 jobs: a run on a fresh dated branch advances a stable
-review ref such as `reconcile/current` that no branch ever commits on. The
+review ref such as `bot/current` that no branch ever commits on. The
 lease is explicit, `--force-with-lease=<target>:<expect>`, where <expect>
 is the target's remote-tracking value in this clone (whoever last fetched
 it; the wrappers fetch with --prune, so a target deleted on the remote
@@ -25,7 +25,7 @@ never fetched it. `--force-if-includes` is not passed: git-push(1) defines
 it as a no-op next to an explicit <expect>, and its reflog check runs
 against a local branch named like the destination, which this form never
 has. The target stays inside the pinned prefix, so the grant is an exact
-row per target (`Bash(gitw-push rocket-sled reconcile/ current)`). The payload's
+row per target (`Bash(gitw-push rocket-sled bot/ current)`). The payload's
 `previous_target` is that <expect> value: null means "never fetched here",
 not "absent on the remote".
 
