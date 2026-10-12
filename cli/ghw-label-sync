@@ -25,8 +25,8 @@ The schema file is read under the staging-directory policy: its
 content is published to GitHub, so it comes from /tmp/claude/ or
 ~/.claude/jobs/<job-id>/tmp/ like any other file a wrapper reads.
 
-Exit codes: 0 success (including a converged no-op), 1 gh/API failure,
-2 usage error or policy refusal.
+Exit codes: 0 success (including a converged no-op), 1 unclassified gh/API failure, 2 usage error or policy refusal,
+3 not found, 5 auth failure, 6 network failure (retryable).
 """
 
 from __future__ import annotations

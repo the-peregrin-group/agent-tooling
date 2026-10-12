@@ -14,8 +14,8 @@ and lists the candidates. A trailing --project <number> picks a linked board
 explicitly -- trailing position is safe because it only narrows a grant
 already given.
 
-Exit codes: 0 success (including a converged no-op), 1 gh/API failure,
-2 usage error or policy refusal.
+Exit codes: 0 success (including a converged no-op), 1 unclassified gh/API failure, 2 usage error or policy refusal,
+3 not found, 5 auth failure, 6 network failure (retryable).
 """
 
 from __future__ import annotations

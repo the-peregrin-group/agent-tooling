@@ -40,7 +40,7 @@ Shared conventions:
   a write lands.
 - Exit codes: `0` success (including an already-converged no-op), `1` unclassified
   gh/API failure, `2` usage error or policy refusal, `3` not found, `5` auth
-  failure (abort and flag it), `6` network failure (the one retryable class). Write wrappers print a JSON
+  failure (abort and flag it), `6` network failure (the one retryable class; on create and comment Verbs a timeout or reset exits `1`, since the write may have landed). Write wrappers print a JSON
   plan with `"action": "plan"` or `"applied"`.
 - **On exit 2, read the message and fix the call.** Never work around a
   refusal by dropping to raw `gh` — the refusal is the contract doing its

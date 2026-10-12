@@ -270,11 +270,15 @@ writes to this repo, and the flag only narrows which board is touched.
   a scope (`gh auth refresh`) is auth. A Verb's own not-found (a missing issue
   or board node) is `3`. `ghw-board-sync new` exits `1` once the project
   exists, whatever the underlying code, because `6` would invite a retry that
-  creates a second orphan project. Policy refusals stay `2` rather than `4`,
-  because callers key on `2`; migrating them is rejected for now (a
-  maintainer decision, not made here). A `6` from a timeout or reset on a
-  create or comment Verb is ambiguous: the write may have landed, so a retry
-  can duplicate it. The `triage-*` wrappers still use `1` and `2` only.
+  creates a second orphan project. Policy refusals, at parse time or
+  after, exit `2`; `4` is unused (the open question is tracked by
+  `agent-tooling-bus`). Bare `timeout` is not a network hint (a repository
+  name can contain it), and a GraphQL error payload is never classified as
+  network, since `gh` got a response. A timeout or reset may land after the
+  request was sent, so the create and comment Verbs (`ghw-issue-create`,
+  `ghw-issue-comment`, `ghw-pr-create`, `ghw-pr-comment`) downgrade such a
+  `6` to `1` (`gh.write_exit_code`); only provably pre-send failures (DNS,
+  refused connection) stay `6` there. The `triage-*` wrappers still use `1` and `2` only.
 - **JSON output:** write Verbs print a JSON plan with `"action": "applied"`
   (or `"plan"`, from `ghw-label-sync plan` only), most with a `changed`
   field. `ghw-orient` prints its own blob.

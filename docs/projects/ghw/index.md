@@ -35,6 +35,7 @@ How and why it works: [design.md](design.md).
 | Backlog triage and grooming, with autonomous writes through dedicated wrappers | shipped | `triage-issues`, `triage-*` |
 | Scheduled unattended triage via a guard-script background job | shipped | [DEPLOYMENT.md](../../../skills/triage-issues/reference/DEPLOYMENT.md) |
 | `gh` failures classified into the shared Exit-codes 3, 5, and 6 | shipped | [Exit-code contract](../../index.md#exit-code-contract); `lib/github/gh.py` |
+| Policy refusals past parse time exit 4, not 2 | planned | [Exit-code contract](../../index.md#exit-code-contract); `agent-tooling-bus` |
 | `triage-*` wrappers rebased onto the shared library | planned | [triage-library-rebase.md](triage-library-rebase.md); `agent-tooling-t7y` |
 
 ### Known gaps
