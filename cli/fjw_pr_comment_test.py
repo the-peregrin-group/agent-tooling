@@ -22,6 +22,7 @@ import ghw_test_support
 from lib.forgejo.config import Config
 
 _SCRIPT = Path(__file__).resolve().parent / "fjw-pr-comment"
+_CONTRACT_BODY = "/tmp/claude/argument-contract-body.md"
 _MODULE = ghw_test_support.load_wrapper_module(_SCRIPT)
 _MISSING_BODY = "/tmp/claude/fjw-pr-comment-test-missing-body.md"
 _CONFIG = Config(api_url="https://forge.example.com", token="t")
@@ -150,6 +151,13 @@ class FjwPrCommentBehaviorTest(unittest.TestCase):
         code, comment = self._comment_with_head("/", None)
         self.assertEqual(code, 4)
         comment.assert_not_called()
+
+
+class FjwPrCommentArgumentContractTest(
+    ghw_test_support.ArgumentContractTests, unittest.TestCase
+):
+    SCRIPT = _SCRIPT
+    LONGEST = ("o/r", "fix/", "5", _CONTRACT_BODY)
 
 
 if __name__ == "__main__":

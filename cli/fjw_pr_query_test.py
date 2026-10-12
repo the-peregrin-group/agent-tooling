@@ -87,5 +87,12 @@ class FjwPrQueryBehaviorTest(unittest.TestCase):
         self.assertEqual(caught.exception.code, 6)
 
 
+class FjwPrQueryArgumentContractTest(
+    ghw_test_support.ArgumentContractTests, unittest.TestCase
+):
+    SCRIPT = _SCRIPT
+    LONGEST = ("o/r", "fix/x")
+
+
 if __name__ == "__main__":
     unittest.main()

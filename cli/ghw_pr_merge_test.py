@@ -124,5 +124,12 @@ class GhwPrMergeBehaviorTest(unittest.TestCase):
         self.assertEqual(payload["strategy"], "merge")
 
 
+class GhwPrMergeArgumentContractTest(
+    ghw_test_support.ArgumentContractTests, unittest.TestCase
+):
+    SCRIPT = _SCRIPT
+    LONGEST = ("o/r", "main", "merge", "5")
+
+
 if __name__ == "__main__":
     unittest.main()

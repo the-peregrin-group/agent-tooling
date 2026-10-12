@@ -46,6 +46,8 @@ NO_BRANCH_PREFIX = shared.NO_BRANCH_PREFIX
 is_valid_branch_prefix = shared.is_valid_branch_prefix
 branch_matches_prefix = shared.branch_matches_prefix
 prefixed_branch = shared.prefixed_branch
+# So is the flag-shape check every Wrapper's optional slots apply.
+is_flag_shaped = shared.is_flag_shaped
 
 
 def is_valid_branch_name(name: str) -> bool:

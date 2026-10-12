@@ -46,6 +46,8 @@ def main(argv: list[str]) -> int:
         plan.usage_die(
             f"issue number must be a positive integer, got {issue_argument!r}", _USAGE
         )
+    if arguments.is_flag_shaped(comment_path):
+        plan.usage_die(f"ghw-issue-close takes no flags, got {comment_path!r}", _USAGE)
     comment = staging.read_staged_body(comment_path, description="comment file")
     if not comment.strip():
         plan.usage_die(

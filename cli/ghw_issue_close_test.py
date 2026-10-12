@@ -24,6 +24,7 @@ from unittest import mock
 import ghw_test_support
 
 _SCRIPT = Path(__file__).resolve().parent / "ghw-issue-close"
+_CONTRACT_BODY = "/tmp/claude/argument-contract-body.md"
 _MISSING_COMMENT = "/tmp/claude/ghw-issue-close-test-missing-comment.md"
 
 
@@ -117,6 +118,16 @@ class GhwIssueCloseBehaviorTest(unittest.TestCase):
             self.assertEqual(_MODULE.main(["o/r", "5", self._comment_path]), 0)
         close.assert_called_once_with("o/r", 5, "closing reason")
         self.assertTrue(json.loads(stdout.getvalue())["changed"])
+
+
+class GhwIssueCloseArgumentContractTest(
+    ghw_test_support.ArgumentContractTests, unittest.TestCase
+):
+    SCRIPT = _SCRIPT
+    LONGEST = ("o/r", "5", _CONTRACT_BODY)
+    FLAG_SLOT_FORMS = (
+        ("o/r", "5", "--bogus"),
+    )
 
 
 if __name__ == "__main__":

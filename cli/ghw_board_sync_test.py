@@ -266,5 +266,12 @@ class GhwBoardSyncCreateTest(unittest.TestCase):
         seam["create_project"].assert_not_called()
 
 
+class GhwBoardSyncArgumentContractTest(
+    ghw_test_support.ArgumentContractTests, unittest.TestCase
+):
+    SCRIPT = _SCRIPT
+    LONGEST = ("o/r", "3")
+
+
 if __name__ == "__main__":
     unittest.main()

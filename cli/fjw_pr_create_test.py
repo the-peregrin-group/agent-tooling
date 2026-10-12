@@ -25,6 +25,7 @@ import ghw_test_support
 from lib.forgejo.config import Config
 
 _SCRIPT = Path(__file__).resolve().parent / "fjw-pr-create"
+_CONTRACT_BODY = "/tmp/claude/argument-contract-body.md"
 _MODULE = ghw_test_support.load_wrapper_module(_SCRIPT)
 _MISSING_BODY = "/tmp/claude/fjw-pr-create-test-missing-body.md"
 _CONFIG = Config(api_url="https://forge.example.com", token="t")
@@ -181,6 +182,16 @@ class FjwPrCreateBehaviorTest(unittest.TestCase):
                 _MODULE.main(["o/r", "main", "b", "T", self._body_path])
         self.assertEqual(caught.exception.code, 4)
         self.assertIn("already exists", stderr.getvalue())
+
+
+class FjwPrCreateArgumentContractTest(
+    ghw_test_support.ArgumentContractTests, unittest.TestCase
+):
+    SCRIPT = _SCRIPT
+    LONGEST = ("o/r", "main", "feat", "Title", _CONTRACT_BODY, "--draft")
+    FLAG_SLOT_FORMS = (
+        ("o/r", "main", "feat", "Title", _CONTRACT_BODY, "--bogus"),
+    )
 
 
 if __name__ == "__main__":

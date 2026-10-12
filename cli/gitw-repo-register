@@ -22,7 +22,9 @@ Refusals are loud: a label already registered with different data, or a
 second label claiming the same checkout, is a hand-edit situation (rare
 by design; removal and exotic edits -- e.g. operable_from -- stay
 hand-edits). The word `apply` is reserved as the mode token, so a
-remote literally named "apply" is unsupported here (hand-edit it). Re-registering an identical entry is a converged no-op.
+remote literally named "apply" is unsupported here (hand-edit it), and
+so is a remote name beginning with '-', which is refused as an
+unrecognized flag. Re-registering an identical entry is a converged no-op.
 The wrapper itself is non-interactive; the ask rule provides the human
 gate, and the plan/apply two-step puts the delta in front of the human
 between the two approvals.
@@ -85,6 +87,11 @@ def main(argv: list[str]) -> int:
         )
     if remote_name is not None and not remote_name.strip():
         plan.usage_die("remote name must not be empty", _USAGE)
+    if remote_name is not None and arguments.is_flag_shaped(remote_name):
+        plan.usage_die(
+            f"gitw-repo-register takes no flags, got {remote_name!r}",
+            _USAGE,
+        )
     checkout = Path(checkout_argument).expanduser()
     if not checkout.is_absolute():
         plan.usage_die(

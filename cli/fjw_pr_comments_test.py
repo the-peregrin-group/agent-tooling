@@ -77,5 +77,12 @@ class FjwPrCommentsBehaviorTest(unittest.TestCase):
         listing.assert_not_called()
 
 
+class FjwPrCommentsArgumentContractTest(
+    ghw_test_support.ArgumentContractTests, unittest.TestCase
+):
+    SCRIPT = _SCRIPT
+    LONGEST = ("o/r", "5")
+
+
 if __name__ == "__main__":
     unittest.main()

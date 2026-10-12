@@ -80,5 +80,12 @@ class FjwPrViewBehaviorTest(unittest.TestCase):
         self.assertEqual(caught.exception.code, 3)
 
 
+class FjwPrViewArgumentContractTest(
+    ghw_test_support.ArgumentContractTests, unittest.TestCase
+):
+    SCRIPT = _SCRIPT
+    LONGEST = ("o/r", "5")
+
+
 if __name__ == "__main__":
     unittest.main()

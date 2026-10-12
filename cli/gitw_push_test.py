@@ -562,5 +562,15 @@ class GitwPushBareSlashTest(_PushFixtureTest):
         self.assertIn("default branch", stderr)
 
 
+class GitwPushArgumentContractTest(
+    ghw_test_support.ArgumentContractTests, unittest.TestCase
+):
+    SCRIPT = _SCRIPT
+    LONGEST = ("proj", "fix/", "name")
+    FLAG_SLOT_FORMS = (
+        ("proj", "fix/", "--bogus"),
+    )
+
+
 if __name__ == "__main__":
     unittest.main()

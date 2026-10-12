@@ -122,5 +122,16 @@ class GhwBoardSetBehaviorTest(unittest.TestCase):
         self.assertIn("P1", stderr.getvalue())
 
 
+class GhwBoardSetArgumentContractTest(
+    ghw_test_support.ArgumentContractTests, unittest.TestCase
+):
+    SCRIPT = _SCRIPT
+    LONGEST = ("o/r", "Priority", "P1", "7", "--project", "3")
+    FLAG_SLOT_FORMS = (
+        ("o/r", "Priority", "P1", "7", "--bogus"),
+        ("o/r", "Priority", "P1", "7", "--bogus", "3"),
+    )
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -365,5 +365,15 @@ class GitwBranchStartBareSlashTest(_BranchStartFixtureTest):
         self.assertIn("ref namespace", result.stderr)
 
 
+class GitwBranchStartArgumentContractTest(
+    ghw_test_support.ArgumentContractTests, unittest.TestCase
+):
+    SCRIPT = _SCRIPT
+    LONGEST = ("proj", "fix/", "x", "resume")
+    FLAG_SLOT_FORMS = (
+        ("proj", "fix/", "x", "--bogus"),
+    )
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -14,7 +14,9 @@ enforcement of "you own getting your changes committed; no droppings".
 With pathspecs (free-form tail, no allowlist significance): stage and
 commit exactly the changes those paths cover; the JSON output then
 reports the remaining dirty/untracked state so nothing lingers silently.
-Pre-existing staged changes outside the pathspecs are refused rather than
+The tail takes no flags: a pathspec beginning with '-' is a usage error
+(spell such a path './-name'), so an unrecognized flag is never absorbed
+as a pathspec. Pre-existing staged changes outside the pathspecs are refused rather than
 silently swept into the commit.
 
 Local-file sweep guard: a commit whose staged set would include a known
@@ -42,7 +44,7 @@ is never modified. The JSON output reports the actor as `executed_by`. See
 docs/adr/0002-beads-identity.md.
 
 Exit codes: 0 success, 1 unclassified git failure, 2 usage error
-(including an unusable or empty message file), 3 label not in the roster,
+(including an unusable or empty message file and a flag-shaped pathspec), 3 label not in the roster,
 4 refused (cwd/branch-prefix mismatch, empty commit, sweep guard,
 staged-outside-pathspec, unresolved conflicts, pending
 merge/cherry-pick/revert, more than one caller-written Executed-By
@@ -88,6 +90,12 @@ def main(argv: list[str]) -> int:
     for pathspec in pathspecs:
         if not pathspec.strip():
             plan.usage_die("pathspecs must not be empty", _USAGE)
+        if arguments.is_flag_shaped(pathspec):
+            plan.usage_die(
+                f"gitw-commit takes no flags, got {pathspec!r}; a path that "
+                f"really begins with '-' is spelled './{pathspec}'",
+                _USAGE,
+            )
     message_file = staging.resolve_staging_path(
         message_path, description="message file"
     )
