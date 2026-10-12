@@ -442,7 +442,9 @@ class AmbiguousWriteTest(unittest.TestCase):
     def test_bare_not_found_wording_is_not_a_not_found(self, run):
         # A schema error is a bug in the query, not an answer about a resource.
         body = '{"errors": [{"message": "Field x not found on type Issue"}]}'
-        run.return_value = _completed(stdout=body)
+        run.return_value = _completed(
+            returncode=1, stdout=body,
+            stderr="gh: Field x not found on type Issue")
         with self.assertRaises(gh.GhError) as caught:
             gh.graphql("query { x }")
         self.assertEqual(caught.exception.exit_code, 1)
@@ -450,10 +452,13 @@ class AmbiguousWriteTest(unittest.TestCase):
     @mock.patch("lib.github.gh.subprocess.run")
     def test_graphql_error_payload_mentioning_timeout_is_not_network(self, run):
         body = '{"errors": [{"message": "operation timed out in validation"}]}'
-        run.return_value = _completed(stdout=body)
+        run.return_value = _completed(
+            returncode=1, stdout=body,
+            stderr="gh: operation timed out in validation")
         with self.assertRaises(gh.GhError) as caught:
             gh.graphql("query { x }")
         self.assertEqual(caught.exception.exit_code, 1)
+        self.assertFalse(caught.exception.may_have_landed)
 
     @mock.patch("lib.github.gh.subprocess.run")
     def test_subprocess_timeout_and_reset_may_have_landed(self, run):

@@ -152,6 +152,10 @@ def _classify_failed_call(arguments: list[str], stdout: str, stderr: str) -> int
             code = _code_from_graphql_errors(body.get("errors"))
             if code is not None:
                 return code
+            if body.get("errors"):
+                # gh got a GraphQL response, so this is not a transport failure
+                # even if the message mentions a timeout.
+                return classify(stderr, network=False)
     return classify(stderr)
 
 
