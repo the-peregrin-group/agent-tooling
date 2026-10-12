@@ -33,9 +33,10 @@ prefix matches any branch except the authoritative default. The steps:
 
 Executed-By trailer: the bubble carries the same trailer gitw-commit
 writes, `Executed-By: <actor>`, the session actor from
-lib.actor.derive_actor (`claude-job-<job-id>` in a background job,
-`attended-<user>` otherwise), so the one commit that moves the base is
-attributable too. The rules are gitw-commit's, from one shared
+lib.actor.derive_actor (`claude-job-<session-id>` in a background job,
+`claude-session-<session-id>` in an attended session, falling back to
+`claude-job-<job-id>` or `attended-<user>` without a usable session ID),
+so the one commit that moves the base is attributable too. The rules are gitw-commit's, from one shared
 implementation (lib.git.repo.trailered_message): a caller-written
 Executed-By trailer is replaced by the derived actor, and a message
 holding more than one is refused (exit 4) before anything is pushed. The

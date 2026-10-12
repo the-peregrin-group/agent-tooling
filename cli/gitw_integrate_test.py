@@ -412,11 +412,12 @@ class GitwIntegrateExecutedByTest(_IntegrateFixtureTest):
     def integrate_with_environ(self, environ: dict, *arguments: str,
                                expecting_exit: int | None = None):
         """Integrate with the session identity pinned to `environ` (the
-        developer running the suite may be inside a job with
-        CLAUDE_JOB_DIR set)."""
+        developer running the suite may be inside a session with
+        CLAUDE_CODE_SESSION_ID and CLAUDE_JOB_DIR set)."""
         with mock.patch.dict(os.environ, environ):
-            if "CLAUDE_JOB_DIR" not in environ:
-                os.environ.pop("CLAUDE_JOB_DIR", None)
+            for name in ("CLAUDE_JOB_DIR", "CLAUDE_CODE_SESSION_ID"):
+                if name not in environ:
+                    os.environ.pop(name, None)
             if expecting_exit is not None:
                 return self.integrate_expecting_exit(
                     expecting_exit, *arguments
