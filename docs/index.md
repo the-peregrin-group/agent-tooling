@@ -5,7 +5,8 @@ and the install model; `LEXICON.md` is the vocabulary; `docs/adr/` holds the
 decisions. Everything else lives under `docs/projects/`, one directory per
 project, in the shape `CLAUDE.md` ("Documentation") prescribes: a living
 `index.md` with a Status table, an optional living `design.md`, and dated
-targeted docs.
+targeted docs. The one exception is a dated audit that spans several
+projects, which lives under `docs/audits/`.
 
 ## Projects
 
@@ -43,6 +44,16 @@ targeted docs.
 - [handoff](projects/handoff/index.md): the Skill that writes a Handoff.
 - [refine-state-doc](projects/refine-state-doc/index.md): the guide for
   writing and refining State docs.
+
+## Cross-cutting audits
+
+Dated audits that span several projects live under `audits/`; like every
+dated doc, each is never updated after its date.
+
+- [The agent-versus-human line](audits/2026-10-11-agent-versus-human-line.md),
+  as of 2026-10-11: every point where a Skill or Wrapper decides what an
+  agent may do on its own and what needs a human, the principles behind
+  them, and the inconsistencies awaiting the maintainer's decisions.
 
 ## Exit-code contract
 
