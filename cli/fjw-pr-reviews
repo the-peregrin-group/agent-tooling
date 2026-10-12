@@ -1,0 +1,68 @@
+#!/usr/bin/python3
+"""fjw-pr-reviews <owner/repo> <pr#> -- a pull request's reviews and inline comments as raw API JSON.
+
+Read verb: emits an array of the raw Forgejo review objects (id, state, body,
+...), paginated to exhaustion. Each review object gains one extra key,
+"comments": the raw array of that review's inline comments (path, line or
+position, body, pull_request_review_id, ...), untouched. A review with no
+inline comments still appears, with "comments": []. Conversation comments are
+a different route family; read those with fjw-pr-comments. The index is
+verified to name a PR before anything is fetched, so this verb never becomes a
+covert issue reader. Acts as the deployment's machine account.
+
+Exit codes: 0 success (an empty array is success), 1 unclassified API
+failure, 2 usage error, 3 no such PR (or no such repository), 5 auth/config
+failure, 6 network failure.
+"""
+
+from __future__ import annotations
+
+import json
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from lib import arguments, plan
+from lib.forgejo import api, config as fjw_config, pulls
+
+_USAGE = "fjw-pr-reviews <owner/repo> <pr#>"
+
+
+def main(argv: list[str]) -> int:
+    """Entry point; the module docstring above is the CLI contract. Returns
+    the process exit code."""
+    if argv and argv[0] in ("-h", "--help"):
+        print(__doc__.strip())
+        return plan.EXIT_OK
+    if len(argv) != 2:
+        plan.usage_die("expected exactly two arguments", _USAGE)
+    repository, raw_index = argv
+    if not pulls.is_valid_repository(repository):
+        plan.usage_die(f"repo must be 'owner/name', got {repository!r}", _USAGE)
+    index = arguments.parse_issue_number(raw_index)
+    if index is None:
+        plan.usage_die(f"pr# must be a positive integer, got {raw_index!r}", _USAGE)
+
+    try:
+        configuration = fjw_config.load()
+    except fjw_config.ConfigError as error:
+        api.die(str(error), plan.EXIT_AUTH)
+    try:
+        pulls.get_pr(configuration, repository, index)  # PR-ness gate
+        reviews = pulls.list_reviews(configuration, repository, index)
+        result = []
+        for review in reviews:
+            comments = pulls.list_review_comments(
+                configuration, repository, index, review["id"]
+            )
+            result.append({**review, "comments": comments})
+    except api.ApiError as error:
+        api.die(str(error), error.exit_code)
+
+    print(json.dumps(result, indent=2))
+    return plan.EXIT_OK
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))
