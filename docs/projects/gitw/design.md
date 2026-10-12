@@ -369,8 +369,10 @@ inside the repo on a branch matching the prefix. No pathspec: stage and
 commit the whole working tree (`add -A`), leaving it clean by
 construction, the mechanical form of "no droppings". With pathspecs:
 commit exactly those, refusing pre-existing staged changes outside them,
-and report remaining dirt in the JSON. Raw `git add` is never needed: the
-index stops being agent-visible state. Refusals (exit 4): a pending
+and report remaining dirt in the JSON. The pathspec tail takes no flags:
+a pathspec beginning with `-` is a usage error (exit 2), and a path that
+really begins with `-` is spelled `./-name`. Raw `git add` is never
+needed: the index stops being agent-visible state. Refusals (exit 4): a pending
 merge, cherry-pick, or revert; unresolved conflicts; nothing to commit;
 the sweep guard; more than one caller-written `Executed-By` trailer.
 

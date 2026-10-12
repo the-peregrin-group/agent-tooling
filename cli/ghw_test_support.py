@@ -2,9 +2,9 @@
 
 The wrapper executables have no .py extension, so behavior tests load them
 as modules by path. This module holds only maximally-generic scaffolding
-shared across the wrapper test files (the gitw, fjw, and tooling-install
-tests use it too); helpers that aid reading a specific suite stay local to
-it (tests are documentation).
+shared across the wrapper test files (the gitw and fjw tests use it too);
+helpers that aid reading a specific suite stay local to it (tests are
+documentation).
 """
 
 from __future__ import annotations

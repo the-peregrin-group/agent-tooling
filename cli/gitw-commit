@@ -16,8 +16,8 @@ commit exactly the changes those paths cover; the JSON output then
 reports the remaining dirty/untracked state so nothing lingers silently.
 The tail takes no flags: a pathspec beginning with '-' is a usage error
 (spell such a path './-name'), so an unrecognized flag is never absorbed
-as a pathspec. Pre-existing staged changes outside the pathspecs are refused rather than
-silently swept into the commit.
+as a pathspec. Pre-existing staged changes outside the pathspecs are
+refused rather than silently swept into the commit.
 
 Local-file sweep guard: a commit whose staged set would include a known
 local-only file (settings.local.json, .env* -- matched against every
@@ -44,11 +44,11 @@ is never modified. The JSON output reports the actor as `executed_by`. See
 docs/adr/0002-beads-identity.md.
 
 Exit codes: 0 success, 1 unclassified git failure, 2 usage error
-(including an unusable or empty message file and a flag-shaped pathspec), 3 label not in the roster,
-4 refused (cwd/branch-prefix mismatch, empty commit, sweep guard,
-staged-outside-pathspec, unresolved conflicts, pending
-merge/cherry-pick/revert, more than one caller-written Executed-By
-trailer), 5 roster/auth/config (deployment).
+(including an unusable or empty message file and a flag-shaped
+pathspec), 3 label not in the roster, 4 refused (cwd/branch-prefix
+mismatch, empty commit, sweep guard, staged-outside-pathspec, unresolved
+conflicts, pending merge/cherry-pick/revert, more than one
+caller-written Executed-By trailer), 5 roster/auth/config (deployment).
 """
 
 from __future__ import annotations

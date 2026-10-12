@@ -90,17 +90,17 @@ Each family's Skill and `design.md` state the family's codes and link here.
 
 ## Argument contract
 
-A Wrapper accepts exactly the arguments its usage line defines. Any
-surplus positional and any flag the usage line does not name is a usage
-error, exit `2`. That holds wherever the token lands:
+A Wrapper accepts exactly the arguments its usage line defines. A
+surplus positional is a usage error, exit `2`, and so is a flag-shaped
+token (one beginning with `-`) anywhere the usage line has no required
+slot for it:
 
 - **Fixed arity.** A Verb checks its argument count exactly, before it
   reads a roster, a forge, or an Install Target, so one extra token,
   flag-shaped or not, is refused.
-- **Optional slots.** A flag-shaped token (one beginning with `-`) in an
-  optional positional slot is refused at parse time, never taken as the
-  value: a remote name, a target name, a mode word, or a staged-file
-  path.
+- **Optional slots.** A flag-shaped token in an optional positional
+  slot is refused at parse time, never taken as the value: a remote
+  name, a target name, a mode word, or a staged-file path.
 - **Variadic tails** consume every element, and refuse a flag-shaped
   one at parse time. `gitw-commit`'s pathspecs and `ghw-issue-create`'s
   labels take no flags (a path that really begins with `-` is spelled
@@ -108,6 +108,12 @@ error, exit `2`. That holds wherever the token lands:
   not parse. Any other element is validated like the rest of the tail:
   an extra `ghw-issue-create` label must exist in the repo's live label
   registry.
+- **Required slots** take their token as the value and validate it on
+  their own terms, flag-shaped or not. A title of `--bogus` is a title,
+  and a message or body file named `--bogus` is read when, resolved
+  against the working directory, it names a file in a staging directory.
+  A Permission rule that leaves a required slot to a wildcard grants
+  every value that slot accepts.
 
 The reason is the Permission system. A rule may put its wildcard in the
 middle (`Bash(foo bar * baz)`), and that rule matches
@@ -119,7 +125,8 @@ security property, not a nicety.
 
 The contract covers the `gitw-*`, `ghw-*`, and `fjw-*` Verbs and
 `tooling-install`, and each Verb's test file pins it with a surplus
-positional and an unrecognized flag (the shared case lives in
-`cli/ghw_test_support.py`). `bdw` is outside it by design: it passes its
+positional and an unrecognized flag (the shared case for the `gitw-*`,
+`ghw-*`, and `fjw-*` Verbs lives in `cli/ghw_test_support.py`;
+`tooling-install`'s cases are in `cli/lib/install_test.py`). `bdw` is outside it by design: it passes its
 arguments to `bd`, whose own parser owns the refusal. The `triage-*`
 reference wrappers have not been audited against it.

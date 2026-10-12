@@ -250,6 +250,8 @@ No pathspec: stage-and-commit the entire working tree, leaving it clean by
 construction. With pathspecs: commit exactly those changes; the JSON then
 reports remaining dirt so nothing lingers silently — and pre-existing
 staged changes outside the pathspecs are refused rather than swept in.
+A pathspec beginning with `-` is a usage error (exit 2), since the tail
+takes no flags; spell a path that really begins with `-` as `./-name`.
 Small, coherent commits are the floor: one commit per logical change,
 message written to a staged file first. A **local-file sweep guard**
 refuses staged sets touching `settings.local.json` or `.env*`; its
