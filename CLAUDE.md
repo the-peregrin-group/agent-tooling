@@ -60,8 +60,9 @@ log, `TODO` citations) are in `.beads/PRIME.md`, which `bdw prime` prints.
 The Beads Permission rules in `.claude/settings.json` are generated from
 use-bd's canonical rule set (`skills/use-bd/rules.json`) plus this repo's
 local layer in their spec, `cli/repo_policy_test.py`: change the data or
-the spec, regenerate the file, and let the test confirm they agree. The rules are prefix rules, so
-they are not safe in auto mode until the parsed-command deny hook lands.
+the spec, regenerate the file, and let the test confirm they agree. The
+rules are prefix rules, so they are not safe in auto mode until the
+parsed-command deny hook lands.
 
 Pull requests are unaffected. **Load the `use-github` skill before opening a
 PR**; its issue-filing and board conventions are suspended for the trial, and a

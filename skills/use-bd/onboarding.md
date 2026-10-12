@@ -124,11 +124,16 @@ them.
   `ask`, and `allow` lists is a list of groups, and each group says why it
   exists and gives its rows outright (`rows`) or as `verbs` that fill in
   each of its `shapes` at `{v}`. Expand every group into the matching
-  list of the repo's settings. The repo may add rules of its own but
-  keeps every canonical row. Shell indirections (`env *`, `sh -c *`,
-  `xargs *`, `eval *`, and similar) hide a verb from prefix matching, so
-  asking for them is worth considering too; they are not in the canonical
-  set because they rule on every shell command, not only on Beads. Give
+  list of the repo's settings. No shipped tool does the expansion yet
+  (agent-tooling-j6x); agent-tooling's `canonical_rows()` in
+  `cli/use_bd_rules_test_support.py` is the reference, so expand with a
+  copy of it rather than by hand, since a hand-dropped spelling of a
+  denied verb prompts instead of being refused. The repo may add rules of
+  its own but keeps every canonical row. Shell indirections (`env *`,
+  `sh -c *`, `xargs *`, `eval *`, and similar) hide a verb from prefix
+  matching, so asking for them is worth considering too; they are not in
+  the canonical set because they rule on every shell command, not only on
+  Beads. Give
   the repo a spec test that checks its settings contain the canonical set;
   agent-tooling's `cli/repo_policy_test.py` is one to copy.
 - [ ] Point the repo's `CLAUDE.md` at this skill rather than restating

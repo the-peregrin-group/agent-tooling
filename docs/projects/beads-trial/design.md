@@ -60,8 +60,9 @@ equality with a generated set is the control.
   habit of typing `bd` fails at once. The rows below are all on `bdw`.
 - **Denied** (every spelling: verb first, flag first, and a bare row for
   verbs that act with no arguments). The canonical set's deny groups are
-  the full list; they cover the forgetting verbs (all of `compact` included, so even
-  lossless Dolt garbage collection is a maintainer act), `delete` and the
+  the full list; they cover the forgetting verbs (all of `compact`
+  included, so even lossless Dolt garbage collection is a maintainer
+  act), `delete` and the
   other destructive edits, every `dolt` subcommand, `init`, the tracker
   integrations (`github`, `gitlab`, `jira`, `linear`, `ado`, `notion`),
   `sync`, `remember`, `memories`, `recall`, `reclaim`, `metrics on`,

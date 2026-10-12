@@ -10,17 +10,21 @@ place of its default text, and its policy in its reviewed Permission rules.
 The Skill is `skills/use-bd/`: `SKILL.md`, read on every load, and two
 supporting files read on need, `quirks.md` (the known behavior of the
 verified bd version) and `onboarding.md` (setting Beads up in a new repo).
-Beside them, `rules.json` is the canonical Beads Permission rule set, as
-data: each repo on Beads carries it in its own reviewed rules (policy never
-lives in a file an agent could edit to loosen its own limits), and
-`cli/use_bd_rules_test.py` checks that every `bdw` command the Skill
-teaches is allowed by it.
-It teaches only what works on `main`; it grows as the `bdw` changes of the
-[version-one proposal](v1-proposal.md) ship, slice by slice, under
+The Skill teaches only what works on `main`; it grows as the `bdw` changes
+of the [version-one proposal](v1-proposal.md) ship, slice by slice, under
 `agent-tooling-aio` (the use-bd epic). Branch Issues worked in passes are
 [ADR 0009](../../adr/0009-branch-issues-are-worked-in-passes.md); `bdw`
 carrying policy in tiers is
 [ADR 0010](../../adr/0010-bdw-carries-beads-policy-in-tiers.md).
+
+Beside the Skill's markdown, `rules.json` is the canonical Beads
+Permission rule set, as data: each repo on Beads carries it in its own
+reviewed rules (policy never lives in a file an agent could edit to loosen
+its own limits). `cli/use_bd_rules_test.py` checks that every `bdw`
+command the Skill teaches as a call is allowed by it, and holds the data
+to a frozen snapshot of its expanded rows
+(`cli/use_bd_rules_snapshot_test_support.py`), so a change to the
+canonical set shows in review as rows added or removed.
 
 ## Status
 
