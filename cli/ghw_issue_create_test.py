@@ -112,10 +112,24 @@ class GhwIssueCreateLabelTailTest(unittest.TestCase):
         create.assert_not_called()
         return raised.exception.code, fetch, stderr.getvalue()
 
-    def test_surplus_label_outside_the_registry_is_usage_error(self):
+    def test_surplus_label_outside_the_registry_is_a_policy_refusal(self):
         code, _, stderr = self._main_expecting_exit("area:cli", "surplus")
-        self.assertEqual(code, 2)
+        self.assertEqual(code, 4)
         self.assertIn("'surplus'", stderr)
+
+    def test_label_contract_violations_are_policy_refusals(self):
+        # Each passes argument parsing and is refused by the label attachment
+        # contract after the registry fetch: exit 4, never 2.
+        cases = (
+            (("area:cli", "feature"), "second type label"),
+            (("area:cli", "bug"), "duplicates the type label"),
+            ((), "'area:' label is required"),
+        )
+        for labels, message in cases:
+            with self.subTest(labels=labels):
+                code, _, stderr = self._main_expecting_exit(*labels)
+                self.assertEqual(code, 4)
+                self.assertIn(message, stderr)
 
     def test_flag_shaped_label_is_refused_before_the_registry_fetch(self):
         code, fetch, stderr = self._main_expecting_exit("area:cli", "--bogus")

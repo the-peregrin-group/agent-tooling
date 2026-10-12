@@ -11,8 +11,11 @@ comes from a staged file under /tmp/claude/ or ~/.claude/jobs/<job-id>/tmp/
 (never inline text). Deliberately non-idempotent: search for duplicates before
 filing, per skill-text guidance.
 
-Exit codes: 0 success, 1 unclassified gh/API failure, 2 usage error or policy refusal,
-3 not found, 5 auth failure, 6 network failure (retryable). A failure whose request may
+Exit codes: 0 success, 1 unclassified gh/API failure, 2 usage error (including
+a type label outside the canonical five), 3 not found, 4 refused: the label set
+violates the attachment contract (a second or repeated type label, no 'area:'
+label, a label missing from the registry), 5 auth failure, 6 network failure
+(retryable). A failure whose request may
 already have landed (a timeout or reset) exits 1 instead of 6 on the
 non-idempotent write Verbs, so a retry cannot duplicate it.
 """
@@ -65,7 +68,7 @@ def main(argv: list[str]) -> int:
     try:
         labels.validate_creation_labels(type_label, extra_labels, registry)
     except labels.LabelContractError as error:
-        gh.die(str(error), plan.EXIT_USAGE)
+        gh.die(str(error), plan.EXIT_REFUSED)
 
     all_labels = [type_label, *extra_labels]
     try:

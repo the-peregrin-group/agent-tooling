@@ -10,8 +10,10 @@ protection, so `gh pr merge` on its own enforces nothing. There is no force
 or override path, ever: merging over red checks stays raw `gh` with a human
 at the prompt. Never passes --delete-branch (worktree hazard).
 
-Exit codes: 0 success, 1 unclassified gh/API failure, 2 usage error or policy refusal,
-3 not found, 5 auth failure, 6 network failure (retryable).
+Exit codes: 0 success, 1 unclassified gh/API failure, 2 usage error (including
+the squash refusal, made at argument-parse time), 3 not found, 4 refused: a
+merge gate failed (not open, base mismatch, draft, checks not green), never
+retry unchanged, 5 auth failure, 6 network failure (retryable).
 """
 
 from __future__ import annotations
@@ -68,7 +70,7 @@ def main(argv: list[str]) -> int:
         gh.die(
             f"refusing to merge {repository}#{number}:\n"
             + "\n".join(f"  - {refusal}" for refusal in refusals),
-            plan.EXIT_USAGE,
+            plan.EXIT_REFUSED,
         )
 
     try:

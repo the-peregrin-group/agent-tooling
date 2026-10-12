@@ -98,9 +98,22 @@ class GhwIssueEditBehaviorTest(unittest.TestCase):
                 contextlib.redirect_stderr(io.StringIO()) as stderr:
             with self.assertRaises(SystemExit) as caught:
                 _MODULE.main(["o/r", "add-label", "5", "debt"])
-        self.assertEqual(caught.exception.code, 2)
+        self.assertEqual(caught.exception.code, 4)
         edit.assert_not_called()
         self.assertIn("'bug'", stderr.getvalue())
+
+    def test_label_missing_from_the_registry_is_a_policy_refusal(self):
+        with mock.patch.object(_MODULE.boards, "fetch_labels",
+                               return_value=[{"name": "bug"}]), \
+                mock.patch.object(_MODULE.gh, "issue_view",
+                                  return_value={"labels": [{"name": "bug"}]}), \
+                mock.patch.object(_MODULE.gh, "issue_edit_labels") as edit, \
+                contextlib.redirect_stderr(io.StringIO()) as stderr:
+            with self.assertRaises(SystemExit) as caught:
+                _MODULE.main(["o/r", "add-label", "5", "area:ghost"])
+        self.assertEqual(caught.exception.code, 4)
+        edit.assert_not_called()
+        self.assertIn("label registry", stderr.getvalue())
 
     def test_removing_an_absent_label_is_a_no_op(self):
         with mock.patch.object(_MODULE.gh, "issue_view",

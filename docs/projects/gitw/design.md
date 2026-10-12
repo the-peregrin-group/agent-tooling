@@ -255,8 +255,7 @@ Family-wide, shared with ghw and fjw:
   [argument contract](../../index.md#argument-contract) states it and
   its reason.
 - **Trust-but-verify.** Every scope claim is checked against reality;
-  mismatch is a refusal (exit 4 in gitw and fjw; ghw reports refusals as
-  2). In gitw: the label against the Roster and cwd, the Branch prefix
+  mismatch is a refusal (exit 4 in every family). In gitw: the label against the Roster and cwd, the Branch prefix
   against the current branch.
 - **Staged message files.** Message and body files come only from under
   `/tmp/claude/` or `~/.claude/jobs/<job-id>/tmp/`; any other path is

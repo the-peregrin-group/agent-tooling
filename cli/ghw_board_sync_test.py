@@ -188,7 +188,7 @@ class GhwBoardSyncExistingBoardTest(unittest.TestCase):
                 contextlib.redirect_stderr(io.StringIO()) as stderr:
             with self.assertRaises(SystemExit) as caught:
                 _MODULE.main(["o/r", "9"])
-        self.assertEqual(caught.exception.code, 2)
+        self.assertEqual(caught.exception.code, 4)
         self.assertIn("#3", stderr.getvalue())
 
 
@@ -306,7 +306,7 @@ class GhwBoardSyncCreateTest(unittest.TestCase):
         with self._seam([_stock_board(3)]) as seam:
             with self.assertRaises(SystemExit) as caught:
                 _MODULE.main(["o/r", "new"])
-        self.assertEqual(caught.exception.code, 2)
+        self.assertEqual(caught.exception.code, 4)
         self.assertIn("#3", seam["stderr"].getvalue())
         seam["create_project"].assert_not_called()
 
