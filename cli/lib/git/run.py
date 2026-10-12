@@ -101,6 +101,23 @@ def remote_environment(cwd: Path) -> dict:
     return environment
 
 
+def _spawn(
+    arguments: list[str], cwd: Path, env: dict,
+) -> subprocess.CompletedProcess:
+    """The one place git is spawned: non-interactive (no stdin), output
+    captured as text, bounded by the timeout. Lets TimeoutExpired
+    propagate so each caller classifies it."""
+    return subprocess.run(
+        ["git", *arguments],
+        cwd=str(cwd),
+        env=env,
+        stdin=subprocess.DEVNULL,
+        capture_output=True,
+        text=True,
+        timeout=_TIMEOUT_SECONDS,
+    )
+
+
 def run(
     arguments: list[str],
     cwd: Path,
@@ -113,15 +130,7 @@ def run(
     unclassified runtime otherwise -- a local command that stalls (a hung
     hook, fsmonitor) must not invite a retry loop that re-runs it."""
     try:
-        return subprocess.run(
-            ["git", *arguments],
-            cwd=str(cwd),
-            env=env or base_environment(),
-            stdin=subprocess.DEVNULL,
-            capture_output=True,
-            text=True,
-            timeout=_TIMEOUT_SECONDS,
-        )
+        return _spawn(arguments, cwd, env or base_environment())
     except subprocess.TimeoutExpired:
         raise GitError(
             f"git {' '.join(arguments)} timed out after {_TIMEOUT_SECONDS}s",
@@ -197,15 +206,7 @@ def traced_push(arguments: list[str], cwd: Path, env: dict) -> TracedPush:
         trace = Path(scratch) / "trace2.json"
         environment["GIT_TRACE2_EVENT"] = str(trace)
         try:
-            result = subprocess.run(
-                ["git", *arguments],
-                cwd=str(cwd),
-                env=environment,
-                stdin=subprocess.DEVNULL,
-                capture_output=True,
-                text=True,
-                timeout=_TIMEOUT_SECONDS,
-            )
+            result = _spawn(arguments, cwd, environment)
         except subprocess.TimeoutExpired as expired:
             timed_out = expired
         try:
