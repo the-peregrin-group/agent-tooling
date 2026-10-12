@@ -167,6 +167,27 @@ def is_remote_rejection(detail: str) -> bool:
     return "[remote rejected]" in detail.lower()
 
 
+_REF_RACE_REASONS = (
+    "failed to update ref",
+    "failed to lock",
+    "cannot lock ref",
+)
+
+
+def is_ref_update_race(detail: str) -> bool:
+    """True when a "[remote rejected]" status line carries a reason that
+    means the remote ref moved under the push (receive-pack lost a
+    ref-update race: "failed to update ref", "failed to lock",
+    "cannot lock ref"). That is the lease/base-moved situation, not a
+    hook declining the content; the recovery is to fetch and reconcile."""
+    for line in detail.lower().splitlines():
+        if "[remote rejected]" in line and any(
+            reason in line for reason in _REF_RACE_REASONS
+        ):
+            return True
+    return False
+
+
 def classify_remote_failure(detail: str) -> int:
     """Map a failed remote operation's stderr to an exit code: auth (5),
     missing remote repository (3), else network (6)."""

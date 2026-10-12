@@ -494,11 +494,23 @@ class GitwIntegrateRemoteHookTest(_IntegrateFixtureTest):
         )
         self.assertIn("[remote rejected]", stderr)
         self.assertIn("policy: main is protected", stderr)
-        self.assertIn("remote's own hook", stderr)
+        self.assertIn("refused by the remote", stderr)
         self.assertNotIn("moved during the attempt", stderr)
         self.assertEqual(
             self.remote_git("rev-parse", "refs/heads/main"), old_main
         )
+
+    def test_remote_hook_text_with_base_moved_words_is_not_base_moved(self):
+        gitw_test_support.add_pre_receive_hook(
+            self.remote,
+            'echo "non-fast-forward: stale info, fetch first" >&2\n'
+            "exit 1\n"
+        )
+        stderr = self.integrate_expecting_exit(
+            4, "proj", "main", "fix/", self.message_path
+        )
+        self.assertIn("refused by the remote", stderr)
+        self.assertNotIn("moved during the attempt", stderr)
 
 
 class GitwIntegrateHookTest(_IntegrateFixtureTest):

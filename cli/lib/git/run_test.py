@@ -103,6 +103,27 @@ class ClassifyRemoteFailureTest(unittest.TestCase):
             with self.subTest(detail=detail):
                 self.assertTrue(run.is_remote_rejection(detail))
 
+    def test_ref_update_race_reasons(self):
+        for reason in (
+            "failed to update ref",
+            "failed to lock",
+            "cannot lock ref 'refs/heads/main'",
+        ):
+            detail = f" ! [remote rejected] main -> main ({reason})"
+            with self.subTest(reason=reason):
+                self.assertTrue(run.is_remote_rejection(detail))
+                self.assertTrue(run.is_ref_update_race(detail))
+
+    def test_hook_declines_are_not_ref_update_races(self):
+        for detail in (
+            " ! [remote rejected] main -> main (pre-receive hook declined)",
+            "remote: failed to update ref\n"
+            " ! [remote rejected] main -> main (hook declined)",
+            " ! [rejected] main -> main (stale info)",
+        ):
+            with self.subTest(detail=detail):
+                self.assertFalse(run.is_ref_update_race(detail))
+
     def test_lease_and_transport_failures_are_not_remote_rejections(self):
         for detail in (
             " ! [rejected] topic -> topic (stale info)",

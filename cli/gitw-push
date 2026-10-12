@@ -247,7 +247,8 @@ def _run_push(workspace: repo.Workspace, ref: str,
               arguments: list[str]) -> None:
     """Run the push with git's trace2 events captured, relay git's output
     to stderr verbatim, and classify a failure: pre-push hook refusal (4),
-    remote hook decline (4), lease (4), else the shared remote classification."""
+    remote rejection (4), lease (4), else the shared remote
+    classification."""
     entry = workspace.entry
     root = workspace.root
     result, hook_code, traced, hook_hung = run.traced_push(
@@ -277,10 +278,18 @@ def _run_push(workspace: repo.Workspace, ref: str,
     # checked before the lease markers; a real lease failure prints
     # "[rejected]" (or fails locally), never "[remote rejected]".
     if run.is_remote_rejection(detail):
+        if run.is_ref_update_race(detail):
+            raise repo.RefusalError(
+                f"push of {ref!r} lost a ref-update race on the remote "
+                "(a [remote rejected] status): the remote ref moved "
+                "since it was last fetched here. Fetch and reconcile; "
+                "never blind-retry"
+            )
         raise repo.RefusalError(
-            f"push of {ref!r} rejected by the remote's own hook or policy "
-            "(a [remote rejected] status); git's output is relayed above. "
-            "Fix what it reported; never retry unchanged"
+            f"push of {ref!r} refused by the remote (a [remote "
+            "rejected] status; the reason is in parentheses in git's "
+            "output, relayed above). Fix what it reported; never retry "
+            "unchanged"
         )
     if any(marker in lowered for marker in _LEASE_MARKERS):
         raise repo.RefusalError(

@@ -253,14 +253,14 @@ class GitwPushRemoteHookTest(_PushFixtureTest):
             self.remote, 'echo "permission denied: not yours" >&2\nexit 1\n'
         )
         stderr = self.push_expecting_exit(4, "proj", "fix/")
-        self.assertIn("remote's own hook", stderr)
+        self.assertIn("refused by the remote", stderr)
 
     def test_remote_hook_text_with_lease_words_is_not_the_lease(self):
         gitw_test_support.add_pre_receive_hook(
             self.remote, 'echo "stale info" >&2\nexit 1\n'
         )
         stderr = self.push_expecting_exit(4, "proj", "fix/")
-        self.assertIn("remote's own hook", stderr)
+        self.assertIn("refused by the remote", stderr)
         self.assertNotIn("rejected by the lease", stderr)
 
 

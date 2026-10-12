@@ -499,9 +499,12 @@ classification falls back to text and a hook refusal reads as exit 6, which the 
 states. A decline by the remote's own pre-receive or update hook shows as
 a `[remote rejected]` status line and is exit 4; it is checked before the
 lease text (the hook's output may contain anything) and before the shared
-classification. Lease markers ("stale info", "remote ref updated since
-checkout") are exit 4; other failures are classified as auth (5), not found (3), or
-network (6).
+classification. Its reason, in parentheses, picks the advice: a lost
+ref-update race ("failed to update ref", "failed to lock", "cannot lock
+ref") reads as the lease or base-moved case (fetch and reconcile); any
+other reason is relayed as the remote's refusal. Lease markers ("stale
+info", "remote ref updated since checkout") are exit 4; other failures
+are classified as auth (5), not found (3), or network (6).
 
 **`gitw-integrate <repo> <base-branch> <prefix> <message-file>`.** The
 mode-(b) Verb. Must run inside the repo on a branch matching the prefix

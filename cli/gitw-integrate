@@ -315,11 +315,19 @@ def _push_bubble(workspace: repo.Workspace, base: str, base_tip: str,
     lowered = detail.lower()
     # Checked first: a remote hook's own text may contain base-moved words.
     if run.is_remote_rejection(detail):
+        if run.is_ref_update_race(detail):
+            raise repo.RefusalError(
+                f"{entry.remote}/{base} moved during the attempt (the "
+                "remote lost a ref-update race: a [remote rejected] "
+                "status). Fetch, rebase, re-validate, and loop again; "
+                "never blind-retry"
+            )
         raise repo.RefusalError(
-            f"push of the bubble to {base!r} rejected by the remote's own "
-            "hook or policy (a [remote rejected] status); git's output is "
-            "relayed above. Fix what it reported on the branch, then loop "
-            "again from the rebase; never retry unchanged"
+            f"push of the bubble to {base!r} refused by the remote (a "
+            "[remote rejected] status; the reason is in parentheses in "
+            "git's output, relayed above). Fix what it reported on the "
+            "branch, then loop again from the rebase; never retry "
+            "unchanged"
         )
     if any(marker in lowered for marker in _BASE_MOVED_MARKERS):
         raise repo.RefusalError(
