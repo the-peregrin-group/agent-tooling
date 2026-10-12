@@ -199,9 +199,11 @@ prompt is the design working (`skills/use-github/SKILL.md:58-60`,
 ## Inconsistencies, and a question for each
 
 Each item names the passages on both sides and asks which side should
-give. "ADR gate" says whether the decision would likely pass the three-part
-gate in `skills/use-adrs/SKILL.md` (several real options, costly to
-reverse, surprising without context).
+give. "Auditor's lean" records which side the passages favour in the
+auditor's reading, with the reason; it is an input to the maintainer's
+decision, not the decision. "ADR gate" says whether the decision would
+likely pass the three-part gate in `skills/use-adrs/SKILL.md` (several
+real options, costly to reverse, surprising without context).
 
 ### 1. Is merging the human act, or is advancing a protected base?
 
@@ -224,6 +226,12 @@ reverse, surprising without context).
 merge grant is an exception to record), or "a protected base advances only
 with a human" (then fjw's permanent absence of merge, and its stated
 reason, should be restated as a choice about Forgejo's bases)?
+**Auditor's lean:** the protected base. The Trunk principle is stated in
+three places and already governs `gitw-integrate`, and this repo's own
+workflow merges into `integrate/` branches; "merging is a human act" is
+stated only for Forgejo and gives no reason that would not also cover
+`gitw-integrate`. Low confidence on the Forgejo side: the fjw design may
+rest on facts about that deployment that the passages do not record.
 **ADR gate:** likely passes: both options are real, it decides whether a
 Verb exists, and the current text surprises a reader who meets both Skills.
 
@@ -245,6 +253,11 @@ Verb exists, and the current text surprises a reader who meets both Skills.
 reason, with triage's restriction scoped to its unattended passes, or a
 judgement the human confirms everywhere, in which case use-github and
 fjw should say when an agent may close?
+**Auditor's lean:** an ordinary reversible act that needs a reason. A
+closed issue or PR reopens, and two of three Wrappers already treat it
+so. Triage's interactive confirmation can stay, but as a stated triage
+choice (closing is a judgement about scope) rather than an unexplained
+exception.
 **ADR gate:** probably not: cheap to change in text.
 
 ### 3. Three definitions of "unattended"
@@ -268,6 +281,11 @@ fjw should say when an agent may close?
 **Question:** Which definition governs, and should "Attended" and
 "Unattended" become lexicon terms that every Skill uses, with the Actor's
 `attended-` prefix renamed if it no longer matches?
+**Auditor's lean:** the prompt says so, as use-lexicon has it. It is the
+only definition an agent can apply from inside its own session, and it is
+the one the Skills' branches need ("is there anyone to ask?"). The Actor
+prefix then describes how the process was started, not whether anyone is
+watching, and should be renamed to say that.
 **ADR gate:** likely a lexicon decision rather than an ADR; it passes the
 gate only if the answer changes the Actor format.
 
@@ -289,6 +307,11 @@ gate only if the answer changes the Actor format.
 edit `LEXICON.md` and make capture fixes in a reviewed change; if no, an
 unattended draft ADR should be a proposal outside `docs/adr/` like a
 lexicon proposal.
+**Auditor's lean:** no. A PR review covers many items at once, and
+ratification needs the user's attention on the one item; the lexicon's
+proposal file already provides that. An unattended draft ADR would then
+land as a proposal for the user to ratify, so the stricter rule applies to
+the riskier artifact.
 **ADR gate:** likely passes: two Skills' procedures turn on it, and it is
 surprising that the riskier artifact gets the looser rule.
 
@@ -324,6 +347,11 @@ surprising that the riskier artifact gets the looser rule.
 README minimum, the Beads spec), so the gate survives auto mode and a
 later broad allow; and if so, which acts: `gate resolve`, trunk
 `gitw-integrate`, `ghw-pr-merge` outside designated bases?
+**Auditor's lean:** yes, for all three. The installer design already
+states the reason (an explicit `ask` outranks a later broad `allow`), and
+the spec already states that only ask and deny rows hold in auto mode; a
+gate that rests on a missing row fails silently the day someone adds a
+broad allow.
 **ADR gate:** passes: it fixes how the whole policy layer expresses a
 human gate.
 
@@ -345,6 +373,10 @@ human gate.
 and `mv` join it with a stated reason, and its docstring stops saying
 "for Beads"), or only the Beads rules (then `CLAUDE.md` and the
 exact-equality tests must admit rows from elsewhere)?
+**Auditor's lean:** the spec owns every project rule. `CLAUDE.md` already
+describes the file as generated from it, and one generator checked by one
+exact-equality test is what keeps a hand edit from drifting unnoticed, as
+this one did.
 **ADR gate:** no.
 
 ### 7. Irreversible deletion at three strengths
@@ -369,6 +401,10 @@ exact-equality tests must admit rows from elsewhere)?
 **Question:** Is recoverability the criterion (state it, and then decide
 whether label deletion, which is not recoverable, should be an ask rule
 rather than a grantable mode), or should every deletion get one treatment?
+**Auditor's lean:** recoverability, stated once (in the use-git or ghw
+design), with label deletion moved to an ask rule. It explains every
+current case except label deletion, and one treatment for all deletions would either
+deny the routine `git rm` or loosen the Beads denies.
 **ADR gate:** borderline: real options, but the cost of change is a few
 rules.
 
@@ -389,6 +425,10 @@ rules.
 **Question:** Is the ban about attribution (then it should extend to the
 other writes, or `agent-tooling-jk2` should be fixed first), or about
 ownership (then use-bd should state that as the reason)?
+**Auditor's lean:** ownership. A claim is the one write whose meaning is
+"this is mine", which a shared Actor cannot prove; commits, pushes and PRs
+are attributed and then reviewed, so a shared Actor costs them precision,
+not safety. The attribution gap stays `agent-tooling-jk2`'s.
 **ADR gate:** no, unless the answer extends the ban to git and forge
 writes.
 
@@ -409,6 +449,10 @@ writes.
 **Question:** What makes a second declaration an interlock in one case and
 a drift hazard in the other? Name the criterion in the gitw design, or
 align the two.
+**Auditor's lean:** keep both and name the criterion: a second
+declaration is an interlock when a different party maintains it (the
+roster is the user's, hand-edited; the grant is the repo's), and a drift
+hazard when the same party would write both for one purpose.
 **ADR gate:** no: recording the criterion is enough.
 
 ### 10. Whose name is on an agent's forge act?
@@ -426,6 +470,11 @@ align the two.
 **Question:** Should agent acts on a forge be distinguishable from the
 user's, as fjw decided, and if so is a machine account, a body marker, or
 nothing the GitHub answer?
+**Auditor's lean:** yes, distinguishable, starting with the cheap and
+reversible step: a body marker naming the Actor, mirroring the commit
+trailer, with a machine account left for when a second user or a public
+repo makes it worth the cost. Low confidence: the passages do not say why
+GitHub went the other way.
 **ADR gate:** likely passes for GitHub: options are real and a machine
 account is costly to introduce and to back out.
 
@@ -445,6 +494,10 @@ account is costly to introduce and to back out.
 **Question:** Is "bounded output, target named by an in-repo profile"
 enough to justify a user-level write grant? If so, record it in the ghw
 design as the exception; if not, triage needs per-repo grants.
+**Auditor's lean:** yes, recorded as the exception. The ghw ban guards
+against a write landing in a repo nobody pinned; a triage wrapper writes
+only enumerable values, to the repo its committed profile names, which
+pins the target by another route.
 **ADR gate:** no.
 
 ## Consistent across the tree
