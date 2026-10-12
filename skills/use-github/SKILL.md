@@ -264,10 +264,11 @@ first (Steps 2–4) and use its number. When an issue closes, grep for
 - **Merge — only when the user has said to:**
 
   ```bash
-  ghw-pr-merge <owner/repo> <base-branch> <merge|squash> <pr#>
+  ghw-pr-merge <owner/repo> <base-branch> <merge> <pr#>
   ```
 
-  Choose `merge`, never `squash` (squash is banned; see `use-git`). The
+  The strategy slot accepts only `merge`; the Verb refuses `squash` with exit 2
+  (squash is banned; see `use-git`). The
   wrapper verifies the PR's actual base matches `<base-branch>`, refuses
   drafts, and refuses red or pending checks. There is no override: merging
   over red checks is a human decision made with raw `gh` at a human-attended

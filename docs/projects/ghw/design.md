@@ -169,9 +169,10 @@ resolution) before the write itself.
 - `ghw-pr-comment <repo> <pr#> <body-file>`: its own Verb because
   `gh issue comment` refuses PR numbers.
 - `ghw-pr-merge <repo> <base-branch> <strategy> <pr#>`: the strategy is a
-  positional mode, so a Permission rule pins it. It accepts `merge` or
-  `squash`; squash is banned by policy (invariant 10), and removing the token
-  is a Known gap in [index.md](index.md). Gates, all required: the PR
+  positional mode, so a Permission rule pins it. It accepts only `merge`
+  and refuses `squash` with exit 2, because squash is banned by policy
+  (invariant 10); the slot stays so existing Permission rules keep matching.
+  Gates, all required: the PR
   is open, its actual base equals `<base-branch>`, it is not a draft, and its
   checks are green or absent (pending blocks). The merge is pinned to the
   head commit that passed the gates. There is no force or override path:
