@@ -1,0 +1,319 @@
+{
+  "about": "The canonical Beads Permission rules for use-bd, for bd 1.3.0. Each of deny, ask, and allow is a list of groups; a group gives its rows outright (rows), or a list of verbs and the shapes each verb fills in for {v} (verbs, shapes). Expanded, the groups are rows for a repo's .claude/settings.json: a repo carries every canonical row and may add its own. Rule grammar: deny beats ask beats allow; * matches anywhere; a trailing space-star also matches the bare command.",
+  "bd_version": "1.3.0",
+  "deny": [
+    {
+      "why": "Agents touch Beads only through bdw, so the raw names Homebrew links (bd and beads) are denied outright, reads included: the habit of typing bd fails at once instead of working for reads and prompting for writes.",
+      "rows": [
+        "Bash(bd)",
+        "Bash(bd *)",
+        "Bash(beads)",
+        "Bash(beads *)"
+      ]
+    },
+    {
+      "why": "Invocation by install path, which a bare-name rule cannot see. Kept to the install locations so reading the wrapper's source is not denied.",
+      "rows": [
+        "Bash(*/bin/bd)",
+        "Bash(*/bin/bd *)",
+        "Bash(*/bin/beads)",
+        "Bash(*/bin/beads *)",
+        "Bash(*libexec/agent-tooling/bdw)",
+        "Bash(*libexec/agent-tooling/bdw *)"
+      ]
+    },
+    {
+      "why": "Never run by an agent: irreversible, off the machine, or falsifying the record. Each verb gets the verb-first spelling (which also matches the bare call) and the flag-first spelling that catches global flags placed before the verb.",
+      "verbs": [
+        "admin",
+        "ado",
+        "branch",
+        "compact",
+        "conflicts",
+        "delete",
+        "dolt",
+        "edit",
+        "events prune",
+        "federation",
+        "flatten",
+        "forget",
+        "gc",
+        "github",
+        "gitlab",
+        "hooks",
+        "init",
+        "jira",
+        "linear",
+        "mail",
+        "metrics on",
+        "migrate",
+        "migrate-personal",
+        "notion",
+        "prune",
+        "purge",
+        "remember",
+        "rename",
+        "rename-prefix",
+        "repo",
+        "serve",
+        "setup",
+        "ship",
+        "sql",
+        "sync",
+        "upgrade",
+        "vc",
+        "worktree"
+      ],
+      "shapes": [
+        "Bash(bdw {v} *)",
+        "Bash(bdw -* {v}*)"
+      ]
+    },
+    {
+      "why": "Aliases (done for close, hb for heartbeat, new for create) and link (shorthand for dep add) are denied so the use-bd Skill's one spelling of each operation is the only one, while bdw does not map them.",
+      "verbs": [
+        "done",
+        "hb",
+        "link",
+        "new"
+      ],
+      "shapes": [
+        "Bash(bdw {v} *)",
+        "Bash(bdw -* {v}*)"
+      ]
+    },
+    {
+      "why": "Closes epics because their children closed, skipping the Branch Issue's verifying pass (ADR 0009).",
+      "verbs": [
+        "epic close-eligible"
+      ],
+      "shapes": [
+        "Bash(bdw {v} *)",
+        "Bash(bdw -* {v}*)"
+      ]
+    },
+    {
+      "why": "Memories stay in the harness's own memory files, never in Beads; bd prime injects them even with a custom PRIME.md.",
+      "verbs": [
+        "memories",
+        "recall"
+      ],
+      "shapes": [
+        "Bash(bdw {v} *)",
+        "Bash(bdw -* {v}*)"
+      ]
+    },
+    {
+      "why": "The lease reaper reverts every claim whose lease has expired to open. A lapsed lease is inert until reclaim runs, and sessions sit for hours waiting on a human, so a reclaim would rob live work. Denied rather than asked for, by the maintainer's ruling.",
+      "verbs": [
+        "reclaim"
+      ],
+      "shapes": [
+        "Bash(bdw {v} *)",
+        "Bash(bdw -* {v}*)"
+      ]
+    },
+    {
+      "why": "Verbs that act with no arguments at all get an exact bare row as well, so the deny does not depend on the space-star-matches-bare rule.",
+      "verbs": [
+        "compact",
+        "flatten",
+        "gc",
+        "init",
+        "migrate",
+        "prune",
+        "purge",
+        "reclaim",
+        "sync",
+        "upgrade"
+      ],
+      "shapes": [
+        "Bash(bdw {v})"
+      ]
+    },
+    {
+      "why": "Flags that claim the next Issue for the agent, around the choice of what to work on. Denied wherever they appear on their verb.",
+      "rows": [
+        "Bash(bdw ready *--claim*)",
+        "Bash(bdw close *--claim-next*)",
+        "Bash(bdw close *--continue*)"
+      ]
+    },
+    {
+      "why": "bd's own --actor flag would let a caller name the Actor, defeating bdw's rule that identity comes from the environment. Denied in first position and after anything.",
+      "rows": [
+        "Bash(bdw --actor*)",
+        "Bash(bdw * --actor*)"
+      ]
+    }
+  ],
+  "ask": [
+    {
+      "why": "Flags that delete, override another Actor's claim, write files, or send data off the machine.",
+      "rows": [
+        "Bash(bdw update *--force*)",
+        "Bash(bdw update *--no-history*)",
+        "Bash(bdw update *--assignee*)",
+        "Bash(bdw update * -a*)",
+        "Bash(bdw unclaim *--force*)",
+        "Bash(bdw close *--force*)",
+        "Bash(bdw close * -f*)",
+        "Bash(bdw create *--no-history*)",
+        "Bash(bdw doctor *--fix*)",
+        "Bash(bdw doctor *--clean*)",
+        "Bash(bdw doctor *--yes*)",
+        "Bash(bdw doctor * -y*)",
+        "Bash(bdw doctor *--perf*)",
+        "Bash(bdw doctor *--output*)",
+        "Bash(bdw doctor * -o*)",
+        "Bash(bdw preflight *--fix*)",
+        "Bash(bdw find-duplicates *--method*)"
+      ]
+    },
+    {
+      "why": "Close Issues on the agent's behalf. human respond comments, then closes the Issue at once; a review never closes this way, so only a human-attended call may.",
+      "rows": [
+        "Bash(bdw orphans *--fix*)",
+        "Bash(bdw orphans * -f*)",
+        "Bash(bdw human respond *)",
+        "Bash(bdw human dismiss *)"
+      ]
+    },
+    {
+      "why": "Configuration, backup, and bulk changes. backup sync pushes the whole database to the backup destination.",
+      "rows": [
+        "Bash(bdw config set *)",
+        "Bash(bdw config set-many *)",
+        "Bash(bdw config unset *)",
+        "Bash(bdw config apply *)",
+        "Bash(bdw backup init *)",
+        "Bash(bdw backup add *)",
+        "Bash(bdw backup restore *)",
+        "Bash(bdw backup remove *)",
+        "Bash(bdw backup sync *)",
+        "Bash(bdw assign *)",
+        "Bash(bdw duplicates *)",
+        "Bash(bdw import *)",
+        "Bash(bdw export *)",
+        "Bash(bdw batch *)",
+        "Bash(bdw bootstrap *)",
+        "Bash(bdw restore *)"
+      ]
+    }
+  ],
+  "allow": [
+    {
+      "why": "Reads. metrics off is the one write here: it only turns telemetry off.",
+      "rows": [
+        "Bash(bdw)",
+        "Bash(bdw --help)",
+        "Bash(bdw help *)",
+        "Bash(bdw version)",
+        "Bash(bdw prime)",
+        "Bash(bdw quickstart)",
+        "Bash(bdw ready *)",
+        "Bash(bdw list *)",
+        "Bash(bdw show *)",
+        "Bash(bdw status *)",
+        "Bash(bdw search *)",
+        "Bash(bdw query *)",
+        "Bash(bdw count *)",
+        "Bash(bdw graph *)",
+        "Bash(bdw history *)",
+        "Bash(bdw diff *)",
+        "Bash(bdw blocked *)",
+        "Bash(bdw children *)",
+        "Bash(bdw comments *)",
+        "Bash(bdw orphans *)",
+        "Bash(bdw dep)",
+        "Bash(bdw dep list *)",
+        "Bash(bdw dep tree *)",
+        "Bash(bdw dep cycles *)",
+        "Bash(bdw label)",
+        "Bash(bdw label list *)",
+        "Bash(bdw label list-all *)",
+        "Bash(bdw epic)",
+        "Bash(bdw epic status *)",
+        "Bash(bdw gate list *)",
+        "Bash(bdw gate show *)",
+        "Bash(bdw human)",
+        "Bash(bdw human list *)",
+        "Bash(bdw human stats *)",
+        "Bash(bdw context *)",
+        "Bash(bdw where *)",
+        "Bash(bdw info *)",
+        "Bash(bdw ping *)",
+        "Bash(bdw schema *)",
+        "Bash(bdw stale *)",
+        "Bash(bdw lint *)",
+        "Bash(bdw doctor *)",
+        "Bash(bdw preflight *)",
+        "Bash(bdw statuses *)",
+        "Bash(bdw types *)",
+        "Bash(bdw state *)",
+        "Bash(bdw find-duplicates *)",
+        "Bash(bdw backup status *)",
+        "Bash(bdw config get *)",
+        "Bash(bdw config list *)",
+        "Bash(bdw config show *)",
+        "Bash(bdw config drift *)",
+        "Bash(bdw config validate *)",
+        "Bash(bdw metrics)",
+        "Bash(bdw metrics off *)",
+        "Bash(bdw metrics example *)"
+      ]
+    },
+    {
+      "why": "Reversible writes through bdw, which carries the Actor.",
+      "verbs": [
+        "create",
+        "q",
+        "update",
+        "close",
+        "reopen",
+        "comment",
+        "comments add",
+        "note",
+        "dep add",
+        "dep remove",
+        "dep relate",
+        "dep unrelate",
+        "label add",
+        "label remove",
+        "label propagate",
+        "tag",
+        "priority",
+        "unclaim",
+        "heartbeat",
+        "set-state",
+        "recompute-blocked",
+        "todo"
+      ],
+      "shapes": [
+        "Bash(bdw {v} *)"
+      ]
+    },
+    {
+      "why": "Work waiting on a human is blocked by a gate; gate check closes the gates whose condition holds (a merged PR). gate resolve has no rule, so it prompts: resolving a human gate is the human's act.",
+      "verbs": [
+        "gate create",
+        "gate check"
+      ],
+      "shapes": [
+        "Bash(bdw {v} *)"
+      ]
+    },
+    {
+      "why": "Reversible, visible record-keeping: when to use them is a filing discipline (use-bd), not a permission.",
+      "verbs": [
+        "duplicate",
+        "supersede",
+        "defer",
+        "undefer"
+      ],
+      "shapes": [
+        "Bash(bdw {v} *)"
+      ]
+    }
+  ]
+}

@@ -46,10 +46,12 @@ imported once and frozen (see
 ## Permission rules
 
 `.claude/settings.json` holds the repo's Permission rules for Beads, in
-deny, ask, and allow lists. `cli/repo_policy_test.py` is their spec: its
-tuples generate the deny list and list the ask and allow rows, and the
-test requires the JSON to equal them. A hand-edited row with a typo would
-fail a deny open silently, so equality with a generated set is the control.
+deny, ask, and allow lists. They are use-bd's canonical Beads rule set
+(`skills/use-bd/rules.json`, shipped with the Skill as data) plus a local
+layer. `cli/repo_policy_test.py` is their spec: it expands the canonical
+groups, adds the local layer, and requires the JSON to equal the result,
+sorted. A hand-edited row with a typo would fail a deny open silently, so
+equality with a generated set is the control.
 
 - **Raw names denied.** Beads installs under two names (see
   [known behavior](index.md#beads-130-known-behavior)). Both, `bd` and
@@ -57,9 +59,10 @@ fail a deny open silently, so equality with a generated set is the control.
   through `bdw`, as the [use-bd](../use-bd/index.md) Skill teaches, so the
   habit of typing `bd` fails at once. The rows below are all on `bdw`.
 - **Denied** (every spelling: verb first, flag first, and a bare row for
-  verbs that act with no arguments). The spec's `DENY_VERBS` is the full
-  list; it covers the forgetting verbs (all of `compact` included, so even
-  lossless Dolt garbage collection is a maintainer act), `delete` and the
+  verbs that act with no arguments). The canonical set's deny groups are
+  the full list; they cover the forgetting verbs (all of `compact`
+  included, so even lossless Dolt garbage collection is a maintainer
+  act), `delete` and the
   other destructive edits, every `dolt` subcommand, `init`, the tracker
   integrations (`github`, `gitlab`, `jira`, `linear`, `ado`, `notion`),
   `sync`, `remember`, `memories`, `recall`, `reclaim`, `metrics on`,
@@ -75,9 +78,10 @@ fail a deny open silently, so equality with a generated set is the control.
 - **Asked for:** flags that delete, override another Actor's claim
   (`unclaim --force`, `update --assignee`), close Issues on the agent's
   behalf (`orphans --fix`, `human respond`), write files, or send data off
-  the machine (`backup sync`); configuration and backup changes; and shell
-  indirections (`exec`, `env`, `sh -c`, `xargs`, `eval`, and similar) in
-  this checkout, because they would hide a verb from prefix matching.
+  the machine (`backup sync`); configuration and backup changes. The local
+  layer adds shell indirections (`exec`, `env`, `sh -c`, `xargs`, `eval`,
+  and similar) in this checkout, because they would hide a verb from
+  prefix matching, and shell `rm` and `mv`.
 - **Allowed:** reads and reversible writes on `bdw` (`create`, `update`,
   `close`, `note`, `heartbeat`, `dep`, `gate create`, `duplicate`,
   `supersede`, `defer`, and similar). `gate resolve` has no rule, so it
