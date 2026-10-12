@@ -146,6 +146,37 @@ class GhwIssueCloseBehaviorTest(unittest.TestCase):
         close.assert_called_once_with("o/r", 5, "closing reason")
         self.assertTrue(json.loads(stdout.getvalue())["changed"])
 
+    def _close_exit_code(self, error):
+        with mock.patch.object(_MODULE.gh, "issue_view",
+                               return_value={"state": "OPEN"}), \
+                mock.patch.object(_MODULE.gh, "issue_close", side_effect=error):
+            return ghw_test_support.exit_code_of(
+                _MODULE, ["o/r", "5", self._comment_path])
+
+    def test_network_failure_closing_exits_1(self):
+        # gh posts the comment before sending the close, so a retry would
+        # post it twice: the failure must not advertise itself as retryable.
+        for landed in (True, False):
+            with self.subTest(landed=landed):
+                error = _MODULE.gh.GhError("boom", 6, may_have_landed=landed)
+                self.assertEqual(self._close_exit_code(error), 1)
+
+    def test_other_classified_close_failures_pass_through(self):
+        for code in (3, 5):
+            with self.subTest(code=code):
+                error = _MODULE.gh.GhError("boom", code)
+                self.assertEqual(self._close_exit_code(error), code)
+
+    def test_network_failure_reading_the_issue_stays_6(self):
+        # Nothing was written yet, so the read keeps its classified code.
+        error = _MODULE.gh.GhError("boom", 6)
+        with mock.patch.object(_MODULE.gh, "issue_view", side_effect=error), \
+                mock.patch.object(_MODULE.gh, "issue_close") as close:
+            code = ghw_test_support.exit_code_of(
+                _MODULE, ["o/r", "5", self._comment_path])
+        self.assertEqual(code, 6)
+        close.assert_not_called()
+
 
 class GhwIssueCloseArgumentContractTest(
     ghw_test_support.ArgumentContractTests, unittest.TestCase

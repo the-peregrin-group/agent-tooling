@@ -3,15 +3,15 @@
 Exit codes (shared taxonomy; codes 3-6 were carved out of 1's space when the
 fjw verbs arrived, so pre-existing callers stay correct):
     0 -- success, including a converged no-op
-    1 -- unclassified runtime failure (or, historically, any `gh` failure)
+    1 -- unclassified runtime failure (including an unrecognized `gh` failure)
     2 -- usage error or policy refusal at argument-parse time
     3 -- not found (unattended callers treat this as an answer, not an error)
     4 -- validation/policy refusal past parse time -- a caller bug, never retry
     5 -- roster/auth/config (deployment); unattended callers abort and flag it
     6 -- network failure (the one retryable class)
 
-Every fjw verb classifies from day one; ghw verbs still collapse 3-6 into 1
-and migrate opportunistically.
+Every fjw and ghw verb classifies its failures into these codes; ghw does it
+in one place, lib.github.gh.classify.
 
 Write wrappers emit a JSON plan to stdout with "action": "plan" |
 "applied" | "conflict" -- the last for a write that stopped partway

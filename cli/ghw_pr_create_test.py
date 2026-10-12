@@ -153,5 +153,16 @@ class GhwPrCreateArgumentContractTest(
     )
 
 
+class GhwPrCreateWriteFailureTest(unittest.TestCase):
+    def test_failure_exit_codes_route_through_write_exit_code(self):
+        ghw_test_support.assert_write_failure_codes(
+            self, _MODULE, ["o/r", "main", "feat", "a title", _MISSING_BODY],
+            "pr_create",
+            extra_patches=(
+                (_MODULE.boards, "fetch_branches_exist",
+                 {"return_value": {"main": True, "feat": True}}),
+            ))
+
+
 if __name__ == "__main__":
     unittest.main()

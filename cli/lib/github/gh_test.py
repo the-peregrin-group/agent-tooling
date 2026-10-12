@@ -327,5 +327,205 @@ class PullVerbArgvTest(unittest.TestCase):
             gh.pr_create("o/r", "main", "feat", "T", "B", False)
 
 
+class ExitCodeClassificationTest(unittest.TestCase):
+    def _failure(self, run, stderr: str) -> gh.GhError:
+        run.return_value = _completed(returncode=1, stderr=stderr)
+        with self.assertRaises(gh.GhError) as caught:
+            gh.rest("GET", "repos/o/r")
+        return caught.exception
+
+    @mock.patch("lib.github.gh.subprocess.run")
+    def test_not_found_is_3(self, run):
+        for stderr in ("gh: Not Found (HTTP 404)",
+                       "GraphQL: Could not resolve to a Repository with the name 'o/r'."):
+            with self.subTest(stderr=stderr):
+                self.assertEqual(self._failure(run, stderr).exit_code, 3)
+
+    @mock.patch("lib.github.gh.subprocess.run")
+    def test_auth_is_5(self, run):
+        for stderr in ("HTTP 401: Bad credentials",
+                       "To get started with GitHub CLI, please run:  gh auth login",
+                       "gh: Forbidden (HTTP 403)",
+                       'gh: This API operation needs the "read:project" scope. '
+                       'To request it, run:  gh auth refresh -h github.com -s '
+                       'read:project',
+                       "your token has not been granted the required scopes"):
+            with self.subTest(stderr=stderr):
+                self.assertEqual(self._failure(run, stderr).exit_code, 5)
+
+    @mock.patch("lib.github.gh.subprocess.run")
+    def test_rate_limit_and_saml_403_stay_1(self, run):
+        for stderr in ("HTTP 403: API rate limit exceeded",
+                       "HTTP 403: Resource protected by organization SAML enforcement"):
+            with self.subTest(stderr=stderr):
+                self.assertEqual(self._failure(run, stderr).exit_code, 1)
+
+    @mock.patch("lib.github.gh.subprocess.run")
+    def test_network_is_6(self, run):
+        for stderr in ("dial tcp 140.82.0.1:443: connect: connection refused",
+                       "Get x: dial tcp: lookup api.github.com: no such host",
+                       "could not resolve host: api.github.com",
+                       "net/http: TLS handshake timeout"):
+            with self.subTest(stderr=stderr):
+                self.assertEqual(self._failure(run, stderr).exit_code, 6)
+
+    @mock.patch("lib.github.gh.subprocess.run")
+    def test_timeout_is_6(self, run):
+        run.side_effect = subprocess.TimeoutExpired(["gh"], 120)
+        with self.assertRaises(gh.GhError) as caught:
+            gh.rest("GET", "repos/o/r")
+        self.assertEqual(caught.exception.exit_code, 6)
+
+    @mock.patch("lib.github.gh.subprocess.run")
+    def test_unrecognized_failures_and_missing_gh_stay_1(self, run):
+        self.assertEqual(self._failure(run, "something odd").exit_code, 1)
+        run.side_effect = FileNotFoundError()
+        with self.assertRaises(gh.GhError) as caught:
+            gh.rest("GET", "repos/o/r")
+        self.assertEqual(caught.exception.exit_code, 1)
+
+    @mock.patch("lib.github.gh.subprocess.run")
+    def test_graphql_not_found_type_is_3(self, run):
+        run.return_value = _completed(
+            stdout='{"errors": [{"type": "NOT_FOUND", "message": "gone"}]}')
+        with self.assertRaises(gh.GhError) as caught:
+            gh.graphql("query { x }")
+        self.assertEqual(caught.exception.exit_code, 3)
+
+    @mock.patch("lib.github.gh.subprocess.run")
+    def test_real_gh_graphql_error_shape_is_classified_by_type(self, run):
+        # gh exits nonzero on any GraphQL `errors` payload, printing the body
+        # to stdout and only "gh: <message>" to stderr, so the structured
+        # `type` has to be read from stdout on the failure path.
+        cases = (
+            ("NOT_FOUND", "gh: Some wording we do not match", 3),
+            ("INSUFFICIENT_SCOPES", "gh: Some wording we do not match", 5),
+            ("OTHER", "gh: Some wording we do not match", 1),
+        )
+        for error_type, stderr, expected in cases:
+            with self.subTest(error_type=error_type):
+                run.return_value = _completed(
+                    returncode=1, stderr=stderr,
+                    stdout='{"errors": [{"type": "%s", "message": "m"}]}'
+                    % error_type)
+                with self.assertRaises(gh.GhError) as caught:
+                    gh.graphql("query { x }")
+                self.assertEqual(caught.exception.exit_code, expected)
+
+    @mock.patch("lib.github.gh.subprocess.run")
+    def test_graphql_failure_with_non_json_stdout_falls_back_to_stderr(self, run):
+        run.return_value = _completed(
+            returncode=1, stdout="not json",
+            stderr="gh: Could not resolve to a Repository with the name 'o/r'.")
+        with self.assertRaises(gh.GhError) as caught:
+            gh.graphql("query { x }")
+        self.assertEqual(caught.exception.exit_code, 3)
+
+    def test_default_exit_code_is_1(self):
+        self.assertEqual(gh.GhError("x").exit_code, 1)
+
+
+class AmbiguousWriteTest(unittest.TestCase):
+    def _failure(self, run, stderr: str) -> gh.GhError:
+        run.return_value = _completed(returncode=1, stderr=stderr)
+        with self.assertRaises(gh.GhError) as caught:
+            gh.rest("GET", "repos/o/r")
+        return caught.exception
+
+    @mock.patch("lib.github.gh.subprocess.run")
+    def test_bare_timeout_in_a_not_found_message_is_not_network(self, run):
+        error = self._failure(
+            run, "GraphQL: Could not resolve to a Repository with the name 'o/timeout-handler'.")
+        self.assertEqual(error.exit_code, 3)
+
+    @mock.patch("lib.github.gh.subprocess.run")
+    def test_bare_not_found_wording_is_not_a_not_found(self, run):
+        # A schema error is a bug in the query, not an answer about a resource.
+        body = '{"errors": [{"message": "Field x not found on type Issue"}]}'
+        run.return_value = _completed(
+            returncode=1, stdout=body,
+            stderr="gh: Field x not found on type Issue")
+        with self.assertRaises(gh.GhError) as caught:
+            gh.graphql("query { x }")
+        self.assertEqual(caught.exception.exit_code, 1)
+
+    @mock.patch("lib.github.gh.subprocess.run")
+    def test_graphql_error_payload_mentioning_timeout_is_not_network(self, run):
+        body = '{"errors": [{"message": "operation timed out in validation"}]}'
+        run.return_value = _completed(
+            returncode=1, stdout=body,
+            stderr="gh: operation timed out in validation")
+        with self.assertRaises(gh.GhError) as caught:
+            gh.graphql("query { x }")
+        self.assertEqual(caught.exception.exit_code, 1)
+        self.assertFalse(caught.exception.may_have_landed)
+
+    @mock.patch("lib.github.gh.subprocess.run")
+    def test_subprocess_timeout_and_reset_may_have_landed(self, run):
+        run.side_effect = subprocess.TimeoutExpired(["gh"], 120)
+        with self.assertRaises(gh.GhError) as caught:
+            gh.issue_comment("o/r", 1, "x")
+        self.assertTrue(caught.exception.may_have_landed)
+        self.assertEqual(gh.write_exit_code(caught.exception), 1)
+        run.side_effect = None
+        error = self._failure(run, "read tcp: connection reset by peer")
+        self.assertEqual(error.exit_code, 6)
+        self.assertEqual(gh.write_exit_code(error), 1)
+
+    @mock.patch("lib.github.gh.subprocess.run")
+    def test_pre_send_failures_stay_retryable_for_writes(self, run):
+        for stderr in ("dial tcp: lookup api.github.com: no such host",
+                       "dial tcp 1.2.3.4:443: connect: connection refused",
+                       "could not resolve host: api.github.com"):
+            with self.subTest(stderr=stderr):
+                error = self._failure(run, stderr)
+                self.assertFalse(error.may_have_landed)
+                self.assertEqual(gh.write_exit_code(error), 6)
+
+    def test_write_exit_code_passes_other_codes_through(self):
+        for code in (1, 3, 5):
+            self.assertEqual(gh.write_exit_code(gh.GhError("x", code)), code)
+
+
+class EarlierWriteLandedTest(unittest.TestCase):
+    def test_pre_send_network_failure_is_not_retryable_after_an_earlier_write(self):
+        error = gh.GhError("boom", 6, may_have_landed=False)
+        self.assertEqual(gh.write_exit_code(error, earlier_write_landed=True), 1)
+        self.assertEqual(gh.write_exit_code(error), 6)
+
+    def test_other_codes_pass_through(self):
+        for code in (1, 3, 5):
+            error = gh.GhError("x", code)
+            self.assertEqual(gh.write_exit_code(error, earlier_write_landed=True), code)
+
+
+class VerbsUseTheClassifiedExitCodeTest(unittest.TestCase):
+    """Structural guard: a Verb's `except gh.GhError` must exit with the
+    error's own code, never a hard-coded EXIT_RUNTIME (which would silently
+    flatten 3/5/6 back to 1)."""
+
+    def test_no_verb_flattens_a_gh_error_to_exit_runtime(self):
+        cli = Path(__file__).resolve().parents[2]
+        verbs = sorted(cli.glob("ghw-*"))
+        self.assertTrue(verbs)
+        for verb in verbs:
+            lines = verb.read_text().splitlines()
+            for index, line in enumerate(lines):
+                if not line.lstrip().startswith("except gh.GhError"):
+                    continue
+                indent = len(line) - len(line.lstrip())
+                body = []
+                for following in lines[index + 1:]:
+                    if following.strip() and (
+                            len(following) - len(following.lstrip())) <= indent:
+                        break
+                    body.append(following)
+                text = "\n".join(body)
+                with self.subTest(verb=verb.name, line=index + 1):
+                    self.assertFalse("gh.die(" in text and "EXIT_RUNTIME" in text,
+                                     "gh.die in except gh.GhError must pass "
+                                     "error.exit_code")
+
+
 if __name__ == "__main__":
     unittest.main()

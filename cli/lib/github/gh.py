@@ -26,12 +26,137 @@ import subprocess
 import sys
 from typing import NoReturn
 
+from lib import plan
+
 # Generous: covers slow API responses without masking a genuine hang.
 GH_TIMEOUT_SECONDS = 120
 
 
 class GhError(Exception):
-    """Raised when the `gh` CLI is missing, exits nonzero, or returns GraphQL errors."""
+    """Raised when the `gh` CLI is missing, exits nonzero, or returns GraphQL errors.
+
+    `exit_code` is the shared taxonomy code (lib.plan) the failure maps to:
+    3 not found, 5 auth, 6 network, otherwise 1. Verbs exit with it.
+    `may_have_landed` is True for a network failure that may have happened
+    after the request was sent (a timeout, a reset), so a write may have been
+    applied; non-idempotent Verbs use write_exit_code() to avoid advertising
+    such a failure as retryable.
+    """
+
+    def __init__(self, message: str, exit_code: int = plan.EXIT_RUNTIME,
+                 may_have_landed: bool = False):
+        super().__init__(message)
+        self.exit_code = exit_code
+        self.may_have_landed = may_have_landed
+
+
+def write_exit_code(error: GhError, *, earlier_write_landed: bool = False) -> int:
+    """Exit code for a failed non-idempotent write (create, comment).
+
+    A retryable 6 becomes 1 when the request may already have landed, because
+    a retry could duplicate the write. A failure that provably happened before
+    the request left (DNS, refused connection) stays 6.
+
+    `earlier_write_landed` is for a call that makes several requests where an
+    earlier one (`gh issue close --comment` posts the comment first) has
+    already succeeded: then no network failure is retryable, pre-send or not.
+    """
+    if error.exit_code == plan.EXIT_NETWORK and (
+            error.may_have_landed or earlier_write_landed):
+        return plan.EXIT_RUNTIME
+    return error.exit_code
+
+
+# Matched case-insensitively against gh's stderr (or a GraphQL error payload).
+# gh's wording is not a stable interface, so the patterns are loose, and the
+# order of checks in classify() matters: "could not resolve host" (network)
+# must win over "could not resolve to a Repository" (not found).
+_PRE_SEND_HINTS = (
+    "dial tcp", "no such host", "connection refused", "could not resolve host",
+    "network is unreachable",
+)
+# Deliberately no bare "timeout": a repository named "timeout-handler" shows
+# up in not-found text and must not read as a network failure.
+_NETWORK_HINTS = _PRE_SEND_HINTS + (
+    "connection reset", "i/o timeout", "tls handshake", "client.timeout",
+    "context deadline exceeded", "operation timed out", "connection timed out",
+)
+_AUTH_HINTS = (
+    "gh auth login", "authentication required", "requires authentication",
+    "bad credentials", "http 401", "authentication failed",
+    # A token missing a scope (the usual board-Verb failure): gh prints
+    # "This API operation needs the "read:project" scope ... gh auth refresh",
+    # and GraphQL reports INSUFFICIENT_SCOPES over HTTP 200.
+    "gh auth refresh", "required scopes", "insufficient_scopes",
+)
+# Deliberately no bare "not found": a GraphQL schema error ("Field 'x' not
+# found on type") would read as an answer rather than a bug. gh prints REST
+# misses with "(HTTP 404)" and GraphQL misses as "Could not resolve to a ...".
+_NOT_FOUND_HINTS = ("http 404", "could not resolve to a")
+
+
+def may_have_landed(text: str) -> bool:
+    """True if network-failure text does not prove the request never left."""
+    lowered = text.lower()
+    return not any(hint in lowered for hint in _PRE_SEND_HINTS)
+
+
+def classify(text: str, *, network: bool = True) -> int:
+    """Map gh failure text to a shared exit code; unrecognized text is 1.
+
+    `network=False` skips the network check, for text that is a GraphQL error
+    payload: gh got a response, so the failure is not a transport one.
+
+    A 403 counts as auth only when nothing in the text points at rate
+    limiting, abuse detection, or SAML enforcement, which need different
+    handling than a bad credential.
+    """
+    lowered = text.lower()
+    if network and any(hint in lowered for hint in _NETWORK_HINTS):
+        return plan.EXIT_NETWORK
+    if any(hint in lowered for hint in _AUTH_HINTS):
+        return plan.EXIT_AUTH
+    if "http 403" in lowered and not any(
+            word in lowered for word in ("rate limit", "abuse", "saml", "secondary")):
+        return plan.EXIT_AUTH
+    if any(hint in lowered for hint in _NOT_FOUND_HINTS):
+        return plan.EXIT_NOT_FOUND
+    return plan.EXIT_RUNTIME
+
+
+def _code_from_graphql_errors(errors: object) -> int | None:
+    """The exit code a GraphQL `errors` array's `type` fields imply, or None.
+
+    `type` is structured, so it beats text matching when present.
+    """
+    if not isinstance(errors, list):
+        return None
+    types = {item.get("type") for item in errors if isinstance(item, dict)}
+    if "NOT_FOUND" in types:
+        return plan.EXIT_NOT_FOUND
+    if "INSUFFICIENT_SCOPES" in types:
+        return plan.EXIT_AUTH
+    return None
+
+
+def _classify_failed_call(arguments: list[str], stdout: str, stderr: str) -> int:
+    """Exit code for a nonzero `gh` exit. For `gh api graphql`, gh exits
+    nonzero on any `errors` payload and prints the body to stdout, so try its
+    structured `type` before falling back to the stderr text."""
+    if arguments[:2] == ["api", "graphql"]:
+        try:
+            body = json.loads(stdout)
+        except (json.JSONDecodeError, TypeError):
+            body = None
+        if isinstance(body, dict):
+            code = _code_from_graphql_errors(body.get("errors"))
+            if code is not None:
+                return code
+            if body.get("errors"):
+                # gh got a GraphQL response, so this is not a transport failure
+                # even if the message mentions a timeout.
+                return classify(stderr, network=False)
+    return classify(stderr)
 
 
 def graphql(query: str, variables: dict | None = None) -> dict:
@@ -63,7 +188,11 @@ def graphql(query: str, variables: dict | None = None) -> dict:
     if not isinstance(response, dict):
         raise GhError(f"gh api graphql returned a non-object response:\n{output[:500]}")
     if response.get("errors"):
-        raise GhError("GraphQL errors: " + json.dumps(response["errors"], indent=2))
+        errors = response["errors"]
+        code = _code_from_graphql_errors(errors)
+        if code is None:
+            code = classify(json.dumps(errors), network=False)
+        raise GhError("GraphQL errors: " + json.dumps(errors, indent=2), code)
     if "data" not in response:
         raise GhError(f"GraphQL response carries no data object:\n{output[:500]}")
     return response["data"]
@@ -318,8 +447,8 @@ def die(message: str, exit_code: int = 1) -> NoReturn:
 def _run(arguments: list[str], *, input_text: str | None = None) -> str:
     """Execute `gh` with the given arguments and return its stdout.
 
-    Raises GhError if `gh` is not on PATH, exits nonzero, or exceeds
-    GH_TIMEOUT_SECONDS. With no input to pipe, stdin is closed off so a
+    Raises GhError (classified, see classify()) if `gh` is not on PATH
+    (exit 1), exits nonzero, or exceeds GH_TIMEOUT_SECONDS (exit 6). With no input to pipe, stdin is closed off so a
     subcommand that unexpectedly prompts fails instead of hanging.
     """
     try:
@@ -338,12 +467,18 @@ def _run(arguments: list[str], *, input_text: str | None = None) -> str:
         raise GhError(f"gh {' '.join(arguments[:2])} failed to launch: {error}")
     except subprocess.TimeoutExpired:
         raise GhError(
-            f"gh {' '.join(arguments)} timed out after {GH_TIMEOUT_SECONDS}s"
+            f"gh {' '.join(arguments)} timed out after {GH_TIMEOUT_SECONDS}s",
+            plan.EXIT_NETWORK,
+            may_have_landed=True,
         )
     if process.returncode != 0:
+        code = _classify_failed_call(arguments, process.stdout, process.stderr)
         raise GhError(
             f"gh {' '.join(arguments)} failed (exit {process.returncode}):\n"
-            f"{process.stderr.strip()}"
+            f"{process.stderr.strip()}",
+            code,
+            may_have_landed=(code == plan.EXIT_NETWORK
+                             and may_have_landed(process.stderr)),
         )
     return process.stdout
 

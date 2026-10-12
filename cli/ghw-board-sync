@@ -23,8 +23,8 @@ a linked open board, so a repeated bootstrap cannot silently produce two.
 By convention (skill text, not enforced here) the create mode belongs to
 setup-github-issues.
 
-Exit codes: 0 success (including a converged no-op), 1 gh/API failure,
-2 usage error or policy refusal.
+Exit codes: 0 success (including a converged no-op), 1 unclassified gh/API failure, 2 usage error or policy refusal,
+3 not found, 5 auth failure, 6 network failure (retryable).
 """
 
 from __future__ import annotations
@@ -68,7 +68,7 @@ def main(argv: list[str]) -> int:
         else:
             result = _sync_board(repository, number)
     except gh.GhError as error:
-        gh.die(str(error), plan.EXIT_RUNTIME)
+        gh.die(str(error), error.exit_code)
 
     board = result["board"]
     plan.emit_plan(
@@ -104,7 +104,8 @@ def _sync_board(repository: str, number: int) -> dict:
     except gh.GhError as error:
         if not created:
             raise
-        raise gh.GhError(f"{error}\nFields already created: {', '.join(created)}")
+        raise gh.GhError(f"{error}\nFields already created: {', '.join(created)}",
+                           error.exit_code)
     return {
         "board": boards.fetch_board_by_node_id(board["node_id"]),
         "created_board": False,
@@ -127,8 +128,13 @@ def _create_board(repository: str) -> dict:
             plan.EXIT_USAGE,
         )
     identity = boards.fetch_repository_identity(repository)
-    project = boards.create_project(identity["owner_node_id"],
-                                    repository.split("/", 1)[1])
+    try:
+        project = boards.create_project(identity["owner_node_id"],
+                                        repository.split("/", 1)[1])
+    except gh.GhError as error:
+        # createProjectV2 is not idempotent: a timeout or reset may have
+        # created an unlinked board, and a re-run would create a second one.
+        raise gh.GhError(str(error), gh.write_exit_code(error))
     # From here the board exists but is not yet linked, so fetch_boards (which
     # only sees linked boards) cannot find it again. Every later failure has to
     # name it, or a re-run creates a second orphan nobody knows about.
@@ -152,7 +158,11 @@ def _create_board(repository: str) -> dict:
             f"{error}\nProject #{project['number']} WAS created "
             f"({project['url']}) and is half-provisioned{landed}. Do not re-run "
             f"with 'new' -- finish it with `ghw-board-sync {repository} "
-            f"{project['number']}`, or delete the project by hand."
+            f"{project['number']}`, or delete the project by hand.",
+            # Never the error's own code: 6 invites a retry of 'new' (a second
+            # orphan project) and 3 reads as an answer, yet the board is
+            # half-provisioned. 1 means stop and report.
+            plan.EXIT_RUNTIME,
         )
     return {
         "board": fresh,

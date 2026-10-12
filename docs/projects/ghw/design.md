@@ -254,14 +254,40 @@ writes to this repo, and the flag only narrows which board is touched.
 ## Shared conventions
 
 - **Exit codes, as implemented:** `0` success, including a converged no-op;
-  `1` any `gh` or API failure; `2` a usage error or any policy refusal, at
-  parse time or after (label contract, merge gates, an unlinked `--project`,
-  a missing head or base branch, `ghw-board-sync new` on an already-boarded
-  repo). The `triage-*` wrappers use the same three codes. ghw does not yet
-  use the shared taxonomy's codes 3 to 6; see the
-  [Exit-code contract](../../index.md#exit-code-contract). Callers key on
-  exit 2 for every refusal today, so splitting refusals across the taxonomy
-  changes that contract for them.
+  `2` a usage error or a policy refusal at parse time or after (label
+  contract, merge gates, an unlinked `--project`, a missing head or base
+  branch, `ghw-board-sync new` on an already-boarded repo); and, for `gh` or
+  API failures, the shared taxonomy's classes (see the
+  [Exit-code contract](../../index.md#exit-code-contract)): `3` not found, `5`
+  auth, `6` network, `1` anything unrecognized. `gh.GhError` carries the code
+  and every Verb exits with it; classification lives in one place,
+  `gh.classify`, which matches `gh`'s stderr loosely and case-insensitively
+  (its wording is not a stable interface). A 403 counts as auth only when
+  nothing points at rate limiting or SAML enforcement; a missing `gh` binary
+  stays `1`. A GraphQL `errors` payload is classified by its `type` first
+  (`NOT_FOUND` is `3`, `INSUFFICIENT_SCOPES` is `5`), because `gh` exits
+  nonzero on those and prints only a terse message to stderr; a token missing
+  a scope (`gh auth refresh`) is auth. A Verb's own not-found (a missing issue
+  or board node) is `3`. `ghw-board-sync new` exits `1` once the project
+  exists, whatever the underlying code, because `6` would invite a retry that
+  creates a second orphan project. Policy refusals, at parse time or
+  after, exit `2`; `4` is unused (the open question is tracked by
+  `agent-tooling-bus`). Bare `timeout` is not a network hint (a repository
+  name can contain it), and a GraphQL error payload (including the stdout body of a
+  nonzero `gh` exit) is never classified as network, since `gh` got a
+  response. A timeout or reset may land after the
+  request was sent, so the create and comment Verbs (`ghw-issue-create`,
+  `ghw-issue-comment`, `ghw-pr-create`, `ghw-pr-comment`) and the project
+  creation in `ghw-board-sync new` (which would otherwise orphan an unlinked
+  board on a re-run) downgrade such a
+  `6` to `1` (`gh.write_exit_code`); only provably pre-send failures (DNS,
+  refused connection) stay `6` there. `ghw-issue-close`, whose comment is mandatory,
+  downgrades every network failure during the close to `1`, pre-send or not,
+  because `gh issue close --comment` posts the comment in a first request and
+  closes in a second, so a retry would post the comment twice (its read of the
+  issue's state keeps its classified code). Bare "not found" is not a
+  not-found hint either (a GraphQL schema error says it); only `HTTP 404` and
+  `Could not resolve to a ...` are. The `triage-*` wrappers still use `1` and `2` only.
 - **JSON output:** write Verbs print a JSON plan with `"action": "applied"`
   (or `"plan"`, from `ghw-label-sync plan` only), most with a `changed`
   field. `ghw-orient` prints its own blob.

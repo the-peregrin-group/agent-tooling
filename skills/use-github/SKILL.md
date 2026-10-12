@@ -38,8 +38,9 @@ Shared conventions:
 
 - `<owner/repo>` is always an explicit argument. The cwd never decides where
   a write lands.
-- Exit codes: `0` success (including an already-converged no-op), `1` gh/API
-  failure, `2` usage error or policy refusal. Write wrappers print a JSON
+- Exit codes: `0` success (including an already-converged no-op), `1` unclassified
+  gh/API failure, `2` usage error or policy refusal, `3` not found, `5` auth
+  failure (abort and flag it), `6` network failure (the one retryable class; on create and comment Verbs and `ghw-board-sync new` a timeout or reset exits `1`, since the write may have landed, and `ghw-issue-close` exits `1` on any network failure during the close, since the comment is posted first). Write wrappers print a JSON
   plan with `"action": "plan"` or `"applied"`.
 - **On exit 2, read the message and fix the call.** Never work around a
   refusal by dropping to raw `gh` — the refusal is the contract doing its

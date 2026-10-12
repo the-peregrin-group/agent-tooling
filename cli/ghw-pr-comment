@@ -6,7 +6,10 @@ ghw-issue-comment cannot cover them; responding to PR review feedback is a
 core day-to-day operation. The body comes from a staged file under
 /tmp/claude/ or ~/.claude/jobs/<job-id>/tmp/, never inline text.
 
-Exit codes: 0 success, 1 gh/API failure, 2 usage error or policy refusal.
+Exit codes: 0 success, 1 unclassified gh/API failure, 2 usage error or policy refusal,
+3 not found, 5 auth failure, 6 network failure (retryable). A failure whose request may
+already have landed (a timeout or reset) exits 1 instead of 6 on the
+non-idempotent write Verbs, so a retry cannot duplicate it.
 """
 
 from __future__ import annotations
@@ -43,7 +46,7 @@ def main(argv: list[str]) -> int:
     try:
         gh.pr_comment(repository, number, body)
     except gh.GhError as error:
-        gh.die(str(error), plan.EXIT_RUNTIME)
+        gh.die(str(error), gh.write_exit_code(error))
 
     plan.emit_plan("applied", repository=repository, pr=number, changed=True)
     return plan.EXIT_OK

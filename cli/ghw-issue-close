@@ -10,8 +10,11 @@ posted, since the close it was meant to explain did not happen here.
 The comment-file slot takes no flags: a path beginning with '-' is a usage
 error (spell such a path './-name').
 
-Exit codes: 0 success (including a converged no-op), 1 gh/API failure,
-2 usage error or policy refusal (including a missing or blank comment).
+Exit codes: 0 success (including a converged no-op), 1 unclassified gh/API failure,
+2 usage error or policy refusal (including a missing or blank comment),
+3 not found, 5 auth failure, 6 network failure while reading the issue's state
+(retryable). A network failure during the close itself exits 1, since the
+comment may already be posted.
 """
 
 from __future__ import annotations
@@ -60,18 +63,24 @@ def main(argv: list[str]) -> int:
 
     try:
         state = gh.issue_view(repository, number, ["state"])["state"]
-        if state != "OPEN":
-            plan.emit_plan(
-                "applied",
-                repository=repository,
-                issue=number,
-                changed=False,
-                note=f"issue is already {state}; comment not posted",
-            )
-            return plan.EXIT_OK
+    except gh.GhError as error:
+        gh.die(str(error), error.exit_code)
+    if state != "OPEN":
+        plan.emit_plan(
+            "applied",
+            repository=repository,
+            issue=number,
+            changed=False,
+            note=f"issue is already {state}; comment not posted",
+        )
+        return plan.EXIT_OK
+    try:
         gh.issue_close(repository, number, comment)
     except gh.GhError as error:
-        gh.die(str(error), plan.EXIT_RUNTIME)
+        # gh posts the comment before sending the close, so a retry after a
+        # failed close would post the comment twice: no network failure here
+        # is retryable.
+        gh.die(str(error), gh.write_exit_code(error, earlier_write_landed=True))
 
     plan.emit_plan(
         "applied",

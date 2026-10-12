@@ -166,6 +166,20 @@ class GhwBoardSyncExistingBoardTest(unittest.TestCase):
         self.assertIn("HTTP 500", stderr.getvalue())
         self.assertIn("Priority", stderr.getvalue())
 
+    def test_classified_failure_on_an_existing_board_keeps_its_code(self):
+        # Re-running a sync on a numbered board converges, so 6 stays retryable.
+        for code in (3, 5, 6):
+            with self.subTest(code=code):
+                with self._seam(_stock_board()) as seam:
+                    seam["create"].side_effect = [
+                        None, _MODULE.gh.GhError("boom", code)]
+                    with contextlib.redirect_stderr(io.StringIO()) as stderr:
+                        with self.assertRaises(SystemExit) as caught:
+                            _MODULE.main(["o/r", "1"])
+                self.assertEqual(caught.exception.code, code)
+                self.assertIn("Fields already created: Priority",
+                              stderr.getvalue())
+
     def test_board_not_linked_to_the_repo_is_refused_listing_candidates(self):
         # The project number is a scope claim about an existing object, so the
         # wrapper verifies it rather than trusting it.
@@ -244,6 +258,37 @@ class GhwBoardSyncCreateTest(unittest.TestCase):
         self.assertIn("#7", message)
         self.assertIn("projects/7", message)          # the URL, to find it by
         self.assertIn("ghw-board-sync o/r 7", message)  # how to finish it
+
+    def test_create_project_that_may_have_landed_is_not_retryable(self):
+        # A timeout or reset on createProjectV2 may have made an unlinked
+        # board; exit 6 would invite a re-run that creates a second one.
+        with self._seam() as seam:
+            seam["create_project"].side_effect = _MODULE.gh.GhError(
+                "reset", 6, may_have_landed=True)
+            with self.assertRaises(SystemExit) as caught:
+                _MODULE.main(["o/r", "new"])
+        self.assertEqual(caught.exception.code, 1)
+
+    def test_create_project_failing_before_send_stays_retryable(self):
+        with self._seam() as seam:
+            seam["create_project"].side_effect = _MODULE.gh.GhError(
+                "no such host", 6, may_have_landed=False)
+            with self.assertRaises(SystemExit) as caught:
+                _MODULE.main(["o/r", "new"])
+        self.assertEqual(caught.exception.code, 6)
+
+    def test_a_half_provisioned_failure_never_exits_retryable_or_not_found(self):
+        # 6 says "retry" and 3 says "this is an answer"; after create_project
+        # succeeded both are wrong, because re-running 'new' orphans a second
+        # project. Whatever classified the underlying error, the exit is 1.
+        for code in (3, 5, 6):
+            with self.subTest(code=code):
+                with self._seam() as seam:
+                    seam["link"].side_effect = _MODULE.gh.GhError("boom", code)
+                    with self.assertRaises(SystemExit) as caught:
+                        _MODULE.main(["o/r", "new"])
+                self.assertEqual(caught.exception.code, 1)
+                self.assertIn("#7", seam["stderr"].getvalue())
 
     def test_a_failure_provisioning_fields_also_names_the_project(self):
         with self._seam() as seam:

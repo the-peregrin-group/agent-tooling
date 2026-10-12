@@ -124,5 +124,16 @@ class GhwIssueCreateLabelTailTest(unittest.TestCase):
         fetch.assert_not_called()
 
 
+class GhwIssueCreateWriteFailureTest(unittest.TestCase):
+    def test_failure_exit_codes_route_through_write_exit_code(self):
+        ghw_test_support.assert_write_failure_codes(
+            self, _MODULE, ["o/r", "bug", "a title", _MISSING_BODY], "issue_create",
+            extra_patches=(
+                (_MODULE.boards, "fetch_labels",
+                 {"return_value": [{"name": "bug"}]}),
+                (_MODULE.labels, "validate_creation_labels", {"return_value": None}),
+            ))
+
+
 if __name__ == "__main__":
     unittest.main()

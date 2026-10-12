@@ -13,7 +13,8 @@ ghw-board-sync is what acts.
 
 IDs are resolved live on every call; there is no on-disk cache.
 
-Exit codes: 0 success, 1 gh/API failure, 2 usage error.
+Exit codes: 0 success, 1 unclassified gh/API failure, 2 usage error,
+3 not found, 5 auth failure, 6 network failure (retryable).
 """
 
 from __future__ import annotations
@@ -44,7 +45,7 @@ def main(argv: list[str]) -> int:
     try:
         orientation = boards.fetch_orientation(repository)
     except gh.GhError as error:
-        gh.die(str(error), plan.EXIT_RUNTIME)
+        gh.die(str(error), error.exit_code)
 
     triage_profile = boards.find_triage_profile(Path.cwd())
     canonical, rule, note = boards.resolve_canonical_board(
