@@ -192,11 +192,12 @@ pinned at position 1.
 ## 404 disambiguation
 
 Forgejo answers 404 for a repo the caller may not see, so a missing grant
-reads as a missing resource. The shipped `fjw-pr-create` already uses the
-fix, and every issue Verb's index guard walks the same path with more causes
-(no such issue, it is a PR, the repo is invisible). The fix lives in the
-shared `cli/lib/forgejo` layer (`pulls.repo_visible` and
-`pulls.disambiguate_not_found`):
+reads as a missing resource. The shipped `fjw-pr-create` already misreports
+this way (see index.md's Known gaps), and every issue Verb's index guard
+walks the same path with more causes (no such issue, it is a PR, the repo
+is invisible). The fix lives in the shared `cli/lib/forgejo` layer. It was
+ratified to ship with this work; it is now planned to ship ahead of it
+(see Implementation notes):
 
 - **Lazy.** No extra call on the happy path. Only when a resource-level GET
   404s does the library probe `GET /repos/{owner}/{repo}` once.
@@ -255,8 +256,8 @@ These notes reflect the repo's layout as of 2026-10-01.
   3.9-compatible, stdlib only; offline tests with the network mocked.
 - Ship through the Installer; Skill text invokes Verbs by bare name and
   stays consumer-generic.
-- The 404 disambiguation helper is shipped in `pulls.py`; these Verbs
-  reuse it.
+- The 404 disambiguation helper is planned as a separate fix to the
+  shipped Verbs (index.md, Known gaps); these Verbs will reuse it.
 - The issue-index guard's exit 4 differs from the shipped
   `fjw-pr-comments` check, which exits 3 for an issue index; aligning the
   two is an open decision.
