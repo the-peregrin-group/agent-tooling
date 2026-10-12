@@ -275,16 +275,16 @@ class ReviewsTest(unittest.TestCase):
         self.assertEqual(pages, ["1", "2"])
 
     @mock.patch("lib.forgejo.pulls.api.request")
-    def test_list_review_comments_route_and_pagination(self, request):
-        full = [{"id": i} for i in range(pulls._PAGE_SIZE)]
-        request.side_effect = [full, []]
+    def test_list_review_comments_is_one_unpaginated_call(self, request):
+        # Forgejo ignores page/limit on this route and returns everything.
+        request.return_value = [{"id": i} for i in range(60)]
         comments = pulls.list_review_comments(_CONFIG, "o/r", 5, 77)
-        self.assertEqual(len(comments), pulls._PAGE_SIZE)
+        self.assertEqual(len(comments), 60)
+        self.assertEqual(request.call_count, 1)
         self.assertEqual(
             request.call_args.args[1:], ("GET", "/repos/o/r/pulls/5/reviews/77/comments")
         )
-        pages = [c.kwargs["query"]["page"] for c in request.call_args_list]
-        self.assertEqual(pages, ["1", "2"])
+        self.assertNotIn("query", request.call_args.kwargs)
 
     @mock.patch("lib.forgejo.pulls.api.request")
     def test_list_review_comments_tolerates_null(self, request):

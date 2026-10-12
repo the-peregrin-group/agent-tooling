@@ -255,20 +255,19 @@ def list_reviews(config: Config, repository: str, index: int) -> list[dict]:
 def list_review_comments(
     config: Config, repository: str, index: int, review_id: int
 ) -> list[dict]:
-    """Every inline comment of one review on PR `index`, paginated."""
-    comments: list[dict] = []
-    page = 1
-    while True:
-        batch = api.request(
-            config,
-            "GET",
-            f"/repos/{repository}/pulls/{index}/reviews/{review_id}/comments",
-            query={"limit": str(_PAGE_SIZE), "page": str(page)},
-        ) or []
-        comments.extend(batch)
-        if len(batch) < _PAGE_SIZE:
-            return comments
-        page += 1
+    """Every inline comment of one review on PR `index`.
+
+    One unpaginated GET, on purpose: Forgejo's handler for this route
+    (GetPullReviewComments in routers/api/v1/repo/pull_review.go) takes no
+    ListOptions and returns the whole list, ignoring page and limit. A
+    page loop here would never see a short page on a review with
+    _PAGE_SIZE or more comments and would spin forever.
+    """
+    return api.request(
+        config,
+        "GET",
+        f"/repos/{repository}/pulls/{index}/reviews/{review_id}/comments",
+    ) or []
 
 
 def close_pr(config: Config, repository: str, index: int) -> dict:

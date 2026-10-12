@@ -73,8 +73,9 @@ numbers to be positive integers.
   (exit 3 otherwise), then prints its comments, paginated.
 - `fjw-pr-reviews <owner/repo> <pr#>` makes the same PR-ness check, then
   prints the reviews (paginated), each gaining a `comments` key holding that
-  review's raw inline comments (one extra request per review; reviews with
-  no inline comments still appear). It is a separate Verb rather than an
+  review's raw inline comments (one extra request per review; that
+  per-review route is unpaginated server-side, so it is a single GET; reviews
+  with no inline comments still appear). It is a separate Verb rather than an
   extension of `fjw-pr-comments` because inline comments live on the
   `/pulls/{index}/reviews` routes, not the issue-comment routes: one route
   family per Verb keeps `fjw-pr-comments`' output shape stable for existing
