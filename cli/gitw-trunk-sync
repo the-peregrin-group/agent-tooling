@@ -34,7 +34,7 @@ remote repository, or the local or fetched default branch missing),
 4 refused (identity mismatch, dirty primary checkout, default branch
 checked out in a linked worktree, rebase of it in progress, local default
 branch not an ancestor of the fetched tip, or the branch moved concurrently
-during the update), 5 roster missing/malformed or auth failure, 6 network
+during the update), 5 roster/auth/config (deployment), 6 network
 failure.
 """
 
