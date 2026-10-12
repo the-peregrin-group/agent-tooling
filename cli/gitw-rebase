@@ -18,7 +18,7 @@ after the fetch (exit 3 otherwise). Refused (exit 4): the roster's
 default branch, HEAD (or any base whose first level is HEAD), a
 symbolic remote-tracking ref aliasing the default -- the bare form is
 the one spelling for the default, so a consumer granting exact rules
-grants the default and each designated base separately -- and the
+grants the default and each agent integration branch separately -- and the
 branch itself as its own base. Machine-local repos refuse the onto form:
 there is no fetched base to rebase onto.
 
