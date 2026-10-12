@@ -90,6 +90,7 @@ def generated_permissions() -> dict:
         "allow": sorted(expected_allow()),
     }
 
+
 def policy_lists() -> dict:
     with POLICY.open(encoding="utf-8") as handle:
         return json.load(handle)["permissions"]

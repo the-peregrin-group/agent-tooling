@@ -14,8 +14,10 @@ ones in `onboarding.md` are steps a human runs.
 """
 
 import re
+import textwrap
 import unittest
 
+import use_bd_rules_snapshot_test_support as snapshot
 from use_bd_rules_test_support import (
     CANONICAL,
     LISTS,
@@ -40,7 +42,9 @@ NOT_TAUGHT = {
     "bdw human respond": "the Skill says never to close through it",
 }
 
-FENCE = re.compile(r"^```[^\n]*\n(.*?)^```", re.MULTILINE | re.DOTALL)
+# A fence may be indented, as it is inside a list item; its lines carry the
+# same indent, which commands_in strips.
+FENCE = re.compile(r"^[ \t]*```[^\n]*\n(.*?)^[ \t]*```", re.MULTILINE | re.DOTALL)
 SPAN = re.compile(r"`([^`]+)`")
 PLACEHOLDER = re.compile(r"<[^<>]+>")
 
@@ -55,7 +59,7 @@ def normalize(text: str) -> str:
 def commands_in(markdown: str) -> list:
     found = []
     for block in FENCE.findall(markdown):
-        found.extend(line for line in block.splitlines() if line.strip())
+        found.extend(line for line in textwrap.dedent(block).splitlines() if line.strip())
     prose = FENCE.sub("", markdown)
     found.extend(SPAN.findall(prose))
     commands = []
@@ -92,11 +96,10 @@ class CanonicalDataTest(unittest.TestCase):
         for name in LISTS:
             for group in self.data[name]:
                 self.assertTrue(group.get("why"), group)
-                has_rows = "rows" in group
-                has_verbs = "verbs" in group and "shapes" in group
-                self.assertNotEqual(has_rows, has_verbs, group)
-                self.assertLessEqual(
-                    set(group), {"why", "rows", "verbs", "shapes"}, group
+                self.assertIn(
+                    set(group),
+                    ({"why", "rows"}, {"why", "verbs", "shapes"}),
+                    group,
                 )
                 for shape in group.get("shapes", ()):
                     self.assertIn("{v}", shape, group)
@@ -114,18 +117,61 @@ class CanonicalDataTest(unittest.TestCase):
         self.assertEqual(repeated, set())
 
     def test_rules_touch_only_bdw_beyond_the_raw_name_denies(self) -> None:
+        # The one exemption is positive: the raw names, and the binaries
+        # invoked by install path. Any other row off `bdw` would be a
+        # general shell rule that every onboarded repo inherits unreviewed.
+        raw_name_denies = {"bd", "bd *", "beads", "beads *"}
+        install_paths = ("*/bin/bd", "*/bin/beads", "*libexec/agent-tooling/bdw")
         for name, rows in self.rows.items():
             for row in rows:
                 body = row[len("Bash("):-1]
-                if name == "deny" and not body.startswith("bdw"):
+                if name == "deny" and (
+                    body in raw_name_denies
+                    or any(body in (p, p + " *") for p in install_paths)
+                ):
                     continue
                 self.assertTrue(body == "bdw" or body.startswith("bdw "), row)
+
+    def test_the_data_expands_to_the_snapshot(self) -> None:
+        # The data and the generated settings move together, so only an
+        # independent copy notices a row dropped or added by mistake.
+        for name, frozen in (
+            ("deny", snapshot.DENY),
+            ("ask", snapshot.ASK),
+            ("allow", snapshot.ALLOW),
+        ):
+            rows = set(self.rows[name])
+            self.assertEqual(sorted(frozen - rows), [], f"{name}: dropped")
+            self.assertEqual(sorted(rows - frozen), [], f"{name}: added")
+
+    def test_bare_deny_verbs_are_also_denied_in_both_spellings(self) -> None:
+        deny = set(self.rows["deny"])
+        for row in deny:
+            body = row[len("Bash("):-1]
+            if body.startswith("bdw ") and "*" not in body:
+                verb = body[len("bdw "):]
+                self.assertIn(f"Bash(bdw {verb} *)", deny, row)
+                self.assertIn(f"Bash(bdw -* {verb}*)", deny, row)
 
     def test_raw_names_are_denied_outright(self) -> None:
         for binary in ("bd", "beads"):
             self.assertEqual(classify(binary, self.rows), "deny")
             self.assertEqual(classify(f"{binary} ready", self.rows), "deny")
             self.assertEqual(classify(f"/opt/homebrew/bin/{binary} list", self.rows), "deny")
+
+
+class ExtractorTest(unittest.TestCase):
+    def test_it_reads_inline_spans_and_flush_left_fences(self) -> None:
+        text = "Run `bdw ready`.\n\n```sh\nbdw show <id>\n```\n"
+        self.assertEqual(commands_in(text), ["bdw show X", "bdw ready"])
+
+    def test_it_reads_fences_indented_inside_a_list_item(self) -> None:
+        text = "- [ ] Step:\n\n  ```sh\n  bdw delete <id>\n  ```\n"
+        self.assertEqual(commands_in(text), ["bdw delete X"])
+
+    def test_it_skips_what_is_not_bdw(self) -> None:
+        text = "`bd init`, `bdwx`, and\n\n  ```sh\n  git status\n  ```\n"
+        self.assertEqual(commands_in(text), [])
 
 
 class MatcherTest(unittest.TestCase):

@@ -15,7 +15,7 @@ only for single, plain commands.
 import json
 import re
 from pathlib import Path
-from typing import Dict, Iterable, List
+from typing import Dict, Iterable, List, Optional
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SKILL_DIR = REPO_ROOT / "skills" / "use-bd"
@@ -42,7 +42,7 @@ def expand_list(groups: Iterable[dict]) -> List[str]:
     return rows
 
 
-def canonical_rows(data: dict = None) -> Dict[str, List[str]]:
+def canonical_rows(data: Optional[dict] = None) -> Dict[str, List[str]]:
     """Each list's rows, in file order, duplicates kept so a test can see them."""
     if data is None:
         data = load_canonical()
