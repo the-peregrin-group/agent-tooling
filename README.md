@@ -93,16 +93,24 @@ token: `gh auth refresh -s project`.
    assume at least these rules:
 
     ```jsonc
-    "deny":  ["Read(~/.config/fjw/**)", "Edit(~/.config/fjw/**)"],
+    "deny":  ["Read(~/.config/fjw/**)", "Edit(~/.config/fjw/**)",
+              "Edit(~/.local/libexec/agent-tooling/**)",
+              "Edit(~/.claude/skills/**)",
+              "Edit(~/.claude/agents/**)"],
     "ask":   ["Bash(gitw-repo-register *)",
               "Bash(tooling-install apply *)",
               "Bash(tooling-install adopt *)"],
-    "allow": ["Edit(//tmp/claude/**)"]
+    "allow": ["Edit(//tmp/claude/**)", "Bash(tooling-install diff *)"]
     ```
 
-    The deny keeps the Forgejo token out of every agent's reach. The ask rules
-    keep roster registration and installs a human act. The allow is the staging
-    root: every wrapper that reads a message or body file accepts it only from
+    The first two deny rows keep the Forgejo token out of every agent's reach.
+    The Edit denies on the three Install Targets mean a change reaches
+    installed tooling only through a committed source and an approved install
+    (ADR 0007); some broad Bash grants can still write there, so keep those
+    narrow. The ask rules keep roster registration and installs a human act.
+    The `tooling-install diff` allow lets an agent report drift without being
+    able to act on it (step 7 runs it). The `Edit(//tmp/claude/**)` allow is
+    the staging root: every wrapper that reads a message or body file accepts it only from
     `/tmp/claude/` or `~/.claude/jobs/<job-id>/tmp/` and refuses any other
     path, so agents must be able to write there. Create it with
     `mkdir -p /tmp/claude` (and again after a reboot clears `/tmp`). Then grant
