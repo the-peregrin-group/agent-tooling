@@ -606,7 +606,6 @@ class GitwRebaseResolvedTest(_RebaseFixtureTest):
         self.assertTrue((state_dir / "gitw-conflicts").exists())
         self.rebase("proj", "fix/", "abort")
         self.assertFalse(state_dir.exists())
-        # A fresh rebase starts with an empty union.
         self.rebase_raw("proj", "fix/")
         (self.clone / "conflict.txt").write_text("resolved\n")
         payload = self.rebase("proj", "fix/", "continue")
@@ -616,9 +615,23 @@ class GitwRebaseResolvedTest(_RebaseFixtureTest):
     def test_continue_on_a_rebase_gitw_did_not_start(self):
         self.make_conflict()
         gitw_test_support.git(self.clone, "fetch", "origin")
-        subprocess.run(
+        raw = subprocess.run(
             ["git", "rebase", "origin/main"], cwd=self.clone,
             capture_output=True,
+        )
+        self.assertNotEqual(raw.returncode, 0)
+        state_dir = repo.rebase_state_dir(self.clone)
+        self.assertFalse((state_dir / "gitw-conflicts").exists())
+        (self.clone / "conflict.txt").write_text("resolved\n")
+        payload = self.rebase("proj", "fix/", "continue")
+        self.assertEqual(payload["resolved"], ["conflict.txt"])
+
+    def test_a_torn_record_drops_its_unterminated_tail(self):
+        self.make_conflict()
+        self.rebase_raw("proj", "fix/")
+        state_dir = repo.rebase_state_dir(self.clone)
+        (state_dir / "gitw-conflicts").write_text(
+            "conflict.txt\0torn", encoding="utf-8"
         )
         (self.clone / "conflict.txt").write_text("resolved\n")
         payload = self.rebase("proj", "fix/", "continue")
