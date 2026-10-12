@@ -56,9 +56,10 @@ them.
   bd dolt remote remove origin
   ```
 
-  Untested: `bd config --help` lists `dolt.local-only`, a `config.yaml`
-  key that skips wiring the remote at init; whether init overwrites a
-  `config.yaml` written before it is open.
+  `bdw help config` lists `dolt.local-only`, a `config.yaml` key that
+  skips wiring a Dolt sync remote during init. To take effect it must be in
+  a `config.yaml` written before init, and whether init overwrites that
+  file is untested. `bdw help dolt remote` confirms `remove <name>`.
 
 - [ ] Move the backup out of the repo. Init enables auto-backup when a
   remote exists, and the first backup lands in `.beads/backup/` inside
