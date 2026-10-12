@@ -38,5 +38,3 @@ Code: the `cli/gitw-*` Verbs over `cli/lib/git/` and the shared
 - Mutating Verbs refuse a cwd admitted only by `operable_from` (exit 4),
   while `use-git` still promises cross-repo writes under that interlock
   (`agent-tooling-1790288522193-11-242cbfe6`).
-- `use-git` cites the repo's policy spec for exact gitw deny rules it does
-  not carry (`agent-tooling-bpp`).
