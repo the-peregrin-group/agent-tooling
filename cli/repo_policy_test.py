@@ -11,17 +11,21 @@ regenerate the JSON from them, and let the test confirm the two agree.
 
 Rule grammar (Claude Code permissions): deny beats ask beats allow; `*`
 matches at the start, middle, or end of a pattern; a single trailing
-space-star also matches the bare command (docs, and observed on 2026-09-25
-on Claude Code 2.1.282 in manual mode: with no bd rows in the user or local
-settings, a bare `bdw ready` ran unprompted under the starred allow row
-alone; friction log entry 35). That observation covers an allow row only;
-deny-side matching was not itself observed. The exact bare deny rows for the
-verbs that act with no arguments stay as belt and braces against a future
-harness change: a deny row that fails to match fails open, while an allow
-row that fails to match fails closed, so keeping them costs only rows; deny and ask rules match past a leading
-environment assignment and inside compound commands; `command` is stripped
-before matching; a bare-name rule never matches the same program invoked by
-path. The project file only applies to sessions launched from a checkout
+space-star also matches the bare command (docs, and observed 2026-09-25 on
+Claude Code 2.1.282 in manual mode; friction log entry 35 on
+agent-tooling-w7p.4); deny and ask rules match past a leading environment
+assignment and inside compound commands; `command` is stripped before
+matching; a bare-name rule never matches the same program invoked by path.
+
+The 2026-09-25 observation covers an allow row only: with no bd rows in the
+user or local settings, a bare `bdw ready` ran unprompted under the starred
+allow row alone. Deny-side matching was not itself observed, so the exact
+bare deny rows for the verbs that act with no arguments stay as belt and
+braces against a future harness change. A deny row that fails to match fails
+open, while an allow row that fails to match fails closed, so keeping them
+costs only rows.
+
+The project file only applies to sessions launched from a checkout
 whose checked-out branch contains it.
 """
 

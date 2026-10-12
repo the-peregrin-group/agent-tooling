@@ -544,8 +544,7 @@ Rules pin Verb, label, and Branch prefix as literal prefixes:
   matches the bare command.** This is documented Claude Code behavior
   and has been observed directly. A harness that did not honor it would
   make the bare call prompt, so an allow rule fails closed; a deny rule
-  would fail open, so exact deny rules are kept beside starred ones
-  (whether they stay is `agent-tooling-na2`).
+  would fail open, so exact deny rules are kept beside starred ones.
 - **`Bash(gitw-rebase rocket-sled fix/ *)` covers the bare call, its
   `continue`/`abort` modes, and the `onto` form with any base,
   deliberately.** A rebase rewrites only the agent's own branch and
