@@ -273,10 +273,13 @@ writes to this repo, and the flag only narrows which board is touched.
   creates a second orphan project. Policy refusals, at parse time or
   after, exit `2`; `4` is unused (the open question is tracked by
   `agent-tooling-bus`). Bare `timeout` is not a network hint (a repository
-  name can contain it), and a GraphQL error payload is never classified as
-  network, since `gh` got a response. A timeout or reset may land after the
+  name can contain it), and a GraphQL error payload (including the stdout body of a
+  nonzero `gh` exit) is never classified as network, since `gh` got a
+  response. A timeout or reset may land after the
   request was sent, so the create and comment Verbs (`ghw-issue-create`,
-  `ghw-issue-comment`, `ghw-pr-create`, `ghw-pr-comment`) downgrade such a
+  `ghw-issue-comment`, `ghw-pr-create`, `ghw-pr-comment`) and the project
+  creation in `ghw-board-sync new` (which would otherwise orphan an unlinked
+  board on a re-run) downgrade such a
   `6` to `1` (`gh.write_exit_code`); only provably pre-send failures (DNS,
   refused connection) stay `6` there. `ghw-issue-close` with a comment file
   downgrades every network failure during the close to `1`, pre-send or not,

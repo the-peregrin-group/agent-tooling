@@ -259,6 +259,24 @@ class GhwBoardSyncCreateTest(unittest.TestCase):
         self.assertIn("projects/7", message)          # the URL, to find it by
         self.assertIn("ghw-board-sync o/r 7", message)  # how to finish it
 
+    def test_create_project_that_may_have_landed_is_not_retryable(self):
+        # A timeout or reset on createProjectV2 may have made an unlinked
+        # board; exit 6 would invite a re-run that creates a second one.
+        with self._seam() as seam:
+            seam["create_project"].side_effect = _MODULE.gh.GhError(
+                "reset", 6, may_have_landed=True)
+            with self.assertRaises(SystemExit) as caught:
+                _MODULE.main(["o/r", "new"])
+        self.assertEqual(caught.exception.code, 1)
+
+    def test_create_project_failing_before_send_stays_retryable(self):
+        with self._seam() as seam:
+            seam["create_project"].side_effect = _MODULE.gh.GhError(
+                "no such host", 6, may_have_landed=False)
+            with self.assertRaises(SystemExit) as caught:
+                _MODULE.main(["o/r", "new"])
+        self.assertEqual(caught.exception.code, 6)
+
     def test_a_half_provisioned_failure_never_exits_retryable_or_not_found(self):
         # 6 says "retry" and 3 says "this is an answer"; after create_project
         # succeeded both are wrong, because re-running 'new' orphans a second

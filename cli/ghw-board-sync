@@ -128,8 +128,13 @@ def _create_board(repository: str) -> dict:
             plan.EXIT_USAGE,
         )
     identity = boards.fetch_repository_identity(repository)
-    project = boards.create_project(identity["owner_node_id"],
-                                    repository.split("/", 1)[1])
+    try:
+        project = boards.create_project(identity["owner_node_id"],
+                                        repository.split("/", 1)[1])
+    except gh.GhError as error:
+        # createProjectV2 is not idempotent: a timeout or reset may have
+        # created an unlinked board, and a re-run would create a second one.
+        raise gh.GhError(str(error), gh.write_exit_code(error))
     # From here the board exists but is not yet linked, so fetch_boards (which
     # only sees linked boards) cannot find it again. Every later failure has to
     # name it, or a re-run creates a second orphan nobody knows about.
