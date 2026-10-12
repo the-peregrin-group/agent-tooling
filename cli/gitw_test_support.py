@@ -100,6 +100,36 @@ def add_pre_push_hook(repository: Path, body: str) -> None:
     hook.chmod(0o755)
 
 
+def add_pre_receive_hook(remote: Path, body: str) -> None:
+    """Install an executable sh pre-receive hook in a bare fixture
+    remote; `body` follows the shebang line."""
+    hooks = remote / "hooks"
+    hooks.mkdir(exist_ok=True)
+    hook = hooks / "pre-receive"
+    hook.write_text("#!/bin/sh\n" + body)
+    hook.chmod(0o755)
+
+
+# A pre-receive hook body that loses a ref-update race on purpose: it
+# moves each pushed ref to an unrelated commit (quarantine variables
+# cleared so the write lands in the real object store) and exits 0, so
+# receive-pack's own old-value check then fails and git prints
+# "! [remote rejected] ... (<reason>)" with a ref-race reason.
+RACE_PRE_RECEIVE_HOOK = (
+    "unset GIT_QUARANTINE_PATH GIT_OBJECT_DIRECTORY"
+    " GIT_ALTERNATE_OBJECT_DIRECTORIES\n"
+    'cd "$GIT_DIR" || exit 1\n'
+    "tree=$(git mktree </dev/null) || exit 1\n"
+    "while read old new ref; do\n"
+    "  c=$(GIT_AUTHOR_NAME=race GIT_AUTHOR_EMAIL=race@example.com"
+    " GIT_COMMITTER_NAME=race GIT_COMMITTER_EMAIL=race@example.com"
+    ' git commit-tree "$tree" -m race) || exit 1\n'
+    '  git update-ref "$ref" "$c" || exit 1\n'
+    "done\n"
+    "exit 0\n"
+)
+
+
 def proxies_off():
     """Patch os.environ so a push to a loopback URL cannot be sent
     off-host by a proxy configured on the machine: no_proxy for the

@@ -479,6 +479,51 @@ class GitwIntegrateExecutedByTest(_IntegrateFixtureTest):
         )
 
 
+class GitwIntegrateRemoteHookTest(_IntegrateFixtureTest):
+    """A decline by the remote's own pre-receive hook is a refusal (4),
+    never the retryable network class (6)."""
+
+    def test_remote_hook_decline_is_exit_4_with_git_output_relayed(self):
+        old_main = self.remote_git("rev-parse", "refs/heads/main")
+        gitw_test_support.add_pre_receive_hook(
+            self.remote,
+            'echo "policy: main is protected" >&2\nexit 1\n'
+        )
+        stderr = self.integrate_expecting_exit(
+            4, "proj", "main", "fix/", self.message_path
+        )
+        self.assertIn("[remote rejected]", stderr)
+        self.assertIn("policy: main is protected", stderr)
+        self.assertIn("refused by the remote", stderr)
+        self.assertNotIn("moved during the attempt", stderr)
+        self.assertEqual(
+            self.remote_git("rev-parse", "refs/heads/main"), old_main
+        )
+
+    def test_lost_ref_update_race_is_base_moved(self):
+        gitw_test_support.add_pre_receive_hook(
+            self.remote, gitw_test_support.RACE_PRE_RECEIVE_HOOK
+        )
+        stderr = self.integrate_expecting_exit(
+            4, "proj", "main", "fix/", self.message_path
+        )
+        self.assertIn("[remote rejected]", stderr)
+        self.assertIn("moved during the attempt", stderr)
+        self.assertNotIn("refused by the remote", stderr)
+
+    def test_remote_hook_text_with_base_moved_words_is_not_base_moved(self):
+        gitw_test_support.add_pre_receive_hook(
+            self.remote,
+            'echo "non-fast-forward: stale info, fetch first" >&2\n'
+            "exit 1\n"
+        )
+        stderr = self.integrate_expecting_exit(
+            4, "proj", "main", "fix/", self.message_path
+        )
+        self.assertIn("refused by the remote", stderr)
+        self.assertNotIn("moved during the attempt", stderr)
+
+
 class GitwIntegrateHookTest(_IntegrateFixtureTest):
     """A local pre-push hook on the bubble's push: its output reaches the
     caller whether it passes or refuses, and a refusal is exit 4, never

@@ -74,11 +74,20 @@ relays the partial output and refuses with exit 4: a retry would re-run
 the hook. It needs trace2; with it unavailable, a hung hook reads as the
 timeout's exit 6. The hook process itself may outlive the killed git.
 
+A decline by the remote's own pre-receive or update hook (a protected
+branch, for one) prints "! [remote rejected] <ref> (pre-receive hook
+declined)" with git exit 1. It is checked before the lease text, because
+the hook's own output may contain anything, and before the shared
+classification, which would read it as the retryable exit 6. If the
+parenthesised reason names a lost ref-update race ("failed to update
+ref" and kin), the advice is the lease case instead: fetch and reconcile.
+
 Exit codes: 0 success, 1 unclassified git failure, 2 usage error, 3 not
 found (label not in the roster, or the remote repository has vanished),
 4 refused (cwd/branch-prefix mismatch, default-branch push, lease
 failure -- fetch and reconcile, never blind-retry -- or a pre-push hook
-refusal or hang: fix what the hook reported, never retry unchanged), 5
+refusal or hang, or a decline by the remote's own hook, a "[remote
+rejected]" status: fix what the hook reported, never retry unchanged), 5
 roster/auth/config (deployment), 6 network failure.
 """
 
@@ -240,7 +249,8 @@ def _run_push(workspace: repo.Workspace, ref: str,
               arguments: list[str]) -> None:
     """Run the push with git's trace2 events captured, relay git's output
     to stderr verbatim, and classify a failure: pre-push hook refusal (4),
-    lease (4), else the shared remote classification."""
+    remote rejection (4), lease (4), else the shared remote
+    classification."""
     entry = workspace.entry
     root = workspace.root
     result, hook_code, traced, hook_hung = run.traced_push(
@@ -266,6 +276,23 @@ def _run_push(workspace: repo.Workspace, ref: str,
         )
     detail = result.stderr.strip() or result.stdout.strip() or "no output"
     lowered = detail.lower()
+    # A remote hook's own text may mention anything, so its status line is
+    # checked before the lease markers; a real lease failure prints
+    # "[rejected]" (or fails locally), never "[remote rejected]".
+    if run.is_remote_rejection(detail):
+        if run.is_ref_update_race(detail):
+            raise repo.RefusalError(
+                f"push of {ref!r} lost a ref-update race on the remote "
+                "(a [remote rejected] status): the remote ref moved "
+                "since it was last fetched here. Fetch and reconcile; "
+                "never blind-retry"
+            )
+        raise repo.RefusalError(
+            f"push of {ref!r} refused by the remote (a [remote "
+            "rejected] status; the reason is in parentheses in git's "
+            "output, relayed above). Fix what it reported; never retry "
+            "unchanged"
+        )
     if any(marker in lowered for marker in _LEASE_MARKERS):
         raise repo.RefusalError(
             f"push of {ref!r} rejected by the lease: the remote ref "

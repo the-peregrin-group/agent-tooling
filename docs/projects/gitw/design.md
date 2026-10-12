@@ -307,11 +307,12 @@ every family's implemented codes live in
 - `4` refusal: identity or prefix mismatch, dirty worktree, stale rebase,
   lease failure, sweep guard, nothing to commit or integrate, default-
   branch push, machine-local push or integrate, local pre-push hook
-  refusal or hang, and `gitw-trunk-sync`'s refusals (dirty primary
-  checkout, default branch held by a linked worktree, a rebase of it in
-  progress in any worktree, local default branch not an ancestor of the
-  fetched tip, or the branch moved concurrently during the update). Also
-  `gitw-rebase`'s conflict stop, which is expected,
+  refusal or hang, a decline by the remote's own hook, and
+  `gitw-trunk-sync`'s refusals (dirty primary checkout, default branch
+  held by a linked worktree, a rebase of it in progress in any worktree,
+  local default branch not an ancestor of the fetched tip, or the branch
+  moved concurrently during the update). Also `gitw-rebase`'s conflict
+  stop, which is expected,
   resumable state rather than a caller bug.
 - `5` roster/auth/config (deployment): Roster missing or malformed, a
   registered checkout that no longer exists, remote auth failure. All
@@ -495,9 +496,15 @@ before it is discarded) is a hung hook, also exit 4 with the output so
 far relayed, because a retry would re-run the hook; a timeout with no
 hung hook stays network (6). If trace2 events are unavailable,
 classification falls back to text and a hook refusal reads as exit 6, which the error line
-states. Lease markers ("stale info", "remote ref updated since checkout")
-are exit 4; other failures are classified as auth (5), not found (3), or
-network (6).
+states. A decline by the remote's own pre-receive or update hook shows as
+a `[remote rejected]` status line and is exit 4; it is checked before the
+lease text (the hook's output may contain anything) and before the shared
+classification. Its reason, in parentheses, picks the advice: a lost
+ref-update race ("failed to update ref", "incorrect old value provided",
+"reference already exists", "failed to lock") reads as the lease or base-moved case (fetch and reconcile); any
+other reason is relayed as the remote's refusal. Lease markers ("stale
+info", "remote ref updated since checkout") are exit 4; other failures
+are classified as auth (5), not found (3), or network (6).
 
 **`gitw-integrate <repo> <base-branch> <prefix> <message-file>`.** The
 mode-(b) Verb. Must run inside the repo on a branch matching the prefix
