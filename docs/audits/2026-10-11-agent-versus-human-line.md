@@ -21,10 +21,15 @@ bundled with them; every executable under `cli/` (28: `bdw`, 7 `fjw-*`,
 (the only DEPLOYMENT doc in the tree); the Permission rule spec
 `cli/repo_policy_test.py` against `.claude/settings.json`; the README's
 minimum rules; `CLAUDE.md`; `.beads/PRIME.md`; the living `design.md` files
-that state the rules' reasons; and every ADR (0001 to 0010). ADRs 0004
-(home-in is attended-only), 0008 (a bare `/` prefix means no branch
-constraint), 0009 (Branch Issues are worked in passes) and 0010 (bdw
-carries Beads policy in tiers) bear on the line; the rest do not draw it.
+that state the rules' reasons; and every ADR (0001 to 0010). Seven ADRs
+bear on the line and are cited below: 0001 (adopt Beads for the tracker
+trial), 0002 (Beads identity), 0004 (home-in is attended-only), 0007
+(tooling runs only from installed copies), 0008 (a bare `/` prefix means
+no branch constraint), 0009 (Branch Issues are worked in passes) and 0010
+(bdw carries Beads policy in tiers). The other three (0003, capture at
+Line of Inquiry Exits; 0005, independent review delivered unfiltered;
+0006, ADRs duplicate their motivating document) shape how home-in and ADR
+writing work but do not decide what an agent may do without a human.
 
 ## The principles
 
@@ -112,7 +117,7 @@ its own, only with a human's approval (ask), or never. "Principle" is
 | B4 | `skills/use-bd/SKILL.md:117-124` | Duplication, composition and contradiction links only when very confident; otherwise ask (unattended: report). | None given. | none |
 | B5 | `skills/use-bd/SKILL.md:167-185`; `skills/use-bd/quirks.md:27-28`; `cli/repo_policy_test.py:180-183,285-287`; `docs/projects/beads-trial/design.md:83-84` | Work waiting on a human is gated; `gate resolve` has no rule so it prompts; `human respond` is ask-ruled; never close through it. | Resolving a human gate is the human's act; a review never closes that way. | Rule is the gate |
 | B6 | `skills/use-bd/SKILL.md:193-194` | Offer an upstream report or fix; never do it unasked. | None given beyond the offer. | Stays local |
-| B7 | `cli/repo_policy_test.py:29-37,132-141` | Raw `bd` and `beads` denied, reads included, and `bdw` by install path. | The habit of typing `bd` fails at once. | Indistinct actor; Rule is the gate |
+| B7 | `cli/repo_policy_test.py:29-37,132-141`; ADR 0010 | Raw `bd` and `beads` denied, reads included, and `bdw` by install path. | The habit of typing `bd` fails at once; ADR 0010 puts the policy rules cannot express in `bdw`, "code that agents cannot talk past", which a raw `bd` call would bypass. | Indistinct actor; Rule is the gate |
 | B8 | `cli/repo_policy_test.py:39-100`; `docs/projects/beads-trial/design.md:60-71` | Denied outright: forgetting and destructive Verbs (`delete`, `purge`, `compact`, `gc`, `prune`), sync and tracker integrations, `init`, `migrate`, `upgrade`, and alias spellings. | Forgetting buys nothing; nothing leaves the machine; one spelling per operation. | Irreversible; Stays local; Setup |
 | B9 | `cli/repo_policy_test.py:83-87`; `docs/projects/beads-trial/design.md:72-74` | `reclaim` denied, not asked for. | It would take live work from sessions waiting on a human (the user's ruling of 2026-09-25). | Not yours |
 | B10 | `cli/repo_policy_test.py:103-109` | `ready --claim`, `close --claim-next`, `close --continue` denied. | They claim around the choice of work. | none |
@@ -128,9 +133,9 @@ its own, only with a human's approval (ask), or never. "Principle" is
 
 | # | Where | Restricts | Reason given | Principle |
 |---|---|---|---|---|
-| T1 | `cli/tooling-install:7-10,42-46`; `docs/projects/installer/design.md:165-172`; `README.md:98-99,103-104` | `apply` and `adopt` are explicit ask rules, not merely unlisted; `diff` is allowlistable; `adopt` is its own Verb so it can be granted differently. | `ask` outranks `allow`, so a later broad allow cannot swallow them; the prompt is the ceremony. | Setup; Rule is the gate |
+| T1 | `cli/tooling-install:7-10,42-46`; `docs/projects/installer/design.md:165-172`; `README.md:98-99,103-104`; ADR 0007 | `apply` and `adopt` are explicit ask rules, not merely unlisted; `diff` is allowlistable; `adopt` is its own Verb so it can be granted differently. | `ask` outranks `allow`, so a later broad allow cannot swallow them; the prompt is the ceremony. | Setup; Rule is the gate |
 | T2 | `docs/projects/installer/design.md:131-133` | Concurrent installs are unguarded. | An install is a human act behind a prompt. | Setup |
-| T3 | `docs/projects/installer/design.md:173-176`; `CLAUDE.md:8-11` | Edit denied on every Install Target; installed copies are never edited. | A change reaches installed tooling only through a committed source and an approved install. | Setup |
+| T3 | `docs/projects/installer/design.md:173-176`; `CLAUDE.md:8-11`; ADR 0007 | Edit denied on every Install Target; installed copies are never edited. | A change reaches installed tooling only through a committed source and an approved install; ADR 0007 makes the ask-gated `apply` "the only sanctioned way to change what agents run". | Setup |
 
 ### triage-issues and its reference wrappers
 
@@ -162,7 +167,7 @@ The six reference wrappers (`triage-inventory`, `triage-timeline`,
 |---|---|---|---|---|
 | S1 | `skills/setup-github-issues/SKILL.md:41-44` | Confirm the target repo with the user. | None given. | Setup |
 | S2 | `skills/setup-github-issues/SKILL.md:284-287` | Wait for explicit approval of the whole plan before executing. | The user may adjust it. | Setup; Ratify |
-| S3 | `skills/setup-github-issues/SKILL.md:396` | An agent deletes `TODO.md` with `git rm` once every item is an issue. | None given. | Irreversible |
+| S3 | `skills/setup-github-issues/SKILL.md:396` | An agent deletes `TODO.md` with `git rm` once every item is an issue. | None given. | none |
 
 ### home-in, use-lexicon, use-adrs
 
@@ -348,8 +353,9 @@ exact-equality tests must admit rows from elsewhere)?
   (`cli/repo_policy_test.py:42-100`).
 - **Absent from the surface:** editing a live board option
   (`cli/ghw-board-sync:10-13`), remote branch deletion
-  (`skills/use-git/SKILL.md:387-389`), branch deletion on merge
-  (`cli/ghw-pr-merge:11`).
+  (`skills/use-git/SKILL.md:387-389`). (`ghw-pr-merge` also never deletes
+  the head branch, but its stated reason is a worktree hazard, not loss:
+  `cli/ghw-pr-merge:11`, `skills/use-github/SKILL.md:272`.)
 - **Grantable, with Skill-text approval:** label deletion through the
   `apply-delete` mode, which also strips the labels from open issues
   (`cli/ghw-label-sync:11-21`, `skills/setup-github-issues/SKILL.md:330-334`).
