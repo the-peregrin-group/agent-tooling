@@ -67,10 +67,10 @@ staged rename or deletion rides `gitw-commit`'s commit-all form.
   - `4` refused: the call violated wrapper-enforced policy (identity or
     prefix mismatch, dirty worktree, stale rebase, lease failure, sweep
     guard, local pre-push hook refusal, a decline by the remote's own
-    hook, except a lost ref-update race, which means fetch and reconcile).
-A caller bug — **never retry
-    unchanged, never work around it with raw git.** The refusal is the
-    contract doing its job.
+    hook). A caller bug — **never retry unchanged, never work around it
+    with raw git.** The refusal is the contract doing its job. A lease
+    failure or a lost ref-update race is exit 4 like the rest; only the
+    advice differs: the remote moved, so fetch and reconcile.
   - `5` roster/auth/config (deployment): abort and flag the deployment. Never retry.
   - `6` network failure: the one retryable class.
 - **Load `use-privacy` first, if listed.** If a `use-privacy` skill is
