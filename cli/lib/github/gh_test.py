@@ -176,6 +176,19 @@ class IssueVerbArgvTest(unittest.TestCase):
             gh.issue_view("o/r", 5, ["title"])
 
     @mock.patch("lib.github.gh.subprocess.run")
+    def test_issue_list_open_below_limit_returns_all(self, run):
+        run.return_value = _completed(stdout='[{"number": 1, "title": "a"}]')
+        self.assertEqual(gh.issue_list_open("o/r", limit=2),
+                         [{"number": 1, "title": "a"}])
+
+    @mock.patch("lib.github.gh.subprocess.run")
+    def test_issue_list_open_at_limit_raises_instead_of_truncating(self, run):
+        run.return_value = _completed(
+            stdout='[{"number": 1, "title": "a"}, {"number": 2, "title": "b"}]')
+        with self.assertRaisesRegex(gh.GhError, "truncated"):
+            gh.issue_list_open("o/r", limit=2)
+
+    @mock.patch("lib.github.gh.subprocess.run")
     def test_issue_edit_title_passes_title_flag(self, run):
         run.return_value = _completed()
         gh.issue_edit_title("o/r", 5, "New title")

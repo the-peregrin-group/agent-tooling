@@ -119,12 +119,19 @@ def version() -> tuple[int, int, int]:
 def issue_list_open(repository: str, limit: int = 500) -> list[dict]:
     """Return the repository's open issues as [{"number": ..., "title": ...}].
 
-    Returns at most `limit` issues; any beyond that are silently omitted.
-    Raises GhError on any `gh` failure.
+    `gh` returns at most `limit` issues, so a result of exactly `limit`
+    entries may be truncated: that raises GhError rather than returning a
+    silently partial listing (a repository with exactly `limit` open issues
+    is refused too). Raises GhError on any `gh` failure.
     """
     output = _run(["issue", "list", "--repo", repository, "--state", "open",
                    "--limit", str(limit), "--json", "number,title"])
-    return _parse_json(output, "gh issue list")
+    issues = _parse_json(output, "gh issue list")
+    if len(issues) >= limit:
+        raise GhError(
+            f"{repository} has {len(issues)} open issues, the listing limit; "
+            f"the listing may be truncated, so it is refused")
+    return issues
 
 
 def issue_edit_labels(repository: str, number: int, add: list[str], remove: list[str]) -> None:
