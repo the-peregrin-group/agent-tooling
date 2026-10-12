@@ -46,7 +46,7 @@ Exit codes: 0 success, 1 unclassified git failure, 2 usage error
 4 refused (cwd/branch-prefix mismatch, empty commit, sweep guard,
 staged-outside-pathspec, unresolved conflicts, pending
 merge/cherry-pick/revert, more than one caller-written Executed-By
-trailer), 5 roster missing/malformed.
+trailer), 5 roster/auth/config (deployment).
 """
 
 from __future__ import annotations

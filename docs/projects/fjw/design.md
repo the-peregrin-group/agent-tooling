@@ -26,7 +26,7 @@ not the human user, with a credential the calling agent can never see.
   scope) sit in fixed leading positions. No ambient defaults, no
   reorderable arguments, no scope flags in the tail. `<owner/repo>` is
   always explicit; the working directory never decides where a write lands.
-- **Non-interactive.** Missing input, auth failure, or ambiguity exits
+- **Non-interactive.** Missing input, a deployment failure (exit 5), or ambiguity exits
   non-zero at once with a diagnostic on stderr.
 - **Machine-readable.** Read Verbs print raw Forgejo API JSON
   (`fjw-pr-query` wraps the raw PR in its state object). Write Verbs

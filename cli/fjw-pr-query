@@ -19,7 +19,7 @@ an error. When several open PRs share the head branch, the newest is judged.
 Acts as the deployment's machine account.
 
 Exit codes: 0 success (any state), 1 unclassified API failure, 2 usage
-error, 3 repository not found, 5 auth/config failure, 6 network failure.
+error, 3 repository not found, 5 roster/auth/config (deployment), 6 network failure.
 """
 
 from __future__ import annotations

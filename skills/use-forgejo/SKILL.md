@@ -65,7 +65,7 @@ needs attention; do not retry and do not go looking for credentials.
   - `3` not found (no such PR/repo). For probes this is data, not an error.
   - `4` refused: the call violated a wrapper-enforced policy (head-prefix
     mismatch, duplicate PR create). A caller bug — never retry unchanged.
-  - `5` auth/config failure: abort and flag the deployment. Never retry.
+  - `5` roster/auth/config (deployment): abort and flag the deployment. Never retry.
   - `6` network failure: the one retryable class.
 - **On exit 2 or 4, fix the call.** Never work around a refusal with raw
   API calls, `curl`, or `tea` — the refusal is the contract doing its job.
