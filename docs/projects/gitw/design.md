@@ -326,17 +326,20 @@ every family's implemented codes live in
 
 `gitw-commit` writes an `Executed-By: <Actor>` trailer on every commit,
 and `gitw-integrate` on the merge bubble:
-`claude-job-<id>` in a background job, `attended-<user>` otherwise,
-derived from the environment and replacing any one the caller wrote
-(more than one is exit 4). A reader of history needs to know which
-session made a commit without trusting the message author. The Actor
-derivation is shared with bdw (see [ADR 0002, Beads
-identity](../../adr/0002-beads-identity.md): one Actor per background
-job, a visibly distinct fallback for attended sessions). Both Verbs use
-one implementation (`lib.git.repo.trailered_message`): the trailer is
-added to a private copy of the staged message, never the caller's file.
-Bubbles made by a forge's merge button (mode (a)) are outside gitw and
-carry no trailer; that is a limit of the forge, not of the Verb.
+`claude-job-<session-id>` in a background job,
+`claude-session-<session-id>` in an attended session, from the harness's
+`CLAUDE_CODE_SESSION_ID`; without a usable session ID it falls back to
+`claude-job-<job-id>` or `attended-<user>`. The Actor is derived from the
+environment and replaces any one the caller wrote (more than one is exit
+4). A reader of history needs to know which session made a commit
+without trusting the message author. The Actor derivation is shared with
+bdw (see [ADR 0002, Beads identity](../../adr/0002-beads-identity.md):
+one Actor per session, a visibly distinct fallback when the session's
+identity is missing). Both Verbs use one implementation
+(`lib.git.repo.trailered_message`): the trailer is added to a private
+copy of the staged message, never the caller's file. Bubbles made by a
+forge's merge button (mode (a)) are outside gitw and carry no trailer;
+that is a limit of the forge, not of the Verb.
 
 ## Verbs
 

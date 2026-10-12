@@ -31,7 +31,9 @@ or ~/.claude/jobs/<job-id>/tmp/) and must be non-empty.
 
 Executed-By trailer: every commit carries a git trailer
 `Executed-By: <actor>`, the session actor from lib.actor.derive_actor
-(`claude-job-<job-id>` in a background job, `attended-<user>` otherwise).
+(`claude-job-<session-id>` in a background job, `claude-session-<session-id>`
+in an attended session, falling back to `claude-job-<job-id>` or
+`attended-<user>` without a usable session ID).
 It is added with `git interpret-trailers --if-exists replace`, so git's
 own trailer-block rules apply, and identity comes from the environment,
 not the caller: a caller-written Executed-By trailer is replaced by the

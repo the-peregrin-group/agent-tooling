@@ -14,7 +14,8 @@ them.
   agent-tooling installer.
 - [ ] Pin bd in the package manager that installed it, so it changes
   only deliberately: `bdw` and `quirks.md` are verified against one
-  version, and an upgrade means re-verifying them.
+  version, `bdw` refuses writes on any other, and an upgrade means
+  re-verifying them.
 
 ## Init and its cleanup
 
