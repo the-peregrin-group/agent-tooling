@@ -29,8 +29,9 @@ imported once and frozen (see
   to a local directory outside the repo, and `backup.git-push: false` is
   pinned in the tracked config.
 - **Tracked config, not a stealth init.** The three config files under
-  `.beads/` are committed: worktrees and fresh clones need the Issue prefix,
-  and removing the trial is the deletion of three files.
+  `.beads/` are committed, beside the repo's `PRIME.md`: worktrees and
+  fresh clones need the Issue prefix, and removing the trial is the
+  deletion of those four files.
 - **Hooks off.** Of Beads' git hooks only the `Executed-By:` commit trailer
   has value, and `gitw-commit` writes it instead (see
   [bdw](../bdw/index.md)).
