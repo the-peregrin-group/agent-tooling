@@ -93,6 +93,46 @@ What one call does:
    usage-error messages, such as `Error: unknown command`,
    `Error: unknown flag:`, or `Run 'bd --help' for usage.`), and after
    every failure of its own (exits 1, 3, 4, and 5).
+7. Push the database to its Dolt remote (see
+   [ADR 0013](../../adr/0013-bdw-pushes-the-beads-database-after-writes.md),
+   bdw pushes the Beads database after every write). After any call that
+   probed the workspace in step 3:
+   - while the last push failed, print one warning line on stderr naming
+     the failure's time and reason and the push log, never the remote's
+     address;
+   - when bd exited 0 and the call is not a read, start a push and return
+     at once. For this step a read is any call to a verb or subcommand in
+     the read tables of step 3, whatever its flags; `dolt` and `backup`
+     calls never push either. A write this misses (a read verb with a
+     writing flag) is pushed by the next write, since a Dolt push sends
+     every unpushed commit. `BD_NO_PUSH` set to `1`, `true`, `yes`, or `on`
+     skips the push; bd maps the same variable to its `no-push` config.
+
+   The push (`cli/lib/bdw_push.py`) runs as a detached background process,
+   so it never changes `bdw`'s exit code. It is coalesced: `bdw` leaves a
+   dirty mark and starts a worker; one worker at a time holds a lock and
+   pushes until the mark stays clear, so writes landing during a push get
+   exactly one more. Each push:
+   - reads the Dolt remotes from the embedded database's
+     `repo_state.json` (named through `metadata.json`), and does nothing
+     when there are none or the database is not in embedded mode. That
+     file is Dolt's own, not a bd interface, so a bd upgrade re-checks it
+     with the rest of the verified behavior;
+   - refuses, and records a failure, when any Dolt remote names the same
+     repository as any git remote of the workspace, comparing host and
+     path with scheme, user, port, `.git`, and case dropped, so the Issue
+     data never goes where the public code goes;
+   - skips when bd's effective `no-push` is true;
+   - runs `bd dolt push --no-adopt` with `BD_NO_REMOTE_ADOPT=1`, because
+     bd 1.3.0 otherwise offers to adopt a remote derived from the git
+     origin.
+
+   Its state lives outside the repo, in
+   `$XDG_STATE_HOME/agent-tooling/bdw-push/<key>/` (`XDG_STATE_HOME`
+   defaulting to `~/.local/state`, `<key>` a hash of the Beads
+   directory): the lock, the dirty mark, `last-failure.json` while the
+   last push failed, and `push.log`. With neither `XDG_STATE_HOME` nor
+   `HOME` set, nothing is pushed.
 
 These are bdw's codes under the
 [Exit-code contract](../../index.md#exit-code-contract): its own codes
@@ -118,6 +158,7 @@ its commits carry one identity.
 | `bd` run as a child process, arguments unchanged, output, exit status, and termination signals relayed | shipped | `bdw` |
 | The use-bd help line on every help output, usage error, and refusal | shipped | `bdw` |
 | Exit codes per the [Exit-code contract](../../index.md#exit-code-contract) | shipped | `bdw` |
+| Coalesced background push to the Dolt remote after writes, with the destination guard and the failure warning | shipped | `bdw`; `cli/lib/bdw_push.py` |
 
 ### Known gaps
 
@@ -127,3 +168,6 @@ its commits carry one identity.
 - Sub-agents share their session's environment, session ID included, so
   they record one Actor and the trail cannot tell an orchestrator from its
   implementers (`agent-tooling-jk2`).
+
+- A push started from a background session on macOS has not yet been
+  verified against a remote on the local network (`agent-tooling-cy3`).
