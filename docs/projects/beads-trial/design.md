@@ -1,47 +1,57 @@
 # Beads trial: design
 
-How the trial is built and why. What is in place and what is planned is in
-[index.md](index.md). The trial's founding decision is to make Beads the
-repo's sole Issue Tracker, local-only, without hooks, with GitHub Issues
-imported once and frozen (see
-[ADR 0001](../../adr/0001-adopt-beads-for-the-tracker-trial.md)).
+How Beads is set up in this repo and why. What is in place and what is
+planned is in [index.md](index.md). The setup began as a trial whose
+founding decision made Beads the repo's sole Issue Tracker, local-only,
+without hooks, with GitHub Issues imported once and frozen (see
+[ADR 0001](../../adr/0001-adopt-beads-for-the-tracker-trial.md), adopt
+Beads as the sole work tracker for a local-only trial). The trial ended
+with Beads kept for agent-swarmed work and long-lived work bound for forge
+issues (see
+[ADR 0011](../../adr/0011-beads-for-swarmed-work-forge-issues-for-long-lived-work.md),
+Beads tracks agent-swarmed work).
 
 ## Principles
 
-- **One Issue Tracker per repo.** Beads and a human-facing Issue Tracker
-  solve different problems only in how their authors scope the products;
-  at the data-model level one store per repo is enough. Two writable Issue
-  Trackers for one repo would make the trial's question unanswerable.
+- **One writable home per Issue.** Today that means one Issue Tracker for
+  the repo, Beads. When the long tail moves back to forge issues, Beads and
+  forge issues will both hold Issues, but each Issue is writable in exactly
+  one of them at a time.
 - **No sync, in either direction.** Any cross-repo view of Issues is
   read-only aggregation on top of each repo's Issue Tracker. None is
   built.
-- **Nothing leaves the machine.** The database has no remote, so the trial
-  adds no outbound write path.
+- **Issue data stays private.** The database has no remote today. The one
+  remote it will get is a private repository on the maintainer's
+  self-hosted Forgejo, never the public GitHub origin (see
+  [ADR 0012](../../adr/0012-beads-data-syncs-to-private-forgejo-remote.md),
+  Beads data syncs to a private Forgejo remote).
 
 ## The shape, and why
 
-- **Local-only, no Dolt remote.** A Beads push never passes through git
-  (see [known behavior](index.md#beads-130-known-behavior)): neither git's
-  pre-push hooks nor any gitw Verb sees it. This repo's pushes pass a
-  pre-push content lint, and Issue content pushed through Dolt would escape
-  it. The database therefore stays on the maintainer's machine until Issue
-  content has a lint path (see the [phase-two proposal](phase-two.md)). Backups go
-  to a local directory outside the repo, and `backup.git-push: false` is
-  pinned in the tracked config.
+- **Local-only, no Dolt remote, for now.** A Beads push never passes
+  through git (see [known behavior](index.md#beads-130-known-behavior)):
+  neither git's pre-push hooks nor any gitw Verb sees it. This repo's
+  pushes pass a pre-push content lint, and Issue content pushed through
+  Dolt to the public origin would escape it. The database therefore stays
+  on the maintainer's machine until its private remote lands
+  (`agent-tooling-cy3`), which keeps Issue content off any public host so
+  that it needs no lint path. Backups go to a local directory outside the
+  repo, and `backup.git-push: false` is pinned in the tracked config.
 - **Tracked config, not a stealth init.** The three config files under
-  `.beads/` are committed: worktrees and fresh clones need the Issue prefix,
-  and removing the trial is the deletion of three files.
+  `.beads/` are committed, beside the repo's `PRIME.md`: worktrees and
+  fresh clones need the Issue prefix, and removing the trial is the
+  deletion of those four files.
 - **Hooks off.** Of Beads' git hooks only the `Executed-By:` commit trailer
   has value, and `gitw-commit` writes it instead (see
   [bdw](../bdw/index.md)).
 - **Forgetting off.** Closed Issues are hidden from agents' default views,
   so the lossy forgetting commands buy nothing; they are denied, and
   nothing else in Beads deletes.
-- **Import once, then freeze.** The open GitHub issues were pulled into
-  Beads one way (`bd github sync --pull-only`, token from the environment,
-  never stored). GitHub then takes no writes for the trial's duration.
-  Missing the GitHub view during the freeze is itself a finding about
-  Beads' human surface.
+- **Import once, then leave GitHub idle.** The open GitHub issues were
+  pulled into Beads one way (`bd github sync --pull-only`, token from the
+  environment, never stored). GitHub has taken no Issue writes since, and
+  takes none until the long tail moves back to forge issues
+  (`agent-tooling-ze3`); GitHub Issues stays enabled so it can.
 
 ## Permission rules
 

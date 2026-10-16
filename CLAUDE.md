@@ -45,13 +45,15 @@ the network.
 
 ## Issue tracking & workflow
 
-**Trial freeze, from 2026-09-24 until the go/no-go recorded on pinned issue
-#18:** work tracking lives in **Beads** (`bd`). The committed `.beads/` files
-are config only; the database is local to the maintainer's machine. GitHub
-Issues are frozen: the open issues were imported into Beads once, one way,
-and no GitHub issue is filed, edited, relabeled, reprioritized, or closed
-while the freeze holds. There is no sync in either direction. ADR 0001 has
-the reasons.
+Work tracking lives in **Beads** (`bd`), this repo's only Issue Tracker. The
+committed `.beads/` files are config only; the database is local to the
+maintainer's machine. GitHub Issues stays enabled but takes no work: the
+open issues were imported into Beads once, one way, on 2026-09-24, and stay
+open on GitHub as stale copies. No GitHub issue is filed, edited, relabeled,
+reprioritized, or closed until the long tail moves back to forge issues
+(`agent-tooling-ze3`). There is no sync in either direction. ADR 0011 (Beads
+tracks agent-swarmed work; long-lived work belongs in forge issues) has the
+reasons, and `docs/projects/beads-trial/` the setup.
 
 **Load the `use-bd` skill at session start**: it is the operating manual for
 Beads through `bdw`. This repo's Beads conventions (labels, the friction
@@ -65,9 +67,9 @@ rules are prefix rules, so they are not safe in auto mode until the
 parsed-command deny hook lands.
 
 Pull requests are unaffected. **Load the `use-github` skill before opening a
-PR**; its issue-filing and board conventions are suspended for the trial, and a
-PR body names the issue it lands (`Lands agent-tooling-xyz`) instead of
-`Closes #N`.
+PR**; its issue-filing and board conventions do not apply while Beads is the
+Issue Tracker, and a PR body names the Issue it lands
+(`Lands agent-tooling-xyz`) instead of `Closes #N`.
 
 ## Agent integration branches
 

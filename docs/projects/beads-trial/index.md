@@ -1,27 +1,34 @@
 # Beads trial
 
 This repo tracks its own work in [Beads](https://github.com/gastownhall/beads)
-(`bd`) as its only Issue Tracker, for a trial whose verdict decides whether
-Beads stays. The trial tests Beads run well, not Beads used bare: whether,
-with the systems and guardrails that let agents cooperate on it (the
-[use-bd](../use-bd/index.md) Skill and [`bdw`](../bdw/index.md)), agents
-work on Beads uniformly and reliably across sessions, with every claim and
-change attributable to one Actor. Friction that our own layer can fix
-without changing Beads' fundamental nature counts against our tooling, not
-Beads. The freeze has held since 2026-09-24:
+(`bd`) as its only Issue Tracker. That began on 2026-09-24 as a trial, and
+the trial ended on 2026-10-16 with Beads kept: Beads tracks the work agents
+swarm, and long-lived, low-churn, or human-driven work belongs in forge
+issues (GitHub or Forgejo Issues). This repo stays on Beads alone until its
+long tail can move back to forge issues (see
+[ADR 0011](../../adr/0011-beads-for-swarmed-work-forge-issues-for-long-lived-work.md),
+Beads tracks agent-swarmed work). What makes Beads work here is the layer
+that lets agents cooperate on it: the [use-bd](../use-bd/index.md) Skill,
+[`bdw`](../bdw/index.md), and the Permission rules.
 
-- **Local-only.** Beads 1.3.0 keeps its database in an embedded Dolt store on
-  the maintainer's machine. It has no Dolt remote and syncs nowhere. git
-  tracks only four files under `.beads/`: the config files `.gitignore`,
-  `config.yaml`, and `metadata.json`, and `PRIME.md`, the repo's Beads
-  conventions that `bd prime` prints. `config.yaml` keeps `sync.remote`
-  commented out as a record and pins `backup.git-push: false`, so backups
-  stay on the machine in every clone.
-- **GitHub Issues frozen.** The open GitHub issues were imported once, one
-  way; each carries its GitHub URL as its external reference. No GitHub
-  issue is filed, edited, relabeled, reprioritized, or closed while the
-  freeze holds, and there is no sync in either direction. Pinned issue #18
-  says so for anyone arriving from the web.
+- **Local-only, for now.** Beads 1.3.0 keeps its database in an embedded
+  Dolt store on the maintainer's machine. It has no Dolt remote and syncs
+  nowhere; a private remote on the maintainer's self-hosted Forgejo is
+  planned (see
+  [ADR 0012](../../adr/0012-beads-data-syncs-to-private-forgejo-remote.md),
+  Beads data syncs to a private Forgejo remote). git tracks only four files
+  under `.beads/`: the config files `.gitignore`, `config.yaml`, and
+  `metadata.json`, and `PRIME.md`, the repo's Beads conventions that
+  `bd prime` prints. `config.yaml` keeps `sync.remote` commented out as a
+  record and pins `backup.git-push: false`, so backups never travel over
+  git.
+- **GitHub Issues kept, but idle.** The open GitHub issues were imported
+  into Beads once, one way, on 2026-09-24; each Beads copy carries its
+  GitHub URL as its external reference. GitHub Issues stays enabled and the
+  imported issues stay open there as stale copies: Beads holds the live
+  versions, nothing is filed or changed on GitHub until the long tail moves
+  back, and there is no sync in either direction. Pinned issue #18 says so
+  for anyone arriving from the web.
 - **Agents go through [`bdw`](../bdw/index.md).** Raw `bd` and `beads`
   are denied, reads included.
 - **Permission rules** in `.claude/settings.json` decide which Beads calls
@@ -36,22 +43,27 @@ Beads. The freeze has held since 2026-09-24:
 - **Another repo** can repeat the setup with use-bd's onboarding
   checklist, `skills/use-bd/onboarding.md`.
 
-Why the trial has this shape, and the alternatives it rules out, is in
-[design.md](design.md). How it closes and what follows is the ratified
-[phase-two proposal](phase-two.md).
+Why the setup has this shape, and the alternatives it rules out, is in
+[design.md](design.md). The [phase-two proposal](phase-two.md), dated
+2026-10-01, records the plan for closing the trial that ADR 0011 replaced.
 
 ## Status
 
 | Capability | State | Where |
 |---|---|---|
 | Beads as the sole, local-only Issue Tracker, with only its config committed | shipped | `.beads/`; [design.md](design.md) |
-| One-way import of the open GitHub issues, then the freeze | shipped | `CLAUDE.md`; pinned issue #18 |
+| One-way import of the open GitHub issues, with GitHub Issues kept but idle | shipped | `CLAUDE.md`; pinned issue #18 |
 | Permission rules for `bd`, `bdw`, and `beads`, with a spec test that requires the JSON to equal its generated set | shipped | `.claude/settings.json`; `cli/repo_policy_test.py` |
-| Go/no-go verdict as an ADR, with the GitHub Issues wind-down or refile | planned | [phase-two.md](phase-two.md); `agent-tooling-0pe` |
-| Phase two: a second repo syncing Issues to its git remote | planned | [phase-two.md](phase-two.md); `agent-tooling-frm` |
+| Trial verdict: Beads kept for agent-swarmed work | shipped | [ADR 0011](../../adr/0011-beads-for-swarmed-work-forge-issues-for-long-lived-work.md) |
+| A private Dolt remote on the maintainer's self-hosted Forgejo | planned | [ADR 0012](../../adr/0012-beads-data-syncs-to-private-forgejo-remote.md); `agent-tooling-cy3` |
+| Beads and forge issues together, so the long tail moves back to forge issues while swarms check work out to Beads | planned | [ADR 0011](../../adr/0011-beads-for-swarmed-work-forge-issues-for-long-lived-work.md); `agent-tooling-ze3` |
+| Phase two: a second repo syncing its Issues before a verdict | retired | [ADR 0011](../../adr/0011-beads-for-swarmed-work-forge-issues-for-long-lived-work.md) |
 
 ### Known gaps
 
+- The database and its backups live only on the maintainer's machine, so
+  losing that machine loses the Issue Tracker, until the private remote
+  lands (`agent-tooling-cy3`).
 - Prefix rules cannot see a verb hidden inside a nested shell string, so
   the Permission rules are not safe in auto mode until a parsed-command deny
   hook lands (`agent-tooling-1790288522490-13-6d52b051`).

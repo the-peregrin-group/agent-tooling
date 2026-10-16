@@ -27,9 +27,10 @@ projects, which lives under `docs/audits/`.
 
 ### Tracking work
 
-- [beads-trial](projects/beads-trial/index.md): the in-repo trial of
-  Beads as the Issue Tracker; its [design](projects/beads-trial/design.md)
-  and the phase-two proposal.
+- [beads-trial](projects/beads-trial/index.md): Beads as this repo's
+  Issue Tracker, kept after an in-repo trial; its
+  [design](projects/beads-trial/design.md) and the dated phase-two
+  proposal.
 - [use-bd](projects/use-bd/index.md): the Skill that is the operating
   manual for Beads through `bdw`, including onboarding a new repo; its
   version-one proposal.
