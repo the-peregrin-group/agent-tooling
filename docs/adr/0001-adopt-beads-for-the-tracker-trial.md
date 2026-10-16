@@ -1,5 +1,6 @@
 ---
 date: 2026-09-24
+status: amended
 ---
 
 # Adopt Beads as the sole work tracker for a local-only trial
@@ -33,3 +34,8 @@ date: 2026-09-24
 
 **Description:** Keep the `.beads/` config out of git via `.git/info/exclude`.
 **Rejection rationale:** Per-checkout invisible state that worktrees and fresh clones cannot resolve the prefix from, and `bdw` and the policy make the trial visible in the tree anyway; the committed footprint is three config files and a rip-out is their deletion.
+
+## Amended by
+
+- [ADR-0011](0011-beads-for-swarmed-work-forge-issues-for-long-lived-work.md): The trial is over and Beads stays this repo's sole Issue Tracker for now, so the freeze until a go/no-go on pinned issue #18 no longer applies, and GitHub Issues stays enabled rather than being frozen pending a verdict.
+- [ADR-0012](0012-beads-data-syncs-to-private-forgejo-remote.md): The database is no longer to stay local-only: it syncs to a private remote on the maintainer's self-hosted Forgejo, never to the public GitHub origin.
