@@ -36,16 +36,16 @@ an ADR duplicates the context of the document that motivated it
 | Renaming and retiring terms, and resolving conflicts between code and the lexicon | shipped | `skills/use-lexicon/writing-lexicon.md` |
 | Correcting drift from the lexicon's terms in conversation | shipped | `skills/use-lexicon/SKILL.md` |
 | Lexicon injected at session start by a hook, with no per-project pointer | planned | `agent-tooling-0s1.4` |
-| Conversion sweeps a dropped or renamed glossary term from State docs and open Issues instead of adding a Retired terms line | planned | `agent-tooling-i3n` |
-| A third-party product's own vocabulary excluded from the lexicon | planned | `agent-tooling-i3n` |
-| Every invariant listed in an entry's Invariants field, even when the definition already implies it | planned | `agent-tooling-i3n` |
+| Conversion sweeps a dropped or renamed glossary term from State docs and open Issues instead of adding a Retired terms line | shipped | `skills/use-lexicon/SKILL.md` |
+| A third-party product's own vocabulary excluded from the lexicon | shipped | `skills/use-lexicon/writing-lexicon.md` |
+| Every invariant listed in an entry's Invariants field, even when the definition already implies it | shipped | `skills/use-lexicon/writing-lexicon.md` |
 | ADR placement, numbering, and file naming | shipped | `skills/use-adrs/SKILL.md` |
 | The three-part gate on what deserves an ADR, and a draft ADR for the reviewer when unattended | shipped | `skills/use-adrs/SKILL.md` |
 | Reading ADRs before design work, bound by the one decision each records, and amending or superseding rather than silently contradicting one | shipped | `skills/use-adrs/SKILL.md` |
 | The ADR template, one decision per ADR, hard length limits, self-contained snapshot, and citation by inline summary and link | shipped | `skills/use-adrs/writing-adrs.md` |
 | Edits to a landed ADR: the decision and its date never change; capture fixes ratified by the user, objective fixes without; truing up older ADRs; `current`, `amended`, and `superseded` status; observations kept out; adopted ADRs dated by their original decision | shipped | `skills/use-adrs/writing-adrs.md` |
 | Loading the use-privacy Skill, when listed, before writing anything bound outward, in home-in and use-adrs | shipped | `skills/home-in/SKILL.md`, `skills/use-adrs/SKILL.md` |
-| Loading the use-privacy Skill, when listed, before writing anything bound outward, in use-lexicon | planned | `agent-tooling-i3n` |
+| Loading the use-privacy Skill, when listed, before writing anything bound outward, in use-lexicon | shipped | `skills/use-lexicon/SKILL.md` |
 
 ### Known gaps
 

@@ -24,6 +24,7 @@ from unittest import mock
 import ghw_test_support
 
 _SCRIPT = Path(__file__).resolve().parent / "ghw-issue-close"
+_CONTRACT_BODY = "/tmp/claude/argument-contract-body.md"
 _MISSING_COMMENT = "/tmp/claude/ghw-issue-close-test-missing-comment.md"
 
 
@@ -39,26 +40,59 @@ _MODULE = ghw_test_support.load_wrapper_module(_SCRIPT)
 
 class GhwIssueCloseArgumentsTest(unittest.TestCase):
     def test_wrong_argument_count_is_usage_error(self):
-        for arguments in ((), ("o/r",), ("o/r", "5", "c", "extra")):
+        for arguments in ((), ("o/r",), ("o/r", "5"), ("o/r", "5", "c", "extra")):
             with self.subTest(arguments=arguments):
                 result = _run(*arguments)
                 self.assertEqual(result.returncode, 2)
                 self.assertIn("usage: ghw-issue-close", result.stderr)
 
+    def test_missing_comment_names_the_required_file(self):
+        result = _run("o/r", "5")
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("comment is required", result.stderr)
+        self.assertIn("<comment-file>", result.stderr)
+
     def test_malformed_repo_is_usage_error(self):
-        result = _run("not-a-repo", "5")
+        result = _run("not-a-repo", "5", _MISSING_COMMENT)
         self.assertEqual(result.returncode, 2)
         self.assertIn("owner/name", result.stderr)
 
     def test_bad_issue_number_is_usage_error(self):
-        result = _run("o/r", "issue-five")
+        result = _run("o/r", "issue-five", _MISSING_COMMENT)
         self.assertEqual(result.returncode, 2)
         self.assertIn("positive integer", result.stderr)
 
     def test_missing_comment_file_is_refused(self):
         result = _run("o/r", "5", _MISSING_COMMENT)
         self.assertEqual(result.returncode, 2)
-        self.assertIn("refusing body file", result.stderr)
+        self.assertIn("refusing comment file", result.stderr)
+
+    def test_flag_shaped_comment_file_is_refused_at_parse_time(self):
+        result = _run("o/r", "5", "--bogus")
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("takes no flags", result.stderr)
+
+    def test_flag_shaped_comment_file_is_refused_even_when_it_exists(self):
+        # A real file named '--bogus' in a staging directory, reached as a
+        # path relative to the cwd: staging alone would accept it, so only
+        # the parse-time check refuses it. An empty HOME and PATH keep a
+        # regression from reaching gh.
+        os.makedirs("/tmp/claude", exist_ok=True)
+        with tempfile.TemporaryDirectory(dir="/tmp/claude") as directory:
+            Path(directory, "--bogus").write_text("closing reason")
+            result = subprocess.run(
+                [sys.executable, str(_SCRIPT), "o/r", "5", "--bogus"],
+                cwd=directory,
+                env={
+                    **os.environ,
+                    "HOME": "/tmp/claude/ghw-issue-close-test-home-absent",
+                    "PATH": "/tmp/claude/ghw-issue-close-test-path-absent",
+                },
+                capture_output=True, text=True, stdin=subprocess.DEVNULL,
+                timeout=30,
+            )
+        self.assertEqual(result.returncode, 2, result.stderr)
+        self.assertIn("takes no flags", result.stderr)
 
     def test_help_prints_doc_and_exits_zero(self):
         result = _run("--help")
@@ -90,6 +124,19 @@ class GhwIssueCloseBehaviorTest(unittest.TestCase):
         self.assertFalse(payload["changed"])
         self.assertIn("comment not posted", payload["note"])
 
+    def test_blank_comment_is_refused_before_any_api_call(self):
+        with open(self._comment_path, "w") as handle:
+            handle.write(" \n\t\n")
+        with mock.patch.object(_MODULE.gh, "issue_view") as view, \
+                mock.patch.object(_MODULE.gh, "issue_close") as close, \
+                contextlib.redirect_stderr(io.StringIO()) as stderr, \
+                self.assertRaises(SystemExit) as raised:
+            _MODULE.main(["o/r", "5", self._comment_path])
+        self.assertEqual(raised.exception.code, 2)
+        self.assertIn("blank", stderr.getvalue())
+        view.assert_not_called()
+        close.assert_not_called()
+
     def test_open_issue_closes_with_the_comment(self):
         with mock.patch.object(_MODULE.gh, "issue_view",
                                return_value={"state": "OPEN"}), \
@@ -98,6 +145,47 @@ class GhwIssueCloseBehaviorTest(unittest.TestCase):
             self.assertEqual(_MODULE.main(["o/r", "5", self._comment_path]), 0)
         close.assert_called_once_with("o/r", 5, "closing reason")
         self.assertTrue(json.loads(stdout.getvalue())["changed"])
+
+    def _close_exit_code(self, error):
+        with mock.patch.object(_MODULE.gh, "issue_view",
+                               return_value={"state": "OPEN"}), \
+                mock.patch.object(_MODULE.gh, "issue_close", side_effect=error):
+            return ghw_test_support.exit_code_of(
+                _MODULE, ["o/r", "5", self._comment_path])
+
+    def test_network_failure_closing_exits_1(self):
+        # gh posts the comment before sending the close, so a retry would
+        # post it twice: the failure must not advertise itself as retryable.
+        for landed in (True, False):
+            with self.subTest(landed=landed):
+                error = _MODULE.gh.GhError("boom", 6, may_have_landed=landed)
+                self.assertEqual(self._close_exit_code(error), 1)
+
+    def test_other_classified_close_failures_pass_through(self):
+        for code in (3, 5):
+            with self.subTest(code=code):
+                error = _MODULE.gh.GhError("boom", code)
+                self.assertEqual(self._close_exit_code(error), code)
+
+    def test_network_failure_reading_the_issue_stays_6(self):
+        # Nothing was written yet, so the read keeps its classified code.
+        error = _MODULE.gh.GhError("boom", 6)
+        with mock.patch.object(_MODULE.gh, "issue_view", side_effect=error), \
+                mock.patch.object(_MODULE.gh, "issue_close") as close:
+            code = ghw_test_support.exit_code_of(
+                _MODULE, ["o/r", "5", self._comment_path])
+        self.assertEqual(code, 6)
+        close.assert_not_called()
+
+
+class GhwIssueCloseArgumentContractTest(
+    ghw_test_support.ArgumentContractTests, unittest.TestCase
+):
+    SCRIPT = _SCRIPT
+    LONGEST = ("o/r", "5", _CONTRACT_BODY)
+    FLAG_SLOT_FORMS = (
+        ("o/r", "5", "--bogus"),
+    )
 
 
 if __name__ == "__main__":

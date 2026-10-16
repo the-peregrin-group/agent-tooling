@@ -126,11 +126,52 @@ def query_state(
     return "conflicted", pr
 
 
+def repo_visible(config: Config, repository: str) -> bool:
+    """True when `GET /repos/{repository}` succeeds, False on 404, other
+    errors raise. Forgejo answers 404 for a repo the caller may not see, so
+    False means "does not exist or this identity cannot see it"."""
+    try:
+        api.request(config, "GET", f"/repos/{repository}")
+    except api.ApiError as error:
+        if error.exit_code == plan.EXIT_NOT_FOUND:
+            return False
+        raise
+    return True
+
+
+def disambiguate_not_found(
+    config: Config, repository: str, error: api.ApiError
+) -> None:
+    """Call from a handler for a resource-level GET that 404ed, before
+    treating the resource as missing. Probes the repo once; when the repo
+    is also invisible, raises ApiError exit 3 naming both possibilities.
+    Returns None when the repo is visible (the resource is really missing,
+    so the caller keeps its contextual handling). Not for the happy path:
+    the probe costs one request. Only a 404 is disambiguated; any other
+    error is not this helper's to relabel."""
+    if error.exit_code != plan.EXIT_NOT_FOUND:
+        return
+    if repo_visible(config, repository):
+        return
+    raise api.ApiError(
+        f"repository {repository!r} was not found: either it does not "
+        "exist, or this identity cannot see it (the server answers 404 "
+        "for both). If the slug is correct, the machine account lacks a "
+        "grant on it; report that to the user and do not retry "
+        f"({error})",
+        plan.EXIT_NOT_FOUND,
+        error.status,
+    )
+
+
 def branch_exists(config: Config, repository: str, branch: str) -> bool:
+    """True when the branch exists; False when it is missing from a
+    visible repo; ApiError exit 3 when the repo itself is not visible."""
     try:
         api.request(config, "GET", f"/repos/{repository}/branches/{branch}")
     except api.ApiError as error:
         if error.exit_code == plan.EXIT_NOT_FOUND:
+            disambiguate_not_found(config, repository, error)
             return False
         raise
     return True
@@ -192,6 +233,47 @@ def list_comments(config: Config, repository: str, index: int) -> list[dict]:
         if len(batch) < _PAGE_SIZE:
             return comments
         page += 1
+
+
+def list_reviews(config: Config, repository: str, index: int) -> list[dict]:
+    """Every review on PR `index`, paginated until an empty page.
+
+    Not the short-page stop used for comments: Forgejo paginates reviews
+    and then filters them (pending reviews of other users are dropped),
+    so a page can be short while more pages remain. One extra GET buys
+    certainty.
+    """
+    reviews: list[dict] = []
+    page = 1
+    while True:
+        batch = api.request(
+            config,
+            "GET",
+            f"/repos/{repository}/pulls/{index}/reviews",
+            query={"limit": str(_PAGE_SIZE), "page": str(page)},
+        ) or []
+        if not batch:
+            return reviews
+        reviews.extend(batch)
+        page += 1
+
+
+def list_review_comments(
+    config: Config, repository: str, index: int, review_id: int
+) -> list[dict]:
+    """Every inline comment of one review on PR `index`.
+
+    One unpaginated GET, on purpose: Forgejo's handler for this route
+    (GetPullReviewComments in routers/api/v1/repo/pull_review.go) takes no
+    ListOptions and returns the whole list, ignoring page and limit. A
+    page loop here would never see a short page on a review with
+    _PAGE_SIZE or more comments and would spin forever.
+    """
+    return api.request(
+        config,
+        "GET",
+        f"/repos/{repository}/pulls/{index}/reviews/{review_id}/comments",
+    ) or []
 
 
 def close_pr(config: Config, repository: str, index: int) -> dict:

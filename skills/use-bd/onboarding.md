@@ -14,7 +14,8 @@ them.
   agent-tooling installer.
 - [ ] Pin bd in the package manager that installed it, so it changes
   only deliberately: `bdw` and `quirks.md` are verified against one
-  version, and an upgrade means re-verifying them.
+  version, `bdw` refuses writes on any other, and an upgrade means
+  re-verifying them.
 
 ## Init and its cleanup
 
@@ -56,9 +57,10 @@ them.
   bd dolt remote remove origin
   ```
 
-  Untested: `bd config --help` lists `dolt.local-only`, a `config.yaml`
-  key that skips wiring the remote at init; whether init overwrites a
-  `config.yaml` written before it is open.
+  `bdw help config` lists `dolt.local-only`, a `config.yaml` key that
+  skips wiring a Dolt sync remote during init. To take effect it must be in
+  a `config.yaml` written before init, and whether init overwrites that
+  file is untested. `bdw help dolt remote` confirms `remove <name>`.
 
 - [ ] Move the backup out of the repo. Init enables auto-backup when a
   remote exists, and the first backup lands in `.beads/backup/` inside
@@ -113,13 +115,27 @@ them.
   lands, how a `TODO` comment cites an Issue). It states conventions and
   points; it never grants or denies an operation, because what agents may
   run is decided only by the reviewed Permission rules.
-- [ ] Add Permission rules for `bdw` to the repo's `.claude/settings.json`:
+- [ ] Add the canonical Permission rules for `bdw` to the repo's
+  `.claude/settings.json`. They ship beside this file as `rules.json`:
   reads and reversible writes allowed through `bdw`; raw `bd` and `beads`
   denied outright, reads included; the irreversible, off-machine, and
   record-falsifying verbs denied; and what steps around a safeguard
-  (taking over a claim, forcing a close) asked for. Until use-bd ships its canonical rule
-  set, agent-tooling's own `.claude/settings.json` and the spec that
-  generates it (`cli/repo_policy_test.py`) are the model to copy.
+  (taking over a claim, forcing a close) asked for. Each of its `deny`,
+  `ask`, and `allow` lists is a list of groups, and each group says why it
+  exists and gives its rows outright (`rows`) or as `verbs` that fill in
+  each of its `shapes` at `{v}`. Expand every group into the matching
+  list of the repo's settings. No shipped tool does the expansion yet
+  (agent-tooling-j6x); agent-tooling's `canonical_rows()` in
+  `cli/use_bd_rules_test_support.py` is the reference, so expand with a
+  copy of it rather than by hand, since a hand-dropped spelling of a
+  denied verb prompts instead of being refused. The repo may add rules of
+  its own but keeps every canonical row. Shell indirections (`env *`,
+  `sh -c *`, `xargs *`, `eval *`, and similar) hide a verb from prefix
+  matching, so asking for them is worth considering too; they are not in
+  the canonical set because they rule on every shell command, not only on
+  Beads. Give
+  the repo a spec test that checks its settings contain the canonical set;
+  agent-tooling's `cli/repo_policy_test.py` is one to copy.
 - [ ] Point the repo's `CLAUDE.md` at this skill rather than restating
   Beads procedure: "Issues are tracked in Beads; load `/use-bd`."
 

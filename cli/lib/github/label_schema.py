@@ -33,7 +33,8 @@ File shape (JSON, never YAML -- the wrappers are stdlib-only):
     would strip the very P0-P3 labels that repo tracks priority with.
 
 Everything the file does not declare is a deletion candidate, which is what
-makes the sync declarative -- including GitHub's nine stock labels.
+makes the sync declarative -- including eight of GitHub's nine stock labels
+(stock `bug` is a canonical type label and is kept).
 """
 
 from __future__ import annotations

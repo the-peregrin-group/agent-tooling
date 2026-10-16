@@ -25,8 +25,9 @@ Beads. The freeze has held since 2026-09-24:
 - **Agents go through [`bdw`](../bdw/index.md).** Raw `bd` and `beads`
   are denied, reads included.
 - **Permission rules** in `.claude/settings.json` decide which Beads calls
-  run, prompt, or are refused. `cli/repo_policy_test.py` is their spec: its
-  tuples generate the expected rules, and the test requires the JSON to
+  run, prompt, or are refused. `cli/repo_policy_test.py` is their spec: it
+  generates the expected rules from use-bd's canonical rule set
+  (`skills/use-bd/rules.json`) plus a local layer, and requires the JSON to
   equal them.
 - **The loop** and everything else about working Beads is taught by the
   [use-bd](../use-bd/index.md) Skill; this repo's conventions (labels, the
@@ -54,12 +55,8 @@ Why the trial has this shape, and the alternatives it rules out, is in
 - Prefix rules cannot see a verb hidden inside a nested shell string, so
   the Permission rules are not safe in auto mode until a parsed-command deny
   hook lands (`agent-tooling-1790288522490-13-6d52b051`).
-- A denied verb's `--help` is denied too, so agents cannot read the flags of
-  the commands they document (`agent-tooling-0bd`).
 - A deny rule also matches a write whose Issue text names a denied verb or
   flag, so Issue text spells those in words (`agent-tooling-9nx`).
-- The Permission rules' spec docstring still calls the bare-call match of
-  a trailing space-star unobserved (`agent-tooling-na2`).
 
 ## Beads 1.3.0 known behavior
 

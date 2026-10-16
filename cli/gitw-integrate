@@ -16,7 +16,8 @@ prefix matches any branch except the authoritative default. The steps:
    first, then loop again");
 2. build the two-parent integration bubble with `git commit-tree` (tree:
    the branch tip's tree; first parent: the fetched base tip; second
-   parent: the branch tip; message from the staged message file);
+   parent: the branch tip; message from the staged message file plus an
+   `Executed-By: <actor>` trailer, below);
 3. push the new commit to the base branch under an exact lease --
    `--force-with-lease=refs/heads/<base>:<fetched-tip>` -- a
    compare-and-swap on the very tip the descendant check used. When the
@@ -29,6 +30,21 @@ prefix matches any branch except the authoritative default. The steps:
    remote is caught earlier: the fetch prunes its tracking ref, so the
    existence check fails with exit 3 instead of a plain push silently
    recreating it.
+
+Executed-By trailer: the bubble carries the same trailer gitw-commit
+writes, `Executed-By: <actor>`, the session actor from
+lib.actor.derive_actor (`claude-job-<session-id>` in a background job,
+`claude-session-<session-id>` in an attended session, falling back to
+`claude-job-<job-id>` or `attended-<user>` without a usable session ID),
+so the one commit that moves the base is attributable too. The rules are gitw-commit's, from one shared
+implementation (lib.git.repo.trailered_message): a caller-written
+Executed-By trailer is replaced by the derived actor, and a message
+holding more than one is refused (exit 4) before anything is pushed. The
+message is copied, with a guaranteed final newline, to a private
+temporary file and the trailer added there; the staged message file is
+never modified. The JSON output reports the actor as `executed_by`. A
+bubble made by a forge's merge button is outside gitw and carries no
+trailer.
 
 <base-branch> names the integration target; the allowlist pins it. It is
 deliberately not required to equal the roster's default_branch (a repo
@@ -57,27 +73,40 @@ the hook after the local lease rejection); both are exit 4, and the
 moved base surfaces on the next attempt. With no trace2 events
 (an unwritable trace path) the classification is text-only, a hook
 refusal reads as exit 6, and the error line says so. A rejection by
-the remote's own hooks (branch protection on the base, for one) is
-still reported as exit 6 today (issue agent-tooling-h3c).
+the remote's own hooks (branch protection on the base, for one) prints
+a "[remote rejected]" status and is exit 4 as well: it is checked before
+the base-moved text, and the fix is on the branch, not a retry. The
+exception is a reason in parentheses naming a lost ref-update race
+("failed to update ref" and kin): that gets the base-moved advice,
+loop again from the rebase.
+
+Hung hook: a push that times out with a pre-push hook started and never
+exited (detected from the trace2 events) relays the partial output and
+refuses with exit 4; a retry would re-run the hook. Without trace2 it reads
+as the timeout's exit 6.
 
 Exit codes: 0 success, 1 unclassified git failure, 2 usage error
 (including an unusable or empty message file), 3 not found (label not in
 the roster, or the base branch missing on the remote), 4 refused
 (cwd/branch-prefix mismatch, dirty worktree, branch not a descendant of
-the fetched base tip, nothing to integrate, base moved during the
-attempt, machine-local, or a pre-push hook refusal: fix what the hook
-reported, never retry unchanged), 5 roster missing/malformed or auth
-failure, 6 network failure.
+the fetched base tip, nothing to integrate, a base that is HEAD or a
+symbolic alias of the default branch, base moved during the
+attempt, more than one caller-written Executed-By trailer,
+machine-local, a pre-push hook refusal or hang, or a remote hook
+decline: fix what the hook reported, never retry unchanged), 5
+roster/auth/config (deployment), 6 network failure.
 """
 
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from lib import plan, staging
+from lib.actor import derive_actor
 from lib.git import arguments, repo, roster, run
 
 _USAGE = "gitw-integrate <repo> <base-branch> <branch-prefix> <message-file>"
@@ -136,7 +165,9 @@ def main(argv: list[str]) -> int:
                 "would move a possibly-checked-out local base branch -- "
                 "exactly the primary-checkout mutation this verb avoids"
             )
-        payload = _integrate(workspace, base, prefix, message_file)
+        payload = _integrate(
+            workspace, base, prefix, message, derive_actor(os.environ)
+        )
     except repo.RefusalError as error:
         run.die(str(error), plan.EXIT_REFUSED)
     except run.GitError as error:
@@ -147,7 +178,8 @@ def main(argv: list[str]) -> int:
 
 
 def _integrate(
-    workspace: repo.Workspace, base: str, prefix: str, message_file: Path
+    workspace: repo.Workspace, base: str, prefix: str, message: str,
+    actor: str,
 ) -> dict:
     entry = workspace.entry
     root = workspace.root
@@ -157,6 +189,13 @@ def _integrate(
     if branch.casefold() == base.casefold():
         raise repo.RefusalError(
             f"branch and base are both {base!r}; nothing to integrate into"
+        )
+    # HEAD (origin/HEAD) is the default under another spelling.
+    if base.partition("/")[0].casefold() == "head":
+        raise repo.RefusalError(
+            f"{base!r} names the default branch by another spelling "
+            f"(HEAD); name the default branch, {entry.default_branch!r}, "
+            "as the base instead"
         )
     dirty = repo.status_counts(root)
     if any(dirty.values()):
@@ -173,6 +212,17 @@ def _integrate(
             f"base branch {base!r} not found on {entry.remote} (no "
             f"{base_ref} after fetching)",
             plan.EXIT_NOT_FOUND,
+        )
+    # A symbolic remote-tracking ref aliasing the default is the default
+    # under another spelling. Judged by the symref's target, not by commit
+    # equality: a freshly cut integration branch sits on the default's tip.
+    target = run.output(["symbolic-ref", "--quiet", base_ref], root)
+    _, default_refname = repo.authoritative_ref(entry)
+    if target is not None and target.casefold() == default_refname.casefold():
+        raise repo.RefusalError(
+            f"{base!r} resolves to the default branch by another spelling "
+            f"(a symbolic ref); name the default branch, "
+            f"{entry.default_branch!r}, as the base instead"
         )
     base_tip = run.must(["rev-parse", "--verify", base_ref], root)
     branch_tip = run.must(["rev-parse", "--verify", f"refs/heads/{branch}"], root)
@@ -195,16 +245,21 @@ def _integrate(
         run.must(["rev-list", "--count", f"{base_tip}..{branch_tip}"], root)
     )
 
-    merge_commit = run.must(
-        [
-            "commit-tree",
-            f"{branch_tip}^{{tree}}",
-            "-p", base_tip,
-            "-p", branch_tip,
-            "-F", str(message_file),
-        ],
-        root,
-    )
+    # The trailered copy is built before anything moves, so a refusal
+    # (two caller-written Executed-By trailers) leaves the remote alone.
+    with repo.trailered_message(
+        message, actor, root, "gitw-integrate"
+    ) as trailered_path:
+        merge_commit = run.must(
+            [
+                "commit-tree",
+                f"{branch_tip}^{{tree}}",
+                "-p", base_tip,
+                "-p", branch_tip,
+                "-F", str(trailered_path),
+            ],
+            root,
+        )
 
     _push_bubble(workspace, base, base_tip, merge_commit)
 
@@ -217,6 +272,7 @@ def _integrate(
         "first_parent": base_tip,
         "second_parent": branch_tip,
         "commits": commits,
+        "executed_by": actor,
         "worktree": str(root),
     }
 
@@ -229,7 +285,7 @@ def _push_bubble(workspace: repo.Workspace, base: str, base_tip: str,
     remote classification."""
     entry = workspace.entry
     root = workspace.root
-    result, hook_code, traced = run.traced_push(
+    result, hook_code, traced, hook_hung = run.traced_push(
         [
             "push",
             f"--force-with-lease=refs/heads/{base}:{base_tip}",
@@ -243,6 +299,12 @@ def _push_bubble(workspace: repo.Workspace, base: str, base_tip: str,
     run.relay(result.stderr)
     if result.returncode == 0:
         return
+    if hook_hung:
+        raise repo.RefusalError(
+            f"push of the bubble to {base!r} timed out with the local "
+            "pre-push hook still running; its output so far is relayed "
+            "above. The hook hung: fix it; never retry unchanged"
+        )
     # The hook verdict comes first: when the hook refused, git printed no
     # ref status, so any base-moved marker in the text is the hook's own.
     if hook_code is not None:
@@ -254,6 +316,22 @@ def _push_bubble(workspace: repo.Workspace, base: str, base_tip: str,
         )
     detail = result.stderr.strip() or result.stdout.strip() or "no output"
     lowered = detail.lower()
+    # Checked first: a remote hook's own text may contain base-moved words.
+    if run.is_remote_rejection(detail):
+        if run.is_ref_update_race(detail):
+            raise repo.RefusalError(
+                f"{entry.remote}/{base} moved during the attempt (the "
+                "remote lost a ref-update race: a [remote rejected] "
+                "status). Fetch, rebase, re-validate, and loop again; "
+                "never blind-retry"
+            )
+        raise repo.RefusalError(
+            f"push of the bubble to {base!r} refused by the remote (a "
+            "[remote rejected] status; the reason is in parentheses in "
+            "git's output, relayed above). Fix what it reported on the "
+            "branch, then loop again from the rebase; never retry "
+            "unchanged"
+        )
     if any(marker in lowered for marker in _BASE_MOVED_MARKERS):
         raise repo.RefusalError(
             f"{entry.remote}/{base} moved during the attempt (the push "

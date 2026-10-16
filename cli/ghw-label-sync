@@ -1,12 +1,13 @@
-#!/usr/bin/env python3
+#!/usr/bin/python3
 """ghw-label-sync <repo> <plan|apply|apply-delete> <schema-file> -- sync a repo's labels to a declared schema.
 
 Declarative and idempotent: the desired registry is the five canonical type
 labels (from the shared schema constants, never redeclared in a file) plus the
 repo-specific `area:` and scope families the JSON schema file declares, plus
 P0-P3 when the file sets "priority_labels": true. Anything in the repo and not
-in that set is a deletion candidate -- which is how GitHub's nine stock labels
-get cleared at bootstrap.
+in that set is a deletion candidate -- which is how eight of GitHub's nine
+stock labels get cleared at bootstrap (stock `bug` is a canonical type label, so
+it is kept).
 
 Modes are positional because deletion authority is granted by allowlisting a
 mode, never by a trailing flag:
@@ -24,8 +25,9 @@ The schema file is read under the staging-directory policy: its
 content is published to GitHub, so it comes from /tmp/claude/ or
 ~/.claude/jobs/<job-id>/tmp/ like any other file a wrapper reads.
 
-Exit codes: 0 success (including a converged no-op), 1 gh/API failure,
-2 usage error or policy refusal.
+Exit codes: 0 success (including a converged no-op), 1 unclassified gh/API
+failure, 2 usage error (including a malformed schema file, refused before any
+network call), 3 not found, 5 auth failure, 6 network failure (retryable).
 """
 
 from __future__ import annotations
@@ -74,7 +76,7 @@ def main(argv: list[str]) -> int:
         _warn_about_attached_issues(deletions, mode)
         _apply(repository, difference, mode, done)
     except gh.GhError as error:
-        gh.die(_failure_message(error, done), plan.EXIT_RUNTIME)
+        gh.die(_failure_message(error, done), error.exit_code)
 
     plan.emit_plan(
         "plan" if mode == "plan" else "applied",

@@ -4,12 +4,12 @@ description: >
   Day-to-day conventions for pull-request operations against a self-hosted
   Forgejo forge. All Forgejo writes run through the installed `fjw-*` wrapper
   scripts on PATH, acting as the deployment's machine account: create a PR,
-  list/view PRs, read PR comments, probe a head branch's open-PR state
+  list/view PRs, read PR comments and inline review comments, probe a head branch's open-PR state
   (none/draft/mergeable/conflicted), close a PR with a mandatory comment,
   comment on a PR within a pinned head-branch prefix. Load this before any
   Forgejo PR operation, attended or unattended. Also relevant for "open a PR
   on the forge", "is there an open PR for this branch", "close the stale
-  reconcile PR". Merge is deliberately not covered: it is a human-only act.
+  bot PR". Merge is deliberately not covered: it is a human-only act.
   For GitHub repos use use-github instead.
 ---
 
@@ -44,10 +44,12 @@ That's also why the **read** verbs are wrapped here (unlike `ghw`, which
 leans on `gh` for reads): there is no allowlistable read substrate either.
 
 Identity and credentials are deployment configuration
-(`~/.config/fjw/config.toml`): the machine-account token, the API host, and
-the git-over-SSH host/port all live there. **Never read, write, or work
-around that file** — deny rules cover it, the wrappers handle hostname
-differences internally, and token rotation is the deployment's job. On auth
+(`~/.config/fjw/config.toml`): the machine-account token and the API host,
+which the wrappers use, plus optional `ssh_host`/`ssh_port` keys reserved for
+git-over-SSH (parsed but unused: no `fjw` Verb touches git over SSH, and
+pushing is `gitw`'s job over the remote as configured). **Never read, write,
+or work around that file** — deny rules cover it and token rotation is the
+deployment's job. On auth
 failures (exit 5), report to the user that the deployment config or token
 needs attention; do not retry and do not go looking for credentials.
 
@@ -61,10 +63,16 @@ needs attention; do not retry and do not go looking for credentials.
   - `1` unclassified API failure.
   - `2` usage error: read the message, fix the call.
   - `3` not found (no such PR/repo). For probes this is data, not an error.
+    Forgejo answers 404 for a repo the caller may not see, so exit 3 on a
+    repo can mean a missing grant (see below).
   - `4` refused: the call violated a wrapper-enforced policy (head-prefix
     mismatch, duplicate PR create). A caller bug — never retry unchanged.
-  - `5` auth/config failure: abort and flag the deployment. Never retry.
+  - `5` roster/auth/config (deployment): abort and flag the deployment. Never retry.
   - `6` network failure: the one retryable class.
+- **A repo-level exit 3 with a correct slug is a missing grant.** The server
+  gives the same 404 for a nonexistent repo and one the machine account
+  cannot see. Check the slug once; if it is right, report it to the user.
+  Never retry, never hunt for credentials, never push again.
 - **On exit 2 or 4, fix the call.** Never work around a refusal with raw
   API calls, `curl`, or `tea` — the refusal is the contract doing its job.
 - **Load `use-privacy` first, if listed.** If a `use-privacy` skill is
@@ -105,8 +113,15 @@ open PR for the same head/base already existing is exit 4 — query first.
 ```bash
 fjw-pr-list <owner/repo>          # open PRs, raw JSON array
 fjw-pr-view <owner/repo> <pr#>    # one PR, raw JSON object
-fjw-pr-comments <owner/repo> <pr#>  # its comments, raw JSON array
+fjw-pr-comments <owner/repo> <pr#>  # its conversation comments, raw JSON array
+fjw-pr-reviews <owner/repo> <pr#>   # its reviews, each with its inline comments
 ```
+
+`fjw-pr-view` reports `review_comments` as a count; the comments themselves
+(file path, line, review id, review state) come only from `fjw-pr-reviews`.
+`fjw-pr-comments` never returns them. The output is a raw JSON array of
+review objects, each carrying one added key, `comments`, the raw array of
+that review's inline comments.
 
 ```bash
 fjw-pr-query <owner/repo> <head-branch>
@@ -134,7 +149,7 @@ fjw-pr-comment <owner/repo> <head-prefix> <pr#> <body-file>
 ```
 
 Standalone comment, scoped: `<head-prefix>` is a positional scope token that
-allowlist rules pin (e.g. `Bash(fjw-pr-comment owner/repo reconcile/ *)`),
+allowlist rules pin (e.g. `Bash(fjw-pr-comment owner/repo bot/ *)`),
 and the wrapper verifies the PR's actual head branch matches it —
 mismatch is exit 4. The prefix follows gitw's grammar (lowercase,
 single-level, ending in `/`). A bare `/`, written unquoted, admits any
@@ -151,7 +166,7 @@ e.g.:
 "Bash(fjw-pr-query owner/repo *)",
 "Bash(fjw-pr-create owner/repo main *)",
 "Bash(fjw-pr-close owner/repo *)",
-"Bash(fjw-pr-comment owner/repo reconcile/ *)"
+"Bash(fjw-pr-comment owner/repo bot/ *)"
 ```
 
 Grant only the verbs the consumer exercises. There is no merge verb to

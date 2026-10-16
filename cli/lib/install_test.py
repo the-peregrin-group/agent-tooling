@@ -285,6 +285,34 @@ class DiffTest(InstallTestCase):
             report["cohorts"]["bin"]["installed_commit"], report["source_commit"]
         )
 
+    def test_clean_install_has_no_receipt_mismatch(self):
+        self.install()
+        for cohort in self.report()["cohorts"].values():
+            self.assertEqual(cohort["receipt_mismatch"], [])
+
+    def test_staled_receipt_hash_is_reported_and_apply_restamps(self):
+        self.install()
+        path = target_for("bin", self.home) / "install-receipt.json"
+        receipt = json.loads(path.read_text())
+        record = next(iter(receipt["sources"].values()))
+        record["files"]["tool-a"] = "sha256:" + "0" * 64
+        path.write_text(json.dumps(receipt))
+        report = self.report()
+        self.assertEqual(report["cohorts"]["bin"]["receipt_mismatch"], ["tool-a"])
+        self.assertEqual(report["cohorts"]["bin"]["changed"], [])
+        self.assertEqual(report["cohorts"]["bin"]["status"], "drift")
+        self.assertEqual(report["status"], "drift")
+        self.install()
+        self.assertEqual(self.report()["status"], "in-sync")
+
+    def test_recorded_file_missing_on_disk_is_a_receipt_mismatch(self):
+        self.install()
+        (target_for("bin", self.home) / "tool-a").unlink()
+        cohort = self.report()["cohorts"]["bin"]
+        self.assertEqual(cohort["receipt_mismatch"], ["tool-a"])
+        self.assertEqual(cohort["only_in_source"], ["tool-a"])
+        self.assertEqual(cohort["status"], "drift")
+
     def test_changed_source_file_shows_as_changed(self):
         self.install()
         write(self.source / "bin1" / "tool-a", "#!/bin/sh\necho edited\n")
@@ -341,6 +369,25 @@ class DiffTest(InstallTestCase):
         report = self.report()["cohorts"]["skills"]
         self.assertEqual(report["unowned_replaced"], ["beta/drop.md"])
         self.assertEqual(report["status"], "drift")
+
+    def test_unowned_file_in_a_retiring_unit_is_reported_as_replaced(self):
+        self.install()
+        write(target_for("skills", self.home) / "beta" / "notes.txt", "mine\n")
+        shutil.rmtree(self.source / "kits" / "beta")
+        self.commit_all()
+        report = self.report()["cohorts"]["skills"]
+        self.assertEqual(report["unowned_replaced"], ["beta/notes.txt"])
+        self.assertNotIn("beta/notes.txt", report["unowned_preserved"])
+        self.assertEqual(report["status"], "drift")
+        self.assertEqual(self.report()["status"], "drift")
+
+    def test_retiring_a_unit_with_only_owned_files_has_no_unowned_replaced(self):
+        self.install()
+        shutil.rmtree(self.source / "kits" / "beta")
+        self.commit_all()
+        report = self.report()["cohorts"]["skills"]
+        self.assertEqual(report["unowned_replaced"], [])
+        self.assertEqual(report["unowned_preserved"], [])
 
     def test_unowned_file_in_a_merge_target_is_reported_as_preserved(self):
         self.install()
@@ -427,6 +474,25 @@ class ApplyTest(InstallTestCase):
         self.assertEqual(result["cohorts"]["skills"]["retired"], ["beta"])
         self.assertFalse((target_for("skills", self.home) / "beta").exists())
         self.assertTrue((target_for("skills", self.home) / "alpha").exists())
+
+    def test_apply_reports_unowned_files_lost_with_a_retired_unit(self):
+        self.install()
+        notes = target_for("skills", self.home) / "beta" / "notes.txt"
+        write(notes, "mine\n")
+        shutil.rmtree(self.source / "kits" / "beta")
+        self.commit_all()
+        preview = self.report()["cohorts"]["skills"]["unowned_replaced"]
+        result = self.install()
+        self.assertEqual(result["cohorts"]["skills"]["unowned_replaced"], preview)
+        self.assertEqual(preview, ["beta/notes.txt"])
+        self.assertFalse(notes.exists())
+
+    def test_apply_reports_no_unowned_replaced_for_a_clean_retirement(self):
+        self.install()
+        shutil.rmtree(self.source / "kits" / "beta")
+        self.commit_all()
+        result = self.install()
+        self.assertEqual(result["cohorts"]["skills"]["unowned_replaced"], [])
 
     def test_unowned_file_in_a_merge_target_survives_the_swap(self):
         self.install()
@@ -684,6 +750,104 @@ class MultiSourceTest(InstallTestCase):
         self.commit_all()
         with self.assertRaisesRegex(InstallError, "already\n?\\s*installed by another"):
             self.install()
+
+
+class OwnRecordDropTest(InstallTestCase):
+    """A source that ships nothing into a target leaves no record there."""
+
+    def setUp(self):
+        super().setUp()
+        self.other = self.tmp / "gadget-kit"
+        self.other.mkdir()
+        manifest = {
+            "version": 1,
+            "source_repo": "gadget-kit",
+            "exclude": ["*_test.py"],
+            "cohorts": {
+                "bin": {"kind": "bin", "sources": ["tools"]},
+                "skills": {"kind": "skills", "sources": ["kits"]},
+            },
+        }
+        write(self.other / "install.json", json.dumps(manifest, indent=2) + "\n")
+        write(self.other / "tools" / "tool-z", "#!/bin/sh\necho z\n", executable=True)
+        write(self.other / "kits" / "gamma" / "SKILL.md", "gamma\n")
+        self.commit_all(self.other)
+
+    def retire(self, cohort, patterns):
+        manifest = json.loads((self.source / "install.json").read_text())
+        manifest["cohorts"][cohort]["exclude"] = patterns
+        write(self.source / "install.json", json.dumps(manifest, indent=2) + "\n")
+        self.commit_all()
+
+    def retire_bin(self):
+        self.retire("bin", ["tool-a", "tool-b.sh", "lib", "skip-me.sh"])
+
+    def retire_skills(self):
+        self.retire("skills", ["alpha", "beta"])
+
+    def test_merged_kind_drops_own_record_and_keeps_the_others(self):
+        self.install(cohorts=["bin"])
+        apply(self.other, home=self.home, cohorts=["bin"])
+        self.retire_bin()
+        self.install(cohorts=["bin"])
+        binary = target_for("bin", self.home)
+        sources = read_receipt(binary)["sources"]
+        self.assertEqual(sorted(sources), ["gadget-kit"])
+        self.assertEqual(sorted(sources["gadget-kit"]["files"]), ["tool-z"])
+        self.assertFalse((binary / "tool-a").exists())
+        self.assertTrue((binary / "tool-z").exists())
+        self.assertEqual(self.report()["cohorts"]["bin"]["status"], "in-sync")
+
+    def test_unit_kind_drops_own_record_and_keeps_the_others(self):
+        self.install(cohorts=["skills"])
+        apply(self.other, home=self.home, cohorts=["skills"])
+        self.retire_skills()
+        self.install(cohorts=["skills"])
+        skills = target_for("skills", self.home)
+        sources = read_receipt(skills)["sources"]
+        self.assertEqual(sorted(sources), ["gadget-kit"])
+        self.assertEqual(sources["gadget-kit"]["units"], ["gamma"])
+        self.assertFalse((skills / "alpha").exists())
+        self.assertTrue((skills / "gamma").exists())
+        self.assertEqual(self.report()["cohorts"]["skills"]["status"], "in-sync")
+
+    def test_last_record_gone_keeps_an_empty_sources_object(self):
+        self.install(cohorts=["bin", "skills"])
+        self.retire_bin()
+        self.retire_skills()
+        self.install(cohorts=["bin", "skills"])
+        for kind in ("bin", "skills"):
+            target = target_for(kind, self.home)
+            self.assertTrue(target.is_dir())
+            self.assertEqual(read_receipt(target)["sources"], {})
+        report = self.report()
+        self.assertEqual(report["cohorts"]["bin"]["status"], "in-sync")
+        self.assertEqual(report["cohorts"]["skills"]["status"], "in-sync")
+
+    def test_legacy_empty_record_reads_in_sync_and_apply_drops_it(self):
+        self.install(cohorts=["bin", "skills"])
+        self.retire_bin()
+        self.retire_skills()
+        for kind in ("bin", "skills"):
+            target = target_for(kind, self.home)
+            for item in sorted(target.iterdir()):
+                if item.name != RECEIPT_NAME:
+                    if item.is_dir():
+                        shutil.rmtree(str(item))
+                    else:
+                        item.unlink()
+            receipt = read_receipt(target)
+            record = receipt["sources"]["widget-kit"]
+            record["files"] = {}
+            if kind == "skills":
+                record["units"] = []
+            (target / RECEIPT_NAME).write_text(json.dumps(receipt), encoding="utf-8")
+        report = self.report()
+        self.assertEqual(report["cohorts"]["bin"]["status"], "in-sync")
+        self.assertEqual(report["cohorts"]["skills"]["status"], "in-sync")
+        self.install(cohorts=["bin", "skills"])
+        for kind in ("bin", "skills"):
+            self.assertEqual(read_receipt(target_for(kind, self.home))["sources"], {})
 
 
 class TwoSourceFixture(InstallTestCase):
@@ -1149,6 +1313,32 @@ class SupersedeTest(TwoSourceFixture):
         self.assertEqual(report["conflicting"], ["alpha"])
         self.assertEqual(report["status"], "drift")
 
+    def test_diff_lists_foreign_files_lost_with_a_retiring_unit(self):
+        """A foreign claim inside a unit this source used to ship is at risk.
+
+        Hand-written receipt: `adopt` makes the other record give up adopted
+        content, so this state only arises from a legacy or edited receipt.
+        `apply` would retire `gamma` whole, deleting `widget-kit`'s file too.
+        """
+        self.install()
+        skills = target_for("skills", self.home)
+        write(skills / "gamma" / "mine.md", "mine\n")
+        write(skills / "gamma" / "theirs.md", "theirs\n")
+        receipt_path = skills / RECEIPT_NAME
+        receipt = json.loads(receipt_path.read_text())
+        receipt["sources"]["gadget-kit"] = {
+            "kind": "skills",
+            "files": {"gamma/mine.md": "sha256:0"},
+            "units": ["gamma"],
+        }
+        receipt["sources"]["widget-kit"]["files"]["gamma/theirs.md"] = "sha256:0"
+        receipt_path.write_text(json.dumps(receipt))
+
+        report = self.inspect()["cohorts"]["skills"]
+        self.assertEqual(report["foreign_replaced"], ["gamma/theirs.md"])
+        self.assertNotIn("gamma/theirs.md", report["foreign_files"])
+        self.assertEqual(report["status"], "drift")
+
     def test_adopt_destroys_exactly_what_diff_named(self):
         self.install()
         (self.other / "kits" / "alpha" / "notes.md").unlink()
@@ -1349,6 +1539,39 @@ class CommandLineTest(InstallTestCase):
         result = self.run_cli("diff", str(self.source), "--force")
         self.assertEqual(result.returncode, 2)
         self.assertIn("--force applies to apply", result.stderr)
+
+    def test_surplus_positional_is_a_usage_error(self):
+        # The Wrapper argument contract (docs/index.md): anything the usage
+        # line does not define exits 2, wherever it sits in the option tail.
+        source = str(self.source)
+        for arguments in (
+            ("diff", source, "surplus"),
+            ("apply", source, "--cohort", "bin", "surplus"),
+            ("adopt", source, "widget-kit", "--force", "surplus"),
+        ):
+            with self.subTest(arguments=arguments):
+                result = self.run_cli(*arguments)
+                self.assertEqual(result.returncode, 2, result.stdout)
+                self.assertIn("unexpected argument 'surplus'", result.stderr)
+        self.assertFalse(target_for("bin", self.home).exists())
+
+    def test_unrecognized_flag_is_a_usage_error(self):
+        source = str(self.source)
+        for arguments in (
+            ("diff", source, "--bogus"),
+            ("apply", source, "--force", "--bogus"),
+            ("adopt", source, "widget-kit", "--bogus"),
+        ):
+            with self.subTest(arguments=arguments):
+                result = self.run_cli(*arguments)
+                self.assertEqual(result.returncode, 2, result.stdout)
+                self.assertIn("unexpected argument '--bogus'", result.stderr)
+        # In adopt's superseded-repo slot a flag is refused, not taken as
+        # the repo name.
+        result = self.run_cli("adopt", source, "--bogus")
+        self.assertEqual(result.returncode, 2, result.stdout)
+        self.assertIn("usage:", result.stderr)
+        self.assertFalse(target_for("bin", self.home).exists())
 
     def test_nonexistent_source_is_a_usage_error(self):
         result = self.run_cli("diff", str(self.tmp / "nowhere"))

@@ -22,6 +22,7 @@ import ghw_test_support
 from lib.forgejo.config import Config
 
 _SCRIPT = Path(__file__).resolve().parent / "fjw-pr-close"
+_CONTRACT_BODY = "/tmp/claude/argument-contract-body.md"
 _MODULE = ghw_test_support.load_wrapper_module(_SCRIPT)
 _MISSING_COMMENT = "/tmp/claude/fjw-pr-close-test-missing-comment.md"
 _CONFIG = Config(api_url="https://forge.example.com", token="t")
@@ -138,6 +139,13 @@ class FjwPrCloseBehaviorTest(unittest.TestCase):
         self.assertEqual(caught.exception.code, 1)
         self.assertIn("PARTIAL", stderr.getvalue())
         self.assertIn("duplicate comment", stderr.getvalue())
+
+
+class FjwPrCloseArgumentContractTest(
+    ghw_test_support.ArgumentContractTests, unittest.TestCase
+):
+    SCRIPT = _SCRIPT
+    LONGEST = ("o/r", "5", _CONTRACT_BODY)
 
 
 if __name__ == "__main__":

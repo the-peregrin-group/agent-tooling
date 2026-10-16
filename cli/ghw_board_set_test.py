@@ -118,8 +118,62 @@ class GhwBoardSetBehaviorTest(unittest.TestCase):
                 contextlib.redirect_stderr(io.StringIO()) as stderr:
             with self.assertRaises(SystemExit) as caught:
                 _MODULE.main(["o/r", "Priority", "P9", "7"])
-        self.assertEqual(caught.exception.code, 2)
+        self.assertEqual(caught.exception.code, 4)
         self.assertIn("P1", stderr.getvalue())
+
+    def _refusal(self, argv: list, boards: list) -> tuple:
+        """Run main against `boards` with no TRIAGE.md, expecting a refusal
+        before any item read; returns (exit code, stderr)."""
+        with mock.patch.object(_MODULE.boards, "fetch_boards",
+                               return_value=boards), \
+                mock.patch.object(_MODULE.boards, "find_triage_profile",
+                                  return_value=None), \
+                mock.patch.object(_MODULE.boards,
+                                  "fetch_issue_item_state") as item_state, \
+                contextlib.redirect_stderr(io.StringIO()) as stderr:
+            with self.assertRaises(SystemExit) as caught:
+                _MODULE.main(argv)
+        item_state.assert_not_called()
+        return caught.exception.code, stderr.getvalue()
+
+    def test_unknown_field_is_a_policy_refusal_listing_the_fields(self):
+        code, stderr = self._refusal(["o/r", "Status", "Done", "7"],
+                                     [_linked_board()])
+        self.assertEqual(code, 4)
+        self.assertIn("Priority", stderr)
+
+    def test_non_single_select_field_is_a_policy_refusal(self):
+        board = _linked_board()
+        board["fields"]["Due"] = {"id": "F2", "data_type": "DATE", "options": {}}
+        code, stderr = self._refusal(["o/r", "Due", "soon", "7"], [board])
+        self.assertEqual(code, 4)
+        self.assertIn("SINGLE_SELECT", stderr)
+
+    def test_unlinked_project_override_is_a_policy_refusal(self):
+        code, stderr = self._refusal(
+            ["o/r", "Priority", "P1", "7", "--project", "9"], [_linked_board()])
+        self.assertEqual(code, 4)
+        self.assertIn("#3 (Roadmap)", stderr)
+
+    def test_unresolvable_canonical_board_is_a_policy_refusal(self):
+        second = {**_linked_board(), "number": 4, "title": "Other",
+                  "node_id": "PVT_2"}
+        for boards in ([], [_linked_board(), second]):
+            with self.subTest(boards=len(boards)):
+                code, stderr = self._refusal(["o/r", "Priority", "P1", "7"], boards)
+                self.assertEqual(code, 4)
+                self.assertIn("--project", stderr)
+
+
+class GhwBoardSetArgumentContractTest(
+    ghw_test_support.ArgumentContractTests, unittest.TestCase
+):
+    SCRIPT = _SCRIPT
+    LONGEST = ("o/r", "Priority", "P1", "7", "--project", "3")
+    FLAG_SLOT_FORMS = (
+        ("o/r", "Priority", "P1", "7", "--bogus"),
+        ("o/r", "Priority", "P1", "7", "--bogus", "3"),
+    )
 
 
 if __name__ == "__main__":

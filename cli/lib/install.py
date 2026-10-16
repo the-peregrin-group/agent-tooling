@@ -67,9 +67,12 @@ same target-relative path are refused, never silently shadowed.
 source directory is one skill, installed and swapped independently, so
 installing this repo's skills never disturbs another repo's. A unit is owned
 wholesale: the swap replaces the whole directory, so anything inside an
-installed skill that the incoming unit does not ship is gone after an install.
-`diff` reports that loss in two buckets, by who claimed what was lost:
-`unowned_replaced` for what no record claims (bytecode caches, hand-drops) and
+installed skill that the incoming unit does not ship is gone after an install,
+and a unit the source used to ship and no longer does is removed whole.
+Noise-excluded files (bytecode caches and the like) inside such a unit go with
+it and are deliberately neither preserved nor reported. `diff` reports the
+rest of that loss in two buckets, by who claimed what was lost:
+`unowned_replaced` for what no record claims (hand-drops, stray notes) and
 `foreign_replaced` for what another source's record claims.
 
 Ownership and the receipt
@@ -118,7 +121,10 @@ agree, and a stale claim is a human's to resolve.
 An other-source record that adoption empties -- no files left, and no units
 on a unit target -- is dropped from the receipt outright. A record claiming
 nothing is a stale stamp, not ownership, and keeping it would have the next
-run report a foreign source with no foreign content.
+run report a foreign source with no foreign content. The applying source's own
+record is dropped the same way when its run ships nothing (after retiring what
+it previously owned). If that leaves no records, the receipt file stays, with
+an empty `sources` object.
 
 Superseding a source repo: `adopt`
 ----------------------------------
@@ -730,10 +736,17 @@ def diff(source: Path, home=None, cohorts=None) -> dict:
     exit-code contract is unchanged and now honest: 0 means `apply` would do
     nothing, 1 means it would act (including rewriting ownership) or refuse.
 
+    `receipt_mismatch` lists recorded files whose installed bytes no longer
+    match the receipt's hash, or that are missing on disk: the receipt
+    contradicting disk, distinct from `changed` (source versus disk). It makes
+    the cohort drift; `apply` overwrites and restamps, refusing nothing new.
+
     Unit cohorts also report `foreign_replaced`: files another record claims
-    that sit inside a unit this source ships *without* them, so the wholesale
-    unit swap would delete them. `unowned_replaced` is the same statement for
-    files no record claims. The four foreign categories partition -- a foreign
+    that sit inside a unit this source ships *without* them, or inside a unit
+    it used to ship and is now retiring, so the wholesale unit swap or removal
+    would delete them. `unowned_replaced` is the same statement for files no
+    record claims. Noise-excluded files are neither preserved nor reported.
+    The four foreign categories partition -- a foreign
     name appears in exactly one of `adoptable`, `conflicting`,
     `foreign_replaced`, or `foreign_files` -- so `foreign_files` means foreign
     and untouched by this run.
@@ -766,6 +779,20 @@ def diff(source: Path, home=None, cohorts=None) -> dict:
         foreign = owned_by_others(receipt, config.source_repo)
         installed = present_files(target, cohort.noise)
 
+        recorded_files = record.get("files")
+        receipt_mismatch = []
+        if target.is_dir() and isinstance(recorded_files, dict):
+            # Judged against disk directly, not `installed`: that map drops
+            # noise, and a recorded file is the installer's own claim.
+            for name, recorded in sorted(recorded_files.items()):
+                path = target / name
+                if not isinstance(recorded, str) or not (
+                    path.is_symlink() or path.is_file()
+                ):
+                    receipt_mismatch.append(name)
+                elif digest(path) != recorded:
+                    receipt_mismatch.append(name)
+
         only_in_source = sorted(name for name in sources if name not in installed)
         changed = sorted(
             name
@@ -789,14 +816,19 @@ def diff(source: Path, home=None, cohorts=None) -> dict:
             # it; content elsewhere in the target is never touched. Which
             # bucket a casualty lands in is a question of who claimed it.
             incoming_units = {unit_of(name) for name in sources}
-            replaced = [name for name in unowned if unit_of(name) in incoming_units]
-            unowned = [name for name in unowned if unit_of(name) not in incoming_units]
+            # A unit this source shipped before and no longer ships is retired
+            # by apply through the same wholesale removal, so what sits
+            # unclaimed inside it is lost exactly as inside a swapped unit.
+            retiring_units = {unit_of(name) for name in owned} - incoming_units
+            doomed = incoming_units | retiring_units
+            replaced = [name for name in unowned if unit_of(name) in doomed]
+            unowned = [name for name in unowned if unit_of(name) not in doomed]
             foreign_replaced = sorted(
                 name
                 for name in installed
                 if name not in sources
                 and name in foreign
-                and unit_of(name) in incoming_units
+                and unit_of(name) in doomed
             )
             names = sorted(incoming_units | {unit_of(name) for name in owned})
             restorable, orphaned = pending_recoveries(target, names)
@@ -827,6 +859,7 @@ def diff(source: Path, home=None, cohorts=None) -> dict:
             or foreign_replaced
             or adoptable
             or conflicting
+            or receipt_mismatch
         ):
             status = "drift"
         else:
@@ -841,6 +874,7 @@ def diff(source: Path, home=None, cohorts=None) -> dict:
             "ships": len(sources),
             "only_in_source": only_in_source,
             "changed": changed,
+            "receipt_mismatch": receipt_mismatch,
             "only_installed": only_installed,
             "unowned_preserved": unowned,
             "unowned_replaced": replaced,
@@ -878,6 +912,10 @@ def apply(
     regardless of content, while collisions with any other record refuse as
     usual. It must name a record in a selected target's receipt. None is a
     plain `apply`, which adopts only byte-identical collisions.
+
+    Unit cohorts also report `unowned_replaced`, the key `diff` uses: files no
+    record claims inside any unit this run swaps or retires, which the
+    wholesale replacement deletes. Merge cohorts have no such key.
     """
     source = source.resolve()
     config = load_config(source)
@@ -1057,6 +1095,19 @@ def _apply_units(
         _two_rename_swap(target / unit, staging)
 
     retired = [unit for unit in previous if unit not in incoming]
+    # Computed from the `installed` snapshot taken before any swap, under the
+    # key `diff` uses: files no record claims inside any unit this run swaps
+    # or retires.
+    foreign = owned_by_others(receipt, config.source_repo)
+    swapped = set(incoming) | set(retired)
+    unowned_replaced = sorted(
+        name
+        for name in installed
+        if name not in sources
+        and name not in owned
+        and name not in foreign
+        and unit_of(name) in swapped
+    )
     for unit in retired:
         _retire(target / unit)
 
@@ -1076,6 +1127,7 @@ def _apply_units(
         "units": incoming,
         "adopted": adopted,
         "retired": retired,
+        "unowned_replaced": unowned_replaced,
         "foreign_units": sorted(
             unit for unit in foreign_units if unit not in adopted
         ),
@@ -1104,7 +1156,10 @@ def _write_receipt(
 
     `adopted` names target-relative paths and `adopted_units` names units; a
     run passes one or the other, never both. Every other source's record gives
-    the adopted content up, and a record left claiming nothing is dropped.
+    the adopted content up, and a record left claiming nothing is dropped. This
+    source's own record is dropped the same way when the run ships nothing, so
+    no record is the steady state; a receipt left with no records keeps an
+    empty `sources` object.
     """
     adopted = frozenset(adopted)
     adopted_units = frozenset(adopted_units)
@@ -1117,7 +1172,8 @@ def _write_receipt(
             if entry is None:
                 continue
         merged[name] = entry
-    merged[config.source_repo] = record
+    if record.get("files") or record.get("units"):
+        merged[config.source_repo] = record
     ordered = {
         "version": RECEIPT_VERSION,
         "sources": {name: merged[name] for name in sorted(merged)},

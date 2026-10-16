@@ -38,11 +38,17 @@ Shared conventions:
 
 - `<owner/repo>` is always an explicit argument. The cwd never decides where
   a write lands.
-- Exit codes: `0` success (including an already-converged no-op), `1` gh/API
-  failure, `2` usage error or policy refusal. Write wrappers print a JSON
+- Exit codes: `0` success (including an already-converged no-op), `1` unclassified
+  gh/API failure, `2` usage error (including a refusal made at
+  argument-parse time, before any network call, such as `squash`), `3` not
+  found, `4` refused: a policy refusal past parse time, the call well formed
+  but violating policy against live state (the label contract, a merge gate, an unlinked board, a missing
+  branch), `5` auth or deployment failure, such as a `gh` below `ghw-issue-link`'s version floor (abort and flag it), `6` network failure (the one retryable class; on create and comment Verbs and `ghw-board-sync new` a timeout or reset exits `1`, since the write may have landed, and `ghw-issue-close` exits `1` on any network failure during the close, since the comment is posted first). Write wrappers print a JSON
   plan with `"action": "plan"` or `"applied"`.
-- **On exit 2, read the message and fix the call.** Never work around a
-  refusal by dropping to raw `gh` — the refusal is the contract doing its
+- **On exit 2, read the message and fix the call. On exit 4, never retry
+  unchanged:** read the message; fix the call or the state it names (push
+  the branch, add the `area:` label), or stop and report. Never work around
+  a refusal by dropping to raw `gh` — the refusal is the contract doing its
   job, not an obstacle.
 - **Load `use-privacy` first, if listed.** If a `use-privacy` skill is
   listed among your available skills, load it before composing any text
@@ -207,11 +213,13 @@ the `triage-issues` skill; don't invent them here.
       `- [ ] All children created (scope locked)`; the repo's `TRIAGE.md` may
       override it). The wrapper doesn't parse these; stomping them breaks
       triage.
-- **Close:** `ghw-issue-close <owner/repo> <issue#> [comment-file]` — use the
-  optional comment file so the close carries its reason in one call. Closing
-  an already-closed issue is a no-op success, and in that case the comment is
-  **not** posted (the plan's `note` says so — repost with
-  `ghw-issue-comment` if the reason still needs to land).
+- **Close:** `ghw-issue-close <owner/repo> <issue#> <comment-file>` — the comment
+  file is required: the close carries its reason in one call, and a missing
+  or blank comment is exit 2. The forge's auto-close on PR merge is the
+  one sanctioned comment-less close. Closing an already-closed issue is a
+  no-op success, and in that case the comment is **not** posted (the
+  plan's `note` says so; repost with `ghw-issue-comment` if the reason
+  still needs to land).
 - **Link:** `ghw-issue-link <owner/repo> <add-sub|remove-sub|add-blocked-by|remove-blocked-by> <issue#> <other-issue#>`
   — issue numbers only; the wrapper resolves everything else. Argument order
   carries the direction, and the wrapper cannot detect an inversion: for
@@ -262,14 +270,15 @@ first (Steps 2–4) and use its number. When an issue closes, grep for
 - **Merge — only when the user has said to:**
 
   ```bash
-  ghw-pr-merge <owner/repo> <base-branch> <merge|squash> <pr#>
+  ghw-pr-merge <owner/repo> <base-branch> <merge> <pr#>
   ```
 
-  Choose `merge`, never `squash` (squash is banned; see `use-git`). The
+  The strategy slot accepts only `merge`; the Verb refuses `squash` with exit 2
+  (squash is banned; see `use-git`). The
   wrapper verifies the PR's actual base matches `<base-branch>`, refuses
-  drafts, and refuses red or pending checks. There is no override: merging
-  over red checks is a human decision made with raw `gh` at a human-attended
-  prompt. The wrapper never deletes branches (worktree hazard).
+  drafts, and refuses red or pending checks, each with exit 4. There is no
+  override: merging over red checks is a human decision made with raw `gh`
+  at a human-attended prompt. The wrapper never deletes branches (worktree hazard).
 
 ## Boundary with `triage-issues`
 

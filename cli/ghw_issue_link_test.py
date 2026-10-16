@@ -125,7 +125,7 @@ class GhwIssueLinkBehaviorTest(unittest.TestCase):
             with contextlib.redirect_stderr(io.StringIO()) as stderr:
                 with self.assertRaises(SystemExit) as caught:
                     _MODULE.main(["o/r", "remove-sub", "7", "8"])
-        self.assertEqual(caught.exception.code, 1)
+        self.assertEqual(caught.exception.code, 4)
         self.assertIn("120", stderr.getvalue())
         self.assertIn("gh issue edit", stderr.getvalue())
         edit.assert_not_called()
@@ -135,7 +135,7 @@ class GhwIssueLinkBehaviorTest(unittest.TestCase):
             with contextlib.redirect_stderr(io.StringIO()):
                 with self.assertRaises(SystemExit) as caught:
                     _MODULE.main(["o/r", "add-sub", "7", "8"])
-        self.assertEqual(caught.exception.code, 1)
+        self.assertEqual(caught.exception.code, 4)
         edit.assert_not_called()
 
     def test_a_target_found_on_the_first_page_is_actionable_despite_truncation(self):
@@ -150,7 +150,8 @@ class GhwIssueLinkBehaviorTest(unittest.TestCase):
                 contextlib.redirect_stderr(io.StringIO()) as stderr:
             with self.assertRaises(SystemExit) as caught:
                 _MODULE.main(["o/r", "add-sub", "7", "8"])
-        self.assertEqual(caught.exception.code, 1)
+        # A deployment fault (exit 5), like bdw's unverified bd version.
+        self.assertEqual(caught.exception.code, _MODULE.plan.EXIT_AUTH)
         self.assertIn("2.94.0", stderr.getvalue())
         self.assertIn("2.93.9", stderr.getvalue())
         edit.assert_not_called()
@@ -194,6 +195,13 @@ class LinkedIssueNumbersTest(unittest.TestCase):
     def test_entries_without_a_usable_number_are_skipped(self):
         payload = {"nodes": [{"title": "no number"}, "junk", {"number": "5"}]}
         self.assertEqual(_MODULE._linked_issue_numbers(payload, "o/r"), set())
+
+
+class GhwIssueLinkArgumentContractTest(
+    ghw_test_support.ArgumentContractTests, unittest.TestCase
+):
+    SCRIPT = _SCRIPT
+    LONGEST = ("o/r", "add-sub", "5", "6")
 
 
 if __name__ == "__main__":

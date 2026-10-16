@@ -25,6 +25,7 @@ import ghw_test_support
 from lib.forgejo.config import Config
 
 _SCRIPT = Path(__file__).resolve().parent / "fjw-pr-create"
+_CONTRACT_BODY = "/tmp/claude/argument-contract-body.md"
 _MODULE = ghw_test_support.load_wrapper_module(_SCRIPT)
 _MISSING_BODY = "/tmp/claude/fjw-pr-create-test-missing-body.md"
 _CONFIG = Config(api_url="https://forge.example.com", token="t")
@@ -110,6 +111,32 @@ class FjwPrCreateBehaviorTest(unittest.TestCase):
         create.assert_not_called()
         self.assertIn("push it first", stderr.getvalue())
 
+    def _run_with_requests(self, side_effect):
+        # Drive the real pulls.branch_exists; only the HTTP layer is faked.
+        with mock.patch.object(_MODULE.fjw_config, "load", return_value=_CONFIG), \
+                mock.patch.object(_MODULE.pulls.api, "request",
+                                  side_effect=side_effect), \
+                mock.patch.object(_MODULE.pulls, "create_pr") as create, \
+                contextlib.redirect_stderr(io.StringIO()) as stderr:
+            with self.assertRaises(SystemExit) as caught:
+                _MODULE.main(["o/r", "main", "b", "T", self._body_path])
+        return caught.exception.code, stderr.getvalue(), create
+
+    def test_invisible_repo_exits_3_not_push_it_first(self):
+        not_found = _MODULE.api.ApiError("HTTP 404", 3, 404)
+        code, stderr, create = self._run_with_requests([not_found, not_found])
+        self.assertEqual(code, 3)
+        create.assert_not_called()
+        self.assertIn("grant", stderr)
+        self.assertNotIn("push it first", stderr)
+
+    def test_missing_branch_in_visible_repo_still_exits_2(self):
+        not_found = _MODULE.api.ApiError("HTTP 404", 3, 404)
+        code, stderr, create = self._run_with_requests([not_found, {"name": "r"}])
+        self.assertEqual(code, 2)
+        create.assert_not_called()
+        self.assertIn("push it first", stderr)
+
     def test_created_pr_emits_applied_with_the_number(self):
         with mock.patch.object(_MODULE.fjw_config, "load", return_value=_CONFIG), \
                 mock.patch.object(_MODULE.pulls, "branch_exists", return_value=True), \
@@ -155,6 +182,16 @@ class FjwPrCreateBehaviorTest(unittest.TestCase):
                 _MODULE.main(["o/r", "main", "b", "T", self._body_path])
         self.assertEqual(caught.exception.code, 4)
         self.assertIn("already exists", stderr.getvalue())
+
+
+class FjwPrCreateArgumentContractTest(
+    ghw_test_support.ArgumentContractTests, unittest.TestCase
+):
+    SCRIPT = _SCRIPT
+    LONGEST = ("o/r", "main", "feat", "Title", _CONTRACT_BODY, "--draft")
+    FLAG_SLOT_FORMS = (
+        ("o/r", "main", "feat", "Title", _CONTRACT_BODY, "--bogus"),
+    )
 
 
 if __name__ == "__main__":

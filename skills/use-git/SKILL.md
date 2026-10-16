@@ -66,10 +66,12 @@ staged rename or deletion rides `gitw-commit`'s commit-all form.
     probes this is an answer, not an error.
   - `4` refused: the call violated wrapper-enforced policy (identity or
     prefix mismatch, dirty worktree, stale rebase, lease failure, sweep
-    guard, local pre-push hook refusal). A caller bug — **never retry
-    unchanged, never work around it with raw git.** The refusal is the
-    contract doing its job.
-  - `5` roster/auth failure: abort and flag the deployment. Never retry.
+    guard, local pre-push hook refusal, a decline by the remote's own
+    hook). A caller bug — **never retry unchanged, never work around it
+    with raw git.** The refusal is the contract doing its job. A lease
+    failure or a lost ref-update race is exit 4 like the rest; only the
+    advice differs: the remote moved, so fetch and reconcile.
+  - `5` roster/auth/config (deployment): abort and flag the deployment. Never retry.
   - `6` network failure: the one retryable class.
 - **Load `use-privacy` first, if listed.** If a `use-privacy` skill is
   listed among your available skills, load it before composing any text
@@ -109,7 +111,12 @@ Non-optional, not user preference:
 
 ## Orient First
 
-The mandated first call of any session touching a repo:
+Every session touching a repo starts with the same four steps, in order:
+
+1. **Enter the harness worktree.** The harness does this for isolated
+   sessions; otherwise enter one yourself (EnterWorktree). Worktree
+   creation belongs to the harness, never to git commands.
+2. **Orient.** The mandated first git call:
 
 ```bash
 gitw-orient <repo>
@@ -119,9 +126,14 @@ Fetches the authoritative remote (machine-local repos skip the fetch and
 measure against the local default) and reports branch, commit,
 dirty/untracked tallies, upstream, and ahead/behind vs. the fetched
 authoritative default — staleness is visible before work begins. When
-orient shows staleness, or dirt on a working copy that might be shared,
+orient shows staleness, or dirt you did not make,
 tell the user in one passing sentence — visibility, not ceremony — and
 apply the concurrency rules below before touching anything.
+
+3. **Start your branch.** `gitw-branch-start` (see The Verbs). The
+   harness's `worktree-*` placeholder branch is not a branch to work on.
+4. **Only then read or edit files,** from the worktree's paths, never the
+   primary checkout's.
 
 Exit 3 with an unknown label means the repo is not registered. Attended,
 propose the `gitw-repo-register` plan; unattended, stop and flag it.
@@ -129,12 +141,13 @@ Never fall back to raw mutating git because a label is missing.
 
 ## Whose Working Copy Is This?
 
-**A working copy is never presumed yours.** Either the user confirms, in an
-attended session, that nothing else is or will be in flight (checking a
-process list is NOT sufficient — it cannot see the agent the user is about
-to start), or you default to your own branch in your own worktree.
+**Every session, attended or background, in every repo, runs in a harness
+worktree on its own branch.** The primary checkout, and the local default
+branch inside it, belong to the human. No process list can see the agent
+the user is about to start, so isolation, not a check for company, is what
+makes concurrent sessions safe.
 
-Three operating modes, escalating in required trust:
+Two operating modes:
 
 - **(a) Worktree + feature branch + push + PR.** The default everywhere,
   absent a repo-CLAUDE.md exemption. The only trunk-affecting act is
@@ -147,10 +160,6 @@ Three operating modes, escalating in required trust:
   bare form for trunk, its `onto` form for an agent integration branch),
   run the full merge-readiness loop, then `gitw-integrate` into that same
   base. No PR.
-- **(c) Work directly on the default branch.** Very rare: repo exemption
-  + attended + the user's explicit assurance of zero parallel agents for
-  the session's duration. Sync the branch to its authoritative instance
-  first.
 
 Implications:
 
@@ -158,8 +167,8 @@ Implications:
   way, at the right time. No dropping untracked files or uncommitted
   changes into working copies — `gitw-commit`'s commit-all form leaves the
   tree clean by construction, and its JSON reports anything that lingers.
-- Do not mutate a shared working copy outside confirmed-exclusive mode (c).
-  Assume doing so corrupts someone else's work.
+- Never mutate the primary checkout. Assume doing so corrupts someone
+  else's work.
 - **`settings.local.json` is a grey area:** untracked, so clobbering it is
   git-invisible. Outside user-blessed automation, changes to it are
   attended-only and require both a competing-work check and an explicit
@@ -243,14 +252,16 @@ No pathspec: stage-and-commit the entire working tree, leaving it clean by
 construction. With pathspecs: commit exactly those changes; the JSON then
 reports remaining dirt so nothing lingers silently — and pre-existing
 staged changes outside the pathspecs are refused rather than swept in.
+A pathspec beginning with `-` is a usage error (exit 2), since the tail
+takes no flags; spell a path that really begins with `-` as `./-name`.
 Small, coherent commits are the floor: one commit per logical change,
 message written to a staged file first. A **local-file sweep guard**
 refuses staged sets touching `settings.local.json` or `.env*`; its
 refusal message is self-documenting (including the one sanctioned
 `.env.example` exception) — fix the gitignore or narrow the pathspec,
 and beyond that it's the user's call. The wrapper appends an
-`Executed-By:` trailer derived from the session environment; do not
-write one yourself.
+`Executed-By:` trailer derived from the session environment (so does
+`gitw-integrate` on its bubble); do not write one yourself.
 
 ```bash
 gitw-rebase <repo> <branch-prefix> [continue|abort]
@@ -262,8 +273,10 @@ authoritative default. A conflict leaves the standard git conflict state
 in place — it IS the work product — and exits 4 with a JSON listing of
 conflicted paths. Resolve, then `continue` (which stages exactly the
 resolutions and refuses files still carrying a full conflict-marker
-triple); the cycle repeats per conflicted commit. `abort` restores the
-pre-rebase branch. There is deliberately no `skip`: silently dropping a
+triple); the cycle repeats per conflicted commit, each stop listing its
+own `conflicts`. The wrapper records every stop's paths, and the final
+successful `continue` reports their sorted union as `resolved`. `abort`
+restores the pre-rebase branch. There is deliberately no `skip`: silently dropping a
 commit is a human decision.
 
 `onto` form: the same, onto the fetched `<remote>/<base-branch>`, for
@@ -291,8 +304,12 @@ refreshing the remote-tracking ref is exactly what would blind the lease.
 The wrapper relays git's own push output to stderr beside the JSON,
 including whatever the local pre-push hook prints; a local hook that
 refuses the push is an exit-4 refusal too — fix what it reported, never
-retry unchanged. A rejection by the remote's own hooks is still
-reported as exit 6 today (issue agent-tooling-h3c).
+retry unchanged. A rejection by the remote's own hooks (a
+`[remote rejected]` status, a protected branch for one) is an exit-4
+refusal too: fix what it reported, never retry unchanged. The exception
+is a reason in parentheses that names a lost ref-update race ("failed to
+update ref" and kin): that reads as the lease case, so fetch and
+reconcile.
 Pushing the trunk is structurally refused regardless of prefix; the push
 of your own branch is the boundary, and the forge skills own what happens
 next.
@@ -301,7 +318,7 @@ Named-target form: push the same branch's tip to `<branch-prefix><name>`
 on the remote instead, and set that ref as the branch's upstream. This is
 the pointer move for flows that keep one stable review ref that no branch
 ever commits on (a scheduled job, say: fresh dated branch each run,
-`reconcile/current` moved to its tip, PR opened once from that ref). The
+`bot/current` moved to its tip, PR opened once from that ref). The
 lease is the target's remote-tracking value as last fetched, or "must not
 exist yet" if it never was, so a target that a human or another run moved
 since your fetch is a refusal, not a clobber. The dated branch itself
@@ -320,6 +337,9 @@ for an agent integration branch), then the full merge-readiness validation
 validation), then integrate. The wrapper verifies your branch tip
 descends from the freshly fetched base tip, builds the two-parent bubble
 without ever checking out the base, and pushes it under an exact lease.
+The bubble's message is your message file plus the same `Executed-By:`
+trailer, written to a private copy (two trailers in your file is an exit-4
+refusal; a forge's merge button adds none).
 Both refusals — "not a descendant" and "moved during the attempt" — mean
 the same thing: **the base moved; loop again from the rebase.** As with
 `gitw-push`, the wrapper relays git's own push output to stderr beside
@@ -327,10 +347,38 @@ the JSON, including whatever the local pre-push hook prints; a local
 hook that refuses the push is an exit-4 refusal too, but it does not
 mean the base moved — fix what it reported on the branch, then loop
 again from the rebase; never retry unchanged. A rejection by the
-remote's own hooks is still reported as exit 6 today (issue
-agent-tooling-h3c). Afterwards your worktree is still on the
-(now-integrated) feature branch; leave local trunk syncing and branch
-cleanup to the harness and the human.
+remote's own hooks (a `[remote rejected]` status) is an exit-4
+refusal as well; fix what it reported, never retry unchanged. The
+exception is a reason in parentheses that names a lost ref-update race
+("failed to update ref" and kin): that is the base-moved case, so loop
+again from the rebase.
+Afterwards your worktree is still on the (now-integrated) feature
+branch; bringing local trunk current is
+`gitw-trunk-sync`'s job (next), and branch cleanup is left to the
+harness and the human.
+
+```bash
+gitw-trunk-sync <repo>
+```
+
+Fast-forward the local default branch to the freshly fetched authoritative
+tip, **without switching any worktree**. It fits after a forge merge or a
+`gitw-integrate`, so the human's primary checkout is current the next
+time they look; nothing depends on it (`gitw-branch-start` branches from
+the remote-tracking ref). Where the local default branch is checked out
+decides how it moves: in a clean primary checkout, a fast-forward merge in
+place; checked out nowhere, a ref move guarded by the old value. Run from
+any worktree of the repo; the invoking worktree stays on its own branch.
+Already at the tip, and a machine-local repo, are converged no-ops (exit
+0). It refuses (exit 4) a dirty primary checkout or one mid-merge,
+cherry-pick, or revert (the dirt is the human's), a rebase of the default
+branch in progress in any worktree, a default branch checked out in a
+linked worktree (another agent may be live there), and a local
+default branch holding commits the remote lacks, whether diverged or
+merely ahead (unpushed trunk commits are the human's parked work). It
+never moves the branch backwards and cannot lose commits. Those refusals
+are the contract working: report them, never work around them with raw
+git.
 
 ```bash
 gitw-repo-register <label> <checkout-path> [<remote-name>] [apply]
@@ -351,7 +399,8 @@ hand-edit, not yours.
   boundary. `gitw-rebase` rewrites only the branch you stand on, never
   its base.
 - **Disclose conflicts you resolved unattended**, naming every file (the
-  union of each stop's `conflicts` list) in the PR body, or in a PR
+  final `continue` payload's `resolved` list, the union of each stop's
+  files, which survives a context compaction) in the PR body, or in a PR
   comment when the PR already exists, so the reviewer checks those
   resolutions. A conflict you cannot resolve with confidence is still a
   stop: `abort`, push what you have, and say so in the same place.
@@ -391,7 +440,12 @@ pending a consumer that proves need. Stash is not deferred — it is banned
 ## Allowlisting a Consumer
 
 Project `settings.json` rules pin verb + label + branch prefix as literal
-prefixes; the trailing slash on the prefix is the token boundary:
+prefixes. Two boundaries, one per layer: in a rule, the space before the
+trailing star ends the token (exact rows without a star match by whole-string
+equality, so there the slash is just the end of the literal); the trailing
+slash on the prefix does its work in the wrapper's own prefix check (`fix/`
+must not match `fixture-cleanup`) and keeps prefixes visually distinct from
+labels:
 
 ```json
 "Bash(gitw-orient rocket-sled)",
@@ -414,17 +468,21 @@ plus one per base
 (`"Bash(gitw-rebase rocket-sled fix/ onto integrate/workjam-2026-10-10)"`).
 A harness that does not honour the rule makes the bare call prompt
 rather than run, so an allow row fails closed; a deny row would fail
-open, which is why agent-tooling's own policy spec carries exact deny
-rows as well. `gitw-push` never takes a star: the set of refs a consumer
+open. `gitw-push` never takes a star: the set of refs a consumer
 may move is a deliberate enumeration, so its bare form is one exact row
 and each named target is its own exact row
-(`"Bash(gitw-push rocket-sled reconcile/ current)"`).
+(`"Bash(gitw-push rocket-sled bot/ current)"`).
 
 The bare `/` prefix is granted like any other
 (`"Bash(gitw-commit rocket-sled / *)"`, `"Bash(gitw-push rocket-sled /)"`);
 a repo that wants prefix segmentation simply does not grant it. A row
 starred right after the label (`"Bash(gitw-commit rocket-sled *)"`)
 already admits it.
+
+`gitw-trunk-sync` takes the label alone, so its grant is the exact row
+`"Bash(gitw-trunk-sync rocket-sled)"`; it only ever fast-forwards, so a
+plain allow is safe where an agent is expected to keep the human's local
+trunk current.
 
 Grant only the verbs and prefixes the consumer exercises;
 `gitw-integrate` is granted per-repo, deliberately, and only where direct

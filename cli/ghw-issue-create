@@ -1,15 +1,23 @@
-#!/usr/bin/env python3
+#!/usr/bin/python3
 """ghw-issue-create <repo> <type-label> <title> <body-file> [label ...] -- file a new issue.
 
 Validates the label attachment contract before writing: exactly one canonical
 type label (feature|improvement|bug|debt|meta), at least one 'area:' label
 among the extra labels, and every label already present in the repo's live
-label registry (ghw-label-sync is the sole label-creation path). The body
+label registry (ghw-label-sync is the sole label-creation path). The label
+tail takes no flags: a label beginning with '-' is a usage error, refused
+before any network call. The body
 comes from a staged file under /tmp/claude/ or ~/.claude/jobs/<job-id>/tmp/
 (never inline text). Deliberately non-idempotent: search for duplicates before
 filing, per skill-text guidance.
 
-Exit codes: 0 success, 1 gh/API failure, 2 usage error or policy refusal.
+Exit codes: 0 success, 1 unclassified gh/API failure, 2 usage error (including
+a type label outside the canonical five), 3 not found, 4 refused: the label set
+violates the attachment contract (a second or repeated type label, no 'area:'
+label, a label missing from the registry), 5 auth failure, 6 network failure
+(retryable). A failure whose request may
+already have landed (a timeout or reset) exits 1 instead of 6 on the
+non-idempotent write Verbs, so a retry cannot duplicate it.
 """
 
 from __future__ import annotations
@@ -45,23 +53,28 @@ def main(argv: list[str]) -> int:
         )
     if not title.strip():
         plan.usage_die("title must not be empty", _USAGE)
+    for label in extra_labels:
+        if arguments.is_flag_shaped(label):
+            plan.usage_die(
+                f"ghw-issue-create takes no flags, got {label!r}", _USAGE
+            )
     body = staging.read_staged_body(body_path)
 
     try:
         registry = {label["name"] for label in boards.fetch_labels(repository)}
     except gh.GhError as error:
-        gh.die(str(error), plan.EXIT_RUNTIME)
+        gh.die(str(error), error.exit_code)
 
     try:
         labels.validate_creation_labels(type_label, extra_labels, registry)
     except labels.LabelContractError as error:
-        gh.die(str(error), plan.EXIT_USAGE)
+        gh.die(str(error), plan.EXIT_REFUSED)
 
     all_labels = [type_label, *extra_labels]
     try:
         url = gh.issue_create(repository, title, body, all_labels)
     except gh.GhError as error:
-        gh.die(str(error), plan.EXIT_RUNTIME)
+        gh.die(str(error), gh.write_exit_code(error))
 
     plan.emit_plan(
         "applied",

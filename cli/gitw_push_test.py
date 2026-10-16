@@ -232,6 +232,47 @@ class GitwPushBehaviorTest(_PushFixtureTest):
         self.assertIn("worktree of", stderr)
 
 
+class GitwPushRemoteHookTest(_PushFixtureTest):
+    """A decline by the remote's own pre-receive hook is a refusal (4),
+    never the retryable network class (6)."""
+
+    def test_remote_hook_decline_is_exit_4_with_git_output_relayed(self):
+        gitw_test_support.add_pre_receive_hook(
+            self.remote,
+            'echo "policy: protected branch" >&2\nexit 1\n'
+        )
+        stderr = self.push_expecting_exit(4, "proj", "fix/")
+        self.assertIn("[remote rejected]", stderr)
+        self.assertIn("policy: protected branch", stderr)
+        self.assertIn("never retry unchanged", stderr)
+        self.assertNotIn("rejected by the lease", stderr)
+        self.assertIsNone(self.remote_tip("fix/topic"))
+
+    def test_lost_ref_update_race_gets_reconcile_advice(self):
+        gitw_test_support.add_pre_receive_hook(
+            self.remote, gitw_test_support.RACE_PRE_RECEIVE_HOOK
+        )
+        stderr = self.push_expecting_exit(4, "proj", "fix/")
+        self.assertIn("[remote rejected]", stderr)
+        self.assertIn("lost a ref-update race", stderr)
+        self.assertNotIn("refused by the remote", stderr)
+
+    def test_remote_hook_text_with_auth_words_is_still_a_refusal(self):
+        gitw_test_support.add_pre_receive_hook(
+            self.remote, 'echo "permission denied: not yours" >&2\nexit 1\n'
+        )
+        stderr = self.push_expecting_exit(4, "proj", "fix/")
+        self.assertIn("refused by the remote", stderr)
+
+    def test_remote_hook_text_with_lease_words_is_not_the_lease(self):
+        gitw_test_support.add_pre_receive_hook(
+            self.remote, 'echo "stale info" >&2\nexit 1\n'
+        )
+        stderr = self.push_expecting_exit(4, "proj", "fix/")
+        self.assertIn("refused by the remote", stderr)
+        self.assertNotIn("rejected by the lease", stderr)
+
+
 class GitwPushHookTest(_PushFixtureTest):
     """A local pre-push hook: its output reaches the caller whether it
     passes or refuses, and a refusal is exit 4, never the retryable 6."""
@@ -256,6 +297,41 @@ class GitwPushHookTest(_PushFixtureTest):
         )
         self.assertIn("refused by the local pre-push hook (exit 1)", stderr)
         self.assertIsNone(self.remote_tip("fix/topic"))
+
+    def test_refusal_is_exit_4_even_with_an_inherited_parent_sid(self):
+        # Run from inside another git's hook or alias, the caller's
+        # environment carries GIT_TRACE2_PARENT_SID; the root push's own
+        # session id would then contain a slash and its refusing hook
+        # would be read as nested.
+        gitw_test_support.add_pre_push_hook(self.clone, "exit 1\n")
+        with mock.patch.dict("os.environ", {"GIT_TRACE2_PARENT_SID": "outer"}):
+            stderr = self.push_expecting_exit(4, "proj", "fix/")
+        self.assertIn("refused by the local pre-push hook (exit 1)", stderr)
+
+    def test_a_nested_push_refused_by_its_own_hook_is_not_this_pushes(self):
+        # The outer hook runs a second push, in another clone whose own
+        # pre-push hook refuses, tolerates that, and passes. The nested
+        # refusal shares the trace file but is not the outer push's: the
+        # outer push then fails on the lease, and must be reported as the
+        # lease, not as a hook refusal.
+        self.push("proj", "fix/")
+        self.another_actor_moves_topic()
+        gitw_test_support.commit_on(self.clone, "mine.txt", "m\n", "my work")
+        inner = self.base / "inner"
+        gitw_test_support.git(self.base, "clone", str(self.remote), "inner")
+        gitw_test_support.commit_on(inner, "inner.txt", "i\n", "inner work")
+        gitw_test_support.add_pre_push_hook(inner, "exit 1\n")
+        gitw_test_support.add_pre_push_hook(
+            self.clone,
+            "unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE\n"
+            f'git -C "{inner}" push origin HEAD:refs/heads/fix/inner'
+            " >/dev/null 2>&1 || true\n"
+            "exit 0\n"
+        )
+        stderr = self.push_expecting_exit(4, "proj", "fix/")
+        self.assertIn("rejected by the lease", stderr)
+        self.assertNotIn("refused by the local pre-push hook", stderr)
+        self.assertIsNone(self.remote_tip("fix/inner"))
 
     def test_hook_refusal_keeps_the_hook_exit_code(self):
         gitw_test_support.add_pre_push_hook(
@@ -299,6 +375,16 @@ class GitwPushHookTest(_PushFixtureTest):
         stderr = self.push_expecting_exit(4, "proj", "fix/")
         self.assertIn("refused by the local pre-push hook (exit 1)", stderr)
         self.assertNotIn("rejected by the lease", stderr)
+
+    def test_hung_hook_is_exit_4_with_output_so_far_relayed(self):
+        gitw_test_support.add_pre_push_hook(
+            self.clone, 'echo "pre-push: working" >&2\nexec sleep 30\n'
+        )
+        with mock.patch.object(_MODULE.run, "_TIMEOUT_SECONDS", 3):
+            stderr = self.push_expecting_exit(4, "proj", "fix/")
+        self.assertIn("pre-push: working\n", stderr)
+        self.assertIn("pre-push hook still running", stderr)
+        self.assertIsNone(self.remote_tip("fix/topic"))
 
     def test_stale_lease_with_a_refusing_hook_reports_the_hook(self):
         # git still runs the hook after the local stale-lease rejection,
@@ -515,6 +601,16 @@ class GitwPushBareSlashTest(_PushFixtureTest):
     def test_case_variant_default_target_is_refused(self):
         stderr = self.push_expecting_exit(4, "proj", "/", "Main")
         self.assertIn("default branch", stderr)
+
+
+class GitwPushArgumentContractTest(
+    ghw_test_support.ArgumentContractTests, unittest.TestCase
+):
+    SCRIPT = _SCRIPT
+    LONGEST = ("proj", "fix/", "name")
+    FLAG_SLOT_FORMS = (
+        ("proj", "fix/", "--bogus"),
+    )
 
 
 if __name__ == "__main__":

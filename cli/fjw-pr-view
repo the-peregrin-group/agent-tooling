@@ -6,7 +6,7 @@ rather than a PR is not-found (the /pulls route 404s there). Acts as the
 deployment's machine account.
 
 Exit codes: 0 success, 1 unclassified API failure, 2 usage error, 3 no such
-PR (or no such repository), 5 auth/config failure, 6 network failure.
+PR (or no such repository), 5 roster/auth/config (deployment), 6 network failure.
 """
 
 from __future__ import annotations

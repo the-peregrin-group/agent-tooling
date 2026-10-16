@@ -31,6 +31,18 @@ equals git's own onto commit; with no record, or a disagreeing one (a
 rebase gitw did not start), they report `"onto": null` and write no
 record, so a guessed name never sticks to someone else's rebase.
 
+Conflicted paths: every stop also folds its conflicted paths into a
+gitw-conflicts record (NUL-separated, rewritten as the sorted union) in
+the same state directory, so it dies with the rebase and survives a
+context compaction between stops. The stop payload's `conflicts` stays
+that stop's own files; the final successful `continue` adds `resolved`,
+the sorted, de-duplicated union of every stop's files (and the files it
+just resolved). Unlike the onto record, this one is written for any
+rebase that `continue` or a gitw stop touches, started by gitw or not:
+a path list carries no guess. Stops reached before gitw's first
+`continue` on a rebase it did not start are not recorded; from that
+`continue` on, the record accumulates as usual.
+
 `continue`: stage the resolutions (exactly the conflicted paths, nothing
 else) and proceed; the cycle repeats per conflict (each stop exits 4
 with the fresh conflict listing). Files still carrying a full conflict
@@ -54,7 +66,7 @@ the onto base missing on the remote), 4 refused (cwd/branch-prefix
 mismatch, dirty worktree, rebase already or not in progress, conflict
 stop, unresolved markers on continue, an onto base that is the default,
 HEAD, an alias of the default, or the branch itself, onto on a
-machine-local repo), 5 roster missing/malformed or auth failure, 6
+machine-local repo), 5 roster/auth/config (deployment), 6
 network failure.
 """
 
@@ -75,6 +87,7 @@ _USAGE = (
 # The base a stopped rebase was started onto, kept inside git's own rebase
 # state directory so that its lifetime is exactly the rebase's.
 _ONTO_RECORD = "gitw-onto"
+_CONFLICTS_RECORD = "gitw-conflicts"
 
 
 def main(argv: list[str]) -> int:
@@ -160,12 +173,14 @@ def _conflict_stop(
     label = workspace.entry.label
     if onto is not None:
         _record_onto(workspace.root, *onto)
+    conflicts = repo.conflicted_paths(workspace.root)
+    _record_conflicts(workspace.root, conflicts)
     plan.emit_plan(
         "conflict",
         repo=label,
         branch=branch,
         onto=onto[0] if onto is not None else None,
-        conflicts=repo.conflicted_paths(workspace.root),
+        conflicts=conflicts,
         worktree=str(workspace.root),
         hint=(
             f"resolve the conflicts, then `gitw-rebase {label} {prefix} "
@@ -173,6 +188,39 @@ def _conflict_stop(
         ),
     )
     sys.exit(plan.EXIT_REFUSED)
+
+
+def _recorded_conflicts(root: Path) -> list:
+    """Every path recorded at the in-progress rebase's earlier stops
+    (NUL-separated, so odd file names survive); empty with no record."""
+    state_dir = repo.rebase_state_dir(root)
+    if state_dir is None:
+        return []
+    try:
+        raw = (state_dir / _CONFLICTS_RECORD).read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return []
+    # The writer ends the record with NUL; an unterminated final segment
+    # is a torn write and is dropped rather than reported as a path.
+    return [path for path in raw.split("\0")[:-1] if path]
+
+
+def _record_conflicts(root: Path, paths: list) -> list:
+    """Union `paths` into the stop record kept in the rebase state
+    directory (which git deletes on completion or abort, so no stale
+    record can outlive its rebase) and return the sorted, de-duplicated
+    union. Best effort: a lost write only costs the later `resolved`
+    list the earlier stops' files."""
+    union = sorted(set(_recorded_conflicts(root)) | set(paths))
+    state_dir = repo.rebase_state_dir(root)
+    if state_dir is not None and union:
+        try:
+            (state_dir / _CONFLICTS_RECORD).write_text(
+                "\0".join(union) + "\0", encoding="utf-8"
+            )
+        except OSError:
+            pass
+    return union
 
 
 def _git_onto(state_dir: Path) -> str | None:
@@ -410,6 +458,7 @@ def _continue(workspace: repo.Workspace, prefix: str) -> dict:
             raise run.GitError(f"git add failed: {detail}")
     # Read before continuing: a completed rebase takes the record with it.
     onto = _recorded_onto(root)
+    resolved = _record_conflicts(root, conflicts)
     result = run.run(["rebase", "--continue"], root)
     if result.returncode != 0:
         if repo.rebase_head_branch(root) is not None:
@@ -422,6 +471,7 @@ def _continue(workspace: repo.Workspace, prefix: str) -> dict:
         "mode": "continue",
         "branch": branch,
         "onto": onto[0] if onto is not None else None,
+        "resolved": resolved,
         "commit": repo.head_commit(root),
         "worktree": str(root),
     }

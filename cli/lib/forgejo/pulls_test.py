@@ -47,11 +47,11 @@ class FindOpenPrsByHeadTest(unittest.TestCase):
     def test_server_filter_used_when_swagger_advertises_it(
         self, request, _supports, _swagger
     ):
-        request.return_value = [_pr(4, "reconcile/a")]
-        matches = pulls.find_open_prs_by_head(_CONFIG, "o/r", "reconcile/a")
+        request.return_value = [_pr(4, "bot/a")]
+        matches = pulls.find_open_prs_by_head(_CONFIG, "o/r", "bot/a")
         self.assertEqual([pr["number"] for pr in matches], [4])
         query = request.call_args.kwargs["query"]
-        self.assertEqual(query["head"], "reconcile/a")
+        self.assertEqual(query["head"], "bot/a")
         self.assertEqual(query["state"], "open")
 
     @mock.patch("lib.forgejo.pulls.api.supports_head_filter", return_value=True)
@@ -61,8 +61,8 @@ class FindOpenPrsByHeadTest(unittest.TestCase):
     ):
         # Trust but verify: a server bug (or a label-vs-ref mismatch) must not
         # let a foreign PR through.
-        request.return_value = [_pr(4, "reconcile/a"), _pr(5, "other/branch")]
-        matches = pulls.find_open_prs_by_head(_CONFIG, "o/r", "reconcile/a")
+        request.return_value = [_pr(4, "bot/a"), _pr(5, "other/branch")]
+        matches = pulls.find_open_prs_by_head(_CONFIG, "o/r", "bot/a")
         self.assertEqual([pr["number"] for pr in matches], [4])
 
     @mock.patch("lib.forgejo.pulls.api.supports_head_filter", return_value=False)
@@ -71,10 +71,10 @@ class FindOpenPrsByHeadTest(unittest.TestCase):
         self, request, _supports, _swagger
     ):
         request.return_value = [
-            _pr(1, "feature-x"), _pr(2, "reconcile/a"), _pr(3, "reconcile/ab"),
+            _pr(1, "feature-x"), _pr(2, "bot/a"), _pr(3, "bot/ab"),
         ]
-        matches = pulls.find_open_prs_by_head(_CONFIG, "o/r", "reconcile/a")
-        # Exact match only -- "reconcile/ab" is a different branch.
+        matches = pulls.find_open_prs_by_head(_CONFIG, "o/r", "bot/a")
+        # Exact match only -- "bot/ab" is a different branch.
         self.assertEqual([pr["number"] for pr in matches], [2])
 
     @mock.patch("lib.forgejo.pulls.api.supports_head_filter", return_value=True)
@@ -154,15 +154,89 @@ class CreatePrTest(unittest.TestCase):
 
 class BranchExistsTest(unittest.TestCase):
     @mock.patch("lib.forgejo.pulls.api.request")
-    def test_not_found_is_false_other_errors_raise(self, request):
-        request.side_effect = api.ApiError("gone", plan.EXIT_NOT_FOUND, 404)
-        self.assertFalse(pulls.branch_exists(_CONFIG, "o/r", "b"))
-        request.side_effect = api.ApiError("boom", plan.EXIT_RUNTIME, 500)
-        with self.assertRaises(api.ApiError):
-            pulls.branch_exists(_CONFIG, "o/r", "b")
-        request.side_effect = None
+    def test_happy_path_makes_exactly_one_request(self, request):
         request.return_value = {"name": "b"}
         self.assertTrue(pulls.branch_exists(_CONFIG, "o/r", "b"))
+        self.assertEqual(request.call_count, 1)
+
+    @mock.patch("lib.forgejo.pulls.api.request")
+    def test_missing_branch_in_visible_repo_is_false(self, request):
+        request.side_effect = [
+            api.ApiError("gone", plan.EXIT_NOT_FOUND, 404),
+            {"name": "r"},
+        ]
+        self.assertFalse(pulls.branch_exists(_CONFIG, "o/r", "b"))
+        self.assertEqual(
+            [c.args[2] for c in request.call_args_list],
+            ["/repos/o/r/branches/b", "/repos/o/r"],
+        )
+
+    @mock.patch("lib.forgejo.pulls.api.request")
+    def test_invisible_repo_raises_exit_3_naming_both_causes(self, request):
+        request.side_effect = [
+            api.ApiError("gone", plan.EXIT_NOT_FOUND, 404),
+            api.ApiError("gone", plan.EXIT_NOT_FOUND, 404),
+        ]
+        with self.assertRaises(api.ApiError) as caught:
+            pulls.branch_exists(_CONFIG, "o/r", "b")
+        self.assertEqual(caught.exception.exit_code, plan.EXIT_NOT_FOUND)
+        message = str(caught.exception)
+        self.assertIn("does not exist", message)
+        self.assertIn("cannot see it", message)
+        self.assertIn("grant", message)
+
+    @mock.patch("lib.forgejo.pulls.api.request")
+    def test_non_404_errors_pass_through_without_probing(self, request):
+        request.side_effect = api.ApiError("boom", plan.EXIT_RUNTIME, 500)
+        with self.assertRaises(api.ApiError) as caught:
+            pulls.branch_exists(_CONFIG, "o/r", "b")
+        self.assertEqual(caught.exception.exit_code, plan.EXIT_RUNTIME)
+        self.assertEqual(request.call_count, 1)
+
+    @mock.patch("lib.forgejo.pulls.api.request")
+    def test_probe_error_other_than_404_raises(self, request):
+        request.side_effect = [
+            api.ApiError("gone", plan.EXIT_NOT_FOUND, 404),
+            api.ApiError("boom", plan.EXIT_RUNTIME, 500),
+        ]
+        with self.assertRaises(api.ApiError) as caught:
+            pulls.branch_exists(_CONFIG, "o/r", "b")
+        self.assertEqual(caught.exception.exit_code, plan.EXIT_RUNTIME)
+
+
+class RepoVisibleTest(unittest.TestCase):
+    @mock.patch("lib.forgejo.pulls.api.request")
+    def test_visible_invisible_and_error(self, request):
+        request.return_value = {"name": "r"}
+        self.assertTrue(pulls.repo_visible(_CONFIG, "o/r"))
+        request.side_effect = api.ApiError("gone", plan.EXIT_NOT_FOUND, 404)
+        self.assertFalse(pulls.repo_visible(_CONFIG, "o/r"))
+        request.side_effect = api.ApiError("boom", plan.EXIT_RUNTIME, 500)
+        with self.assertRaises(api.ApiError):
+            pulls.repo_visible(_CONFIG, "o/r")
+
+
+class DisambiguateNotFoundTest(unittest.TestCase):
+    @mock.patch("lib.forgejo.pulls.api.request")
+    def test_non_404_error_is_not_probed_or_relabelled(self, request):
+        error = api.ApiError("boom", plan.EXIT_RUNTIME, 500)
+        self.assertIsNone(pulls.disambiguate_not_found(_CONFIG, "o/r", error))
+        request.assert_not_called()
+
+    @mock.patch("lib.forgejo.pulls.api.request")
+    def test_404_with_visible_repo_returns_none(self, request):
+        request.return_value = {"name": "r"}
+        error = api.ApiError("gone", plan.EXIT_NOT_FOUND, 404)
+        self.assertIsNone(pulls.disambiguate_not_found(_CONFIG, "o/r", error))
+        self.assertEqual(request.call_count, 1)
+
+    @mock.patch("lib.forgejo.pulls.api.request")
+    def test_404_with_invisible_repo_raises_exit_3(self, request):
+        error = api.ApiError("gone", plan.EXIT_NOT_FOUND, 404)
+        request.side_effect = error
+        with self.assertRaises(api.ApiError) as caught:
+            pulls.disambiguate_not_found(_CONFIG, "o/r", error)
+        self.assertEqual(caught.exception.exit_code, plan.EXIT_NOT_FOUND)
 
 
 class PaginationTest(unittest.TestCase):
@@ -182,6 +256,41 @@ class PaginationTest(unittest.TestCase):
         self.assertEqual(comments, [{"id": 1}])
         # One call: the short first page already ended pagination.
         self.assertEqual(request.call_count, 1)
+
+
+class ReviewsTest(unittest.TestCase):
+    @mock.patch("lib.forgejo.pulls.api.request")
+    def test_list_reviews_tolerates_null_page(self, request):
+        request.return_value = None
+        self.assertEqual(pulls.list_reviews(_CONFIG, "o/r", 5), [])
+        self.assertEqual(request.call_args.args[1:], ("GET", "/repos/o/r/pulls/5/reviews"))
+
+    @mock.patch("lib.forgejo.pulls.api.request")
+    def test_list_reviews_continues_past_a_short_page_until_empty(self, request):
+        # Forgejo filters after paginating, so a short page is not the end.
+        short = [{"id": i} for i in range(pulls._PAGE_SIZE - 1)]
+        request.side_effect = [short, [{"id": 999}], []]
+        reviews = pulls.list_reviews(_CONFIG, "o/r", 5)
+        self.assertEqual(len(reviews), pulls._PAGE_SIZE)
+        pages = [c.kwargs["query"]["page"] for c in request.call_args_list]
+        self.assertEqual(pages, ["1", "2", "3"])
+
+    @mock.patch("lib.forgejo.pulls.api.request")
+    def test_list_review_comments_is_one_unpaginated_call(self, request):
+        # Forgejo ignores page/limit on this route and returns everything.
+        request.return_value = [{"id": i} for i in range(60)]
+        comments = pulls.list_review_comments(_CONFIG, "o/r", 5, 77)
+        self.assertEqual(len(comments), 60)
+        self.assertEqual(request.call_count, 1)
+        self.assertEqual(
+            request.call_args.args[1:], ("GET", "/repos/o/r/pulls/5/reviews/77/comments")
+        )
+        self.assertNotIn("query", request.call_args.kwargs)
+
+    @mock.patch("lib.forgejo.pulls.api.request")
+    def test_list_review_comments_tolerates_null(self, request):
+        request.return_value = None
+        self.assertEqual(pulls.list_review_comments(_CONFIG, "o/r", 5, 1), [])
 
 
 class ClosePrTest(unittest.TestCase):

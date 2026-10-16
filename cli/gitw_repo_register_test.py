@@ -307,5 +307,17 @@ class GitwRepoRegisterRefusalTest(_RegisterFixtureTest):
         self.assertIn("cannot parse", stderr)
 
 
+class GitwRepoRegisterArgumentContractTest(
+    ghw_test_support.ArgumentContractTests, unittest.TestCase
+):
+    SCRIPT = _SCRIPT
+    LONGEST = ("proj", "/tmp", "origin", "apply")
+    FLAG_SLOT_FORMS = (
+        ("proj", "/tmp", "--bogus"),
+        ("proj", "/tmp", "--bogus", "apply"),
+        ("proj", "/tmp", "origin", "--bogus"),
+    )
+
+
 if __name__ == "__main__":
     unittest.main()

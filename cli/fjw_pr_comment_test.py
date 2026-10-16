@@ -22,6 +22,7 @@ import ghw_test_support
 from lib.forgejo.config import Config
 
 _SCRIPT = Path(__file__).resolve().parent / "fjw-pr-comment"
+_CONTRACT_BODY = "/tmp/claude/argument-contract-body.md"
 _MODULE = ghw_test_support.load_wrapper_module(_SCRIPT)
 _MISSING_BODY = "/tmp/claude/fjw-pr-comment-test-missing-body.md"
 _CONFIG = Config(api_url="https://forge.example.com", token="t")
@@ -43,16 +44,16 @@ class FjwPrCommentArgumentsTest(unittest.TestCase):
         self.assertIn("usage: fjw-pr-comment", result.stderr)
 
     def test_non_grammar_head_prefix_is_usage_error(self):
-        # Same grammar as gitw's branch prefix; a slashless 'reconcile'
-        # would match 'reconciled-elsewhere' too.
-        for prefix in ("", "  ", "reconcile", "Fix/", "a/b/", "//"):
+        # Same grammar as gitw's branch prefix; a slashless 'bot'
+        # would match 'bot-elsewhere' too.
+        for prefix in ("", "  ", "bot", "Fix/", "a/b/", "//"):
             with self.subTest(prefix=prefix):
                 result = _run("o/r", prefix, "5", _MISSING_BODY)
                 self.assertEqual(result.returncode, 2)
                 self.assertIn("head-prefix", result.stderr)
 
     def test_missing_body_file_is_refused(self):
-        result = _run("o/r", "reconcile/", "5", _MISSING_BODY)
+        result = _run("o/r", "bot/", "5", _MISSING_BODY)
         self.assertEqual(result.returncode, 2)
         self.assertIn("refusing body file", result.stderr)
 
@@ -82,7 +83,7 @@ class FjwPrCommentBehaviorTest(unittest.TestCase):
                 mock.patch.object(_MODULE.pulls, "create_comment") as comment, \
                 contextlib.redirect_stderr(io.StringIO()) as stderr:
             with self.assertRaises(SystemExit) as caught:
-                _MODULE.main(["o/r", "reconcile/", "5", self._body_path])
+                _MODULE.main(["o/r", "bot/", "5", self._body_path])
         self.assertEqual(caught.exception.code, 4)
         comment.assert_not_called()
         self.assertIn("does not match the claimed prefix", stderr.getvalue())
@@ -91,7 +92,7 @@ class FjwPrCommentBehaviorTest(unittest.TestCase):
         with mock.patch.object(_MODULE.fjw_config, "load", return_value=_CONFIG), \
                 mock.patch.object(
                     _MODULE.pulls, "get_pr",
-                    return_value={"number": 5, "head": {"ref": "reconcile/2001-02-03"}},
+                    return_value={"number": 5, "head": {"ref": "bot/2001-02-03"}},
                 ), \
                 mock.patch.object(
                     _MODULE.pulls, "create_comment",
@@ -99,12 +100,12 @@ class FjwPrCommentBehaviorTest(unittest.TestCase):
                 ) as comment, \
                 contextlib.redirect_stdout(io.StringIO()) as stdout:
             self.assertEqual(
-                _MODULE.main(["o/r", "reconcile/", "5", self._body_path]), 0
+                _MODULE.main(["o/r", "bot/", "5", self._body_path]), 0
             )
         comment.assert_called_once_with(_CONFIG, "o/r", 5, "status update")
         payload = json.loads(stdout.getvalue())
         self.assertEqual(payload["action"], "applied")
-        self.assertEqual(payload["head"], "reconcile/2001-02-03")
+        self.assertEqual(payload["head"], "bot/2001-02-03")
 
     def test_missing_head_ref_in_the_pr_object_refuses(self):
         # A malformed PR object must fail closed, not comment anyway.
@@ -114,7 +115,7 @@ class FjwPrCommentBehaviorTest(unittest.TestCase):
                 mock.patch.object(_MODULE.pulls, "create_comment") as comment, \
                 contextlib.redirect_stderr(io.StringIO()):
             with self.assertRaises(SystemExit) as caught:
-                _MODULE.main(["o/r", "reconcile/", "5", self._body_path])
+                _MODULE.main(["o/r", "bot/", "5", self._body_path])
         self.assertEqual(caught.exception.code, 4)
         comment.assert_not_called()
 
@@ -140,7 +141,7 @@ class FjwPrCommentBehaviorTest(unittest.TestCase):
     def test_bare_slash_comments_on_any_head(self):
         # 'main' included: commenting moves no branch, so fjw's bare
         # slash admits the default too.
-        for head in ("foo-bar", "reconcile/2001-02-03", "main"):
+        for head in ("foo-bar", "bot/2001-02-03", "main"):
             with self.subTest(head=head):
                 code, comment = self._comment_with_head("/", {"ref": head})
                 self.assertEqual(code, 0)
@@ -150,6 +151,13 @@ class FjwPrCommentBehaviorTest(unittest.TestCase):
         code, comment = self._comment_with_head("/", None)
         self.assertEqual(code, 4)
         comment.assert_not_called()
+
+
+class FjwPrCommentArgumentContractTest(
+    ghw_test_support.ArgumentContractTests, unittest.TestCase
+):
+    SCRIPT = _SCRIPT
+    LONGEST = ("o/r", "fix/", "5", _CONTRACT_BODY)
 
 
 if __name__ == "__main__":

@@ -33,6 +33,9 @@ during integration).
 
 **Exit-code contract**: The fixed meaning of a Verb's exit status (e.g.,
 success, refused by policy, network failure, etc.) that callers branch on.
+Exit 5 is "roster/auth/config (deployment)": a Roster, authentication, or
+configuration failure that only a fix to the deployment cures. The code table
+lives in `docs/index.md#exit-code-contract`.
 
 **Actor**: The party, an agent or a person, that carried out an action or a
 piece of work and is recorded as having done so.

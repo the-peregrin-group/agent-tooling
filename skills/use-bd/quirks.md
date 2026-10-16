@@ -79,8 +79,8 @@ what bd does and what to do about it.
 
 - **A missing `.beads/metadata.json` silently switches databases.** bd
   falls back to an empty database named `beads`, and later writes miss the
-  real one. Never delete the tracked `.beads/` files, even to let a pull
-  restore them.
+  real one; `bdw` refuses to run instead. Never delete the tracked
+  `.beads/` files, even to let a pull restore them.
 - **Nothing deletes on its own** under the default config. `admin
   cleanup`, `prune`, `gc`, and `admin compact` lose data.
 - **`config show` and `config get` can disagree;** `config get` is right.

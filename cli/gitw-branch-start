@@ -30,7 +30,7 @@ Exit codes: 0 success, 1 unclassified git failure, 2 usage error, 3 not
 found (label not in the roster, branch to resume nonexistent, or the
 authoritative default branch missing), 4 refused (scope mismatch, dirty
 worktree, existing branch on create, branch checked out elsewhere on
-resume), 5 roster missing/malformed or auth failure, 6 network failure.
+resume), 5 roster/auth/config (deployment), 6 network failure.
 """
 
 from __future__ import annotations

@@ -29,6 +29,7 @@ import gitw_test_support
 from lib.git.roster import Entry
 
 _SCRIPT = Path(__file__).resolve().parent / "gitw-integrate"
+_CONTRACT_MESSAGE = "/tmp/claude/argument-contract-message.txt"
 _MODULE = ghw_test_support.load_wrapper_module(_SCRIPT)
 _MISSING_MESSAGE = "/tmp/claude/gitw-integrate-test-missing-message.txt"
 
@@ -292,6 +293,43 @@ class GitwIntegrateBehaviorTest(_IntegrateFixtureTest):
             payload["merge_commit"],
         )
 
+    def test_head_spelled_base_is_refused_without_pushing(self):
+        old_main = self.remote_git("rev-parse", "refs/heads/main")
+        for base in ("HEAD", "head", "HEAD/x"):
+            with self.subTest(base=base):
+                stderr = self.integrate_expecting_exit(
+                    4, "proj", base, "fix/", self.message_path
+                )
+                self.assertIn("another spelling", stderr)
+                self.assertIn("'main'", stderr)
+                self.assertEqual(
+                    self.remote_git("rev-parse", "refs/heads/main"), old_main
+                )
+
+    def test_symbolic_alias_of_the_default_is_refused(self):
+        gitw_test_support.git(
+            self.clone, "symbolic-ref", "refs/remotes/origin/alias",
+            "refs/remotes/origin/main",
+        )
+        old_main = self.remote_git("rev-parse", "refs/heads/main")
+        stderr = self.integrate_expecting_exit(
+            4, "proj", "alias", "fix/", self.message_path
+        )
+        self.assertIn("symbolic ref", stderr)
+        self.assertEqual(
+            self.remote_git("rev-parse", "refs/heads/main"), old_main
+        )
+
+    def test_fresh_branch_on_the_default_tip_still_integrates(self):
+        # Judged by symref target, never by commit equality.
+        gitw_test_support.git(self.seed, "switch", "-c", "integrate/run")
+        gitw_test_support.git(self.seed, "push", "origin", "integrate/run")
+        gitw_test_support.git(self.clone, "fetch", "origin")
+        payload = self.integrate(
+            "proj", "integrate/run", "fix/", self.message_path
+        )
+        self.assertEqual(payload["base"], "integrate/run")
+
     def test_missing_base_branch_on_the_remote_is_not_found(self):
         stderr = self.integrate_expecting_exit(
             3, "proj", "ghost", "fix/", self.message_path
@@ -367,6 +405,125 @@ class GitwIntegrateBehaviorTest(_IntegrateFixtureTest):
         self.assertIn("checked out at cwd", stderr)
 
 
+class GitwIntegrateExecutedByTest(_IntegrateFixtureTest):
+    _JOB_ENVIRON = {"CLAUDE_JOB_DIR": "/Users/x/.claude/jobs/ae218998",
+                    "USER": "dan"}
+
+    def integrate_with_environ(self, environ: dict, *arguments: str,
+                               expecting_exit: int | None = None):
+        """Integrate with the session identity pinned to `environ` (the
+        developer running the suite may be inside a session with
+        CLAUDE_CODE_SESSION_ID and CLAUDE_JOB_DIR set)."""
+        with mock.patch.dict(os.environ, environ):
+            for name in ("CLAUDE_JOB_DIR", "CLAUDE_CODE_SESSION_ID"):
+                if name not in environ:
+                    os.environ.pop(name, None)
+            if expecting_exit is not None:
+                return self.integrate_expecting_exit(
+                    expecting_exit, *arguments
+                )
+            return self.integrate(*arguments)
+
+    def base_trailers(self) -> list:
+        output = self.remote_git(
+            "log", "-1", "--format=%(trailers:key=Executed-By,valueonly)",
+            "refs/heads/main",
+        )
+        return [line for line in output.splitlines() if line]
+
+    def test_job_dir_actor_is_the_trailer(self):
+        payload = self.integrate_with_environ(
+            self._JOB_ENVIRON, "proj", "main", "fix/", self.message_path
+        )
+        self.assertEqual(self.base_trailers(), ["claude-job-ae218998"])
+        self.assertEqual(payload["executed_by"], "claude-job-ae218998")
+        self.assertEqual(
+            self.remote_git("log", "-1", "--format=%B", "refs/heads/main"),
+            "Integrate fix/topic\n\nbubble body\n\n"
+            "Executed-By: claude-job-ae218998",
+        )
+
+    def test_attended_fallback_is_the_trailer(self):
+        payload = self.integrate_with_environ(
+            {"USER": "dan"}, "proj", "main", "fix/", self.message_path
+        )
+        self.assertEqual(self.base_trailers(), ["attended-dan"])
+        self.assertEqual(payload["executed_by"], "attended-dan")
+
+    def test_caller_trailer_is_replaced_and_the_file_untouched(self):
+        original = "Integrate\n\nbody\n\nExecuted-By: someone-else\n"
+        Path(self.message_path).write_text(original)
+        self.integrate_with_environ(
+            self._JOB_ENVIRON, "proj", "main", "fix/", self.message_path
+        )
+        self.assertEqual(self.base_trailers(), ["claude-job-ae218998"])
+        self.assertNotIn(
+            "someone-else",
+            self.remote_git("log", "-1", "--format=%B", "refs/heads/main"),
+        )
+        self.assertEqual(Path(self.message_path).read_text(), original)
+
+    def test_two_caller_trailers_are_refused_and_nothing_is_pushed(self):
+        Path(self.message_path).write_text(
+            "Integrate\n\nExecuted-By: a\nRefs: x\nexecuted-by: b\n"
+        )
+        old_main = self.remote_git("rev-parse", "refs/heads/main")
+        stderr = self.integrate_with_environ(
+            self._JOB_ENVIRON, "proj", "main", "fix/", self.message_path,
+            expecting_exit=4,
+        )
+        self.assertIn("2 Executed-By trailers", stderr)
+        self.assertIn("gitw-integrate", stderr)
+        self.assertEqual(
+            self.remote_git("rev-parse", "refs/heads/main"), old_main
+        )
+
+
+class GitwIntegrateRemoteHookTest(_IntegrateFixtureTest):
+    """A decline by the remote's own pre-receive hook is a refusal (4),
+    never the retryable network class (6)."""
+
+    def test_remote_hook_decline_is_exit_4_with_git_output_relayed(self):
+        old_main = self.remote_git("rev-parse", "refs/heads/main")
+        gitw_test_support.add_pre_receive_hook(
+            self.remote,
+            'echo "policy: main is protected" >&2\nexit 1\n'
+        )
+        stderr = self.integrate_expecting_exit(
+            4, "proj", "main", "fix/", self.message_path
+        )
+        self.assertIn("[remote rejected]", stderr)
+        self.assertIn("policy: main is protected", stderr)
+        self.assertIn("refused by the remote", stderr)
+        self.assertNotIn("moved during the attempt", stderr)
+        self.assertEqual(
+            self.remote_git("rev-parse", "refs/heads/main"), old_main
+        )
+
+    def test_lost_ref_update_race_is_base_moved(self):
+        gitw_test_support.add_pre_receive_hook(
+            self.remote, gitw_test_support.RACE_PRE_RECEIVE_HOOK
+        )
+        stderr = self.integrate_expecting_exit(
+            4, "proj", "main", "fix/", self.message_path
+        )
+        self.assertIn("[remote rejected]", stderr)
+        self.assertIn("moved during the attempt", stderr)
+        self.assertNotIn("refused by the remote", stderr)
+
+    def test_remote_hook_text_with_base_moved_words_is_not_base_moved(self):
+        gitw_test_support.add_pre_receive_hook(
+            self.remote,
+            'echo "non-fast-forward: stale info, fetch first" >&2\n'
+            "exit 1\n"
+        )
+        stderr = self.integrate_expecting_exit(
+            4, "proj", "main", "fix/", self.message_path
+        )
+        self.assertIn("refused by the remote", stderr)
+        self.assertNotIn("moved during the attempt", stderr)
+
+
 class GitwIntegrateHookTest(_IntegrateFixtureTest):
     """A local pre-push hook on the bubble's push: its output reaches the
     caller whether it passes or refuses, and a refusal is exit 4, never
@@ -394,6 +551,21 @@ class GitwIntegrateHookTest(_IntegrateFixtureTest):
         )
         self.assertIn("refused by the local pre-push hook (exit 1)", stderr)
         self.assertNotIn("moved during the attempt", stderr)
+        self.assertEqual(
+            self.remote_git("rev-parse", "refs/heads/main"), old_main
+        )
+
+    def test_hung_hook_is_exit_4_with_output_so_far_relayed(self):
+        old_main = self.remote_git("rev-parse", "refs/heads/main")
+        gitw_test_support.add_pre_push_hook(
+            self.clone, 'echo "pre-push: working" >&2\nexec sleep 30\n'
+        )
+        with mock.patch.object(_MODULE.run, "_TIMEOUT_SECONDS", 3):
+            stderr = self.integrate_expecting_exit(
+                4, "proj", "main", "fix/", self.message_path
+            )
+        self.assertIn("pre-push: working\n", stderr)
+        self.assertIn("pre-push hook still running", stderr)
         self.assertEqual(
             self.remote_git("rev-parse", "refs/heads/main"), old_main
         )
@@ -519,6 +691,13 @@ class GitwIntegrateBareSlashTest(_IntegrateFixtureTest):
             4, "proj", "develop", "/", self.message_path
         )
         self.assertIn("default branch", stderr)
+
+
+class GitwIntegrateArgumentContractTest(
+    ghw_test_support.ArgumentContractTests, unittest.TestCase
+):
+    SCRIPT = _SCRIPT
+    LONGEST = ("proj", "main", "fix/", _CONTRACT_MESSAGE)
 
 
 if __name__ == "__main__":

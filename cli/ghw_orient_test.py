@@ -111,5 +111,12 @@ class GhwOrientConformanceVerdictTest(unittest.TestCase):
         self.assertIsNone(payload["canonical_board"])
 
 
+class GhwOrientArgumentContractTest(
+    ghw_test_support.ArgumentContractTests, unittest.TestCase
+):
+    SCRIPT = _SCRIPT
+    LONGEST = ("o/r",)
+
+
 if __name__ == "__main__":
     unittest.main()

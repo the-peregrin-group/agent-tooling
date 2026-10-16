@@ -24,6 +24,7 @@ from unittest import mock
 import ghw_test_support
 
 _SCRIPT = Path(__file__).resolve().parent / "ghw-pr-create"
+_CONTRACT_BODY = "/tmp/claude/argument-contract-body.md"
 _MISSING_BODY = "/tmp/claude/ghw-pr-create-test-missing-body.md"
 
 
@@ -102,9 +103,21 @@ class GhwPrCreateBehaviorTest(unittest.TestCase):
                 contextlib.redirect_stderr(io.StringIO()) as stderr:
             with self.assertRaises(SystemExit) as caught:
                 _MODULE.main(["o/r", "main", "feat", "Title", self._body_path])
-        self.assertEqual(caught.exception.code, 2)
+        self.assertEqual(caught.exception.code, 4)
         create.assert_not_called()
         self.assertIn("push it first", stderr.getvalue())
+
+    def test_nonexistent_base_branch_is_a_policy_refusal(self):
+        with mock.patch.object(_MODULE, "_current_branch", return_value=None), \
+                mock.patch.object(_MODULE.boards, "fetch_branches_exist",
+                                  return_value={"main": False, "feat": True}), \
+                mock.patch.object(_MODULE.gh, "pr_create") as create, \
+                contextlib.redirect_stderr(io.StringIO()) as stderr:
+            with self.assertRaises(SystemExit) as caught:
+                _MODULE.main(["o/r", "main", "feat", "Title", self._body_path])
+        self.assertEqual(caught.exception.code, 4)
+        create.assert_not_called()
+        self.assertIn("base branch 'main' does not exist", stderr.getvalue())
 
     def test_created_pr_emits_applied_with_the_number(self):
         with mock.patch.object(_MODULE, "_current_branch", return_value=None), \
@@ -140,6 +153,27 @@ class GhwPrCreateBehaviorTest(unittest.TestCase):
         create.assert_called_once()
         self.assertIn("warning:", stderr.getvalue())
         self.assertIn("'elsewhere'", stderr.getvalue())
+
+
+class GhwPrCreateArgumentContractTest(
+    ghw_test_support.ArgumentContractTests, unittest.TestCase
+):
+    SCRIPT = _SCRIPT
+    LONGEST = ("o/r", "main", "feat", "Title", _CONTRACT_BODY, "--draft")
+    FLAG_SLOT_FORMS = (
+        ("o/r", "main", "feat", "Title", _CONTRACT_BODY, "--bogus"),
+    )
+
+
+class GhwPrCreateWriteFailureTest(unittest.TestCase):
+    def test_failure_exit_codes_route_through_write_exit_code(self):
+        ghw_test_support.assert_write_failure_codes(
+            self, _MODULE, ["o/r", "main", "feat", "a title", _MISSING_BODY],
+            "pr_create",
+            extra_patches=(
+                (_MODULE.boards, "fetch_branches_exist",
+                 {"return_value": {"main": True, "feat": True}}),
+            ))
 
 
 if __name__ == "__main__":

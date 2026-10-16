@@ -321,6 +321,20 @@ class GhwLabelSyncBehaviorTest(unittest.TestCase):
         self.assertIn("HTTP 500", message)
         self.assertIn("created area:core", message)
 
+    def test_a_classified_failure_mid_apply_keeps_its_exit_code(self):
+        registry = list(_CANONICAL_REGISTRY)
+        schema = {"area": [{"name": "core", "description": "Core engine"},
+                           {"name": "docs", "description": "Docs"}]}
+        for code in (3, 5, 6):
+            with self.subTest(code=code):
+                with self._synced(registry) as seam:
+                    seam["create"].side_effect = [
+                        None, _MODULE.gh.GhError("boom", code)]
+                    with self.assertRaises(SystemExit) as caught:
+                        _MODULE.main(["o/r", "apply", self._schema_file(schema)])
+                self.assertEqual(caught.exception.code, code)
+                self.assertIn("created area:core", seam["stderr"].getvalue())
+
     def test_case_only_registry_difference_is_reported_not_recreated(self):
         # GitHub's label namespace is case-insensitive: planning a create for
         # 'bug' against a live 'Bug' would fail as already-existing forever.
@@ -350,6 +364,13 @@ class GhwLabelSyncBehaviorTest(unittest.TestCase):
         payload = json.loads(seam["stdout"].getvalue())
         self.assertEqual(payload["delete"], [])
         self.assertIn("P0", payload["unchanged"])
+
+
+class GhwLabelSyncArgumentContractTest(
+    ghw_test_support.ArgumentContractTests, unittest.TestCase
+):
+    SCRIPT = _SCRIPT
+    LONGEST = ("o/r", "plan", "f.json")
 
 
 if __name__ == "__main__":

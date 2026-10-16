@@ -14,6 +14,7 @@ In this order:
    immediately and visibly.
 2. **Surface questions that fit no root** Line of Inquiry, if any came up.
 3. **Drain the Resolution Queue** of the items from the LOI just exited.
+   Show the full queue here, every item, not the one-line summary.
    - Candidate terms: run `use-lexicon`'s naming procedure, one concept per
      turn, identity first and names next. Every working name ends here:
      ratified, renamed, or dropped. Write each ratified entry at once.
@@ -39,7 +40,8 @@ initiative; the most you do is observe that the frontier looks empty.
 
 ### The check
 
-Report the frontier and the Resolution Queue. Both are expected empty. If
+Report the frontier and the full Resolution Queue, every item, not the
+one-line summary. Both are expected empty. If
 either is not, say what remains and why; the user may overrule with a word,
 and that is their call.
 

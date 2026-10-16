@@ -1,7 +1,8 @@
 """Argument-validation tests for the ghw-issue-create executable.
 
-Each test runs the script as a subprocess with arguments that fail before any
-network I/O; no `gh` calls are made.
+Most tests run the script as a subprocess with arguments that fail before
+any network I/O; the label-tail tests load it as a module with the `gh`
+seams mocked. No `gh` calls are made.
 
 Run from the cli/ directory:
     python3 -m unittest discover -s . -p '*_test.py'
@@ -9,12 +10,21 @@ Run from the cli/ directory:
 
 from __future__ import annotations
 
+import contextlib
+import io
+import os
 import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
+
+import ghw_test_support
 
 _SCRIPT = Path(__file__).resolve().parent / "ghw-issue-create"
+_MODULE = ghw_test_support.load_wrapper_module(_SCRIPT)
+_CONTRACT_BODY = "/tmp/claude/argument-contract-body.md"
 _MISSING_BODY = "/tmp/claude/ghw-issue-create-test-missing-body.md"
 
 
@@ -62,6 +72,81 @@ class GhwIssueCreateArgumentsTest(unittest.TestCase):
                 result = _run(flag)
                 self.assertEqual(result.returncode, 0)
                 self.assertIn("ghw-issue-create <repo>", result.stdout)
+
+
+class GhwIssueCreateArgumentContractTest(
+    ghw_test_support.ArgumentContractTests, unittest.TestCase
+):
+    SCRIPT = _SCRIPT
+    LONGEST = ("o/r", "bug", "Title", _CONTRACT_BODY, "area:cli")
+    FLAG_SLOT_FORMS = (
+        ("o/r", "bug", "Title", _CONTRACT_BODY, "--bogus"),
+    )
+    VARIADIC = True
+
+
+class GhwIssueCreateLabelTailTest(unittest.TestCase):
+    """The variadic label tail consumes every element: a surplus positional
+    is one more label, held to the live registry, and a flag-shaped one is
+    refused before the registry is fetched. The `gh` seams are mocked."""
+
+    def setUp(self):
+        os.makedirs("/tmp/claude", exist_ok=True)
+        handle = tempfile.NamedTemporaryFile(
+            mode="w", dir="/tmp/claude", suffix=".md", delete=False
+        )
+        handle.write("Body.\n")
+        handle.close()
+        self.addCleanup(os.unlink, handle.name)
+        self.body = handle.name
+
+    def _main_expecting_exit(self, *labels: str):
+        registry = [{"name": "bug"}, {"name": "area:cli"}]
+        stderr = io.StringIO()
+        with mock.patch.object(_MODULE.boards, "fetch_labels",
+                               return_value=registry) as fetch, \
+                mock.patch.object(_MODULE.gh, "issue_create") as create, \
+                contextlib.redirect_stderr(stderr), \
+                self.assertRaises(SystemExit) as raised:
+            _MODULE.main(["o/r", "bug", "Title", self.body, *labels])
+        create.assert_not_called()
+        return raised.exception.code, fetch, stderr.getvalue()
+
+    def test_surplus_label_outside_the_registry_is_a_policy_refusal(self):
+        code, _, stderr = self._main_expecting_exit("area:cli", "surplus")
+        self.assertEqual(code, 4)
+        self.assertIn("'surplus'", stderr)
+
+    def test_label_contract_violations_are_policy_refusals(self):
+        # Each passes argument parsing and is refused by the label attachment
+        # contract after the registry fetch: exit 4, never 2.
+        cases = (
+            (("area:cli", "feature"), "second type label"),
+            (("area:cli", "bug"), "duplicates the type label"),
+            ((), "'area:' label is required"),
+        )
+        for labels, message in cases:
+            with self.subTest(labels=labels):
+                code, _, stderr = self._main_expecting_exit(*labels)
+                self.assertEqual(code, 4)
+                self.assertIn(message, stderr)
+
+    def test_flag_shaped_label_is_refused_before_the_registry_fetch(self):
+        code, fetch, stderr = self._main_expecting_exit("area:cli", "--bogus")
+        self.assertEqual(code, 2)
+        self.assertIn("takes no flags", stderr)
+        fetch.assert_not_called()
+
+
+class GhwIssueCreateWriteFailureTest(unittest.TestCase):
+    def test_failure_exit_codes_route_through_write_exit_code(self):
+        ghw_test_support.assert_write_failure_codes(
+            self, _MODULE, ["o/r", "bug", "a title", _MISSING_BODY], "issue_create",
+            extra_patches=(
+                (_MODULE.boards, "fetch_labels",
+                 {"return_value": [{"name": "bug"}]}),
+                (_MODULE.labels, "validate_creation_labels", {"return_value": None}),
+            ))
 
 
 if __name__ == "__main__":

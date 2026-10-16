@@ -26,7 +26,10 @@ not the human user, with a credential the calling agent can never see.
   scope) sit in fixed leading positions. No ambient defaults, no
   reorderable arguments, no scope flags in the tail. `<owner/repo>` is
   always explicit; the working directory never decides where a write lands.
-- **Non-interactive.** Missing input, auth failure, or ambiguity exits
+  A surplus positional or an unrecognized flag is exit 2, so a
+  middle-wildcard Permission rule stays as tight as the usage line (the
+  [argument contract](../../index.md#argument-contract)).
+- **Non-interactive.** Missing input, a deployment failure (exit 5), or ambiguity exits
   non-zero at once with a diagnostic on stderr.
 - **Machine-readable.** Read Verbs print raw Forgejo API JSON
   (`fjw-pr-query` wraps the raw PR in its state object). Write Verbs
@@ -58,7 +61,9 @@ numbers to be positive integers.
 - `fjw-pr-create <owner/repo> <base> <head> <title> <body-file> [--draft]`
   opens a PR. It refuses an empty base, head, or title, and head equal to
   base (exit 2), and checks that head and base exist on the forge before
-  posting (missing branch: exit 2, "push it first"). `--draft` is the one
+  posting (missing branch in a visible repo: exit 2, "push it first"; if the repo
+  itself also 404s, it is missing or not visible to the machine account:
+  exit 3 naming both causes). `--draft` is the one
   trailing flag, allowed because it only de-escalates. Forgejo's create
   API has no draft field, so `--draft` prepends `WIP: ` to the title,
   which is what makes the forge report the PR as draft. A 409 (an open PR
@@ -69,6 +74,16 @@ numbers to be positive integers.
   the PR endpoint and exits 3.
 - `fjw-pr-comments <owner/repo> <pr#>` checks that the number names a PR
   (exit 3 otherwise), then prints its comments, paginated.
+- `fjw-pr-reviews <owner/repo> <pr#>` makes the same PR-ness check, then
+  prints the reviews (paginated until an empty page, because Forgejo filters
+  reviews after paginating, so a short page is not the end), each gaining a `comments` key holding that
+  review's raw inline comments (one extra request per review; that
+  per-review route is unpaginated server-side, so it is a single GET; reviews
+  with no inline comments still appear). It is a separate Verb rather than an
+  extension of `fjw-pr-comments` because inline comments live on the
+  `/pulls/{index}/reviews` routes, not the issue-comment routes: one route
+  family per Verb keeps `fjw-pr-comments`' output shape stable for existing
+  callers. The cost is two calls for "everything said on this PR".
 - `fjw-pr-query <owner/repo> <head-branch>` is the predecessor probe. It
   prints `{"repository", "head", "state", "pr"}` with state `none`,
   `draft`, `mergeable`, or `conflicted`, and exits 0 for every determinate
@@ -128,6 +143,14 @@ no dependencies. It sends `Authorization: token …` and a fixed
   branches already on the forge, comment, and close PRs it opened. The
   fallback is write permission with a branch-protection merge whitelist
   that excludes the account.
+- **A 404 on a repo is ambiguous, so the probe is lazy.** Forgejo answers
+  404 for a repo the caller cannot see, the same as for one that does not
+  exist. `pulls.branch_exists` therefore probes `GET /repos/{repo}` only
+  after a branch 404 (no extra request on the happy path). A visible repo
+  means the branch is really missing (exit 2); an invisible one raises exit
+  3 naming both causes. It is exit 3, not 5: the server makes a mistyped
+  slug and a missing grant indistinguishable, so neither is classifiable as
+  auth. Callers report a missing grant to the user and never retry.
 - **Branch pushes are outside fjw.** A consumer pushes its head branches
   over git with its own SSH identity, while fjw's API writes act as the
   machine account. Attribution is split; this is accepted for now and is
@@ -171,7 +194,7 @@ family's coverage live in
 | 0 | success, including a converged no-op and every `fjw-pr-query` answer |
 | 1 | unclassified: HTTP statuses other than 401, 403, and 404, or a non-JSON response |
 | 2 | usage error or refusal at parse time, including a bad staging path and a missing branch on create |
-| 3 | not found: HTTP 404 |
+| 3 | not found: HTTP 404; on a repo this can mean a missing grant, since the server answers 404 for an invisible repo |
 | 4 | policy refusal past parse: a 409 on create, or a head-prefix mismatch |
 | 5 | auth or config: HTTP 401 or 403, and every config error |
 | 6 | network: connection failure or timeout; the one retryable class |

@@ -7,10 +7,11 @@ Shared tooling for Claude Code agents:
   wrapper, so permission rules can grant narrow, literal command prefixes instead
   of raw `git` or `gh`. `gitw-commit` appends an `Executed-By:` trailer naming
   the session actor to every commit.
-- **The Beads wrapper** (`cli/bdw`): runs the real `bd` with `BD_ACTOR` and
-  `BEADS_ACTOR` set to the session actor, and passes the arguments through
-  unchanged except bd's own `--actor` flag, which it refuses. See
-  [ADR 0002](docs/adr/0002-beads-identity.md).
+- **The Beads wrapper** (`cli/bdw`): runs the real `bd` as a child process
+  with `BD_ACTOR` and `BEADS_ACTOR` set to the session actor, refusing the
+  calls that would falsify the actor or point bd at another database, and
+  writes on bd versions it has not been verified against. See
+  [bdw](docs/projects/bdw/index.md).
 - **Ten skills** (`skills/`): `use-git`, `use-github`, `use-forgejo`,
   `setup-github-issues`, `triage-issues`, `refine-state-doc`, `use-lexicon`,
   `use-adrs`, `home-in`, `handoff`.
@@ -35,8 +36,8 @@ which commit, with a sha256 per file. Several Source repos can install into
 the same Install Target; each one's Receipt record covers only its own files.
 
 ```sh
-python3 cli/tooling-install diff  <checkout>   # read-only: installed vs. source
-python3 cli/tooling-install apply <checkout>   # install; refuses a dirty source
+/usr/bin/python3 cli/tooling-install diff  <checkout>   # read-only: installed vs. source
+/usr/bin/python3 cli/tooling-install apply <checkout>   # install; refuses a dirty source
 ```
 
 `diff` exits 0 when in sync and 1 on drift. `apply` refuses a dirty source tree
@@ -49,26 +50,23 @@ is in the docstring of `cli/lib/install.py`.
 
 ## Bootstrap on a fresh machine
 
-Prerequisites: `git`; a system `/usr/bin/python3` of 3.9 or later, which some
-executables' shebangs pin; a `python3` of 3.9 or later on PATH, which the
-others (including `tooling-install`) resolve through `/usr/bin/env`; `gh`,
-authenticated, if you use the `ghw-*` wrappers; and Beads' `bd` on PATH if
-you use `bdw`. On macOS, `/usr/bin/python3`
-comes with the Xcode Command Line Tools (`xcode-select --install`). Use the
-system interpreter, not your usual Homebrew, pyenv, or conda one: macOS grants
-OS-level permissions (privacy prompts such as Local Network access) to the
-Apple-signed `/usr/bin/python3`, and silently denies them to other interpreters
-when a wrapper runs from an unattended or background session. The `env python3`
-executables resolve whatever `python3` comes first on PATH, so put the system
-interpreter first there too. The board
-wrappers (`ghw-board-*`, `ghw-orient`) need the `project` scope on the `gh`
-token: `gh auth refresh -s project`.
+Prerequisites: `git`; a system `/usr/bin/python3` of 3.9 or later, which every
+executable's shebang pins; `gh`, authenticated, if you use the `ghw-*`
+wrappers; and Beads' `bd` on PATH if you use `bdw`. On macOS,
+`/usr/bin/python3` comes with the Xcode Command Line Tools
+(`xcode-select --install`). The interpreter is the system one, not your usual
+Homebrew, pyenv, or conda one: macOS grants OS-level permissions (privacy
+prompts such as Local Network access) to the Apple-signed `/usr/bin/python3`,
+and silently denies them to other interpreters when a wrapper runs from an
+unattended or background session. The board wrappers (`ghw-board-*`,
+`ghw-orient`) need the `project` scope on the `gh` token:
+`gh auth refresh -s project`.
 
 1. Clone this repo wherever you keep checkouts.
 2. Install everything from it:
 
     ```sh
-    python3 <checkout>/cli/tooling-install apply <checkout>
+    /usr/bin/python3 <checkout>/cli/tooling-install apply <checkout>
     ```
 
 3. Put the wrapper directory on PATH, for example in `~/.zshrc`:
@@ -93,16 +91,24 @@ token: `gh auth refresh -s project`.
    assume at least these rules:
 
     ```jsonc
-    "deny":  ["Read(~/.config/fjw/**)", "Edit(~/.config/fjw/**)"],
+    "deny":  ["Read(~/.config/fjw/**)", "Edit(~/.config/fjw/**)",
+              "Edit(~/.local/libexec/agent-tooling/**)",
+              "Edit(~/.claude/skills/**)",
+              "Edit(~/.claude/agents/**)"],
     "ask":   ["Bash(gitw-repo-register *)",
               "Bash(tooling-install apply *)",
               "Bash(tooling-install adopt *)"],
-    "allow": ["Edit(//tmp/claude/**)"]
+    "allow": ["Edit(//tmp/claude/**)", "Bash(tooling-install diff *)"]
     ```
 
-    The deny keeps the Forgejo token out of every agent's reach. The ask rules
-    keep roster registration and installs a human act. The allow is the staging
-    root: every wrapper that reads a message or body file accepts it only from
+    The first two deny rows keep the Forgejo token out of every agent's reach.
+    The Edit denies on the three Install Targets mean a change reaches
+    installed tooling only through a committed source and an approved install
+    (ADR 0007); some broad Bash grants can still write there, so keep those
+    narrow. The ask rules keep roster registration and installs a human act.
+    The `tooling-install diff` allow lets an agent report drift without being
+    able to act on it (step 7 runs it). The `Edit(//tmp/claude/**)` allow is
+    the staging root: every wrapper that reads a message or body file accepts it only from
     `/tmp/claude/` or `~/.claude/jobs/<job-id>/tmp/` and refuses any other
     path, so agents must be able to write there. Create it with
     `mkdir -p /tmp/claude` (and again after a reboot clears `/tmp`). Then grant

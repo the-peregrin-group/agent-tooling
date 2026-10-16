@@ -14,7 +14,11 @@ import sys
 import unittest
 from pathlib import Path
 
+import ghw_test_support
+
 _SCRIPT = Path(__file__).resolve().parent / "ghw-pr-comment"
+_CONTRACT_BODY = "/tmp/claude/argument-contract-body.md"
+_MODULE = ghw_test_support.load_wrapper_module(_SCRIPT)
 _MISSING_BODY = "/tmp/claude/ghw-pr-comment-test-missing-body.md"
 
 
@@ -52,6 +56,19 @@ class GhwPrCommentArgumentsTest(unittest.TestCase):
         result = _run("--help")
         self.assertEqual(result.returncode, 0)
         self.assertIn("ghw-pr-comment <repo>", result.stdout)
+
+
+class GhwPrCommentArgumentContractTest(
+    ghw_test_support.ArgumentContractTests, unittest.TestCase
+):
+    SCRIPT = _SCRIPT
+    LONGEST = ("o/r", "5", _CONTRACT_BODY)
+
+
+class GhwPrCommentWriteFailureTest(unittest.TestCase):
+    def test_failure_exit_codes_route_through_write_exit_code(self):
+        ghw_test_support.assert_write_failure_codes(
+            self, _MODULE, ["o/r", "5", _MISSING_BODY], "pr_comment")
 
 
 if __name__ == "__main__":

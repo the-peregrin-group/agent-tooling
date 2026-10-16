@@ -12,7 +12,7 @@ Canonical-board rules (which board a wrapper acts on):
       matches the repo argument (trust-but-verify) and the board it names is
       among those linked;
     - otherwise: no canonical board -- ghw-orient reports the candidates,
-      write wrappers refuse with exit 2.
+      write wrappers refuse with exit 4.
 """
 
 from __future__ import annotations
@@ -21,6 +21,7 @@ import json
 import re
 from pathlib import Path
 
+from lib import plan
 from lib.github import gh
 from lib.schema import FIELD_PRIORITY, PRIORITY_OPTIONS, SINGLE_SELECT
 
@@ -316,7 +317,8 @@ def fetch_issue_item_state(repository: str, number: int, field_name: str) -> dic
     })
     issue_node = data["repository"]["issue"]
     if issue_node is None:  # belt only: a missing issue surfaces as GraphQL errors
-        raise gh.GhError(f"issue #{number} not found in {repository}")
+        raise gh.GhError(f"issue #{number} not found in {repository}",
+                         plan.EXIT_NOT_FOUND)
     return _build_issue_item_state(issue_node)
 
 
@@ -355,7 +357,8 @@ def fetch_board_by_node_id(board_node_id: str) -> dict:
     """
     node = gh.graphql(_BOARD_BY_ID_QUERY, {"projectId": board_node_id})["node"]
     if not node or "number" not in node:
-        raise gh.GhError(f"node {board_node_id!r} is not a ProjectV2 board")
+        raise gh.GhError(f"node {board_node_id!r} is not a ProjectV2 board",
+                         plan.EXIT_NOT_FOUND)
     return {**_build_board(node), "url": node["url"]}
 
 

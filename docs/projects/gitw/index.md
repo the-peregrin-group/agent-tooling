@@ -11,7 +11,7 @@ Reads stay raw git under a curated, audited set of Permission rules.
 Code: the `cli/gitw-*` Verbs over `cli/lib/git/` and the shared
 `cli/lib/`, and `skills/use-git/SKILL.md`. How and why:
 [design.md](design.md). Dated docs beside it:
-[trunk-sync.md](trunk-sync.md) (proposal) and
+[trunk-sync.md](trunk-sync.md) (proposal, now built) and
 [read-allowlist-audit.md](read-allowlist-audit.md) (audit).
 
 ## Status
@@ -23,26 +23,14 @@ Code: the `cli/gitw-*` Verbs over `cli/lib/git/` and the shared
 | Commit all or by pathspec, with sweep guard and `Executed-By` trailer | shipped | `gitw-commit` |
 | Rebase own branch onto the default branch or a named base branch, with conflict stop, continue, abort | shipped | `gitw-rebase` |
 | Push own branch under lease, or move a named pointer ref | shipped | `gitw-push` |
-| Direct integration: bubble onto a base branch under an exact lease | shipped | `gitw-integrate` |
+| Direct integration: bubble onto a base branch under an exact lease, with `Executed-By` trailer | shipped | `gitw-integrate` |
 | Scope a mutating Verb to any branch except the default with a bare `/` prefix | shipped | `gitw-branch-start`, `gitw-commit`, `gitw-rebase`, `gitw-push`, `gitw-integrate` |
 | Roster registration ceremony | shipped | `gitw-repo-register` |
 | Git discipline for agents (hygiene, modes, history policy, Verb usage) | shipped | `use-git` Skill |
-| Fast-forward the primary checkout's local default branch | planned | `gitw-trunk-sync`; [trunk-sync.md](trunk-sync.md); `agent-tooling-1790288521317-5-34a5f7c2` |
+| Fast-forward the primary checkout's local default branch | shipped | `gitw-trunk-sync` |
 
 ### Known gaps
 
-- A push rejected by the remote's own hooks reports exit 6 (retryable)
-  instead of a refusal (`agent-tooling-h3c`).
-- A hung local pre-push hook times out as exit 6, inviting a retry
-  (`agent-tooling-bl4`).
 - Mutating Verbs refuse a cwd admitted only by `operable_from` (exit 4),
   while `use-git` still promises cross-repo writes under that interlock
   (`agent-tooling-1790288522193-11-242cbfe6`).
-- `use-git` still describes the retired third operating mode (work
-  directly on the default branch) and lacks the session-start ceremony
-  (`agent-tooling-4t9`).
-- `use-git` attributes the Permission-rule token boundary to the Branch
-  prefix's trailing slash; the boundary is the space before the star
-  (`agent-tooling-4zo`).
-- `use-git` cites the repo's policy spec for exact gitw deny rules it does
-  not carry (`agent-tooling-bpp`).

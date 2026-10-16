@@ -17,6 +17,7 @@ that agent tooling runs only from installed copies, is
 | Capability | State | Where |
 |---|---|---|
 | Report drift between a source checkout and what is installed | shipped | `tooling-install diff` |
+| Report Receipt hashes that disagree with disk, or recorded files missing | shipped | `tooling-install diff`, `receipt_mismatch` |
 | Install a Source repo's tooling, refusing a dirty source | shipped | `tooling-install apply` |
 | Install from a dirty source, marked in the Receipt | shipped | `--force` |
 | Install selected Cohorts only | shipped | `--cohort` |
@@ -26,8 +27,4 @@ that agent tooling runs only from installed copies, is
 
 ### Known gaps
 
-- `tooling-install` resolves `python3` through `/usr/bin/env` instead of
-  pinning the system interpreter like the fjw and gitw Verbs
-  (`agent-tooling-1790288520721-1-86415521`).
-- The README's minimum Permission rules omit the Edit deny on the Install
-  Targets and the allow for `tooling-install diff` (`agent-tooling-9v4`).
+None.

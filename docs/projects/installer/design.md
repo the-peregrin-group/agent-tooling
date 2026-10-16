@@ -62,7 +62,10 @@ change is committed, then installed.
   record, apart from entries Adoption moves out of another. Files another
   record claims are *foreign* and carried through untouched. Files no
   record claims are *unowned*: reported, preserved on merge targets, never
-  claimed.
+  claimed. A record that would claim no files and no units is not written:
+  a source that ships nothing into a target (after retiring what it owned)
+  leaves no record, and absence reads as in sync. A receipt left with no
+  records keeps an empty `sources` object.
 - **Adoption.** A source that ships a path, or a unit, another record
   claims has a collision. If the incoming copy is byte-identical to the
   installed one, ownership moves to the incoming record and the bytes do
@@ -82,14 +85,22 @@ tooling-install adopt <source-checkout> <superseded-source-repo> [--cohort <name
 - **`diff`** is read-only. It reports drift per Cohort, classifies
   collisions as `adoptable` or `conflicting`, and lists what an install
   would destroy: `unowned_replaced` (unclaimed files inside a unit being
-  swapped) and `foreign_replaced` (files another record claims that the
-  incoming unit does not ship). All of these count as drift. It reports an
-  interrupted swap but never repairs one, so it stays safe to grant.
+  swapped or retired) and `foreign_replaced` (files another record claims
+  that the incoming unit does not ship, or that sit in a retiring unit).
+  Noise-excluded files (bytecode caches) are deliberately not preserved or
+  reported when a unit is swapped or retired. It also checks the Receipt's
+  own per-file hashes against disk and lists disagreements, including
+  recorded files missing from disk, as `receipt_mismatch`, distinct from
+  `changed` (source versus disk); `apply` overwrites and restamps them. All
+  of these count as drift. It reports an interrupted swap but never repairs
+  one, so it stays safe to grant.
   `--force` is illegal with `diff`.
 - **`apply`** installs. It refuses a dirty source unless `--force`, judging
   dirtiness only over the selected Cohorts' source directories. It never
   overwrites another Source repo's content, except by byte-identical
-  Adoption, and reports adopted names.
+  Adoption, and reports adopted names. Its report lists the unclaimed
+  files lost with swapped or retired units under `unowned_replaced`, the
+  same key `diff` previews them under.
 - **`adopt`** installs exactly as `apply` does, except that a collision
   with the *named* superseded record transfers whatever the content: the
   incoming copy wins, and the superseded checkout still holds what it gave
@@ -170,6 +181,11 @@ costs nothing; the Edit deny and the Receipts protect the installed set.
   `apply`, which never overwrites another repo's content, can then be
   granted differently from `adopt`, and the superseded repo is visible in
   the command the human approves.
+- The command line accepts exactly its usage line: any token the option
+  tail does not parse, surplus or flag-shaped, and a flag where `adopt`
+  expects the superseded repo, are usage errors (exit 2). A
+  middle-wildcard Permission rule is only as tight as this (the Wrappers'
+  [argument contract](../../index.md#argument-contract)).
 - Deny Edit on every Install Target. No file-tool rule grants a write
   there, so a change reaches installed tooling only through a committed
   source and an approved install. A residual shell channel remains: some
@@ -185,5 +201,6 @@ costs nothing; the Edit deny and the Receipts protect the installed set.
   is deliberate friction; for iterative live work, install the work in
   progress.
 - A fresh machine bootstraps by running the Installer once from its own
-  checkout, `python3 <checkout>/cli/tooling-install apply <checkout>`. It
-  ships in the `bin` Cohort, so it installs itself.
+  checkout,
+  `/usr/bin/python3 <checkout>/cli/tooling-install apply <checkout>`. It ships
+  in the `bin` Cohort, so it installs itself.

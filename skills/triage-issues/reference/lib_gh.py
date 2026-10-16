@@ -74,7 +74,15 @@ def rest(method: str, path: str, fields: dict | None = None, *, accept: str | No
 def issue_list_open(repo: str, limit: int = 500) -> list[dict]:
     out = _run(["issue", "list", "--repo", repo, "--state", "open",
                 "--limit", str(limit), "--json", "number,title"])
-    return json.loads(out)
+    issues = json.loads(out)
+    if len(issues) >= limit:
+        # gh returns at most `limit`; a full page may be truncated. Never
+        # return a silently partial listing (a repo with exactly `limit`
+        # open issues is refused too).
+        raise GhError(
+            f"{repo} has {len(issues)} open issues, the listing limit; "
+            f"the listing may be truncated, so it is refused")
+    return issues
 
 
 def issue_edit_labels(repo: str, number: int, add: list[str], remove: list[str]) -> None:

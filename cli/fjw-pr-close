@@ -14,7 +14,7 @@ entirely. Acts as the deployment's machine account.
 
 Exit codes: 0 success (including the already-closed no-op), 1 unclassified
 API failure, 2 usage error, 3 no such PR (or no such repository), 5
-auth/config failure, 6 network failure.
+roster/auth/config (deployment), 6 network failure.
 """
 
 from __future__ import annotations

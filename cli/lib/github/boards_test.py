@@ -220,8 +220,16 @@ class FetchBoardByNodeIdTest(unittest.TestCase):
     def test_a_node_that_is_not_a_board_fails_loudly(self, graphql):
         # An id belonging to some other type resolves to an empty fragment.
         graphql.return_value = {"node": {}}
-        with self.assertRaisesRegex(gh.GhError, "not a ProjectV2"):
+        with self.assertRaisesRegex(gh.GhError, "not a ProjectV2") as caught:
             boards.fetch_board_by_node_id("I_1")
+        self.assertEqual(caught.exception.exit_code, 3)
+
+    @mock.patch("lib.github.boards.gh.graphql")
+    def test_a_missing_issue_is_not_found(self, graphql):
+        graphql.return_value = {"repository": {"issue": None}}
+        with self.assertRaisesRegex(gh.GhError, "not found") as caught:
+            boards.fetch_issue_item_state("o/r", 9, "Priority")
+        self.assertEqual(caught.exception.exit_code, 3)
 
 
 class FetchOpenIssuesWithLabelTest(unittest.TestCase):

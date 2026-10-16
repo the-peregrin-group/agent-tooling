@@ -1,18 +1,54 @@
 #!/usr/bin/python3
 """bdw [<bd-argument>...] -- run the real Beads `bd` with the session actor.
 
-Derives the session actor from its own environment
-(lib.actor.derive_actor: `claude-job-<job-id>` in a background job,
-`attended-<user>` otherwise), sets both BD_ACTOR and BEADS_ACTOR to it in
-the child environment -- unconditionally, overriding any value the caller
-supplied, because identity comes from the harness environment and not from
-the caller -- then replaces itself (execve) with the first `bd` on PATH.
-The one argument check: bd's own `--actor` flag wins over the environment,
-so any argument equal to `--actor` or starting with `--actor=` is refused,
-wherever it appears (bd sees an `--actor` after `--` too). That is an
-equality test on each argument, not argument parsing; everything else
-passes through untouched. No flag rewriting, no output capture: bd's own
-exit code is bdw's.
+One call, in order:
+
+1. Argument checks, each an equality test on whole arguments (bdw does not
+   parse bd's grammar), refused with exit 4:
+   - any argument equal to `--actor` or starting with `--actor=`, wherever
+     it appears (bd sees an `--actor` after `--` too), because bd's own
+     flag wins over the environment;
+   - any argument naming one of the global flags that point bd at another
+     database: `--directory`, `--db`, `--database`, `--global`, each bare
+     or with `=`, and the short `-C` in any single-dash cluster (`-C`,
+     `-Cdir`, `-qC`), wherever it appears;
+   - a first argument that is a flag, other than the help and version
+     spellings below: the verb comes first.
+2. Find the first `bd` on PATH; exit 3 if there is none, or if it
+   resolves (by realpath) to this very file. A byte copy of this file
+   installed as `bd` is not caught.
+3. Unless the call asks for help (no arguments, or a first argument of
+   `help`, `--help`, or `-h`) or the version (`version`, `--version`,
+   `-V`), two probes, each a child `bd` run with output captured:
+   - `bd where --json` must succeed and name a Beads directory that holds
+     `metadata.json`; otherwise refuse (exit 5). bd 1.3.0 falls back
+     silently to an empty database when that file is missing, so the
+     refusal is what stops a write going to the wrong database. bd's own
+     discovery decides the directory, so a caller-set BEADS_DIR still
+     moves it (a known gap: see docs/projects/bdw/index.md).
+   - `bd version --json` names the bd version. On a version outside
+     VERIFIED_BD_VERSIONS, a write is refused (exit 5) and a read runs with
+     a warning on stderr. A read is a verb in READ_VERBS or a verb and
+     subcommand pair in READ_SUBCOMMANDS whose every flag-like argument
+     (one starting with `-`) is in READ_FLAGS; anything else counts as a
+     write (fail closed).
+4. Run `bd` as a child process with the session actor
+   (lib.actor.derive_actor) in both BD_ACTOR and BEADS_ACTOR, and the
+   session ID (lib.actor.session_id) in CLAUDE_SESSION_ID, the variable bd
+   reads to record the session that closed an Issue. All three override
+   whatever the caller supplied; with no usable session ID,
+   CLAUDE_SESSION_ID is removed rather than left to the caller. Arguments
+   pass unchanged; stdin and stdout are bd's own, and bd's stderr is
+   relayed line by line as it arrives, so bdw can read it. If bdw's own
+   stderr closes, bdw keeps draining bd's and still returns bd's exit
+   code. SIGTERM, SIGHUP, and SIGQUIT sent to bdw are forwarded to bd,
+   and bdw goes on waiting for bd's own exit; SIGINT is left to the
+   terminal, which delivers it to bd as well.
+5. Print HELP_LINE on stderr after a help call, after any call whose
+   arguments (before a `--`) include `--help` or `-h`, after bd's output
+   when bd reports a usage error (a stderr line starting with one of
+   USAGE_ERROR_MARKERS), and after every failure of bdw's own (exits 1,
+   3, 4, and 5).
 
 Beads records who acted from an environment variable, and every harness
 Bash call is a fresh shell, so nothing exported once survives to the next
@@ -21,37 +57,138 @@ invocation is the minimum that makes the actor reliable. Beads 1.3.0
 honours BD_ACTOR (its created_by field shows it) although its help names
 only BEADS_ACTOR, so both are set.
 
-The self-exec guard compares realpaths: when the first `bd` on PATH
-resolves to this very file, bd counts as absent and the search stops
-there; a byte copy of this file installed as `bd` is not caught.
+Exit codes: bd's own once bd runs (128 + N when a signal N ends it). 3
+when no `bd` is on PATH. 4 for the argument refusals in step 1, which
+are caller bugs. 5 for the step 3 refusals (no workspace config, a write
+on an unverified bd version), which no change to the call can fix: the
+Exit-code contract maps configuration problems to 5, "abort and flag the
+deployment". 1 when bd is found but cannot be started (a broken
+interpreter line, say), or a probe cannot be started.
 
-Exit codes: bd's own once the exec succeeds. 3 when no `bd` is on PATH (or
-the first match is this script itself), with `bdw: bd not found on PATH`
-on stderr. 4 when an argument is `--actor` or `--actor=...`, with
-`bdw: refusing --actor: the actor comes from the session environment` on
-stderr. 1 when bd is found but the exec fails (a broken interpreter line,
-say).
-
-Design record: docs/adr/0002-beads-identity.md.
+Design record: docs/adr/0002-beads-identity.md and
+docs/adr/0010-bdw-carries-beads-policy-in-tiers.md.
 """
 
 from __future__ import annotations
 
+import json
 import os
 import shutil
+import signal
+import subprocess
 import sys
 from pathlib import Path
+from typing import Mapping, Sequence
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from lib import plan
-from lib.actor import derive_actor
+from lib.actor import derive_actor, session_id
+
+HELP_LINE = "Agents, load /use-bd immediately."
+
+# The bd versions this file, the use-bd Skill, and its quirks.md were
+# verified against.
+VERIFIED_BD_VERSIONS = ("1.3.0",)
+
+HELP_FIRST = ("help", "--help", "-h")
+VERSION_FIRST = ("version", "--version", "-V")
+HELP_ANYWHERE = ("--help", "-h")
+
+DATABASE_FLAGS = ("--directory", "--db", "--database", "--global")
+
+# Verbs that read when given only READ_FLAGS (bd 1.3.0). The table is
+# consulted only on an unverified bd version.
+READ_VERBS = frozenset({
+    "blocked", "children", "context", "count", "diff", "find-duplicates",
+    "graph", "history", "info", "lint", "list", "prime", "query", "ready",
+    "schema", "search", "show", "stale", "status", "statuses", "types",
+    "where",
+})
+
+# Read-only subcommands of verbs that also write.
+READ_SUBCOMMANDS = frozenset({
+    ("config", "get"), ("config", "list"), ("config", "show"),
+    ("dep", "list"), ("dep", "tree"),
+    ("epic", "status"),
+    ("gate", "list"), ("gate", "show"),
+    ("human", "list"),
+    ("label", "list"), ("label", "list-all"),
+})
+
+# The only flags a read may carry on an unverified bd version: the ones
+# the use-bd Skill teaches for its reads. Any other flag-like argument,
+# such as `ready --claim` or a flag a newer bd adds, makes the call count
+# as a write, since no one has checked what it does on that version.
+READ_FLAGS = (
+    "--all", "--children", "--desc-contains", "--eligible-only", "--json",
+    "--limit",
+)
+
+# Signals bdw forwards to bd while it runs.
+FORWARDED_SIGNALS = tuple(
+    getattr(signal, name) for name in ("SIGTERM", "SIGHUP", "SIGQUIT")
+    if hasattr(signal, name)
+)
+
+# cobra's and pflag's usage-error messages, as bd 1.3.0 prints them.
+USAGE_ERROR_MARKERS = (
+    "Error: unknown command ",
+    "Error: unknown flag: ",
+    "Error: unknown shorthand flag: ",
+    "Error: flag needs an argument: ",
+    "Error: invalid argument ",
+    "Error: accepts ",
+    "Error: requires at least ",
+    "Error: requires at most ",
+    "Error: requires exactly ",
+    "Run 'bd --help' for usage.",
+)
+
+_PROBE_TIMEOUT = 60
+
+
+def _drop_stderr() -> None:
+    """Point file descriptor 2 at /dev/null once bdw's stderr has gone
+    away (a reader that closed the pipe, say). Bytes still buffered in
+    sys.stderr then flush harmlessly, so the interpreter's flush at exit
+    cannot fail and replace bd's exit code with Python's 120. This is the
+    remedy the CPython docs give for a broken pipe (the signal module's
+    "Note on SIGPIPE")."""
+    try:
+        devnull = os.open(os.devnull, os.O_WRONLY)
+    except OSError:
+        return
+    try:
+        os.dup2(devnull, sys.stderr.fileno())
+    except (OSError, ValueError):
+        pass
+    finally:
+        os.close(devnull)
+
+
+def _emit(text: str) -> None:
+    """Write one line on stderr; never raise if stderr has gone away."""
+    try:
+        print(text, file=sys.stderr, flush=True)
+    except OSError:
+        _drop_stderr()
+
+
+def _say(message: str) -> None:
+    _emit(f"bdw: {message}")
+
+
+def _fail(code: int, message: str) -> int:
+    _say(message)
+    _emit(HELP_LINE)
+    return code
 
 
 def _find_bd() -> str | None:
     """The real bd on PATH, or None -- including when PATH's `bd` is this
     very script (a defensive guard against a future rename that would
-    otherwise exec itself forever)."""
+    otherwise run itself forever)."""
     found = shutil.which("bd")
     if found is None:
         return None
@@ -60,32 +197,217 @@ def _find_bd() -> str | None:
     return found
 
 
-def _sets_actor(argument: str) -> bool:
-    return argument == "--actor" or argument.startswith("--actor=")
+def _names_flag(argument: str, flag: str) -> bool:
+    return argument == flag or argument.startswith(flag + "=")
+
+
+def _switches_database(argument: str) -> bool:
+    if any(_names_flag(argument, flag) for flag in DATABASE_FLAGS):
+        return True
+    # A single-dash cluster: pflag reads `-qC dir` and `-Cdir` as -C too.
+    return (
+        argument.startswith("-")
+        and not argument.startswith("--")
+        and "C" in argument
+    )
+
+
+def _check_arguments(argv: Sequence[str]) -> str | None:
+    """The refusal message for `argv`, or None when it passes."""
+    if any(_names_flag(argument, "--actor") for argument in argv):
+        return ("refusing --actor: the actor comes from the session "
+                "environment")
+    for argument in argv:
+        if _switches_database(argument):
+            return (f"refusing {argument}: bdw runs bd only against the "
+                    "workspace's own database (-C, --directory, --db, "
+                    "--database, and --global are refused)")
+    if argv and argv[0].startswith("-") and argv[0] not in (
+            HELP_FIRST + VERSION_FIRST):
+        return (f"refusing a flag before the verb ({argv[0]}): put the "
+                "verb first, as in `bdw ready --json`")
+    return None
+
+
+def _is_help(argv: Sequence[str]) -> bool:
+    return not argv or argv[0] in HELP_FIRST
+
+
+def _asks_for_help(argv: Sequence[str]) -> bool:
+    for argument in argv:
+        if argument == "--":
+            return False
+        if argument in HELP_ANYWHERE:
+            return True
+    return False
+
+
+def is_read(argv: Sequence[str]) -> bool:
+    """Whether `argv` is a read under the tables above; fail closed."""
+    if not argv:
+        return False
+    verb = argv[0]
+    if verb not in READ_VERBS and not (
+            len(argv) >= 2 and (verb, argv[1]) in READ_SUBCOMMANDS):
+        return False
+    for argument in argv[1:]:
+        if argument.startswith("-") and argument.split("=", 1)[0] not in (
+                READ_FLAGS):
+            return False
+    return True
+
+
+def _probe(bd: str, arguments: Sequence[str],
+           environment: Mapping[str, str]) -> tuple[int, object]:
+    """Run `bd <arguments> --json`; return its exit code and its parsed
+    JSON output (None when it is not JSON)."""
+    result = subprocess.run(
+        [bd, *arguments, "--json"],
+        env=dict(environment),
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        timeout=_PROBE_TIMEOUT,
+    )
+    try:
+        payload = json.loads(result.stdout.decode("utf-8", "replace"))
+    except ValueError:
+        payload = None
+    return result.returncode, payload
+
+
+def _config_refusal(bd: str, environment: Mapping[str, str]) -> str | None:
+    code, payload = _probe(bd, ["where"], environment)
+    path = payload.get("path") if isinstance(payload, dict) else None
+    if code == 0 and isinstance(path, str) and path:
+        if (Path(path) / "metadata.json").is_file():
+            return None
+        return (f"refusing to run: {path} has no metadata.json, so bd would "
+                "fall back to an empty database; restore the tracked "
+                ".beads/ files")
+    detail = ""
+    if isinstance(payload, dict) and isinstance(payload.get("message"), str):
+        detail = f" (bd: {payload['message']})"
+    return ("refusing to run: no Beads workspace config found from here"
+            f"{detail}")
+
+
+def _bd_version(bd: str, environment: Mapping[str, str]) -> str | None:
+    code, payload = _probe(bd, ["version"], environment)
+    if code != 0 or not isinstance(payload, dict):
+        return None
+    version = payload.get("version")
+    return version if isinstance(version, str) and version else None
+
+
+def _child_environment(environ: Mapping[str, str]) -> dict:
+    environment = dict(environ)
+    actor = derive_actor(environ)
+    environment["BD_ACTOR"] = actor
+    environment["BEADS_ACTOR"] = actor
+    session = session_id(environ)
+    if session is None:
+        environment.pop("CLAUDE_SESSION_ID", None)
+    else:
+        environment["CLAUDE_SESSION_ID"] = session
+    return environment
+
+
+def _relay(child: subprocess.Popen) -> bool:
+    """Relay bd's stderr line by line until it closes; return whether it
+    reported a usage error. If bdw's own stderr goes away, keep draining
+    bd's so bd never blocks or dies on a full or broken pipe, and drop
+    bdw's stderr (_drop_stderr) so bd's exit code still comes back."""
+    usage_error = False
+    sink = sys.stderr.buffer
+    sink_open = True
+    assert child.stderr is not None
+    while True:
+        try:
+            line = child.stderr.readline()
+        except KeyboardInterrupt:
+            continue  # bd got the same interrupt; let it decide
+        if not line:
+            return usage_error
+        if sink_open:
+            try:
+                sink.write(line)
+                sink.flush()
+            except OSError:
+                sink_open = False
+                _drop_stderr()
+        if line.decode("utf-8", "replace").startswith(USAGE_ERROR_MARKERS):
+            usage_error = True
+
+
+def _run_bd(bd: str, argv: Sequence[str],
+            environment: Mapping[str, str]) -> tuple[int, bool]:
+    """Run bd, relaying its stderr line by line and forwarding
+    FORWARDED_SIGNALS to it; return its exit code and whether it reported
+    a usage error. Only starting bd can raise OSError: once bd runs, its
+    own exit code is the answer."""
+    child = subprocess.Popen(
+        ["bd", *argv],
+        executable=bd,
+        env=dict(environment),
+        stderr=subprocess.PIPE,
+    )
+
+    def forward(signum, _frame):
+        try:
+            child.send_signal(signum)
+        except OSError:
+            pass  # bd has already gone
+
+    previous = {}
+    try:
+        for signum in FORWARDED_SIGNALS:
+            previous[signum] = signal.signal(signum, forward)
+        usage_error = _relay(child)
+        while True:
+            try:
+                code = child.wait()
+                break
+            except KeyboardInterrupt:
+                continue
+    finally:
+        for signum, handler in previous.items():
+            signal.signal(signum, handler)
+    if code < 0:
+        code = 128 - code
+    return code, usage_error
 
 
 def main(argv: list[str]) -> int:
-    if any(_sets_actor(argument) for argument in argv):
-        print(
-            "bdw: refusing --actor: the actor comes from the session "
-            "environment",
-            file=sys.stderr,
-        )
-        return plan.EXIT_REFUSED
+    refusal = _check_arguments(argv)
+    if refusal is not None:
+        return _fail(plan.EXIT_REFUSED, refusal)
     bd = _find_bd()
     if bd is None:
-        print("bdw: bd not found on PATH", file=sys.stderr)
-        return plan.EXIT_NOT_FOUND
-    actor = derive_actor(os.environ)
-    environment = dict(os.environ)
-    environment["BD_ACTOR"] = actor
-    environment["BEADS_ACTOR"] = actor
+        return _fail(plan.EXIT_NOT_FOUND, "bd not found on PATH")
+    environment = _child_environment(os.environ)
+    help_call = _is_help(argv)
     try:
-        os.execve(bd, ["bd", *argv], environment)
-    except OSError as error:
-        print(f"bdw: cannot exec {bd}: {error}", file=sys.stderr)
-        return plan.EXIT_RUNTIME
-    return plan.EXIT_RUNTIME  # unreachable: execve does not return on success
+        if not help_call and argv[0] not in VERSION_FIRST:
+            config_refusal = _config_refusal(bd, environment)
+            if config_refusal is not None:
+                return _fail(plan.EXIT_AUTH, config_refusal)
+            version = _bd_version(bd, environment)
+            if version not in VERIFIED_BD_VERSIONS:
+                unverified = (
+                    f"bd version {version or 'unknown'} is not verified "
+                    f"(verified: {', '.join(VERIFIED_BD_VERSIONS)})"
+                )
+                if not is_read(argv):
+                    return _fail(plan.EXIT_AUTH,
+                                 f"refusing a write: {unverified}")
+                _say(f"warning: {unverified}; reading anyway")
+        code, usage_error = _run_bd(bd, argv, environment)
+    except (OSError, subprocess.SubprocessError) as error:
+        return _fail(plan.EXIT_RUNTIME, f"cannot run {bd}: {error}")
+    if help_call or usage_error or _asks_for_help(argv):
+        _emit(HELP_LINE)
+    return code
 
 
 if __name__ == "__main__":

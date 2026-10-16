@@ -94,6 +94,47 @@ class ClassifyRemoteFailureTest(unittest.TestCase):
                     run.classify_remote_failure(detail), plan.EXIT_NOT_FOUND
                 )
 
+    def test_remote_rejection_status_line(self):
+        for detail in (
+            " ! [remote rejected] topic -> topic (pre-receive hook declined)",
+            "remote: permission denied by policy\n"
+            " ! [remote rejected] topic -> topic (hook declined)",
+        ):
+            with self.subTest(detail=detail):
+                self.assertTrue(run.is_remote_rejection(detail))
+
+    def test_ref_update_race_reasons(self):
+        for reason in (
+            "failed to update ref",
+            "failed to lock",
+            "incorrect old value provided",
+            "reference already exists",
+        ):
+            detail = f" ! [remote rejected] main -> main ({reason})"
+            with self.subTest(reason=reason):
+                self.assertTrue(run.is_remote_rejection(detail))
+                self.assertTrue(run.is_ref_update_race(detail))
+
+    def test_hook_declines_are_not_ref_update_races(self):
+        for detail in (
+            " ! [remote rejected] main -> main (pre-receive hook declined)",
+            "remote: failed to update ref\n"
+            " ! [remote rejected] main -> main (hook declined)",
+            " ! [rejected] main -> main (stale info)",
+        ):
+            with self.subTest(detail=detail):
+                self.assertFalse(run.is_ref_update_race(detail))
+
+    def test_lease_and_transport_failures_are_not_remote_rejections(self):
+        for detail in (
+            " ! [rejected] topic -> topic (stale info)",
+            " ! [rejected] main -> main (non-fast-forward)",
+            "fatal: unable to access 'https://x/': Connection timed out",
+            "",
+        ):
+            with self.subTest(detail=detail):
+                self.assertFalse(run.is_remote_rejection(detail))
+
     def test_everything_else_is_network(self):
         for detail in (
             "ssh: Could not resolve hostname forge.example.com",
@@ -213,6 +254,34 @@ class ParsePushTraceTest(unittest.TestCase):
         )
         self.assertEqual(run.parse_push_trace(failing), (True, 7))
 
+    def test_nested_session_hook_is_ignored(self):
+        nested = [
+            {"event": "child_start", "sid": "a/b", "child_id": 0,
+             "child_class": "hook", "hook_name": "pre-push"},
+            {"event": "child_exit", "sid": "a/b", "child_id": 0, "code": 1},
+        ]
+        text = _trace(
+            _VERSION, _PRE_PUSH_START,
+            {"event": "child_exit", "sid": "a", "child_id": 0, "code": 0},
+            *nested,
+        )
+        self.assertEqual(run.parse_push_trace(text), (True, None))
+        # The root hook's own refusal is still reported.
+        failing = _trace(
+            _VERSION, _PRE_PUSH_START, *nested,
+            {"event": "child_exit", "sid": "a", "child_id": 0, "code": 7},
+        )
+        self.assertEqual(run.parse_push_trace(failing), (True, 7))
+
+    def test_hook_without_a_string_sid_is_ignored(self):
+        text = _trace(
+            _VERSION,
+            {"event": "child_start", "child_id": 0, "child_class": "hook",
+             "hook_name": "pre-push"},
+            {"event": "child_exit", "child_id": 0, "code": 1},
+        )
+        self.assertEqual(run.parse_push_trace(text), (True, None))
+
     def test_non_integer_exit_code_is_no_signal(self):
         for code in (None, "1", 1.0, True):
             with self.subTest(code=code):
@@ -226,6 +295,78 @@ class ParsePushTraceTest(unittest.TestCase):
     def test_empty_trace_reports_trace2_unavailable(self):
         # traced_push reads a missing or unwritable trace file as "".
         self.assertEqual(run.parse_push_trace(""), (False, None))
+
+
+class HungPrePushHookTest(unittest.TestCase):
+    def test_started_without_exit_is_hung(self):
+        text = _trace(_VERSION, _PRE_PUSH_START) + '{"event": "chi'
+        self.assertTrue(run.hung_pre_push_hook(text))
+
+    def test_completed_hook_is_not_hung(self):
+        text = _trace(
+            _VERSION, _PRE_PUSH_START,
+            {"event": "child_exit", "sid": "a", "child_id": 0, "code": 0},
+        )
+        self.assertFalse(run.hung_pre_push_hook(text))
+
+    def test_exit_in_another_session_does_not_complete_the_hook(self):
+        text = _trace(
+            _VERSION, _PRE_PUSH_START,
+            {"event": "child_exit", "sid": "b", "child_id": 0, "code": 0},
+        )
+        self.assertTrue(run.hung_pre_push_hook(text))
+
+    def test_other_children_and_empty_trace_are_not_hung(self):
+        text = _trace(
+            _VERSION,
+            {"event": "child_start", "sid": "a", "child_id": 0,
+             "child_class": "transport/ssh"},
+        )
+        self.assertFalse(run.hung_pre_push_hook(text))
+        self.assertFalse(run.hung_pre_push_hook(""))
+
+
+class TracedPushTimeoutTest(unittest.TestCase):
+    def _timeout_after(self, trace_events, stdout=None, stderr=None):
+        def fake_run(command, **kwargs):
+            trace = Path(kwargs["env"]["GIT_TRACE2_EVENT"])
+            trace.write_text(_trace(*trace_events), encoding="utf-8")
+            raise subprocess.TimeoutExpired(
+                cmd=command, timeout=300, output=stdout, stderr=stderr
+            )
+        return mock.patch.object(run.subprocess, "run", side_effect=fake_run)
+
+    def test_timeout_with_a_hung_hook_is_a_hook_verdict(self):
+        with self._timeout_after(
+            [_VERSION, _PRE_PUSH_START], b"out\n", b"hook said hi\n"
+        ):
+            pushed = run.traced_push(["push"], Path("."), {})
+        self.assertTrue(pushed.hook_hung)
+        self.assertIsNone(pushed.hook_code)
+        self.assertNotEqual(pushed.result.returncode, 0)
+        self.assertEqual(pushed.result.stdout, "out\n")
+        self.assertEqual(pushed.result.stderr, "hook said hi\n")
+
+    def test_timeout_without_output_decodes_to_empty(self):
+        with self._timeout_after([_VERSION, _PRE_PUSH_START]):
+            pushed = run.traced_push(["push"], Path("."), {})
+        self.assertEqual((pushed.result.stdout, pushed.result.stderr), ("", ""))
+
+    def test_timeout_without_a_hook_stays_network(self):
+        with self._timeout_after([_VERSION]):
+            with self.assertRaises(run.GitError) as caught:
+                run.traced_push(["push"], Path("."), {})
+        self.assertEqual(caught.exception.exit_code, plan.EXIT_NETWORK)
+
+    def test_timeout_after_the_hook_exited_stays_network(self):
+        events = [
+            _VERSION, _PRE_PUSH_START,
+            {"event": "child_exit", "sid": "a", "child_id": 0, "code": 0},
+        ]
+        with self._timeout_after(events):
+            with self.assertRaises(run.GitError) as caught:
+                run.traced_push(["push"], Path("."), {})
+        self.assertEqual(caught.exception.exit_code, plan.EXIT_NETWORK)
 
 
 if __name__ == "__main__":
