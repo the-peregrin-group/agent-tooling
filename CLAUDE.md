@@ -107,8 +107,9 @@ only PRs to `main` are the ones a human asked for.
     alternatives that prevent relitigation. How and why live only here.
   - Everything else is dated: a proposal, an audit, a design anchored at a
     date. Each opens with one note, "This document captures state as of
-    <date>. For current state, see <living doc(s)>.", and beyond that note
-    is never updated to describe later state.
+    <date>. For current state, see <living doc(s)>." It records reality as
+    of that date: a correction that makes it truer about that date is
+    welcome, but it is never updated to describe later state.
 - Living docs describe shipped capabilities as intended. Where `main` falls
   short of that (a defect, or an omission not yet built), the project's
   Known gaps says so, citing the Issue. A capability not yet built at all

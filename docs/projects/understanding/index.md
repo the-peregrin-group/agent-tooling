@@ -12,8 +12,8 @@ read, amended, and superseded. They share one contract: home-in captures terms o
 through use-adrs, at each Line of Inquiry Exit. They are split so that each
 can be invoked alone.
 
-home-in's design, including its rejected alternatives, is the dated
-[home-in design](home-in-design.md) (as of 2026-09-30). The decisions behind
+home-in's design, including its rejected alternatives, is in
+[design.md](design.md). The decisions behind
 it: capture happens only at Line of Inquiry Exits
 ([ADR 0003](../../adr/0003-capture-at-line-of-inquiry-exits.md)); home-in has
 no unattended form ([ADR 0004](../../adr/0004-home-in-is-attended-only.md));

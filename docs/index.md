@@ -40,8 +40,7 @@ projects, which lives under `docs/audits/`.
 - [understanding](projects/understanding/index.md): the `home-in`,
   `use-adrs`, and `use-lexicon` Skills, one project because home-in
   captures lexicon entries and ADRs through the other two; its
-  [home-in design](projects/understanding/home-in-design.md), as of
-  2026-09-30.
+  [home-in design](projects/understanding/design.md).
 - [handoff](projects/handoff/index.md): the Skill that writes a Handoff.
 - [refine-state-doc](projects/refine-state-doc/index.md): the guide for
   writing and refining State docs.

@@ -92,6 +92,7 @@ unattended or background session. The board wrappers (`ghw-board-*`,
 
     ```jsonc
     "deny":  ["Read(~/.config/fjw/**)", "Edit(~/.config/fjw/**)",
+              "Bash(*.config/fjw*)",
               "Edit(~/.local/libexec/agent-tooling/**)",
               "Edit(~/.claude/skills/**)",
               "Edit(~/.claude/agents/**)"],
@@ -101,7 +102,10 @@ unattended or background session. The board wrappers (`ghw-board-*`,
     "allow": ["Edit(//tmp/claude/**)", "Bash(tooling-install diff *)"]
     ```
 
-    The first two deny rows keep the Forgejo token out of every agent's reach.
+    The first three deny rows keep the Forgejo token out of every agent's
+    reach. The Bash row is needed because `Read()` denies do not cover shell
+    tools: the Bash matcher checks redirect targets against file rules, not
+    file arguments, so without it a plain `cat` could read the token.
     The Edit denies on the three Install Targets mean a change reaches
     installed tooling only through a committed source and an approved install
     (ADR 0007); some broad Bash grants can still write there, so keep those

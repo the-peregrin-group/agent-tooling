@@ -1,11 +1,13 @@
 # fjw issue and label Verbs
 
-**Proposal, ratified 2026-09-14. Not implemented.** This captures the plan as
-ratified; [index.md](index.md) tracks its status. It extends the shipped
-design in [design.md](design.md), whose invariants (machine-account
-identity, config, transport, Exit-code contract, staged bodies, installed
-copies, grant form) carry over unchanged and are not restated here.
-Implementation deviates only with the deviation called out.
+This document captures state as of 2026-09-14. For current state, see
+[index.md](index.md) and [design.md](design.md).
+
+This proposal extends the shipped design in [design.md](design.md), whose
+invariants (machine-account identity, config, transport, Exit-code
+contract, staged bodies, installed copies, grant form) carry over unchanged
+and are not restated here. Implementation deviates only with the deviation
+called out.
 
 ## Problem
 
@@ -193,11 +195,9 @@ pinned at position 1.
 
 Forgejo answers 404 for a repo the caller may not see, so a missing grant
 reads as a missing resource. The shipped `fjw-pr-create` already misreports
-this way (see index.md's Known gaps), and every issue Verb's index guard
-walks the same path with more causes (no such issue, it is a PR, the repo
-is invisible). The fix lives in the shared `cli/lib/forgejo` layer. It was
-ratified to ship with this work; it is now planned to ship ahead of it
-(see Implementation notes):
+this way, and every issue Verb's index guard walks the same path with more
+causes (no such issue, it is a PR, the repo is invisible). The fix lives in
+the shared `cli/lib/forgejo` layer and ships with this work:
 
 - **Lazy.** No extra call on the happy path. Only when a resource-level GET
   404s does the library probe `GET /repos/{owner}/{repo}` once.
@@ -246,20 +246,3 @@ A catalog section for the new Verbs, mirroring the existing one
 After the changes, an editorial pass checks that the whole Skill is
 coherent, carries only what an operating agent needs (no history, dates, or
 prior-version residue), and is as concise as clarity allows.
-
-## Implementation notes
-
-These notes reflect the repo's layout as of 2026-10-01.
-
-- New `cli/lib/forgejo/issues.py` and `cli/lib/forgejo/labels.py` beside
-  `pulls.py`; flat entry points in `cli/`, `#!/usr/bin/python3`,
-  3.9-compatible, stdlib only; offline tests with the network mocked.
-- Ship through the Installer; Skill text invokes Verbs by bare name and
-  stays consumer-generic.
-- The 404 disambiguation helper is planned as a separate fix to the
-  shipped Verbs (index.md, Known gaps); these Verbs will reuse it.
-- The issue-index guard's exit 4 differs from the shipped
-  `fjw-pr-comments` check, which exits 3 for an issue index; aligning the
-  two is an open decision.
-- Run the empirical probes before relying on the behavior they cover; the
-  Read-collaborator issue-write probe must pass live before acceptance.

@@ -1,11 +1,7 @@
 # `gitw-trunk-sync`: proposal
 
-Proposal, ratified 2026-10-01. A point-in-time capture of the plan for
-the last planned gitw Verb. It has since been built, and the linked-worktree
-case it left open is settled as a refusal (see design.md); this document is
-not updated to describe the built Verb. Status and Issue:
-[index.md](index.md) (`agent-tooling-1790288521317-5-34a5f7c2`). Current
-design: [design.md](design.md).
+This document captures state as of 2026-10-01. For current state, see
+[index.md](index.md) and [design.md](design.md).
 
 ## Purpose
 

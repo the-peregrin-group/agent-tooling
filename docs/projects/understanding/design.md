@@ -1,6 +1,8 @@
-# home-in: design
+# understanding: the home-in design
 
-State as of 2026-09-30.
+The design of home-in, one of the three Skills in the
+[understanding](index.md) project. The project's other two Skills,
+use-adrs and use-lexicon, are not covered here.
 
 `/home-in` is a Skill the user asks for by name, for arriving at an
 opinion. The user
@@ -461,13 +463,13 @@ holds the same rejection in snapshot form.
 
 ## Open items
 
-As of 2026-09-30 the frontier is exhausted and the Resolution Queue is
-empty. The Stakeholders root was set aside early on a weak reason (that
-the skill's other users are agents, when other installers are human and
-the people affected by any session's outcome are stakeholders too); the
-independent review surfaced what that root would have, proportionality
-and register, and both are now addressed in the body rather than by
-reopening the walk.
+The design session's walk ended with its frontier exhausted and its
+Resolution Queue empty. The Stakeholders root was set aside early on a
+weak reason (that the skill's other users are agents, when other
+installers are human and the people affected by any session's outcome are
+stakeholders too); the independent review surfaced what that root would
+have, proportionality and register, and both are addressed in the body
+rather than by reopening the walk.
 
 Deliberately left to be learned from use rather than decided now:
 

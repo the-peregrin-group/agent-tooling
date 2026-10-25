@@ -1,12 +1,13 @@
 # use-bd: version-one proposal
 
-Proposal, ratified 2026-10-09 in a home-in session (2026-10-07 to
-2026-10-09). A point-in-time capture of the plan for version one of use-bd,
-the Skill that teaches agents how this ecosystem uses Beads (`bd`) as its
-Issue Tracker, through [`bdw`](../bdw/index.md), the Beads Wrapper. It is
-being built in slices under `agent-tooling-aio` (the use-bd epic) and is not
-updated as they ship: status and Issues are in [index.md](index.md), and the
-Skill (`skills/use-bd/`) holds the procedure.
+This document captures state as of 2026-10-09. For current state, see
+[index.md](index.md) and the Skill itself, `skills/use-bd/`.
+
+This is the plan for version one of use-bd, the Skill that teaches agents
+how this ecosystem uses Beads (`bd`) as its Issue Tracker, through
+[`bdw`](../bdw/index.md), the Beads Wrapper. It was ratified in a home-in
+session (2026-10-07 to 2026-10-09), to be built in slices under
+`agent-tooling-aio` (the use-bd epic).
 
 ## Why use-bd exists
 

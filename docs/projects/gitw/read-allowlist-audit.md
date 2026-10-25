@@ -1,13 +1,16 @@
 # gitw displacement: read-allowlist flag audit
 
-> **Audit as of 2026-09-13.** Correction: the claim below that a
-> space-star rule alone never matches the bare command is wrong.
-> `Bash(x *)` matches bare `x` when the trailing space-star is the rule's
-> only wildcard (documented Claude Code behavior, observed directly).
-> Fixed-arity calls therefore do not need separate exact rules, though
-> `gitw-push` still gets exact rules only, by deliberate enumeration (see
-> [design.md](design.md#permission-rules)). Section references below
-> predate design.md's 2026-10-01 rewrite.
+This document captures state as of 2026-09-13. For current state, see
+[index.md](index.md) and [design.md](design.md).
+
+> **Correction.** The claim below that a space-star rule alone never
+> matches the bare command is wrong. `Bash(x *)` matches bare `x` when the
+> trailing space-star is the rule's only wildcard (documented Claude Code
+> behavior, observed directly). Commands run bare therefore do not need a
+> separate exact rule beside the starred one.
+
+References below to design.md and its sections mean the design as of the
+audit date.
 
 The audit the displacement plan in [design.md](design.md) requires: every
 retained raw-`git` read Permission rule audited against the three escape
@@ -47,14 +50,9 @@ default-prompt boundary and human review remain the real controls.
   cannot catch a flag that appears mid-tail. So the only narrowing
   moves available are (a) exact-form rules with no star and (b) pinning
   more literal tokens before the star.
-- **Exact and starred forms are distinct** (superseded; see the
-  correction above): `Bash(git status *)` does not match bare
-  `git status`; commands commonly run bare need both rules. Ruled
-  2026-09-14 from prior experience with the matcher: the space-star form
-  demands at least a trailing space after the last literal token.
-  Consequence for the gitw grants: fixed-arity wrapper calls
-  (`gitw-push <repo> <prefix>`, bare `gitw-rebase <repo> <prefix>`) need
-  starless exact rules; a space-star rule alone would never match them.
+- **Exact and starred forms are distinct** (wrong; see the correction
+  above): `Bash(git status *)` does not match bare `git status`; commands
+  commonly run bare need both rules.
 - **Option permutation defeats positional pinning of flags** (verified
   2026-09-13, git 2.43.0): `git ls-remote . refs/heads/main --heads`
   honors `--heads` after the positionals. Git's builtin option parser
@@ -227,8 +225,8 @@ default-prompt boundary and human review remain the real controls.
   `git branch` rule. The two exact forms have zero tail, so nothing to
   audit.
 - **Final:** keep `Bash(git branch --show-current)` and
-  `Bash(git branch)` (the bare list form was an unratified addition to
-  the design's read list, since ratified; see Open items). Listing needs
+  `Bash(git branch)` (the bare list form is an unratified addition to
+  the design's read list; see Open items). Listing needs
   beyond that (`-a`, `-vv`) fall to the prompt; `gitw-orient` covers the
   routine case.
 
@@ -238,8 +236,7 @@ default-prompt boundary and human review remain the real controls.
   absent from the design's ratified read list.
 - **Escape analysis:** pure read (`-v`, `-z`, `--stdin`); no flags in any
   class.
-- **Final:** keep (an unratified addition, since ratified; see Open
-  items). It earns its place: `gitw-commit`'s local-file sweep guard
+- **Final:** keep (an unratified addition; see Open items). It earns its place: `gitw-commit`'s local-file sweep guard
   makes gitignore verification a routine agent read.
 
 ### git worktree list
@@ -328,11 +325,11 @@ never ahead.
 
 ## Open items
 
-- **Ratify the two additions:** ruled 2026-09-14, keep both. Bare
-  `Bash(git branch)` (exact form only; starred forms stay dead) and
-  `Bash(git check-ignore *)` (flag surface audited clean; a routine
-  agent read now that `gitw-commit`'s sweep guard makes
-  ignore-verification part of the workflow) join the ratified read list.
+- **Ratify the two additions.** The audit recommends both join the
+  ratified read list: bare `Bash(git branch)` (exact form only; starred
+  forms stay dead) and `Bash(git check-ignore *)` (flag surface audited
+  clean; a routine agent read now that `gitw-commit`'s sweep guard makes
+  ignore-verification part of the workflow).
 - **A `Bash(git -C <worktree-path> *)`-shaped rule must die with the
   displacement.** It is a full escape: the star covers the entire
   remainder, so it admits any mutation *and* re-opens the otherwise
@@ -350,8 +347,7 @@ never ahead.
 - **Read-deny porosity:** generic text-tool allows read any path the
   `Read()` deny list protects without a prompt, because the Bash matcher
   checks only redirect targets against file rules, not file arguments.
-  Closed 2026-09-20 with Bash deny rules mirroring the protected
-  patterns. `git diff --no-index` / `git grep --no-index` remain
+  `git diff --no-index` / `git grep --no-index` remain
   accepted above.
 - **Prune forms deferred:** `git fetch --prune` variants are excluded
   from the exact-form set; add per-remote exact forms only if a consumer

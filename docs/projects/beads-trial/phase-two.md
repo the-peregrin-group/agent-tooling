@@ -1,7 +1,7 @@
 # Beads trial: the verdict and phase two
 
-Proposal, ratified 2026-10-01. A point-in-time capture of the plan at
-ratification; [index.md](index.md) tracks its state.
+This document captures state as of 2026-10-01. For current state, see
+[index.md](index.md) and [design.md](design.md).
 
 The trial runs in two phases. Phase one is this repo, local-only, as
 described in [index.md](index.md) and [design.md](design.md). Phase two

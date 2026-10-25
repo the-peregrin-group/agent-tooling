@@ -1,10 +1,12 @@
 # Audit: the agent-versus-human line across Skills and Wrappers
 
-> **Audit as of 2026-10-11, against `main` at 39ffb0e.** A dated document:
-> it is never updated to describe later state. Line numbers are as of that
-> commit. It lands Issue `agent-tooling-xla` (audit the agent-versus-human
-> line for one consistent policy); the decisions it asks for are filed as
-> their own Issues, linked `discovered-from` that one.
+This document captures state as of 2026-10-11 (`main` at 39ffb0e; line
+numbers refer to that commit). For current state, see
+[docs/index.md](../index.md).
+
+This audit lands Issue `agent-tooling-xla` (audit the agent-versus-human
+line for one consistent policy); the decisions it asks for are filed as
+their own Issues, linked `discovered-from` that one.
 
 Each Skill and Wrapper drew its own line between what an agent may do on
 its own and what needs a human, in whichever document was being written at
