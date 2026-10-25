@@ -1,5 +1,7 @@
 # installer: the Installer
 
+## Overview
+
 The Installer, `tooling-install`, copies agent tooling from Source repos into
 fixed Install Targets, and agents only ever run the installed copies. A
 checkout is source; nothing runs from it. Each Source repo declares its

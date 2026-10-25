@@ -1,5 +1,7 @@
 # gitw
 
+## Overview
+
 gitw is the Wrapper over git, paired with the `use-git` Skill. The Skill
 carries git discipline for agents: never act on unverified-fresh state,
 work on your own branch in your own worktree, keep history semi-linear

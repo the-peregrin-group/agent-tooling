@@ -1,5 +1,7 @@
 # bdw: the Beads Wrapper
 
+## Overview
+
 `bdw` is the Wrapper over Beads (`bd`): it runs the real `bd` with the
 session's Actor set, so every write Beads records says which session made it.
 Beads takes the identity it records from an environment variable, and every

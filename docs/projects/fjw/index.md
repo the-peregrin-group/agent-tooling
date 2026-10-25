@@ -1,5 +1,7 @@
 # fjw: the Forgejo Wrapper
 
+## Overview
+
 fjw is the Wrapper over a self-hosted Forgejo forge. Its `fjw-*` Verbs let
 agents operate on pull requests through commands that Permission rules can
 grant as literal prefixes: the repo, the Verb, and any scope token sit in

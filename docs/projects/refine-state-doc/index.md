@@ -1,5 +1,7 @@
 # refine-state-doc: the State doc Skill
 
+## Overview
+
 The `refine-state-doc` Skill is the guide for writing and refining State
 docs, as distinct from Stream docs. It defines what makes a State doc good
 (clarity and concision, one point in time, one owning place per fact,

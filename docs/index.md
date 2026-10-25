@@ -4,8 +4,8 @@ The front door to this repo's documentation. `README.md` is the bootstrap
 and the install model; `LEXICON.md` is the vocabulary; `docs/adr/` holds the
 decisions. Everything else lives under `docs/projects/`, one directory per
 project, in the shape `CLAUDE.md` ("Documentation") prescribes: a living
-`index.md` with a Status table, an optional living `design.md`, and dated
-targeted docs. The one exception is a dated audit that spans several
+`index.md` with an Overview and a Status table, an optional living
+`design.md`, and dated targeted docs. The one exception is a dated audit that spans several
 projects, which lives under `docs/audits/`.
 
 ## Projects
@@ -49,7 +49,8 @@ projects, which lives under `docs/audits/`.
 ## Cross-cutting audits
 
 Dated audits that span several projects live under `audits/`; like every
-dated doc, each is never updated after its date.
+dated doc, each opens with a note giving its date and pointing to current
+state, and is otherwise never updated after its date.
 
 - [The agent-versus-human line](audits/2026-10-11-agent-versus-human-line.md),
   as of 2026-10-11: every point where a Skill or Wrapper decides what an
