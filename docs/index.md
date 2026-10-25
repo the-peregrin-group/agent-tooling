@@ -89,7 +89,7 @@ families adopt them at their own pace. What each family implements today:
 | Family | Codes implemented |
 |---|---|
 | `gitw-*` (7 Verbs) | the full taxonomy, 0 to 6 |
-| `fjw-*` (7 Verbs) | the full taxonomy, 0 to 6 (HTTP 401/403 → 5, 404 → 3, other HTTP → 1, connection or timeout → 6, config error → 5, 409 on create → 4) |
+| `fjw-*` (8 Verbs) | the full taxonomy, 0 to 6 (HTTP 401/403 → 5, 404 → 3, other HTTP → 1, connection or timeout → 6, config error → 5, 409 on create or a head-prefix mismatch → 4) |
 | `ghw-*` (12 Verbs) | the full taxonomy, 0 to 6: `gh` failures classify (not found → 3, auth or a `gh` below `ghw-issue-link`'s version floor → 5, network or timeout → 6, anything unrecognized → 1; the create and comment Verbs and `ghw-board-sync new` (project creation) report a timeout or reset as 1, since the write may have landed, and `ghw-issue-close` reports any network failure during the close as 1, since the comment is posted first); a policy refusal past parse time (label contract, merge gates, an unlinked board, a missing branch) → 4 |
 | `triage-*` (reference wrappers of `triage-issues`) | 0, 1, 2 only |
 | `bdw` | 4 on an argument refusal (bd's `--actor` flag, a database-switching flag, a flag before the verb), 5 on a configuration refusal (no workspace config, a write on an unverified bd version), 3 when no `bd` is on PATH, 1 when bd cannot be started; otherwise bd's own exit code (128 + N when signal N ends it) |

@@ -56,8 +56,7 @@ not the human user, with a credential the calling agent can never see.
   rules cover wholesale.
 - **Consumer-generic code and Skill.** No consumer's branch names, repos,
   or hostnames belong in the Wrapper or use-forgejo; Permission rules
-  carry the policy. One example prefix still breaks this rule (see
-  [index.md](index.md)'s Known gaps).
+  carry the policy.
 - **Bare-name invocation.** Skills invoke Verbs by bare name, resolved on
   PATH to the installed copy, which is the form Permission rules match.
 
@@ -237,7 +236,7 @@ nothing runs from a checkout is the
 - **AGit push-option PR creation** (`git push -o title=… refs/for/<base>`).
   AGit PRs are authored by the pushing identity, which breaks the
   machine-account requirement; split attribution covers branch pushes, not
-  PR authorship. It replaces one Verb of seven, so it adds a second,
+  PR authorship. It replaces one Verb of eight, so it adds a second,
   differently-permissioned write channel instead of shrinking the surface,
   and `git push` grants are far blunter than a `fjw-pr-create` prefix rule.
   Push options are trailing flags that prefix rules cannot see. AGit PRs
