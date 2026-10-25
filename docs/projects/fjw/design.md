@@ -29,17 +29,17 @@ not the human user, with a credential the calling agent can never see.
   A surplus positional or an unrecognized flag is exit 2, so a
   middle-wildcard Permission rule stays as tight as the usage line (the
   [argument contract](../../index.md#argument-contract)).
-- **Non-interactive.** Missing input, a deployment failure (exit 5), or ambiguity exits
+- **Non-interactive.** Missing input, a deployment failure (exit 1), or ambiguity exits
   non-zero at once with a diagnostic on stderr.
 - **Machine-readable.** Read Verbs print raw Forgejo API JSON
   (`fjw-pr-query` wraps the raw PR in its state object). Write Verbs
   print a JSON plan (`"action": "applied"`). Exit codes classify failures.
-- **A number of the wrong kind is a refusal, not an absence.** Forgejo
+- **A number of the wrong kind is a call to fix, not an absence.** Forgejo
   numbers issues and PRs from one index space, so a number can name a real
-  object of the other kind. A Verb given one exits 4, naming the sibling
+  object of the other kind. A Verb given one exits 2, naming the sibling
   Verb; a number that names nothing exits 3. The two codes ask the caller
   for different next steps (fix the call, or accept the answer), and the
-  refusal is what keeps an issue Verb from reaching around a PR Verb's
+  check is what keeps an issue Verb from reaching around a PR Verb's
   pins. Detection costs nothing on the happy path: a PR Verb asks
   `GET /issues/{n}` only after `/pulls/{n}` 404s, and an issue Verb reads
   the `pull_request` field of the issue it already fetched. The shipped PR
@@ -70,19 +70,19 @@ numbers to be positive integers.
 - `fjw-pr-create <owner/repo> <base> <head> <title> <body-file> [--draft]`
   opens a PR. It refuses an empty base, head, or title, and head equal to
   base (exit 2), and checks that head and base exist on the forge before
-  posting (missing branch in a visible repo: exit 2, "push it first"; if the repo
+  posting (missing branch in a visible repo: exit 3, "push it first"; if the repo
   itself also 404s, it is missing or not visible to the machine account:
   exit 3 naming both causes). `--draft` is the one
   trailing flag, allowed because it only de-escalates. Forgejo's create
   API has no draft field, so `--draft` prepends `WIP: ` to the title,
   which is what makes the forge report the PR as draft. A 409 (an open PR
-  for this head and base exists) is exit 4: callers query first, so a
-  duplicate create is a caller bug.
+  for this head and base exists) is exit 2: callers query first, so a
+  duplicate create is state the caller must change.
 - `fjw-pr-list <owner/repo>` prints the open PRs, paginated.
-- `fjw-pr-view <owner/repo> <pr#>` prints one PR. An issue number exits 4
+- `fjw-pr-view <owner/repo> <pr#>` prints one PR. An issue number exits 2
   and a number naming nothing exits 3 (see Invariants).
 - `fjw-pr-comments <owner/repo> <pr#>` checks that the number names a PR
-  (an issue number exits 4, nothing exits 3), then prints its comments,
+  (an issue number exits 2, nothing exits 3), then prints its comments,
   paginated.
 - `fjw-pr-reviews <owner/repo> <pr#>` makes the same PR-ness check, then
   prints the reviews (paginated until an empty page, because Forgejo filters
@@ -157,10 +157,12 @@ no dependencies. It sends `Authorization: token …` and a fixed
   404 for a repo the caller cannot see, the same as for one that does not
   exist. `pulls.branch_exists` therefore probes `GET /repos/{repo}` only
   after a branch 404 (no extra request on the happy path). A visible repo
-  means the branch is really missing (exit 2); an invisible one raises exit
-  3 naming both causes. It is exit 3, not 5: the server makes a mistyped
-  slug and a missing grant indistinguishable, so neither is classifiable as
-  auth. Callers report a missing grant to the user and never retry.
+  means the branch is really missing, and the message says to push it; an
+  invisible one names both causes instead. Both are exit 3. The repo case
+  is not 1 or 4: the server makes a mistyped slug and a missing grant
+  indistinguishable, so it is classifiable neither as a credential fault
+  nor as a too-weak grant. Callers report a missing grant to the user
+  and never retry.
 - **Branch pushes are outside fjw.** A consumer pushes its head branches
   over git with its own SSH identity, while fjw's API writes act as the
   machine account. Attribution is split; this is accepted for now and is
@@ -195,22 +197,31 @@ backward-compatible addition if a second consumer needs one.
 
 ## Exit codes
 
-fjw implements the full Exit-code contract; the taxonomy and each Wrapper
-family's coverage live in
-[the Exit-code contract](../../index.md#exit-code-contract).
+fjw follows [the Exit-code contract](../../index.md#exit-code-contract);
+why one contract covers all agent-tooling software is
+[ADR 0013 (one exit-code contract for all agent-tooling software)](../../adr/0013-one-exit-code-contract-for-all-agent-tooling.md).
+How it applies to a forge API:
 
-| Code | fjw meaning |
-|---|---|
-| 0 | success, including a converged no-op and every `fjw-pr-query` answer |
-| 1 | unclassified: HTTP statuses other than 401, 403, and 404, or a non-JSON response |
-| 2 | usage error or refusal at parse time, including a bad staging path and a missing branch on create |
-| 3 | not found: HTTP 404; on a repo this can mean a missing grant, since the server answers 404 for an invisible repo |
-| 4 | policy refusal past parse: a 409 on create, a head-prefix mismatch, or a number naming the other kind (an issue given to a PR Verb) |
-| 5 | auth or config: HTTP 401 or 403, and every config error |
-| 6 | network: connection failure or timeout; the one retryable class |
+- **Every `fjw-pr-query` answer is 0**, `none` included: the probe
+  answered.
+- **A 404 is 3, a repo-level one included.** The message names both
+  causes, a missing repo and one the machine account cannot see, because
+  the server answers alike for both (see Forgejo API mechanics).
+- **A 409 on create is 2**: the open PR it collides with is state the
+  caller must change.
+- **A 403 that means the grant is too weak for the action is 4.** A
+  rate-limit 403 is not the caller's grant, and is 1.
+- **A 401, a 5xx, a non-JSON response, a transport failure, and every
+  config error are 1.** None is the caller's to fix. A transport failure
+  after a POST may or may not have landed. The code alone does not stop a
+  re-run, since a caller applies its own retry threshold to a 1; the
+  protection is the error message, which says the write may have landed
+  and to check before re-running, because a blind re-run of a create or
+  comment Verb can duplicate the write (`fjw-pr-close`'s `PARTIAL` line
+  is the same warning for its comment).
 
-A config error maps to 5 because an unattended caller cannot tell a missing
-config from revoked credentials: both mean abort and flag the deployment.
+The Verbs do not exit this way yet; see the Known gaps in
+[fjw's index](index.md#known-gaps).
 
 ## Implementation
 
@@ -251,8 +262,9 @@ nothing runs from a checkout is the
   it costs no extra request. Rejected because 3 means "treat as an answer",
   and the answer it invites is wrong: a caller told there is no item 12 may
   file a new one, when the fix is to call the sibling Verb. That is a
-  caller bug, which is what 4 means. The rule is shared across the Wrapper
-  families so that no family re-decides it.
+  call to change, which is what 2 means. The rule is the Exit-code
+  contract's, shared across the Wrapper families so that no family
+  re-decides it.
 - **A Wrappers-only install directory.** The install directory is not
   reserved for credential-fronting Wrappers; see the
   [Installer design](../installer/design.md#the-executable-tooling-directory).

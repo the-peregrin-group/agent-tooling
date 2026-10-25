@@ -63,7 +63,7 @@ with one contract, so a caller (an unattended agent especially) knows what
 to do next without knowing which tool ran or what it runs underneath. Each
 code borrows the meaning of an HTTP status class. Why this contract, and
 the alternatives rejected, is
-[ADR 0013 (one exit-code contract, modelled on HTTP status classes)](adr/0013-one-exit-code-contract-for-all-agent-tooling.md).
+[ADR 0013 (one exit-code contract for all agent-tooling software)](adr/0013-one-exit-code-contract-for-all-agent-tooling.md).
 
 | Code | Means | HTTP analogue | Caller's next step |
 |---|---|---|---|
@@ -105,9 +105,11 @@ How the boundaries fall:
 - **Outside the contract:** 126 and 127 (the shell could not run the
   command) and 128 + N (signal N ended it).
 
-The code constants live in `cli/lib/plan.py`. Where a family's Verbs do not
-exit this way yet, its Known gaps says so; until a family's gap clears, its
-Skill states the codes it actually exits with.
+The code constants live in `cli/lib/plan.py`, which still defines the
+earlier seven codes until `agent-tooling-cjvo.1` (the shared six-code
+constants) lands. Where a family's Verbs do not exit this way yet, its
+Known gaps says so; until a family's gap clears, its Skill states the
+codes it actually exits with.
 
 ## Argument contract
 

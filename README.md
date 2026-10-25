@@ -40,7 +40,8 @@ the same Install Target; each one's Receipt record covers only its own files.
 /usr/bin/python3 cli/tooling-install apply <checkout>   # install; refuses a dirty source
 ```
 
-`diff` exits 0 when in sync and 1 on drift. `apply` refuses a dirty source tree
+`diff` reports each Cohort's status (`in-sync`, `drift`, or `not-installed`)
+in its JSON. `apply` refuses a dirty source tree
 unless given `--force`, and it never overwrites a file another Source repo's
 Receipt claims unless the bytes are identical. `adopt <checkout> <other-repo>` is
 the explicit takeover of files that the named repo installed earlier. Run `diff`
@@ -121,7 +122,8 @@ unattended or background session. The board wrappers (`ghw-board-*`,
     `.claude/settings.json`, the permission rules for its Issue Tracker (see
     below); it applies only to sessions launched from a checkout whose
     checked-out branch contains it.
-7. Check it all: `tooling-install diff <checkout>` exits 0, and
+7. Check it all: `tooling-install diff <checkout>` reports every Cohort
+   `in-sync`, and
    `gitw-orient <label>` reports the repo.
 
 The skills tell agents to call the wrappers by bare name, which is the form the
