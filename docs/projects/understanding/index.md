@@ -1,5 +1,7 @@
 # understanding: home-in, use-adrs, and use-lexicon
 
+## Overview
+
 Three Skills that turn a conversation into understanding a project can keep.
 `home-in` interrogates the user, one question per turn across a tree of Lines
 of Inquiry, toward an opinion on a problem they can defend, and records it in

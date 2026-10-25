@@ -1,5 +1,7 @@
 # handoff: the Handoff Skill
 
+## Overview
+
 The `handoff` Skill writes a Handoff: a self-contained brief with which an
 agent passes work to another agent or a human, so the recipient can carry it
 on without the sender's conversation. The default case is a fresh agent on a

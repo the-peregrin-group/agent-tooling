@@ -89,25 +89,45 @@ only PRs to `main` are the ones a human asked for.
   vocabulary (`use-lexicon`); `docs/adr/` holds the decisions (`use-adrs`).
 - Every project (a Wrapper, a Skill or Skill family, the Installer) documents
   itself under `docs/projects/<project>/`, a State doc set with no overlap:
-  - `index.md`, the one living overview: what the project is, then a
-    `## Status` table, `Capability | State | Where`, one row per user-sized
-    capability, with the closed state set `shipped`, `planned` (ratified;
-    links its proposal doc and Issue IDs), `proposed` (proposal in
-    workshop), `retired` (kept only if it prevents reintroduction; links an
-    ADR). `### Known gaps` follows: defects in shipped capabilities only, one
-    line each with its Issue ID. No dates, PR numbers, or narrative in
-    Status. Status lives only here.
-  - `design.md`, optional, the one living design: current architecture,
-    invariants, rationale, and the rejected alternatives that prevent
-    relitigation. How and why live only here.
+  - `index.md`, the project's living dictionary entry: what it is and where
+    it stands, in brief. Depth belongs in `design.md`, the encyclopedia
+    entry.
+    - `## Overview`: what the project is _today_, in at most 250 words.
+    - `## Status`: the table, and the sole source of truth for status. No
+      dates, PR numbers, or narrative/history. `Capability | State | Where`,
+      one row per user-sized capability, with the closed state set
+      `shipped`, `planned` (ratified; links its proposal doc and Issue IDs),
+      `proposed` (proposal in workshop), `retired` (kept only if it
+      prevents reintroduction; links an ADR).
+    - `### Known gaps` under `## Status`: defects or omissions in shipped
+      capabilities, one line each with its Issue ID, added when the Issue is
+      filed and removed by the PR that fixes it.
+  - `design.md`, optional, the one living design and the encyclopedia
+    entry: current architecture, invariants, rationale, and the rejected
+    alternatives that prevent relitigation. How and why live only here.
   - Everything else is dated: a proposal, an audit, a design anchored at a
-    date. Each states its date in its header and is never updated to
-    describe later state.
-- Living docs describe the code as it is on `main`. No living doc presents
-  unbuilt behavior as current: what the system should do lives in a dated
-  proposal, linked from a `planned` or `proposed` Status row and its Issues.
-- Merge-readiness: a PR that lands an Issue updates that capability's Status
-  row in the same PR, and a PR that changes behavior a living doc describes
-  updates that doc in the same PR.
+    date. Each opens with one note, "This document captures state as of
+    <date>. For current state, see <living doc(s)>.", and beyond that note
+    is never updated to describe later state.
+- Living docs describe shipped capabilities as intended. Where `main` falls
+  short of that (a defect, or an omission not yet built), the project's
+  Known gaps says so, citing the Issue. A capability not yet built at all
+  lives in a dated proposal, linked from a `planned` or `proposed` Status
+  row and its Issues.
+- Done is consistency everywhere, at two levels:
+  - **Per PR:** a PR leaves the repo as consistent as one PR can make it.
+    Search for what changed (the Verb, flag, exit code, path, Issue ID, old
+    behavior) across `docs/`, `skills/`, `cli/` (docstrings and tests),
+    `README.md`, `LEXICON.md`, `.beads/PRIME.md`, and open Beads Issues
+    (`bdw search`, `bdw list --desc-contains=<words> --all`), and update
+    every hit. Whatever one PR cannot make true yet (a later PR, another
+    repo, a deployment) is a Known gap or an open Issue that names it. A PR
+    that lands an Issue updates its capability's Status row.
+  - **Per task:** an Issue is done only when every reference across every
+    surface we control agrees with the change, however many PRs, repos,
+    deployments, or authors that takes: this repo, consumer repos, the
+    installed copies (`tooling-install apply`), Beads, and Permission
+    rules. GitHub issues are stale copies and stay untouched (see Issue
+    tracking).
 - `skills/use-bd/onboarding.md` is the maintainer's checklist for
   initializing Beads in another repo.

@@ -1,5 +1,7 @@
 # ghw: the GitHub Wrapper and its Skills
 
+## Overview
+
 ghw is the Wrapper over GitHub: every GitHub write an agent is allowed to make
 goes through one of its twelve `ghw-*` Verbs, each shaped so a Permission rule
 can grant it at exactly the intended scope. Raw `gh` cannot be granted that

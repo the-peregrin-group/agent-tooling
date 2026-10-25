@@ -1,5 +1,7 @@
 # Beads trial
 
+## Overview
+
 This repo tracks its own work in [Beads](https://github.com/gastownhall/beads)
 (`bd`) as its only Issue Tracker. That began on 2026-09-24 as a trial, and
 the trial ended on 2026-10-16 with Beads kept: Beads tracks the work agents

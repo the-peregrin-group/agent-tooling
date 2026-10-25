@@ -1,5 +1,7 @@
 # use-bd: the Beads operating manual
 
+## Overview
+
 use-bd is the Skill that teaches agents how this ecosystem uses Beads
 (`bd`) as its Issue Tracker, through [`bdw`](../bdw/index.md), the Beads
 Wrapper. It installs machine-wide and serves every repo that uses Beads, so
