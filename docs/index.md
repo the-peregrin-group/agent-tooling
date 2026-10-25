@@ -75,6 +75,14 @@ One nuance to `4`: `gitw-rebase` exits 4 on a conflict stop, which is
 deliberate, resumable state (its JSON says `"action": "conflict"`), not a
 caller bug.
 
+A second rule for `4`: on a forge that numbers issues and PRs from one
+index space, a number that names a real object of the other kind (a PR
+number given to an issue Verb, or the reverse) is `4`, naming the sibling
+Verb; a number that names nothing is `3`. A wrong-kind `3` would invite
+the wrong answer ("no item 12, so file one"). fjw's
+[design](projects/fjw/design.md) holds the rationale; which Verbs follow
+the rule today is in each family's Known gaps.
+
 Codes 3 to 6 were carved out of 1's space when the fjw Verbs arrived, so
 families adopt them at their own pace. What each family implements today:
 

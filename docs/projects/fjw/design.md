@@ -34,6 +34,16 @@ not the human user, with a credential the calling agent can never see.
 - **Machine-readable.** Read Verbs print raw Forgejo API JSON
   (`fjw-pr-query` wraps the raw PR in its state object). Write Verbs
   print a JSON plan (`"action": "applied"`). Exit codes classify failures.
+- **A number of the wrong kind is a refusal, not an absence.** Forgejo
+  numbers issues and PRs from one index space, so a number can name a real
+  object of the other kind. A Verb given one exits 4, naming the sibling
+  Verb; a number that names nothing exits 3. The two codes ask the caller
+  for different next steps (fix the call, or accept the answer), and the
+  refusal is what keeps an issue Verb from reaching around a PR Verb's
+  pins. Detection costs nothing on the happy path: a PR Verb asks
+  `GET /issues/{n}` only after `/pulls/{n}` 404s, and an issue Verb reads
+  the `pull_request` field of the issue it already fetched. The shipped PR
+  Verbs do not make that probe yet (agent-tooling-1vr.6).
 - **Multi-line text only by file.** PR bodies and comments come from staged
   files under `/tmp/claude/` or `~/.claude/jobs/<job-id>/tmp/`; any other
   path exits 2. Wrapper reads bypass the agent's Read deny rules, so an
@@ -70,10 +80,11 @@ numbers to be positive integers.
   for this head and base exists) is exit 4: callers query first, so a
   duplicate create is a caller bug.
 - `fjw-pr-list <owner/repo>` prints the open PRs, paginated.
-- `fjw-pr-view <owner/repo> <pr#>` prints one PR. An issue number 404s on
-  the PR endpoint and exits 3.
+- `fjw-pr-view <owner/repo> <pr#>` prints one PR. An issue number exits 4
+  and a number naming nothing exits 3 (see Invariants).
 - `fjw-pr-comments <owner/repo> <pr#>` checks that the number names a PR
-  (exit 3 otherwise), then prints its comments, paginated.
+  (an issue number exits 4, nothing exits 3), then prints its comments,
+  paginated.
 - `fjw-pr-reviews <owner/repo> <pr#>` makes the same PR-ness check, then
   prints the reviews (paginated until an empty page, because Forgejo filters
   reviews after paginating, so a short page is not the end), each gaining a `comments` key holding that
@@ -195,7 +206,7 @@ family's coverage live in
 | 1 | unclassified: HTTP statuses other than 401, 403, and 404, or a non-JSON response |
 | 2 | usage error or refusal at parse time, including a bad staging path and a missing branch on create |
 | 3 | not found: HTTP 404; on a repo this can mean a missing grant, since the server answers 404 for an invisible repo |
-| 4 | policy refusal past parse: a 409 on create, or a head-prefix mismatch |
+| 4 | policy refusal past parse: a 409 on create, a head-prefix mismatch, or a number naming the other kind (an issue given to a PR Verb) |
 | 5 | auth or config: HTTP 401 or 403, and every config error |
 | 6 | network: connection failure or timeout; the one retryable class |
 
@@ -236,6 +247,13 @@ nothing runs from a checkout is the
   append as comments. The convention is that a later comment supersedes the
   description. Issues differ: they are living documents, so the planned
   issue Verbs include an edit Verb ([issue-verbs.md](issue-verbs.md)).
+- **Exit 3 for a number of the wrong kind.** Its case: "there is no PR 12"
+  is literally true, it is the server's own 404 with no policy added, and
+  it costs no extra request. Rejected because 3 means "treat as an answer",
+  and the answer it invites is wrong: a caller told there is no item 12 may
+  file a new one, when the fix is to call the sibling Verb. That is a
+  caller bug, which is what 4 means. The rule is shared across the Wrapper
+  families so that no family re-decides it.
 - **A Wrappers-only install directory.** The install directory is not
   reserved for credential-fronting Wrappers; see the
   [Installer design](../installer/design.md#the-executable-tooling-directory).
