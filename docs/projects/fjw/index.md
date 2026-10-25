@@ -27,4 +27,5 @@ its own project ([installer](../installer/index.md)).
 
 ### Known gaps
 
-None.
+- The shipped PR Verbs exit 3, not 4, on an issue number (agent-tooling-1vr.6).
+- `fjw-pr-create` exits 2, not 4, for a missing head or base branch (agent-tooling-46p).
