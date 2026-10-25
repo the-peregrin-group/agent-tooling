@@ -58,44 +58,56 @@ state, and is otherwise never updated after its date.
 
 ## Exit-code contract
 
-Every Wrapper reports through one taxonomy (`cli/lib/plan.py`); callers
-branch on it, unattended callers especially.
+All agent-tooling software, every Wrapper family and the Installer, exits
+with one contract, so a caller (an unattended agent especially) knows what
+to do next without knowing which tool ran or what it runs underneath. Each
+code borrows the meaning of an HTTP status class. Why this contract, and
+the alternatives rejected, is
+[ADR 0013 (one exit-code contract, modelled on HTTP status classes)](adr/0013-one-exit-code-contract-for-all-agent-tooling.md).
 
-| Code | Meaning | Unattended caller |
-|---|---|---|
-| `0` | success, including a converged no-op | proceed |
-| `1` | unclassified runtime failure | stop and report |
-| `2` | usage error, or a policy refusal at argument-parse time | fix the call |
-| `3` | not found | treat as an answer, not an error |
-| `4` | validation or policy refusal past parse time | a caller bug: never retry unchanged, never work around it with the raw tool |
-| `5` | roster/auth/config (deployment): a Roster, authentication, or configuration failure, fixed by the deployment | abort and flag the deployment |
-| `6` | network failure | the one retryable class |
+| Code | Means | HTTP analogue | Caller's next step |
+|---|---|---|---|
+| `0` | It worked: done, including a converged no-op, and a read that answered | 2xx | proceed |
+| `1` | Broken on our side, not the caller's fault: a crash, configuration, the Roster, credentials, a missing binary, the network | 5xx | stop and report |
+| `2` | The caller must change something on their side: the call, or the state it acts on; the JSON says which | 400, 409 | fix it; never retry unchanged |
+| `3` | The named resource does not exist | 404 | treat it as an answer |
+| `4` | Policy forbids this caller this action | 403 | don't, or ask a human |
+| `5` | Partial completion: the caller has work to do, as the output directs, before resuming | none | act on the output, then resume |
 
-One nuance to `4`: `gitw-rebase` exits 4 on a conflict stop, which is
-deliberate, resumable state (its JSON says `"action": "conflict"`), not a
-caller bug.
+How the boundaries fall:
 
-A second rule for `4`: on a forge that numbers issues and PRs from one
-index space, a number that names a real object of the other kind (a PR
-number given to an issue Verb, or the reverse) is `4`, naming the sibling
-Verb; a number that names nothing is `3`. A wrong-kind `3` would invite
-the wrong answer ("no item 12, so file one"). fjw's
-[design](projects/fjw/design.md) holds the rationale; which Verbs follow
-the rule today is in each family's Known gaps.
+- **2 is about whose fault, not when it is caught.** A malformed call is
+  `2` whether the Wrapper catches it while parsing, after a local read,
+  or after a network call, and whether the Wrapper or the tool beneath
+  it detects it. So is a call naming the wrong kind of object: on a forge
+  that numbers issues and PRs from one index space, a number naming a
+  real object of the other kind is `2`, and the message names the sibling
+  Verb. So is state the caller must change first: a dirty worktree, a
+  remote that moved under a lease, a branch that already exists.
+- **3 is non-existence only.** A number naming nothing, an unknown Roster
+  label, a missing branch. A forge answers 404 for a repo the caller
+  cannot see as for one that does not exist, so both are `3`.
+- **4 is authorization only.** A branch-prefix mismatch, a push to the
+  default branch, a merge gate, a forbidden flag such as bd's `--actor`, a
+  forge grant too weak for the action (HTTP 403). Asking a human is the
+  way forward; rephrasing the call is not.
+- **1 covers everything inside the abstraction.** Configuration, Roster,
+  and credential faults, a missing `git`, `gh`, or `bd`, network failures,
+  a write that may or may not have landed, and any crash: an uncaught
+  Python exception exits 1, which reads correctly. No code says "retry":
+  a Wrapper retries internally where a retry is worthwhile and safe, and
+  otherwise a retry is the caller's judgement.
+- **5 means stopped on purpose, part way.** A `gitw-rebase` conflict stop
+  is the case: the JSON (`"action": "conflict"`) lists what to resolve
+  before `continue`.
+- **An underlying tool's code never reaches the caller.** A Wrapper
+  translates git's, gh's, or bd's failures into the contract.
+- **Outside the contract:** 126 and 127 (the shell could not run the
+  command) and 128 + N (signal N ended it).
 
-Codes 3 to 6 were carved out of 1's space when the fjw Verbs arrived, so
-families adopt them at their own pace. What each family implements today:
-
-| Family | Codes implemented |
-|---|---|
-| `gitw-*` (7 Verbs) | the full taxonomy, 0 to 6 |
-| `fjw-*` (8 Verbs) | the full taxonomy, 0 to 6 (HTTP 401/403 → 5, 404 → 3, other HTTP → 1, connection or timeout → 6, config error → 5, 409 on create or a head-prefix mismatch → 4) |
-| `ghw-*` (12 Verbs) | the full taxonomy, 0 to 6: `gh` failures classify (not found → 3, auth or a `gh` below `ghw-issue-link`'s version floor → 5, network or timeout → 6, anything unrecognized → 1; the create and comment Verbs and `ghw-board-sync new` (project creation) report a timeout or reset as 1, since the write may have landed, and `ghw-issue-close` reports any network failure during the close as 1, since the comment is posted first); a policy refusal past parse time (label contract, merge gates, an unlinked board, a missing branch) → 4 |
-| `triage-*` (reference wrappers of `triage-issues`) | 0, 1, 2 only |
-| `bdw` | 4 on an argument refusal (bd's `--actor` flag, a database-switching flag, a flag before the verb), 5 on a configuration refusal (no workspace config, a write on an unverified bd version), 3 when no `bd` is on PATH, 1 when bd cannot be started; otherwise bd's own exit code (128 + N when signal N ends it) |
-| `tooling-install` | its own set: 0 in sync, 1 drift, 2 usage, 4 refused |
-
-Each family's Skill and `design.md` state the family's codes and link here.
+The code constants live in `cli/lib/plan.py`. Where a family's Verbs do not
+exit this way yet, its Known gaps says so; until a family's gap clears, its
+Skill states the codes it actually exits with.
 
 ## Argument contract
 
