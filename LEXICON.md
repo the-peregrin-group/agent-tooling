@@ -31,11 +31,11 @@ integrate runs several git operations while allowing few git capabilities
 during integration).
 - _Avoid_: command, subcommand
 
-**Exit-code contract**: The fixed meaning of a Verb's exit status (e.g.,
-success, refused by policy, network failure, etc.) that callers branch on.
-Exit 5 is "roster/auth/config (deployment)": a Roster, authentication, or
-configuration failure that only a fix to the deployment cures. The code table
-lives in `docs/index.md#exit-code-contract`.
+**Exit-code contract**: The fixed meaning of an exit status, shared by all
+agent-tooling software, that tells the caller what to do next (e.g., proceed,
+fix the call, treat it as an answer, ask a human) without knowing which tool
+ran or what it runs underneath. The code table lives in
+`docs/index.md#exit-code-contract`.
 
 **Actor**: The party, an agent or a person, that carried out an action or a
 piece of work and is recorded as having done so.
@@ -240,7 +240,8 @@ discarded as already captured or outdated.
 - A project has zero or more Agent integration branches; each is distinct
   from the default branch (trunk), and work landed in one reaches the
   default branch only on the project's own terms.
-- gitw, ghw, fjw, and bdw Verbs report through the Exit-code contract.
+- Every Wrapper and the Installer report through the Exit-code contract; an
+  underlying tool's own exit status never reaches the caller.
 - bdw and gitw record the Actor on the writes they attribute: bdw on the Issue
   Tracker, gitw on its commits.
 - An Actor has exactly one Actor ID.
