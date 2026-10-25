@@ -1,7 +1,7 @@
 # Proposal: rebase the triage wrappers onto the shared library
 
-Proposal, ratified 2026-08-10, amended 2026-08-16. Status and Issues:
-[index.md](index.md). Current architecture: [design.md](design.md).
+This document captures state as of 2026-08-16. For current state, see
+[index.md](index.md) and [design.md](design.md).
 
 ## Problem
 
@@ -35,20 +35,3 @@ Verbs use. They carry their own `gh` layer (`lib_gh.py`) and profile parser
 
 Later, not part of this change: once IDs resolve at runtime, `TRIAGE.md`
 profiles shrink to genuine policy tuning (staleness, ledger issue, cadence).
-
-## Implementation notes (as of 2026-10-01)
-
-- The shared library is `cli/lib/` (constants in `cli/lib/schema.py`) plus
-  `cli/lib/github/`; the second `TRIAGE.md` parser is
-  `cli/lib/github/boards.py`, although the triage README calls
-  `lib_profile.py` the only one.
-- `triage-inventory` already truncates silently at 500 open issues through
-  triage's own copy of `issue_list_open`; the rebase must not carry that
-  over. The shared `gh.issue_list_open` has the same 500 limit and no ghw
-  caller.
-- **Open question.** The plan was written when wrappers and their library
-  shipped inside the skill directory. Today the Installer puts `cli/lib/` in
-  `~/.local/libexec/agent-tooling/` and the triage wrappers in
-  `~/.claude/skills/triage-issues/reference/`, different Install Targets. How
-  the wrappers locate the library across Install Targets, or whether they
-  move into `cli/`, is not yet designed.
