@@ -787,13 +787,36 @@ class BdwTest(unittest.TestCase):
         def explode(*_):
             raise RuntimeError("boom")
 
-        with mock.patch.object(module.bdw_push, "request_push", explode), \
+        with mock.patch.object(bdw_push, "request_push", explode), \
                 contextlib.redirect_stderr(stderr):
             module._after_call(self.beads, "bd", ["create", "x"], 0, False,
                                {"XDG_STATE_HOME": str(self.state_home)})
         self.assertEqual(
             stderr.getvalue(),
             "bdw: warning: the push step failed: boom\n")
+
+    def test_a_call_that_owes_nothing_never_imports_the_push_machinery(self):
+        # In a fresh interpreter: load bdw, run its push step for a read and
+        # for a failed write, and report whether lib.bdw_push got imported.
+        script = (
+            "import importlib.machinery, importlib.util, sys\n"
+            "from pathlib import Path\n"
+            "loader = importlib.machinery.SourceFileLoader('b', sys.argv[1])\n"
+            "spec = importlib.util.spec_from_file_location("
+            "'b', sys.argv[1], loader=loader)\n"
+            "module = importlib.util.module_from_spec(spec)\n"
+            "loader.exec_module(module)\n"
+            "environ = {'XDG_STATE_HOME': sys.argv[3]}\n"
+            "module._after_call(Path(sys.argv[2]), 'bd', ['show', 'x'], 0,"
+            " False, environ)\n"
+            "module._after_call(Path(sys.argv[2]), 'bd', ['create', 'x'], 1,"
+            " False, environ)\n"
+            "print('lib.bdw_push' in sys.modules)\n")
+        result = subprocess.run(
+            ["/usr/bin/python3", "-c", script, str(_SCRIPT), str(self.beads),
+             str(self.state_home)], capture_output=True, text=True, timeout=30)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout, "False\n")
 
 
 if __name__ == "__main__":

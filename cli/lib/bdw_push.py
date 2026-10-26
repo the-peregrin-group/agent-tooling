@@ -69,7 +69,6 @@ from __future__ import annotations
 
 import errno
 import fcntl
-import hashlib
 import json
 import os
 import re
@@ -78,6 +77,7 @@ import subprocess
 import sys
 import tempfile
 import time
+from urllib.parse import urlsplit
 from pathlib import Path
 from typing import Callable, Iterable, Mapping, Sequence
 
@@ -85,6 +85,9 @@ if __package__ in (None, ""):
     # Run as a script (the push worker): make `lib` importable, as bdw does.
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from lib import paths  # noqa: E402
+from lib.bdw_push_state import (  # noqa: E402,F401 -- re-exported
+    LAST_FAILURE, PENDING, PUSHING, TRUTHY, is_truthy, last_failure,
+    push_owed, state_dir)
 
 PUSH_TIMEOUT = 300
 KILL_WAIT = 10
@@ -98,42 +101,16 @@ STDOUT_LIMIT = 64 * 1024
 # sessions), whatever interpreter bdw itself was started with.
 WORKER_PYTHON = "/usr/bin/python3"
 
-# The values, compared case-insensitively after trimming, that turn the
-# push off: in BD_NO_PUSH, and in bd's `no-push` config as `bd config get`
-# prints it (the raw value, such as `1` or `yes`). bdw is the one that
-# pushes, so this set, not bd's own parsing, decides; it takes the forms
-# Go's strconv.ParseBool reads as true (1, t, true) plus yes and on. bdw's
-# pre-spawn opt-out and the worker's check share it.
-TRUTHY = frozenset({"1", "t", "true", "yes", "on"})
+# TRUTHY and is_truthy, the values that turn the push off, live in
+# lib.bdw_push_state with the rest of what every bdw call reads.
 
 Runner = Callable[[Sequence[str], Mapping[str, str], Path], "tuple[int, str, str]"]
 
 
-def is_truthy(value: str | None) -> bool:
-    return (value or "").strip().lower() in TRUTHY
-
-
 # -- state ------------------------------------------------------------------
 
-def state_dir(beads_dir: Path, environ: Mapping[str, str]) -> Path | None:
-    """The per-database push state directory, `push/<key>/` in bdw's
-    subdirectory of the Machine State Directory (lib.paths), `<key>` a hash
-    of the Beads directory; None when lib.paths finds no state root."""
-    tool = paths.state_dir("bdw", environ)
-    if tool is None:
-        return None
-    key = hashlib.sha256(
-        str(beads_dir.resolve()).encode("utf-8")).hexdigest()[:16]
-    return tool / "push" / key
-
-
-def last_failure(state: Path) -> dict | None:
-    """The last push failure, or None when the last push succeeded."""
-    try:
-        payload = json.loads((state / "last-failure.json").read_text())
-    except (OSError, ValueError):
-        return None
-    return payload if isinstance(payload, dict) else None
+# state_dir, last_failure, and the markers live in lib.bdw_push_state, so
+# that a bdw call owing nothing need not import this module.
 
 
 def _log(state: Path, message: str) -> None:
@@ -151,9 +128,16 @@ def _now() -> str:
     return time.strftime("%Y-%m-%dT%H:%M:%S%z")
 
 
-def _record_failure(state: Path, reason: str, detail: str = "") -> None:
+# Set when a failure could not be written down, so the pass that met it
+# keeps its write's PUSHING marker instead of forgetting an unrecorded
+# failure (see run_worker). The worker is single-threaded.
+_unrecorded: list = []
+
+
+def _record_failure(state: Path, reason: str, detail: str = "") -> bool:
     """Log a failure and write last-failure.json atomically (a temporary
-    file, then os.replace), so bdw never reads a half-written record."""
+    file, then os.replace), so bdw never reads a half-written record.
+    Returns whether the record was written."""
     _log(state, f"FAILED: {reason}" + (f"\n{detail}" if detail else ""))
     payload = {"time": _now(), "reason": reason}
     temporary = state / f"last-failure.json.{os.getpid()}.tmp"
@@ -162,17 +146,20 @@ def _record_failure(state: Path, reason: str, detail: str = "") -> None:
             handle.write(json.dumps(payload) + "\n")
             handle.flush()
             os.fsync(handle.fileno())
-        os.replace(temporary, state / "last-failure.json")
+        os.replace(temporary, state / LAST_FAILURE)
+        return True
     except OSError:
         try:
             os.unlink(temporary)
         except OSError:
             pass
+        _unrecorded.append(reason)
+        return False
 
 
 def _clear_failure(state: Path) -> None:
     try:
-        os.unlink(state / "last-failure.json")
+        os.unlink(state / LAST_FAILURE)
     except OSError:
         pass
 
@@ -211,34 +198,51 @@ def dolt_remote_urls(beads_dir: Path) -> list[str] | None:
     return urls
 
 
-_SCP = re.compile(r"^(?:[^@/]+@)?([^:/]+):(?!//)(.+)$")
-_URL = re.compile(r"^[a-z][a-z0-9+.-]*://(?:[^@/]+@)?([^/:]+)(?::\d+)?(/.*)?$",
-                  re.IGNORECASE)
+# scp-like `[user@]host:path`, as git reads it: the user and host may hold
+# none of `@`, `:`, or `/`, so `evil.com:x@allowed.example:o/r` is host
+# `evil.com` (as git hands it to ssh), not `allowed.example`.
+_SCP = re.compile(r"^(?:[^@:/]+@)?([^@:/]+):(?!//)(.+)$")
 
 
 def repository_key(url: str) -> tuple[str, str] | None:
     """A (host, path) key naming the repository a URL points at: scheme,
     user, port, a trailing `.git` or `/`, and case dropped, so the
     git+ssh, ssh, https, and scp-style forms of one repository agree. A
-    file URL or bare path keys as ('', path). None when unreadable."""
+    file URL or bare path keys as ('', path). None when unreadable, which
+    includes any URL whose host could be read two ways: a fragment or
+    query (`https://evil.com#@allowed.example/...`), more than one `@` or
+    a backslash in the authority, or a host that is not ASCII (so a
+    lookalike such as the Kelvin sign is never lowered into `k`)."""
     text = url.strip()
     if not text:
         return None
     lowered = text.lower()
     if lowered.startswith("file://"):
         host, path = "", text[len("file://"):]
+    elif "://" in text:
+        if lowered.startswith("git+"):
+            text = text[len("git+"):]
+        try:
+            parts = urlsplit(text)
+            hostname = parts.hostname
+        except ValueError:
+            return None
+        authority = parts.netloc
+        if (parts.fragment or parts.query or "#" in text or "?" in text
+                or authority.count("@") > 1 or "\\" in authority
+                or not authority.isascii() or not hostname):
+            return None
+        host, path = hostname, parts.path
     else:
-        match = _URL.match(text)
+        match = _SCP.match(text)
         if match:
-            host, path = match.group(1), match.group(2) or ""
-        else:
-            match = _SCP.match(text)
-            if match:
-                host, path = match.group(1), match.group(2)
-            elif text.startswith("/"):
-                host, path = "", text
-            else:
+            host, path = match.group(1), match.group(2)
+            if not host.isascii():
                 return None
+        elif text.startswith("/"):
+            host, path = "", text
+        else:
+            return None
     path = path.strip("/")
     if path.endswith(".git"):
         path = path[:-len(".git")]
@@ -272,8 +276,15 @@ def same_repository(left: str, right: str) -> bool:
 
 CONFIG_FILE = "config.toml"
 PUSH_HOSTS = "push_hosts"
-_HOST = re.compile(r"[a-z0-9]([a-z0-9.-]*[a-z0-9])?")
-_ALLOWLIST = re.compile(PUSH_HOSTS + r"\s*=\s*\[(.*)\]", re.DOTALL)
+# A DNS name: dot-separated labels of letters, digits, and inner hyphens,
+# none empty, matched without case after an ASCII check (so no non-ASCII
+# lookalike is ever lowered into a letter), in the allowlist and the URL.
+_LABEL = r"[a-z0-9](?:[a-z0-9-]*[a-z0-9])?"
+_HOST = re.compile(_LABEL + r"(?:\." + _LABEL + r")*", re.IGNORECASE)
+# TOML whitespace is space and tab (newlines between array items); not \s,
+# which takes a no-break space as well.
+_TOML_SPACE = " \t\r\n"
+_ALLOWLIST = re.compile(PUSH_HOSTS + r"[ \t]*=[ \t]*\[(.*)\]", re.DOTALL)
 _EXAMPLE = f'{PUSH_HOSTS} = ["<host>"]'
 
 
@@ -291,25 +302,31 @@ def parse_push_hosts(text: str) -> frozenset[str]:
     """The hosts `text` lists; ValueError, with a reason, on anything else
     (an empty file included)."""
     lines = [line.split("#", 1)[0] for line in text.splitlines()]
-    cleaned = "\n".join(lines).strip()
+    cleaned = "\n".join(lines).strip(_TOML_SPACE)
     if not cleaned:
         raise ValueError("it is empty")
     match = _ALLOWLIST.fullmatch(cleaned)
     if match is None:
         raise ValueError(f"expected only {PUSH_HOSTS} = [...]")
-    items = [item.strip() for item in match.group(1).split(",")]
+    items = [item.strip(_TOML_SPACE) for item in match.group(1).split(",")]
     if items and not items[-1]:
         items.pop()  # a trailing comma
     hosts = set()
     for item in items:
         if not (len(item) >= 2 and item[0] == item[-1] == '"'):
             raise ValueError("every entry must be a quoted host name")
-        host = item[1:-1].strip().lower()
-        if not _HOST.fullmatch(host):
+        host = item[1:-1]  # as written: a padded entry is malformed
+        if not is_host_name(host):
             raise ValueError("an entry is not a bare host name (no scheme, "
-                             "user, port, or path)")
-        hosts.add(host)
+                             "user, port, path, or spaces)")
+        hosts.add(host.lower())
     return frozenset(hosts)
+
+
+def is_host_name(text: str) -> bool:
+    """Whether `text` is an ASCII DNS name (checked before any case
+    folding, since `re` matches the Kelvin sign as `k` without case)."""
+    return text.isascii() and _HOST.fullmatch(text) is not None
 
 
 def load_push_hosts(environ: Mapping[str, str]) -> frozenset[str]:
@@ -320,7 +337,7 @@ def load_push_hosts(environ: Mapping[str, str]) -> frozenset[str]:
             "no push-host allowlist: no Machine Config Directory resolves "
             "(set XDG_CONFIG_HOME or HOME)")
     try:
-        text = path.read_text()
+        text = path.read_text(encoding="utf-8")
     except FileNotFoundError:
         raise AllowlistRefusal(
             f"no push-host allowlist: create {path} containing {_EXAMPLE}, "
@@ -342,7 +359,7 @@ def check_push_host(url: str, allowed: frozenset[str],
                     path: Path | None) -> None:
     """AllowlistRefusal unless `url` names a host on the allowlist."""
     key = repository_key(url)
-    if key is None or not key[0]:
+    if key is None or not key[0] or not is_host_name(key[0]):
         raise AllowlistRefusal(
             "a Dolt remote's URL has no host the push-host allowlist can "
             "vouch for")
@@ -528,19 +545,10 @@ def _wait_for_inflight(state: Path, timeout: float):
         time.sleep(INFLIGHT_POLL)
 
 
-# The two write markers. A write leaves PENDING; a pass that is about to
-# push renames it to PUSHING, and deletes PUSHING only once the push's
-# outcome is recorded. A PUSHING left behind therefore means a push that
-# was taken and never finished (its worker was killed), and the next
-# worker pushes it again.
-PENDING = "pending"
-PUSHING = "pushing"
-
-
 def _has_mark(state: Path) -> bool:
-    """Whether a write is waiting to be pushed, or a push was taken and
-    never finished."""
-    return (state / PENDING).exists() or (state / PUSHING).exists()
+    """Whether a push is owed (lib.bdw_push_state.push_owed; a seam for
+    tests)."""
+    return push_owed(state)
 
 
 def _claim_mark(state: Path) -> bool:
@@ -663,11 +671,16 @@ def run_worker(beads_dir: Path, state: Path, bd: str,
         try:
             if not _claim_mark(state):
                 return None, True
+            _unrecorded.clear()
             try:
                 outcome = push()
             except Exception as error:  # noqa: BLE001 -- recorded
                 _record_failure(state, f"the push worker failed: {error}")
                 outcome = "failed"
+            if _unrecorded:
+                # The failure could not be written down: keep PUSHING, so
+                # the write stays owed, and stop rather than loop on it.
+                return outcome, True
             _finish_claim(state, outcome)
             return outcome, False
         finally:

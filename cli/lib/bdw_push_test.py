@@ -190,10 +190,42 @@ class PushOnceTest(unittest.TestCase):
                      "push_hosts = [forge.example]\n",
                      'push_hosts = ["forge.example:2299"]\n',
                      'push_hosts = ["ssh://forge.example"]\n',
-                     'push_hosts = ["forge.example",,]\n'):
+                     'push_hosts = ["forge.example",,]\n',
+                     # a Kelvin sign, which lowering would turn into "k"
+                     'push_hosts = ["Kforge.example"]\n',
+                     'push_hosts = ["a..example"]\n',
+                     'push_hosts = ["a.-b.example"]\n',
+                     'push_hosts = ["a-.example"]\n',
+                     'push_hosts = [" forge.example"]\n',
+                     # a no-break space where TOML takes only space or tab
+                     'push_hosts = ["forge.example"]\n'):
             with self.subTest(text=text):
-                self.config_file().write_text(text)
+                self.config_file().write_text(text, encoding="utf-8")
                 self.assert_refused(FakeRunner(), "is malformed")
+
+    def test_crafted_remote_urls_cannot_borrow_an_allowed_host(self):
+        # Each names forge.example where a naive parser looks for the host,
+        # but git would connect elsewhere (or the host reads two ways).
+        for url in ("git+https://evil.com#@forge.example/o/r.git",
+                    "git+https://evil.com?@forge.example/o/r.git",
+                    "https://evil.com#@forge.example/o/r",
+                    "evil.com:x@forge.example:o/r.git",
+                    "git@evil.com:x@forge.example:o/r.git",
+                    "https://a@b@forge.example/o/r",
+                    "https://forge.example\\@evil.com/o/r",
+                    "https://Kforge.example/o/r",
+                    "https://forge.example./o/r"):
+            with self.subTest(url=url):
+                runner = FakeRunner()
+                self.assertEqual(self.push(runner, urls=(url,)), "refused")
+                self.assertEqual(runner.pushes(), [])
+        # The real forms of the allowed host still pass.
+        for url in (_PRIVATE, "ssh://git@forge.example/me/data.git",
+                    "git@forge.example:me/data.git",
+                    "https://FORGE.example/me/data"):
+            with self.subTest(url=url):
+                self.assertEqual(self.push(FakeRunner(), urls=(url,)),
+                                 "pushed")
 
     def test_an_unreadable_allowlist_refuses(self):
         os.unlink(self.config_file())
@@ -495,6 +527,20 @@ class WorkerTest(unittest.TestCase):
         self.assertEqual(self.run_worker(explode), ["failed"])
         self.assertEqual(bdw_push.last_failure(self.state)["reason"],
                          "the push worker failed: boom")
+
+    def test_a_failure_that_cannot_be_recorded_keeps_the_write_owed(self):
+        (self.state / "pending").touch()
+
+        def fail_unrecorded():
+            # A push that fails while the failure record cannot be written
+            # (the record's path is a directory, say).
+            (self.state / "last-failure.json").mkdir()
+            self.assertFalse(bdw_push._record_failure(self.state, "nope"))
+            return "failed"
+
+        self.assertEqual(self.run_worker(fail_unrecorded), ["failed"])
+        self.assertTrue((self.state / "pushing").exists())
+        self.assertTrue(bdw_push.push_owed(self.state))
 
     def test_main_records_an_error_outside_any_pass(self):
         environ = {"XDG_STATE_HOME": str(self.state.parent / "xdg")}

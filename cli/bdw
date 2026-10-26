@@ -50,7 +50,7 @@ One call, in order:
    USAGE_ERROR_MARKERS), and after every failure of bdw's own (exits 1,
    3, 4, and 5).
 6. For any call that probed the workspace (step 3), unless BD_NO_PUSH is
-   set (any value in lib.bdw_push.TRUTHY): warn on stderr, one line,
+   set (any value in lib.bdw_push_state.TRUTHY): warn on stderr, one line,
    while the last push to the Dolt remote failed; and after a call bd ran
    successfully, unless wants_push says it was a read, request a coalesced
    background push of the database to its Dolt remote (lib.bdw_push,
@@ -93,7 +93,7 @@ from typing import Mapping, Sequence
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from lib import bdw_push, plan
+from lib import plan
 from lib.actor import derive_actor, session_id
 
 HELP_LINE = "Agents, load /use-bd immediately."
@@ -324,12 +324,14 @@ def wants_push(argv: Sequence[str]) -> bool:
 
 
 def _push_opted_out(environ: Mapping[str, str]) -> bool:
-    return bdw_push.is_truthy(environ.get("BD_NO_PUSH"))
+    from lib import bdw_push_state
+    return bdw_push_state.is_truthy(environ.get("BD_NO_PUSH"))
 
 
-def _warn_last_push(beads_dir: Path, environ: Mapping[str, str]) -> None:
-    state = bdw_push.state_dir(beads_dir, environ)
-    failure = bdw_push.last_failure(state) if state is not None else None
+def _warn_last_push(state: Path | None) -> None:
+    from lib import bdw_push_state
+    failure = (bdw_push_state.last_failure(state) if state is not None
+               else None)
     if failure is None:
         return
     _say(f"warning: the last push of this Beads database to its Dolt remote "
@@ -466,17 +468,25 @@ def _after_call(beads_dir: Path, bd: str, argv: Sequence[str], code: int,
     push after a write; on any other call, start a worker if a push is
     still owed (a killed worker's, say) and none is running.
     Nothing here may change bdw's exit, so any exception becomes one
-    warning line."""
+    warning line. The push machinery (lib.bdw_push) is imported only when
+    a push is to be requested or restarted: a call that owes nothing reads
+    only lib.bdw_push_state, a hash and a few file checks."""
     try:
         if _push_opted_out(environment):
             return
-        _warn_last_push(beads_dir, environment)
+        from lib import bdw_push_state
+        state = bdw_push_state.state_dir(beads_dir, environment)
+        _warn_last_push(state)
         if code == 0 and not usage_error and wants_push(argv):
+            from lib import bdw_push
             problem = bdw_push.request_push(beads_dir, bd, environment)
             suffix = "this write is not pushed to the Dolt remote"
-        else:
+        elif state is not None and bdw_push_state.push_owed(state):
+            from lib import bdw_push
             problem = bdw_push.resume_push(beads_dir, bd, environment)
             suffix = "an owed push to the Dolt remote is not restarted"
+        else:
+            problem = None
         if problem is not None:
             _say(f"warning: {problem}; {suffix}")
     except Exception as error:  # noqa: BLE001 -- the push must never fail bdw
