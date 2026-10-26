@@ -119,20 +119,101 @@ class FakeRunner:
         return [call for call in self.calls if call[0][1:2] == ["dolt"]]
 
 
+def allowlist(root: Path, text: str = 'push_hosts = ["forge.example"]\n'):
+    """Write a push-host allowlist under `root` (allowing the host of
+    _PRIVATE by default); return the environment that points bdw at it."""
+    config = root / "config" / "agent-tooling" / "bdw"
+    config.mkdir(parents=True, exist_ok=True)
+    (config / "config.toml").write_text(text)
+    return {"XDG_CONFIG_HOME": str(root / "config")}
+
+
 class PushOnceTest(unittest.TestCase):
     def setUp(self):
         root = Path(tempfile.mkdtemp()).resolve()
         self.addCleanup(shutil.rmtree, root, ignore_errors=True)
+        self.root = root
         self.beads = root / "ws" / ".beads"
         self.beads.mkdir(parents=True)
         self.state = root / "state"
         self.state.mkdir()
+        self.environ = {"PATH": "/bin", **allowlist(root)}
 
     def push(self, runner, urls=(_PRIVATE,)):
         return bdw_push.push_once(
-            self.beads, self.state, "/bin/bd", {"PATH": "/bin"},
+            self.beads, self.state, "/bin/bd", self.environ,
             runner=runner,
             remotes=lambda _: None if urls is None else list(urls))
+
+    def config_file(self) -> Path:
+        return self.root / "config" / "agent-tooling" / "bdw" / "config.toml"
+
+    def assert_refused(self, runner, reason_part):
+        self.assertEqual(self.push(runner), "refused")
+        self.assertEqual(runner.pushes(), [])
+        reason = bdw_push.last_failure(self.state)["reason"]
+        self.assertIn(reason_part, reason)
+        self.assertNotIn("forge.example", reason)
+        return reason
+
+    def test_a_listed_host_is_pushed_to(self):
+        for text in ('push_hosts = ["forge.example"]\n',
+                     '# hosts that may hold Issue data\npush_hosts = [\n'
+                     '  "other.example",  # a second forge\n'
+                     '  "FORGE.example",\n]\n'):
+            with self.subTest(text=text):
+                self.config_file().write_text(text)
+                self.assertEqual(self.push(FakeRunner()), "pushed")
+
+    def test_a_missing_allowlist_refuses_and_says_what_to_write(self):
+        os.unlink(self.config_file())
+        reason = self.assert_refused(FakeRunner(), "no push-host allowlist")
+        self.assertIn(str(self.config_file()), reason)
+        self.assertIn('push_hosts = ["<host>"]', reason)
+
+    def test_an_unlisted_host_refuses(self):
+        self.config_file().write_text('push_hosts = ["elsewhere.example"]\n')
+        self.assert_refused(FakeRunner(), "host is not in push_hosts")
+        self.config_file().write_text("push_hosts = []\n")
+        self.assert_refused(FakeRunner(), "host is not in push_hosts")
+
+    def test_every_remote_must_be_listed(self):
+        runner = FakeRunner()
+        self.assertEqual(self.push(runner, urls=(
+            _PRIVATE, "git@elsewhere.example:me/data.git")), "refused")
+        self.assertEqual(runner.pushes(), [])
+
+    def test_a_malformed_allowlist_refuses(self):
+        for text in ("", "# only a comment\n", 'push_hosts = "forge.example"\n',
+                     'hosts = ["forge.example"]\n',
+                     'push_hosts = ["forge.example"]\nother = 1\n',
+                     "push_hosts = [forge.example]\n",
+                     'push_hosts = ["forge.example:2299"]\n',
+                     'push_hosts = ["ssh://forge.example"]\n',
+                     'push_hosts = ["forge.example",,]\n'):
+            with self.subTest(text=text):
+                self.config_file().write_text(text)
+                self.assert_refused(FakeRunner(), "is malformed")
+
+    def test_an_unreadable_allowlist_refuses(self):
+        os.unlink(self.config_file())
+        self.config_file().mkdir()
+        self.assert_refused(FakeRunner(), "cannot read the push-host allowlist")
+
+    def test_no_config_root_refuses(self):
+        self.environ = {"PATH": "/bin"}
+        self.assert_refused(FakeRunner(), "no Machine Config Directory")
+
+    def test_a_remote_without_a_host_refuses(self):
+        for url in ("file:///srv/beads", "/srv/beads", "not a url"):
+            with self.subTest(url=url):
+                runner = FakeRunner()
+                self.assertEqual(self.push(runner, urls=(url,)), "refused")
+                self.assertIn("no host", bdw_push.last_failure(
+                    self.state)["reason"])
+
+    def test_the_worker_exits_4_on_an_allowlist_refusal(self):
+        self.assertEqual(bdw_push.exit_code(["refused"]), 4)
 
     def test_unreadable_remotes_record_a_failure_instead_of_clearing(self):
         runner = FakeRunner()
@@ -183,6 +264,11 @@ class PushOnceTest(unittest.TestCase):
         self.assertEqual(runner.calls, [])
 
     def test_remote_matching_a_git_remote_is_refused(self):
+        # The code's host is allowed (a private Dolt repository may sit
+        # beside the public code one on the same forge), so only the
+        # git-remote comparison stops a Dolt remote naming the code's repo.
+        self.config_file().write_text(
+            'push_hosts = ["forge.example", "github.com"]\n')
         for dolt_url in ("git+ssh://git@github.com/the-org/the-repo.git",
                          "https://github.com/The-Org/the-repo"):
             with self.subTest(dolt_url=dolt_url):
@@ -223,9 +309,10 @@ class WorkerTest(unittest.TestCase):
         self.beads = root / ".beads"
         self.state = root / "state"
         self.state.mkdir()
+        self.environ = allowlist(root)
 
     def run_worker(self, push):
-        return bdw_push.run_worker(self.beads, self.state, "bd", {},
+        return bdw_push.run_worker(self.beads, self.state, "bd", self.environ,
                                    push=push)
 
     def test_no_marker_means_no_push(self):
@@ -338,7 +425,7 @@ class WorkerTest(unittest.TestCase):
             return result
 
         outcomes = bdw_push.run_worker(
-            self.beads, self.state, "/bin/bd", {}, runner=runner_with_writes,
+            self.beads, self.state, "/bin/bd", self.environ, runner=runner_with_writes,
             remotes=lambda _: [_PRIVATE])
         self.assertEqual(outcomes, ["pushed"] * 4)
         config_calls = [call for call in runner.calls
@@ -357,7 +444,7 @@ class WorkerTest(unittest.TestCase):
             return (1, "", "") if argv[0] == "git" else (0, "false\n", "")
 
         outcomes = bdw_push.run_worker(
-            self.beads, self.state, "/bin/bd", {}, runner=runner,
+            self.beads, self.state, "/bin/bd", self.environ, runner=runner,
             remotes=lambda _: [_PRIVATE])
         self.assertEqual(outcomes, ["pushed"])
         inflight = (self.state / "inflight").stat().st_ino
@@ -376,7 +463,7 @@ class WorkerTest(unittest.TestCase):
         with open(self.state / "inflight", "a") as orphan:
             fcntl.flock(orphan, fcntl.LOCK_EX)
             outcomes = bdw_push.run_worker(
-                self.beads, self.state, "/bin/bd", {}, runner=runner,
+                self.beads, self.state, "/bin/bd", self.environ, runner=runner,
                 remotes=lambda _: [_PRIVATE], inflight_timeout=0.3)
         self.assertEqual(outcomes, ["failed"])
         self.assertEqual(runner.calls, [])
@@ -392,7 +479,7 @@ class WorkerTest(unittest.TestCase):
         (self.state / "inflight").mkdir()
         (self.state / "pending").touch()
         outcomes = bdw_push.run_worker(
-            self.beads, self.state, "/bin/bd", {}, runner=FakeRunner(),
+            self.beads, self.state, "/bin/bd", self.environ, runner=FakeRunner(),
             remotes=lambda _: [_PRIVATE])
         self.assertEqual(outcomes, ["failed"])
         self.assertTrue((self.state / "pending").exists())
@@ -457,7 +544,7 @@ class OrphanedDescendantTest(unittest.TestCase):
         git.chmod(0o755)
         self.push_log = root / "pushes"
         self.environ = {"PATH": str(bin_dir), "PUSH_LOG": str(self.push_log),
-                        "SLEEPER_SECONDS": "2"}
+                        "SLEEPER_SECONDS": "2", **allowlist(root)}
 
     def worker(self, inflight_timeout):
         (self.state / "pending").touch()  # a write
@@ -515,7 +602,8 @@ class KilledWorkerTest(unittest.TestCase):
         self.push_log = root / "pushes"
         self.environ = {"PATH": str(bin_dir), "PUSH_LOG": str(self.push_log),
                         "SLEEPER_SECONDS": "0",
-                        "XDG_STATE_HOME": str(root / "xdg")}
+                        "XDG_STATE_HOME": str(root / "xdg"),
+                        **allowlist(root)}
         self.state = bdw_push.state_dir(self.beads, self.environ)
         self.state.mkdir(parents=True)
 

@@ -54,7 +54,7 @@ One call, in order:
    while the last push to the Dolt remote failed; and after a call bd ran
    successfully, unless wants_push says it was a read, request a coalesced
    background push of the database to its Dolt remote (lib.bdw_push,
-   which documents the push, its destination guard, and its state files);
+   which documents the push, its destination checks, and its state files);
    after any other call, start a worker if a push is still owed and none
    is running. Either warns in one line when it cannot. Nothing in this
    step, an exception included, changes bdw's exit code.
@@ -75,8 +75,9 @@ deployment". 1 when bd is found but cannot be started (a broken
 interpreter line, say), or a probe cannot be started.
 
 Design record: docs/adr/0002-beads-identity.md,
-docs/adr/0010-bdw-carries-beads-policy-in-tiers.md, and
-docs/adr/0014-bdw-pushes-the-beads-database-after-writes.md.
+docs/adr/0010-bdw-carries-beads-policy-in-tiers.md,
+docs/adr/0014-bdw-pushes-the-beads-database-after-writes.md, and
+docs/adr/0016-bdw-pushes-only-to-allowlisted-hosts.md.
 """
 
 from __future__ import annotations

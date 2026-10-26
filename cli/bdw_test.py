@@ -133,9 +133,10 @@ class BdwTest(unittest.TestCase):
         self.dolt.mkdir(parents=True)
         (self.dolt / "repo_state.json").write_text('{"remotes": {}}\n')
         self.log = root / "bd.log"
-        # Every bdw run gets a temporary state root, so no test can reach
-        # the real ~/.local/state.
+        # Every bdw run gets temporary state and config roots, so no test
+        # can reach the real ~/.local/state or ~/.config.
         self.state_home = root / "state"
+        self.config_home = root / "config"
         # Cleanups run last-registered first: let any detached worker a
         # write started finish before the directory above is removed.
         self.addCleanup(self.settle_workers)
@@ -156,6 +157,7 @@ class BdwTest(unittest.TestCase):
             "FAKE_BD_VERSION": "1.3.0",
             "FAKE_BD_LOG": str(self.log),
             "XDG_STATE_HOME": str(self.state_home),
+            "XDG_CONFIG_HOME": str(self.config_home),
             **environment,
         }
         return {name: value for name, value in env.items() if value is not None}
@@ -589,10 +591,15 @@ class BdwTest(unittest.TestCase):
 
     # The push to the Dolt remote after writes.
 
-    def setup_push(self, dolt_url: str = _PRIVATE_REMOTE) -> dict:
-        """A fake Dolt remote, a fake git with a public origin, and a
-        state directory; return the environment that enables the push."""
+    def setup_push(self, dolt_url: str = _PRIVATE_REMOTE,
+                   push_hosts: str = '"forge.example"') -> dict:
+        """A fake Dolt remote, a fake git with a public origin, a push-host
+        allowlist, and a state directory; return the environment that
+        enables the push."""
         self.install_fake_bd()
+        config = self.config_home / "agent-tooling" / "bdw"
+        config.mkdir(parents=True)
+        (config / "config.toml").write_text(f"push_hosts = [{push_hosts}]\n")
         (self.dolt / "repo_state.json").write_text(
             '{"remotes": {"origin": {"name": "origin", "url": "%s"}}}\n'
             % dolt_url)
@@ -659,8 +666,11 @@ class BdwTest(unittest.TestCase):
                           if c == "dolt push --no-adopt"], [])
 
     def test_a_dolt_remote_on_the_git_origin_is_refused_and_warned(self):
+        # github.com is allowed, as for a private Dolt repository beside the
+        # public code; the git-remote comparison still refuses this one.
         environment = self.setup_push(
-            "git+ssh://git@github.com/the-org/the-repo.git")
+            "git+ssh://git@github.com/the-org/the-repo.git",
+            push_hosts='"forge.example", "github.com"')
         self.assertEqual(self.run_bdw("create", "x", **environment)
                          .returncode, 0)
         self.wait_for_worker()
@@ -697,6 +707,20 @@ class BdwTest(unittest.TestCase):
         self.assertEqual(result.stderr, "")
         self.wait_for_worker()
         self.assertEqual(self.pushes(), ["dolt push --no-adopt"])
+
+    def test_without_an_allowlist_the_warning_says_what_to_write(self):
+        environment = self.setup_push()
+        config = self.config_home / "agent-tooling" / "bdw" / "config.toml"
+        config.unlink()
+        self.run_bdw("create", "x", **environment)
+        self.wait_for_worker()
+        self.assertEqual(self.pushes(), [])
+        (warning,) = self.run_bdw("show", "x-1", **environment) \
+            .stderr.splitlines()
+        self.assertIn("no push-host allowlist: create " + str(config),
+                      warning)
+        self.assertIn('push_hosts = ["<host>"]', warning)
+        self.assertNotIn("forge.example", warning)
 
     def test_a_read_with_nothing_owed_starts_no_worker(self):
         environment = self.setup_push()

@@ -20,8 +20,8 @@ cannot be written comes back as a reason bdw warns with. The worker:
 
 The worker exits under the Exit-code contract (see exit_code): 2 for a
 malformed invocation, 1 when its last push failed, 4 when the destination
-guard refused it, else 0. Nothing reads that exit today; bdw reports from
-the state files below.
+checks (the allowlist, or the git-remote comparison) refused it, else 0.
+Nothing reads that exit today; bdw reports from the state files below.
 
 One push:
 
@@ -33,9 +33,12 @@ One push:
 - skips, clearing any recorded failure, when bd's effective `no-push` is
   set (config.yaml, or BD_NO_PUSH, which bd maps to it; asked once per
   worker run, and read through bdw's own TRUTHY);
-- refuses when any Dolt remote URL names the same repository as any of the
-  workspace's git remotes (see same_repository), so Issue data never goes
-  where the code goes;
+- refuses unless every Dolt remote's host is on the push-host allowlist,
+  `config.toml` in bdw's subdirectory of the Machine Config Directory
+  (fail-closed; see "the push-host allowlist" below);
+- also refuses when any Dolt remote URL names the same repository as any
+  of the workspace's git remotes (see same_repository), which an allowed
+  host that also hosts the code would otherwise let through;
 - runs `bd dolt push --no-adopt` with BD_NO_REMOTE_ADOPT=1, because bd
   1.3.0 otherwise offers to adopt a remote derived from the git origin. It
   runs in its own process group, killed whole on timeout.
@@ -248,6 +251,108 @@ def same_repository(left: str, right: str) -> bool:
     return a is not None and a == b
 
 
+# -- the push-host allowlist ------------------------------------------------
+#
+# bdw pushes only to hosts listed in `config.toml` in bdw's subdirectory of
+# the Machine Config Directory (lib.paths; docs/adr/0015-three-roots-for-
+# machine-specific-files.md), by default
+# ~/.config/agent-tooling/bdw/config.toml, with one key:
+#
+#     push_hosts = ["git.example.org"]
+#
+# The file is a subset of TOML (Python 3.9 has no tomllib, as for fjw's
+# config): `push_hosts`, an array of quoted host names on one line or
+# several, `#` comments, nothing else. The unit is the host, not host:port:
+# the list answers which machine may hold the Issue data, and one server
+# answers on several ports (ssh on 22 or another, https on 443), so listing
+# ports would break on a change of transport without keeping anything out.
+# Fail-closed: no file, an unreadable or malformed one, a remote URL with no
+# readable host, or a host not listed refuses the push. Messages name the
+# file and the key, never a remote's URL or host.
+
+CONFIG_FILE = "config.toml"
+PUSH_HOSTS = "push_hosts"
+_HOST = re.compile(r"[a-z0-9]([a-z0-9.-]*[a-z0-9])?")
+_ALLOWLIST = re.compile(PUSH_HOSTS + r"\s*=\s*\[(.*)\]", re.DOTALL)
+_EXAMPLE = f'{PUSH_HOSTS} = ["<host>"]'
+
+
+class AllowlistRefusal(Exception):
+    """The push is refused by the allowlist; the message says why and what
+    to write where."""
+
+
+def allowlist_path(environ: Mapping[str, str]) -> Path | None:
+    tool = paths.config_dir("bdw", environ)
+    return None if tool is None else tool / CONFIG_FILE
+
+
+def parse_push_hosts(text: str) -> frozenset[str]:
+    """The hosts `text` lists; ValueError, with a reason, on anything else
+    (an empty file included)."""
+    lines = [line.split("#", 1)[0] for line in text.splitlines()]
+    cleaned = "\n".join(lines).strip()
+    if not cleaned:
+        raise ValueError("it is empty")
+    match = _ALLOWLIST.fullmatch(cleaned)
+    if match is None:
+        raise ValueError(f"expected only {PUSH_HOSTS} = [...]")
+    items = [item.strip() for item in match.group(1).split(",")]
+    if items and not items[-1]:
+        items.pop()  # a trailing comma
+    hosts = set()
+    for item in items:
+        if not (len(item) >= 2 and item[0] == item[-1] == '"'):
+            raise ValueError("every entry must be a quoted host name")
+        host = item[1:-1].strip().lower()
+        if not _HOST.fullmatch(host):
+            raise ValueError("an entry is not a bare host name (no scheme, "
+                             "user, port, or path)")
+        hosts.add(host)
+    return frozenset(hosts)
+
+
+def load_push_hosts(environ: Mapping[str, str]) -> frozenset[str]:
+    """The allowlist's hosts; AllowlistRefusal when there is none to read."""
+    path = allowlist_path(environ)
+    if path is None:
+        raise AllowlistRefusal(
+            "no push-host allowlist: no Machine Config Directory resolves "
+            "(set XDG_CONFIG_HOME or HOME)")
+    try:
+        text = path.read_text()
+    except FileNotFoundError:
+        raise AllowlistRefusal(
+            f"no push-host allowlist: create {path} containing {_EXAMPLE}, "
+            "listing the host of each Dolt remote (`bd dolt remote list` "
+            "shows them)") from None
+    except (OSError, UnicodeDecodeError) as error:
+        raise AllowlistRefusal(
+            f"cannot read the push-host allowlist {path} "
+            f"({getattr(error, 'strerror', None) or error})") from None
+    try:
+        return parse_push_hosts(text)
+    except ValueError as error:
+        raise AllowlistRefusal(
+            f"the push-host allowlist {path} is malformed ({error}); it "
+            f"should hold {_EXAMPLE}") from None
+
+
+def check_push_host(url: str, allowed: frozenset[str],
+                    path: Path | None) -> None:
+    """AllowlistRefusal unless `url` names a host on the allowlist."""
+    key = repository_key(url)
+    if key is None or not key[0]:
+        raise AllowlistRefusal(
+            "a Dolt remote's URL has no host the push-host allowlist can "
+            "vouch for")
+    if key[0] not in allowed:
+        raise AllowlistRefusal(
+            f"a Dolt remote's host is not in {PUSH_HOSTS} in {path}; add it "
+            "there if that remote may hold this database (`bd dolt remote "
+            "list` shows it)")
+
+
 def git_remote_urls(workspace: Path, environ: Mapping[str, str],
                     runner: Runner) -> list[str] | None:
     """Every URL of every git remote of the workspace, or None when git
@@ -352,6 +457,17 @@ def push_once(beads_dir: Path, state: Path, bd: str,
         _clear_failure(state)
         _log(state, "skipped: no-push is set")
         return "opted-out"
+    try:
+        allowed = load_push_hosts(environ)
+        for dolt_url in dolt_urls:
+            check_push_host(dolt_url, allowed, allowlist_path(environ))
+    except AllowlistRefusal as refusal:
+        _record_failure(state, f"refused: {refusal}")
+        return "refused"
+    # A second check the allowlist cannot make: an allowed host may also
+    # host the code (a private Dolt repository beside a public code one on
+    # one forge), and a Dolt remote naming the code's own repository is
+    # exactly what `bd init` sets up by default.
     git_urls = git_remote_urls(workspace, environment, runner)
     if git_urls is None:
         _record_failure(state, "refused: cannot read the workspace's git "
@@ -580,7 +696,7 @@ def run_worker(beads_dir: Path, state: Path, bd: str,
 
 def exit_code(outcomes: Sequence[str]) -> int:
     """The worker's exit under the Exit-code contract, from its last push:
-    1 when the push failed, 4 when the destination guard refused it,
+    1 when the push failed, 4 when the destination checks refused it
     otherwise 0 (pushed, nothing to push, opted out, or left to the lock's
     holder). Nothing reads it today; the push log and last-failure.json
     are what bdw reports from."""
