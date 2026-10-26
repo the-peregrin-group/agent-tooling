@@ -13,12 +13,15 @@ Beads tracks agent-swarmed work). What makes Beads work here is the layer
 that lets agents cooperate on it: the [use-bd](../use-bd/index.md) Skill,
 [`bdw`](../bdw/index.md), and the Permission rules.
 
-- **Local-only, for now.** Beads 1.3.0 keeps its database in an embedded
-  Dolt store on the maintainer's machine. It has no Dolt remote and syncs
-  nowhere; a private remote on the maintainer's self-hosted Forgejo is
-  planned (see
+- **A private remote, never GitHub.** Beads 1.3.0 keeps its database in an
+  embedded Dolt store on the maintainer's machine, and `bdw` pushes it after
+  every write to a Dolt remote in a private repository on the maintainer's
+  self-hosted Forgejo (see
   [ADR 0012](../../adr/0012-beads-data-syncs-to-private-forgejo-remote.md),
-  Beads data syncs to a private Forgejo remote). git tracks only four files
+  Beads data syncs to a private Forgejo remote, and [`bdw`](../bdw/index.md)
+  for the push). The remote is configured in Dolt's own state only, never in
+  tracked config, so a fresh clone of this public repo gets no Issue data and
+  the public GitHub origin holds no Dolt refs. git tracks only four files
   under `.beads/`: the config files `.gitignore`, `config.yaml`, and
   `metadata.json`, and `PRIME.md`, the repo's Beads conventions that
   `bd prime` prints. `config.yaml` keeps `sync.remote` commented out as a
@@ -53,19 +56,16 @@ Why the setup has this shape, and the alternatives it rules out, is in
 
 | Capability | State | Where |
 |---|---|---|
-| Beads as the sole, local-only Issue Tracker, with only its config committed | shipped | `.beads/`; [design.md](design.md) |
+| Beads as the sole Issue Tracker, with only its config committed | shipped | `.beads/`; [design.md](design.md) |
 | One-way import of the open GitHub issues, with GitHub Issues kept but idle | shipped | `CLAUDE.md`; pinned issue #18 |
 | Permission rules for `bd`, `bdw`, and `beads`, with a spec test that requires the JSON to equal its generated set | shipped | `.claude/settings.json`; `cli/repo_policy_test.py` |
 | Trial verdict: Beads kept for agent-swarmed work | shipped | [ADR 0011](../../adr/0011-beads-for-swarmed-work-forge-issues-for-long-lived-work.md) |
-| A private Dolt remote on the maintainer's self-hosted Forgejo | planned | [ADR 0012](../../adr/0012-beads-data-syncs-to-private-forgejo-remote.md); `agent-tooling-cy3` |
+| A private Dolt remote on the maintainer's self-hosted Forgejo, pushed after every write | shipped | [ADR 0012](../../adr/0012-beads-data-syncs-to-private-forgejo-remote.md); [`bdw`](../bdw/index.md) |
 | Beads and forge issues together, so the long tail moves back to forge issues while swarms check work out to Beads | planned | [ADR 0011](../../adr/0011-beads-for-swarmed-work-forge-issues-for-long-lived-work.md); `agent-tooling-ze3` |
 | Phase two: a second repo syncing its Issues before a verdict | retired | [ADR 0011](../../adr/0011-beads-for-swarmed-work-forge-issues-for-long-lived-work.md) |
 
 ### Known gaps
 
-- The database and its backups live only on the maintainer's machine, so
-  losing that machine loses the Issue Tracker, until the private remote
-  lands (`agent-tooling-cy3`).
 - Prefix rules cannot see a verb hidden inside a nested shell string, so
   the Permission rules are not safe in auto mode until a parsed-command deny
   hook lands (`agent-tooling-1790288522490-13-6d52b051`).
