@@ -47,7 +47,7 @@ class UsageDieTest(unittest.TestCase):
         with contextlib.redirect_stderr(stderr), self.assertRaises(SystemExit) as caught:
             plan.usage_die("expected exactly one argument", "ghw-orient <owner/repo>")
         self.assertEqual(caught.exception.code, 2)
-        self.assertEqual(caught.exception.code, plan.EXIT_CALLER)
+        self.assertEqual(caught.exception.code, plan.EXIT_CALLER_ERROR)
         self.assertIn("expected exactly one argument", stderr.getvalue())
         self.assertIn("usage: ghw-orient <owner/repo>", stderr.getvalue())
 
@@ -57,8 +57,8 @@ class ExitCodeConstantsTest(unittest.TestCase):
 
     def test_contract_codes(self):
         self.assertEqual(
-            (plan.EXIT_OK, plan.EXIT_BROKEN, plan.EXIT_CALLER,
-             plan.EXIT_NOT_FOUND, plan.EXIT_FORBIDDEN, plan.EXIT_PARTIAL),
+            (plan.EXIT_OK, plan.EXIT_BROKEN, plan.EXIT_CALLER_ERROR,
+             plan.EXIT_NOT_FOUND, plan.EXIT_FORBIDDEN, plan.EXIT_PARTIAL_COMPLETION),
             (0, 1, 2, 3, 4, 5),
         )
 
