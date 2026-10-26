@@ -24,16 +24,25 @@ Run from the cli/ directory:
 
 from __future__ import annotations
 
+import contextlib
 import fcntl
+import importlib.machinery
+import importlib.util
+import io
 import os
 import shutil
 import signal
 import stat
 import subprocess
+import sys
 import tempfile
 import time
 import unittest
 from pathlib import Path
+from unittest import mock
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from lib import bdw_push  # noqa: E402
 
 _SCRIPT = Path(__file__).resolve().parent / "bdw"
 
@@ -115,8 +124,18 @@ class BdwTest(unittest.TestCase):
         self.bin.mkdir()
         self.beads = root / "ws" / ".beads"
         self.beads.mkdir(parents=True)
-        (self.beads / "metadata.json").write_text("{}\n")
+        # A realistic embedded database with no Dolt remote: every write
+        # still starts a push worker, which finds nothing to push to and
+        # stays silent, without calling bd.
+        (self.beads / "metadata.json").write_text(
+            '{"dolt_mode": "embedded", "dolt_database": "db"}\n')
+        self.dolt = self.beads / "embeddeddolt" / "db" / ".dolt"
+        self.dolt.mkdir(parents=True)
+        (self.dolt / "repo_state.json").write_text('{"remotes": {}}\n')
         self.log = root / "bd.log"
+        # Every bdw run gets a temporary state root, so no test can reach
+        # the real ~/.local/state.
+        self.state_home = root / "state"
 
     def install_fake_bd(self, script: str = _FAKE_BD) -> None:
         fake = self.bin / "bd"
@@ -129,6 +148,7 @@ class BdwTest(unittest.TestCase):
             "FAKE_BEADS_DIR": str(self.beads),
             "FAKE_BD_VERSION": "1.3.0",
             "FAKE_BD_LOG": str(self.log),
+            "XDG_STATE_HOME": str(self.state_home),
             **environment,
         }
         return {name: value for name, value in env.items() if value is not None}
@@ -566,11 +586,7 @@ class BdwTest(unittest.TestCase):
         """A fake Dolt remote, a fake git with a public origin, and a
         state directory; return the environment that enables the push."""
         self.install_fake_bd()
-        (self.beads / "metadata.json").write_text(
-            '{"dolt_mode": "embedded", "dolt_database": "db"}\n')
-        dolt = self.beads / "embeddeddolt" / "db" / ".dolt"
-        dolt.mkdir(parents=True)
-        (dolt / "repo_state.json").write_text(
+        (self.dolt / "repo_state.json").write_text(
             '{"remotes": {"origin": {"name": "origin", "url": "%s"}}}\n'
             % dolt_url)
         fake_git = self.bin / "git"
@@ -578,8 +594,7 @@ class BdwTest(unittest.TestCase):
             "#!/bin/sh\nprintf 'remote.origin.url %s\\n' "
             "'git@github.com:the-org/the-repo.git'\n")
         fake_git.chmod(0o755)
-        self.state_home = self.bin.parent / "state"
-        return {"XDG_STATE_HOME": str(self.state_home), "USER": "dan"}
+        return {"USER": "dan"}
 
     def state(self) -> Path:
         (state,) = (self.state_home / "agent-tooling" / "bdw-push").iterdir()
@@ -624,6 +639,7 @@ class BdwTest(unittest.TestCase):
             (("dolt", "push"), {}),
             (("create", "x"), {"FAKE_BD_EXIT": "1"}),
             (("create", "x"), {"BD_NO_PUSH": "1"}),
+            (("create", "x"), {"BD_NO_PUSH": "yes"}),
             (("help",), {}),
         )
         for arguments, extra in cases:
@@ -664,13 +680,70 @@ class BdwTest(unittest.TestCase):
 
     def test_a_workspace_without_a_dolt_remote_pushes_nothing(self):
         self.install_fake_bd()
-        state_home = self.bin.parent / "state"
-        result = self.run_bdw("create", "x", USER="dan",
-                              XDG_STATE_HOME=str(state_home))
+        result = self.run_bdw("create", "x", USER="dan")
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.state_home = state_home
         self.wait_for_worker()
         self.assertEqual(self.pushes(), [])
+        self.assertIsNone(bdw_push.last_failure(self.state()))
+
+    def test_stdout_is_byte_identical_with_a_push_requested(self):
+        environment = self.setup_push()
+        pushed = subprocess.run(
+            [str(_SCRIPT), "create", "x", "--json"],
+            env=self.bdw_environment(**environment),
+            stdin=subprocess.DEVNULL, capture_output=True, timeout=30)
+        self.wait_for_worker()
+        self.assertEqual(self.pushes(), ["dolt push --no-adopt"])
+        unpushed = subprocess.run(
+            [str(_SCRIPT), "create", "x", "--json"],
+            env=self.bdw_environment(BD_NO_PUSH="1", **environment),
+            stdin=subprocess.DEVNULL, capture_output=True, timeout=30)
+        self.assertEqual(pushed.returncode, 0, pushed.stderr)
+        self.assertEqual(pushed.stdout, unpushed.stdout)
+        self.assertEqual(pushed.stderr, b"")
+
+    def test_an_opted_out_call_does_not_repeat_an_old_warning(self):
+        environment = self.setup_push()
+        self.run_bdw("create", "x", FAKE_BD_PUSH_EXIT="1", **environment)
+        self.wait_for_worker()
+        self.assertIn("bd dolt push exited 1",
+                      self.run_bdw("show", "x-1", **environment).stderr)
+        for value in ("1", "yes"):
+            with self.subTest(BD_NO_PUSH=value):
+                result = self.run_bdw("show", "x-1", BD_NO_PUSH=value,
+                                      **environment)
+                self.assertEqual(result.stderr, "")
+                self.assertEqual(result.returncode, 0)
+
+    def test_an_unwritable_state_directory_is_warned_about(self):
+        environment = self.setup_push()
+        self.state_home.write_text("a file where the state root should be")
+        result = self.run_bdw("create", "x", **environment)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        (warning,) = result.stderr.splitlines()
+        self.assertTrue(warning.startswith(
+            "bdw: warning: cannot request a push:"), warning)
+        self.assertIn("not pushed to the Dolt remote", warning)
+
+    def test_an_exception_in_the_push_setup_never_changes_the_exit(self):
+        loader = importlib.machinery.SourceFileLoader("bdw_under_test",
+                                                      str(_SCRIPT))
+        spec = importlib.util.spec_from_file_location(
+            loader.name, str(_SCRIPT), loader=loader)
+        module = importlib.util.module_from_spec(spec)
+        loader.exec_module(module)
+        stderr = io.StringIO()
+
+        def explode(*_):
+            raise RuntimeError("boom")
+
+        with mock.patch.object(module.bdw_push, "request_push", explode), \
+                contextlib.redirect_stderr(stderr):
+            module._after_call(self.beads, "bd", ["create", "x"], 0, False,
+                               {"XDG_STATE_HOME": str(self.state_home)})
+        self.assertEqual(
+            stderr.getvalue(),
+            "bdw: warning: cannot start the push to the Dolt remote: boom\n")
 
 
 if __name__ == "__main__":

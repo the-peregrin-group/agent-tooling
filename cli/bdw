@@ -49,12 +49,14 @@ One call, in order:
    when bd reports a usage error (a stderr line starting with one of
    USAGE_ERROR_MARKERS), and after every failure of bdw's own (exits 1,
    3, 4, and 5).
-6. For any call that probed the workspace (step 3): warn on stderr, one
-   line, while the last push to the Dolt remote failed; and after a call
-   bd ran successfully, unless wants_push says it was a read or BD_NO_PUSH
-   is set, start a coalesced background push of the database to its Dolt
-   remote (lib.bdw_push, which documents the push, its destination guard,
-   and its state files). The push never changes bdw's exit code.
+6. For any call that probed the workspace (step 3), unless BD_NO_PUSH is
+   set (any value in lib.bdw_push.TRUTHY): warn on stderr, one line,
+   while the last push to the Dolt remote failed; and after a call bd ran
+   successfully, unless wants_push says it was a read, request a coalesced
+   background push of the database to its Dolt remote (lib.bdw_push,
+   which documents the push, its destination guard, and its state files),
+   warning in one line when it cannot be requested. Nothing in this step,
+   an exception included, changes bdw's exit code.
 
 Beads records who acted from an environment variable, and every harness
 Bash call is a fresh shell, so nothing exported once survives to the next
@@ -135,9 +137,6 @@ READ_FLAGS = (
 # Verbs after which bdw never pushes: they manage the remote or backups
 # themselves.
 NO_PUSH_VERBS = frozenset({"dolt", "backup"})
-
-# Values of BD_NO_PUSH that opt out of the push after writes.
-TRUTHY = ("1", "true", "yes", "on")
 
 # Signals bdw forwards to bd while it runs.
 FORWARDED_SIGNALS = tuple(
@@ -323,7 +322,7 @@ def wants_push(argv: Sequence[str]) -> bool:
 
 
 def _push_opted_out(environ: Mapping[str, str]) -> bool:
-    return environ.get("BD_NO_PUSH", "").strip().lower() in TRUTHY
+    return bdw_push.is_truthy(environ.get("BD_NO_PUSH"))
 
 
 def _warn_last_push(beads_dir: Path, environ: Mapping[str, str]) -> None:
@@ -454,14 +453,27 @@ def main(argv: list[str]) -> int:
     if help_call or usage_error or _asks_for_help(argv):
         _emit(HELP_LINE)
     if beads_dir is not None:
-        try:
-            _warn_last_push(beads_dir, environment)
-            if (code == 0 and not usage_error and wants_push(argv)
-                    and not _push_opted_out(environment)):
-                bdw_push.request_push(beads_dir, bd, environment)
-        except (OSError, ValueError, subprocess.SubprocessError) as error:
-            _say(f"warning: cannot start the push to the Dolt remote: {error}")
+        _after_call(beads_dir, bd, argv, code, usage_error, environment)
     return code
+
+
+def _after_call(beads_dir: Path, bd: str, argv: Sequence[str], code: int,
+                usage_error: bool, environment: Mapping[str, str]) -> None:
+    """Step 6: warn about a failed last push, and request the next one.
+    Nothing here may change bdw's exit, so any exception becomes one
+    warning line."""
+    try:
+        opted_out = _push_opted_out(environment)
+        if not opted_out:
+            _warn_last_push(beads_dir, environment)
+        if (code == 0 and not usage_error and wants_push(argv)
+                and not opted_out):
+            problem = bdw_push.request_push(beads_dir, bd, environment)
+            if problem is not None:
+                _say(f"warning: {problem}; this write is not pushed to the "
+                     "Dolt remote")
+    except Exception as error:  # noqa: BLE001 -- the push must never fail bdw
+        _say(f"warning: cannot start the push to the Dolt remote: {error}")
 
 
 if __name__ == "__main__":
