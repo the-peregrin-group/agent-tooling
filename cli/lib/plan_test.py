@@ -46,9 +46,30 @@ class UsageDieTest(unittest.TestCase):
         stderr = io.StringIO()
         with contextlib.redirect_stderr(stderr), self.assertRaises(SystemExit) as caught:
             plan.usage_die("expected exactly one argument", "ghw-orient <owner/repo>")
-        self.assertEqual(caught.exception.code, plan.EXIT_USAGE)
+        self.assertEqual(caught.exception.code, 2)
+        self.assertEqual(caught.exception.code, plan.EXIT_CALLER)
         self.assertIn("expected exactly one argument", stderr.getvalue())
         self.assertIn("usage: ghw-orient <owner/repo>", stderr.getvalue())
+
+
+class ExitCodeConstantsTest(unittest.TestCase):
+    """Pins the values callers branch on (docs/index.md#exit-code-contract)."""
+
+    def test_contract_codes(self):
+        self.assertEqual(
+            (plan.EXIT_OK, plan.EXIT_BROKEN, plan.EXIT_CALLER,
+             plan.EXIT_NOT_FOUND, plan.EXIT_FORBIDDEN, plan.EXIT_PARTIAL),
+            (0, 1, 2, 3, 4, 5),
+        )
+
+    def test_transitional_codes_keep_their_values(self):
+        # Unmigrated families still exit with these; removed in the
+        # agent-tooling-cjvo epic's final pass.
+        self.assertEqual(
+            (plan.EXIT_RUNTIME, plan.EXIT_USAGE, plan.EXIT_REFUSED,
+             plan.EXIT_AUTH, plan.EXIT_NETWORK),
+            (1, 2, 4, 5, 6),
+        )
 
 
 if __name__ == "__main__":
