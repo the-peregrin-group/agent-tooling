@@ -83,6 +83,14 @@ them.
      (the next write starts one), not after a `bd dolt push` by hand. The
      format is in the [bdw project doc](../../docs/projects/bdw/index.md).
   4. Push once by hand (`bd dolt push --no-adopt`) to confirm access.
+  5. Confirm a restore works, without touching the live database: clone
+     the remote with the standalone dolt CLI into a scratch directory
+     outside the repo (`dolt clone <url> <scratch-dir>`), then compare
+     `dolt sql -q "select count(*) from issues"` run in the clone with
+     `bdw count --include-infra` in the checkout. Never use
+     `bd init --remote <url>` for this: it persists `sync.remote` into the
+     tracked `config.yaml`. Restoring over a checkout's own database is a
+     maintainer step, done only after a real loss.
 
 - [ ] Move the backup out of the repo. Init enables auto-backup when a
   remote exists, and the first backup lands in `.beads/backup/` inside
