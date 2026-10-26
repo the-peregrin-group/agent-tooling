@@ -53,7 +53,10 @@ Where the database has a Dolt remote, `bdw` pushes to it in the
 background after every write; you never push. If a call prints any
 `bdw: warning:` line about the push, your call itself worked: carry on,
 and tell the user once, in your report, with the reason the line gives.
-Do not try to push by hand. The push's record and log live in `bdw`'s
+Do not try to push by hand. `bdw` pushes only to hosts on the user's
+push-host allowlist (`~/.config/agent-tooling/bdw/config.toml`); when the
+warning says the allowlist is missing or a host is not on it, writing that
+file is the user's decision, not yours: report it. The push's record and log live in `bdw`'s
 subdirectory of the Machine State Directory
 (`~/.local/state/agent-tooling/bdw/push/` by default), and the warning
 names the log.

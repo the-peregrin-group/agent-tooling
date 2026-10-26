@@ -140,10 +140,17 @@ What one call does:
      rest of the verified behavior;
    - skips when bd's effective `no-push` is set, clearing any recorded
      failure so the warning above stops;
-   - refuses, and records a failure, when any Dolt remote names the same
-     repository as any git remote of the workspace, comparing host and
-     path with scheme, user, port, `.git`, and case dropped, so the Issue
-     data never goes where the public code goes;
+   - refuses, and records a failure, unless every Dolt remote's host is
+     on the push-host allowlist (below). This fails closed: no allowlist,
+     an unreadable or malformed one, a remote whose URL has no readable
+     host, or a host not listed all refuse;
+   - also refuses, and records a failure, when any Dolt remote names the
+     same repository as any git remote of the workspace, comparing host
+     and path with scheme, user, port, `.git`, and case dropped. The
+     allowlist cannot catch this when the code's host is itself allowed
+     (a private Dolt repository beside the public code on one forge), and
+     a Dolt remote on the code's own repository is what `bd init` sets up
+     by default;
    - runs `bd dolt push --no-adopt` with `BD_NO_REMOTE_ADOPT=1`, because
      bd 1.3.0 otherwise offers to adopt a remote derived from the git
      origin. bd runs in its own process group, killed whole on a timeout;
@@ -192,6 +199,42 @@ What one call does:
    root resolves (no usable `XDG_STATE_HOME` or `HOME`), nothing is
    pushed.
 
+### The push-host allowlist
+
+`bdw` pushes only to hosts its maintainer has listed (why, and the
+alternatives rejected:
+[ADR 0016](../../adr/0016-bdw-pushes-only-to-allowlisted-hosts.md), bdw
+pushes only to hosts on a fail-closed allowlist). The list is
+Machine Config, `config.toml` in `bdw`'s subdirectory of the Machine
+Config Directory: `~/.config/agent-tooling/bdw/config.toml` by default,
+or under `$XDG_CONFIG_HOME` (resolved through `cli/lib/paths.py`; see the
+[Path layout](../../index.md#path-layout)). It holds one key:
+
+```toml
+# Hosts that may hold this machine's Beads data.
+push_hosts = ["git.example.org"]
+```
+
+- **The format** is a subset of TOML that `cli/lib/bdw_push.py` parses
+  itself, since the system Python 3.9 has no `tomllib`: the one key
+  `push_hosts`, an array of quoted host names on one line or several (a
+  trailing comma is fine), and `#` comments. Anything else in the file
+  makes it malformed. It is valid TOML, so a later `tomllib` reads it
+  unchanged.
+- **An entry is a host**, compared without case: no scheme, user, port,
+  or path. The list answers which machine may hold the Issue data, and one
+  server answers on several ports (ssh on 22 or another, https on 443),
+  so listing ports would break the list on a change of transport without
+  keeping anything out.
+- **It fails closed.** No file, an unreadable or malformed one, an empty
+  list, a Dolt remote whose URL has no host (a file path), or any Dolt
+  remote whose host is not listed refuses the push. The refusal is
+  recorded and warned about like a failed push (the worker exits 4), and
+  the message names the file and the key to write, never a remote's URL
+  or host; `bd dolt remote list` shows the remotes.
+- **Writing it is a person's act**, once per machine, after the Dolt
+  remote is added (use-bd's onboarding checklist has the order).
+
 `bdw` follows the [Exit-code contract](../../index.md#exit-code-contract)
 (why: [ADR 0013 (one exit-code contract for all agent-tooling software)](../../adr/0013-one-exit-code-contract-for-all-agent-tooling.md)).
 bd's own exit code never reaches the caller: `bdw` translates it, and a
@@ -219,7 +262,8 @@ its commits carry one identity.
 | `bd` run as a child process, arguments unchanged, output and termination signals relayed | shipped | `bdw` |
 | The use-bd help line on every help output, usage error, and refusal | shipped | `bdw` |
 | Exit codes per the [Exit-code contract](../../index.md#exit-code-contract) | shipped | `bdw` |
-| Coalesced background push to the Dolt remote after writes, with the destination guard and the failure warning | shipped | `bdw`; `cli/lib/bdw_push.py` |
+| Coalesced background push to the Dolt remote after writes, restarted by any later call when owed, with the failure warning | shipped | `bdw`; `cli/lib/bdw_push.py` |
+| Fail-closed push-host allowlist in the Machine Config Directory, plus refusal of a Dolt remote on the code's own repository | shipped | `cli/lib/bdw_push.py`; [the push-host allowlist](#the-push-host-allowlist) |
 
 ### Known gaps
 
