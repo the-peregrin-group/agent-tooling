@@ -88,6 +88,12 @@ unattended or background session. The board wrappers (`ghw-board-*`,
 
 5. For Forgejo, write `~/.config/fjw/config.toml` with the API URL and a machine
    account token. The keys are documented in `cli/lib/forgejo/config.py`.
+   If a Beads database here has a Dolt remote, list that remote's host in
+   `bdw`'s push-host allowlist,
+   `~/.config/agent-tooling/bdw/config.toml`, as
+   `push_hosts = ["<host>"]` (the host alone): `bdw` pushes after every
+   write only to listed hosts and refuses every other push. The format is
+   in [docs/projects/bdw/index.md](docs/projects/bdw/index.md).
 6. Wire permissions in `~/.claude/settings.json`. The wrappers and skills
    assume at least these rules:
 

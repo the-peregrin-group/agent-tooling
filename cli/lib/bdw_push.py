@@ -1,0 +1,803 @@
+"""Push a Beads database to its Dolt remote, coalesced, for bdw.
+
+bdw calls request_push() after every write that bd ran successfully. That
+leaves the write marker `pending` and, unless a worker already holds the
+coordination lock, starts this file as a detached background worker under
+the system interpreter (`/usr/bin/python3 bdw_push.py <beads-dir> <bd>`),
+so the write returns at once and the push never affects bdw's exit code.
+On every other call bdw calls resume_push(), which starts a worker when a
+marker is left and no worker is running. A state directory or marker that
+cannot be written comes back as a reason bdw warns with. The worker:
+
+1. takes the coordination lock (fcntl.flock, non-blocking), which no
+   child ever inherits; if another worker holds it, exits at once, since
+   the holder sees the marker;
+2. while a marker exists: pushes once per pass, so writes that land
+   during a push get exactly one more push. There is no cap on passes:
+   the loop runs only while writes keep arriving;
+3. releases the lock, then checks for a marker once more and goes back to
+   1, so a marker left just before the release is not lost.
+
+The worker exits under the Exit-code contract (see exit_code): 2 for a
+malformed invocation, 1 when its last push failed, 4 when the destination
+checks (the allowlist, or the git-remote comparison) refused it, else 0.
+Nothing reads that exit today; bdw reports from the state files below.
+
+One push:
+
+- reads the Dolt remotes from the embedded database's repo_state.json
+  (`<beads-dir>/embeddeddolt/<dolt_database>/.dolt/repo_state.json`,
+  named by metadata.json); with no remote, or a database not in embedded
+  mode, it does nothing; when that state cannot be read, it records a
+  failure;
+- skips, clearing any recorded failure, when bd's effective `no-push` is
+  set (config.yaml, or BD_NO_PUSH, which bd maps to it; asked once per
+  worker run, and read through bdw's own TRUTHY);
+- refuses unless every Dolt remote's host is on the push-host allowlist,
+  `config.toml` in bdw's subdirectory of the Machine Config Directory
+  (fail-closed; see "the push-host allowlist" below);
+- also refuses when any Dolt remote URL names the same repository as any
+  of the workspace's git remotes (see same_repository), which an allowed
+  host that also hosts the code would otherwise let through;
+- runs `bd dolt push --no-adopt` with BD_NO_REMOTE_ADOPT=1, because bd
+  1.3.0 otherwise offers to adopt a remote derived from the git origin. It
+  runs in its own process group, killed whole on timeout.
+
+Before each pass the worker takes the push-in-flight lock, waiting up to
+PUSH_TIMEOUT, and only then takes the write, renaming `pending` to
+`pushing`; it deletes `pushing` once the outcome is recorded. It hands the
+lock to `bd dolt push` alone, whose descendants keep it if they outlive
+the push, so the next pass waits for them, and records a failure (keeping
+the marker) if they outlast the wait. run_worker's docstring says exactly
+what is and is not guaranteed.
+
+State is Machine State (docs/adr/0015-three-roots-for-machine-specific-
+files.md), in `push/<key>/` under bdw's subdirectory of the Machine State
+Directory, `${XDG_STATE_HOME:-~/.local/state}/agent-tooling/bdw/`, as
+lib.paths resolves it (<key> a hash of the Beads directory; missing
+directories are created 0700 by lib.paths.ensure_private_dir, and an
+existing one keeps its mode, as ADR 0015 decides): the two locks `lock`
+and `inflight`, the markers `pending` and `pushing`, `last-failure.json`
+(present only while the last push failed, written atomically), and
+`push.log`. bdw reads last-failure.json to warn on its next call. Without
+a resolvable state root nothing is pushed.
+
+Standard library only; Python 3.9.
+"""
+
+from __future__ import annotations
+
+import errno
+import fcntl
+import json
+import os
+import re
+import signal
+import subprocess
+import sys
+import tempfile
+import time
+from urllib.parse import urlsplit
+from pathlib import Path
+from typing import Callable, Iterable, Mapping, Sequence
+
+if __package__ in (None, ""):
+    # Run as a script (the push worker): make `lib` importable, as bdw does.
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from lib import paths  # noqa: E402
+from lib.bdw_push_state import (  # noqa: E402,F401 -- re-exported
+    LAST_FAILURE, PENDING, PUSHING, TRUTHY, is_truthy, last_failure,
+    push_owed, state_dir)
+
+PUSH_TIMEOUT = 300
+KILL_WAIT = 10
+LOG_LIMIT = 256 * 1024
+STDERR_TAIL = 2000
+STDOUT_LIMIT = 64 * 1024
+
+# The interpreter the worker runs under: the system one every shebang here
+# pins, since on macOS it is the one Local Network access is granted to (a
+# Homebrew or pyenv interpreter is silently denied it in background
+# sessions), whatever interpreter bdw itself was started with.
+WORKER_PYTHON = "/usr/bin/python3"
+
+# TRUTHY and is_truthy, the values that turn the push off, live in
+# lib.bdw_push_state with the rest of what every bdw call reads.
+
+Runner = Callable[[Sequence[str], Mapping[str, str], Path], "tuple[int, str, str]"]
+
+
+# -- state ------------------------------------------------------------------
+
+# state_dir, last_failure, and the markers live in lib.bdw_push_state, so
+# that a bdw call owing nothing need not import this module.
+
+
+def _log(state: Path, message: str) -> None:
+    log = state / "push.log"
+    try:
+        if log.exists() and log.stat().st_size > LOG_LIMIT:
+            log.write_text("")
+        with log.open("a") as handle:
+            handle.write(f"{_now()} {message}\n")
+    except OSError:
+        pass
+
+
+def _now() -> str:
+    return time.strftime("%Y-%m-%dT%H:%M:%S%z")
+
+
+# Set when a failure could not be written down, so the pass that met it
+# keeps its write's PUSHING marker instead of forgetting an unrecorded
+# failure (see run_worker). The worker is single-threaded.
+_unrecorded: list = []
+
+
+def _record_failure(state: Path, reason: str, detail: str = "") -> bool:
+    """Log a failure and write last-failure.json atomically (a temporary
+    file, then os.replace), so bdw never reads a half-written record.
+    Returns whether the record was written."""
+    _log(state, f"FAILED: {reason}" + (f"\n{detail}" if detail else ""))
+    payload = {"time": _now(), "reason": reason}
+    temporary = state / f"last-failure.json.{os.getpid()}.tmp"
+    try:
+        with temporary.open("w") as handle:
+            handle.write(json.dumps(payload) + "\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary, state / LAST_FAILURE)
+        return True
+    except OSError:
+        try:
+            os.unlink(temporary)
+        except OSError:
+            pass
+        _unrecorded.append(reason)
+        return False
+
+
+def _clear_failure(state: Path) -> None:
+    try:
+        os.unlink(state / LAST_FAILURE)
+    except OSError:
+        pass
+
+
+# -- remotes ----------------------------------------------------------------
+
+def dolt_remote_urls(beads_dir: Path) -> list[str] | None:
+    """The Dolt remote URLs of the workspace's embedded database; [] when
+    it has none, or when the database is not in embedded mode (bdw pushes
+    only embedded databases); None when its metadata or Dolt state cannot
+    be read, which is a failure, not an absence of remotes."""
+    try:
+        metadata = json.loads((beads_dir / "metadata.json").read_text())
+    except (OSError, ValueError):
+        return None
+    if not isinstance(metadata, dict):
+        return None
+    if metadata.get("dolt_mode", "embedded") != "embedded":
+        return []
+    database = metadata.get("dolt_database")
+    if not isinstance(database, str) or not database or "/" in database:
+        return None
+    state_file = (beads_dir / "embeddeddolt" / database / ".dolt"
+                  / "repo_state.json")
+    try:
+        repo_state = json.loads(state_file.read_text())
+    except (OSError, ValueError):
+        return None
+    remotes = repo_state.get("remotes") if isinstance(repo_state, dict) else None
+    if not isinstance(remotes, dict):
+        return []
+    urls = []
+    for remote in remotes.values():
+        if isinstance(remote, dict) and isinstance(remote.get("url"), str):
+            urls.append(remote["url"])
+    return urls
+
+
+# scp-like `[user@]host:path`, as git reads it: the user and host may hold
+# none of `@`, `:`, or `/`, so `evil.com:x@allowed.example:o/r` is host
+# `evil.com` (as git hands it to ssh), not `allowed.example`.
+_SCP = re.compile(r"^(?:[^@:/]+@)?([^@:/]+):(?!//)(.+)$")
+
+
+def repository_key(url: str) -> tuple[str, str] | None:
+    """A (host, path) key naming the repository a URL points at: scheme,
+    user, port, a trailing `.git` or `/`, and case dropped, so the
+    git+ssh, ssh, https, and scp-style forms of one repository agree. A
+    file URL or bare path keys as ('', path). None when unreadable, which
+    includes any URL whose host could be read two ways: a fragment or
+    query (`https://evil.com#@allowed.example/...`), more than one `@` or
+    a backslash in the authority, or a host that is not ASCII (so a
+    lookalike such as the Kelvin sign is never lowered into `k`)."""
+    text = url.strip()
+    if not text:
+        return None
+    lowered = text.lower()
+    if lowered.startswith("file://"):
+        host, path = "", text[len("file://"):]
+    elif "://" in text:
+        if lowered.startswith("git+"):
+            text = text[len("git+"):]
+        try:
+            parts = urlsplit(text)
+            hostname = parts.hostname
+        except ValueError:
+            return None
+        authority = parts.netloc
+        if (parts.fragment or parts.query or "#" in text or "?" in text
+                or authority.count("@") > 1 or "\\" in authority
+                or not authority.isascii() or not hostname):
+            return None
+        host, path = hostname, parts.path
+    else:
+        match = _SCP.match(text)
+        if match:
+            host, path = match.group(1), match.group(2)
+            if not host.isascii():
+                return None
+        elif text.startswith("/"):
+            host, path = "", text
+        else:
+            return None
+    path = path.strip("/")
+    if path.endswith(".git"):
+        path = path[:-len(".git")]
+    path = path.strip("/")
+    return host.lower(), path.lower()
+
+
+def same_repository(left: str, right: str) -> bool:
+    a, b = repository_key(left), repository_key(right)
+    return a is not None and a == b
+
+
+# -- the push-host allowlist ------------------------------------------------
+#
+# bdw pushes only to hosts listed in `config.toml` in bdw's subdirectory of
+# the Machine Config Directory (lib.paths; docs/adr/0015-three-roots-for-
+# machine-specific-files.md), by default
+# ~/.config/agent-tooling/bdw/config.toml, with one key:
+#
+#     push_hosts = ["git.example.org"]
+#
+# The file is a subset of TOML (Python 3.9 has no tomllib, as for fjw's
+# config): `push_hosts`, an array of quoted host names on one line or
+# several, `#` comments, nothing else. The unit is the host, not host:port:
+# the list answers which machine may hold the Issue data, and one server
+# answers on several ports (ssh on 22 or another, https on 443), so listing
+# ports would break on a change of transport without keeping anything out.
+# Fail-closed: no file, an unreadable or malformed one, a remote URL with no
+# readable host, or a host not listed refuses the push. Messages name the
+# file and the key, never a remote's URL or host.
+
+CONFIG_FILE = "config.toml"
+PUSH_HOSTS = "push_hosts"
+# A DNS name: dot-separated labels of letters, digits, and inner hyphens,
+# none empty, matched without case after an ASCII check (so no non-ASCII
+# lookalike is ever lowered into a letter), in the allowlist and the URL.
+_LABEL = r"[a-z0-9](?:[a-z0-9-]*[a-z0-9])?"
+_HOST = re.compile(_LABEL + r"(?:\." + _LABEL + r")*", re.IGNORECASE)
+# TOML whitespace is space and tab (newlines between array items); not \s,
+# which takes a no-break space as well.
+_TOML_SPACE = " \t\r\n"
+_ALLOWLIST = re.compile(PUSH_HOSTS + r"[ \t]*=[ \t]*\[(.*)\]", re.DOTALL)
+_EXAMPLE = f'{PUSH_HOSTS} = ["<host>"]'
+
+
+class AllowlistRefusal(Exception):
+    """The push is refused by the allowlist; the message says why and what
+    to write where."""
+
+
+def allowlist_path(environ: Mapping[str, str]) -> Path | None:
+    tool = paths.config_dir("bdw", environ)
+    return None if tool is None else tool / CONFIG_FILE
+
+
+def parse_push_hosts(text: str) -> frozenset[str]:
+    """The hosts `text` lists; ValueError, with a reason, on anything else
+    (an empty file included)."""
+    lines = [line.split("#", 1)[0] for line in text.splitlines()]
+    cleaned = "\n".join(lines).strip(_TOML_SPACE)
+    if not cleaned:
+        raise ValueError("it is empty")
+    match = _ALLOWLIST.fullmatch(cleaned)
+    if match is None:
+        raise ValueError(f"expected only {PUSH_HOSTS} = [...]")
+    items = [item.strip(_TOML_SPACE) for item in match.group(1).split(",")]
+    if items and not items[-1]:
+        items.pop()  # a trailing comma
+    hosts = set()
+    for item in items:
+        if not (len(item) >= 2 and item[0] == item[-1] == '"'):
+            raise ValueError("every entry must be a quoted host name")
+        host = item[1:-1]  # as written: a padded entry is malformed
+        if not is_host_name(host):
+            raise ValueError("an entry is not a bare host name (no scheme, "
+                             "user, port, path, or spaces)")
+        hosts.add(host.lower())
+    return frozenset(hosts)
+
+
+def is_host_name(text: str) -> bool:
+    """Whether `text` is an ASCII DNS name (checked before any case
+    folding, since `re` matches the Kelvin sign as `k` without case)."""
+    return text.isascii() and _HOST.fullmatch(text) is not None
+
+
+def load_push_hosts(environ: Mapping[str, str]) -> frozenset[str]:
+    """The allowlist's hosts; AllowlistRefusal when there is none to read."""
+    path = allowlist_path(environ)
+    if path is None:
+        raise AllowlistRefusal(
+            "no push-host allowlist: no Machine Config Directory resolves "
+            "(set XDG_CONFIG_HOME or HOME)")
+    try:
+        text = path.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        raise AllowlistRefusal(
+            f"no push-host allowlist: create {path} containing {_EXAMPLE}, "
+            "listing the host of each Dolt remote (`bd dolt remote list` "
+            "shows them)") from None
+    except (OSError, UnicodeDecodeError) as error:
+        raise AllowlistRefusal(
+            f"cannot read the push-host allowlist {path} "
+            f"({getattr(error, 'strerror', None) or error})") from None
+    try:
+        return parse_push_hosts(text)
+    except ValueError as error:
+        raise AllowlistRefusal(
+            f"the push-host allowlist {path} is malformed ({error}); it "
+            f"should hold {_EXAMPLE}") from None
+
+
+def check_push_host(url: str, allowed: frozenset[str],
+                    path: Path | None) -> None:
+    """AllowlistRefusal unless `url` names a host on the allowlist."""
+    key = repository_key(url)
+    if key is None or not key[0] or not is_host_name(key[0]):
+        raise AllowlistRefusal(
+            "a Dolt remote's URL has no host the push-host allowlist can "
+            "vouch for")
+    if key[0] not in allowed:
+        raise AllowlistRefusal(
+            f"a Dolt remote's host is not in {PUSH_HOSTS} in {path}; add it "
+            "there if that remote may hold this database (`bd dolt remote "
+            "list` shows it)")
+
+
+def git_remote_urls(workspace: Path, environ: Mapping[str, str],
+                    runner: Runner) -> list[str] | None:
+    """Every URL of every git remote of the workspace, or None when git
+    cannot say."""
+    code, out, _ = runner(
+        ["git", "-C", str(workspace), "config", "--get-regexp",
+         r"^remote\..*\.(url|pushurl)$"], environ, workspace)
+    if code == 1 and not out.strip():
+        return []  # no remotes at all
+    if code != 0:
+        return None
+    return [line.split(None, 1)[1].strip()
+            for line in out.splitlines() if len(line.split(None, 1)) == 2]
+
+
+# -- one push ---------------------------------------------------------------
+
+def run_command(argv: Sequence[str], environ: Mapping[str, str],
+                cwd: Path, timeout: float = PUSH_TIMEOUT,
+                pass_fds: Sequence[int] = ()) -> tuple[int, str, str]:
+    """Run a command in its own process group; on timeout, kill the whole
+    group, so no grandchild (Dolt's git or ssh) outlives it. `pass_fds`
+    hands the child the push-in-flight lock (see run_worker).
+
+    Output goes to temporary files, not pipes, and the wait is on the
+    process itself: a descendant that left the group (a daemon that called
+    setsid) and still holds the child's stdout or stderr then neither keeps
+    the worker past `timeout` nor turns a finished command into a
+    timeout. Only the tail of each file is read (STDOUT_LIMIT and
+    STDERR_TAIL bytes), and a timeout keeps the stderr tail, since what a
+    push printed before it hung (a host-key prompt, say) is the clue."""
+    # The temporary files are unlinked at once; a detached descendant that
+    # inherited them may go on writing to them after this returns. That
+    # costs disk until it exits and is accepted: nothing reads them later.
+    with tempfile.TemporaryFile() as out, tempfile.TemporaryFile() as err:
+        try:
+            child = subprocess.Popen(
+                list(argv), env=dict(environ), cwd=str(cwd),
+                stdin=subprocess.DEVNULL, stdout=out, stderr=err,
+                start_new_session=True, pass_fds=tuple(pass_fds))
+        except OSError as error:
+            return 127, "", str(error)
+        try:
+            code = child.wait(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            try:
+                os.killpg(child.pid, signal.SIGKILL)
+            except OSError:
+                pass
+            try:
+                child.wait(timeout=KILL_WAIT)
+            except subprocess.TimeoutExpired:
+                pass  # unkillable for now; the failure is recorded anyway
+            return (124, "", f"timed out after {timeout}s\n"
+                    + _tail(err, STDERR_TAIL))
+        return code, _tail(out, STDOUT_LIMIT), _tail(err, STDERR_TAIL)
+
+
+def _tail(handle, limit: int) -> str:
+    """The last `limit` bytes written to `handle`, decoded."""
+    size = handle.seek(0, os.SEEK_END)
+    handle.seek(max(0, size - limit))
+    return handle.read(limit).decode("utf-8", "replace")
+
+
+def no_push_configured(bd: str, workspace: Path, environ: Mapping[str, str],
+                       runner: Runner) -> bool:
+    """Whether bd's effective `no-push` is set: config.yaml, or BD_NO_PUSH,
+    which bd maps to it."""
+    code, out, _ = runner([bd, "config", "get", "no-push"], environ,
+                          workspace)
+    return code == 0 and is_truthy(out)
+
+
+def push_once(beads_dir: Path, state: Path, bd: str,
+              environ: Mapping[str, str], runner: Runner = run_command,
+              remotes: Callable[[Path], "list[str] | None"] = dolt_remote_urls,
+              no_push: Callable[[], bool] | None = None,
+              push_runner: Runner | None = None,
+              ) -> str:
+    """Push once; return what happened: 'pushed', 'no-remote', 'opted-out',
+    'refused', or 'failed'. `no_push` answers whether bd's no-push is set;
+    run_worker passes one that asks bd once per run. `push_runner` (default
+    `runner`) runs `bd dolt push` alone; run_worker's hands that one
+    command the push-in-flight lock."""
+    workspace = beads_dir.parent
+    environment = dict(environ)
+    environment["BD_NO_REMOTE_ADOPT"] = "1"
+    dolt_urls = remotes(beads_dir)
+    if dolt_urls is None:
+        _record_failure(state, "cannot read this database's Dolt remotes "
+                        "(metadata.json or Dolt's repo_state.json)")
+        return "failed"
+    if not dolt_urls:
+        _clear_failure(state)
+        return "no-remote"
+    if no_push is None:
+        def no_push():
+            return no_push_configured(bd, workspace, environment, runner)
+    if no_push():
+        # An opted-out push clears any old failure, so bdw stops warning.
+        _clear_failure(state)
+        _log(state, "skipped: no-push is set")
+        return "opted-out"
+    try:
+        allowed = load_push_hosts(environ)
+        for dolt_url in dolt_urls:
+            check_push_host(dolt_url, allowed, allowlist_path(environ))
+    except AllowlistRefusal as refusal:
+        _record_failure(state, f"refused: {refusal}")
+        return "refused"
+    # A second check the allowlist cannot make: an allowed host may also
+    # host the code (a private Dolt repository beside a public code one on
+    # one forge), and a Dolt remote naming the code's own repository is
+    # exactly what `bd init` sets up by default.
+    git_urls = git_remote_urls(workspace, environment, runner)
+    if git_urls is None:
+        _record_failure(state, "refused: cannot read the workspace's git "
+                        "remotes to check the push destination")
+        return "refused"
+    for dolt_url in dolt_urls:
+        if any(same_repository(dolt_url, git_url) for git_url in git_urls):
+            _record_failure(state, "refused: a Dolt remote names the same "
+                            "repository as a git remote of this workspace")
+            return "refused"
+    code, _, err = (push_runner or runner)(
+        [bd, "dolt", "push", "--no-adopt"], environment, workspace)
+    if code != 0:
+        _record_failure(state, f"bd dolt push exited {code}",
+                        err[-STDERR_TAIL:])
+        return "failed"
+    _clear_failure(state)
+    _log(state, "pushed")
+    return "pushed"
+
+
+# -- coalescing -------------------------------------------------------------
+
+COORDINATION_LOCK = "lock"
+INFLIGHT_LOCK = "inflight"
+INFLIGHT_POLL = 0.1
+
+
+class InflightBusy(Exception):
+    """A previous push's process still holds the push-in-flight lock."""
+
+
+def _try_lock(state: Path, name: str = COORDINATION_LOCK):
+    """Take `state/name` with a non-blocking exclusive flock; None when
+    another holder has it. The file is opened non-inheritable (Python's
+    default), so no child gets it unless handed it through pass_fds."""
+    handle = open(state / name, "a")
+    try:
+        fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError as error:
+        handle.close()
+        if error.errno in (errno.EAGAIN, errno.EACCES, errno.EWOULDBLOCK):
+            return None
+        raise
+    return handle
+
+
+def _wait_for_inflight(state: Path, timeout: float):
+    """Take the push-in-flight lock, polling for up to `timeout` seconds;
+    raise InflightBusy when it stays held."""
+    deadline = time.monotonic() + timeout
+    while True:
+        handle = _try_lock(state, INFLIGHT_LOCK)
+        if handle is not None:
+            return handle
+        if time.monotonic() >= deadline:
+            raise InflightBusy()
+        time.sleep(INFLIGHT_POLL)
+
+
+def _has_mark(state: Path) -> bool:
+    """Whether a push is owed (lib.bdw_push_state.push_owed; a seam for
+    tests)."""
+    return push_owed(state)
+
+
+def _claim_mark(state: Path) -> bool:
+    """Take the waiting write for the push about to start: rename PENDING
+    to PUSHING, or take over a PUSHING left by a killed worker (folding in
+    any PENDING too). False when there is neither. Called only once the
+    push can start (the push-in-flight lock is held), so a worker killed
+    while it waits leaves PENDING for the next worker."""
+    try:
+        os.replace(state / PENDING, state / PUSHING)
+        return True
+    except FileNotFoundError:
+        return (state / PUSHING).exists()
+
+
+def _finish_claim(state: Path, outcome: str) -> None:
+    """Called once a taken push's outcome is recorded (pushed, nothing to
+    do, or a failure written): only now may the write be forgotten."""
+    try:
+        os.unlink(state / PUSHING)
+    except FileNotFoundError:
+        pass
+
+
+def run_worker(beads_dir: Path, state: Path, bd: str,
+               environ: Mapping[str, str],
+               push: Callable[[], str] | None = None,
+               runner: Callable[..., "tuple[int, str, str]"] | None = None,
+               remotes: Callable[[Path], "list[str] | None"] = dolt_remote_urls,
+               inflight_timeout: float = PUSH_TIMEOUT,
+               ) -> list[str]:
+    """Push until no write marker is left; return each push's outcome.
+    Returns [] at once when another worker holds the coordination lock.
+
+    There is no cap on passes: the worker loops only while writes keep
+    leaving markers, and a cap would have to drop a marker without pushing,
+    stranding the last writes of a busy session.
+
+    bd's `no-push` is asked once per run, at the first push that has a
+    remote to go to.
+
+    Two locks, with two jobs. The coordination lock (`lock`) says a worker
+    is running; only the worker holds it, never a child, so a killed
+    worker frees it at once and the next bdw call starts a new worker. The
+    push-in-flight lock (`inflight`) says a `bd dolt push` may still be
+    running: the worker takes it, waiting up to `inflight_timeout`, before
+    each pass, holds it for the whole pass, and hands it to `bd dolt push`
+    alone (pass_fds), whose descendants inherit it too. So a push left
+    running by a killed worker, or a descendant that outlives bd (git's
+    detached gc, a credential daemon), makes the next pass wait instead of
+    running beside it.
+
+    The write markers. A write leaves `pending`. A pass takes it, renaming
+    it to `pushing`, only once it holds the push-in-flight lock, and
+    deletes `pushing` only once the outcome is recorded: pushed, nothing
+    to push, opted out, or a failure written. Every bdw call that finds a
+    marker and a free coordination lock starts a worker (resume_push), and
+    a worker treats a leftover `pushing` as work.
+
+    What is guaranteed: once a write's marker exists, its push either
+    completes or leaves a recorded failure (which bdw then warns about), as
+    long as bdw is called again in this workspace with a state root and
+    the push turned on. In particular:
+    - A worker killed while it waits for the push-in-flight lock, or that
+      fails before taking the write, leaves `pending`.
+    - A worker killed mid-push leaves `pushing`. The next bdw call starts
+      a worker, which waits for the orphaned `bd dolt push` (it holds the
+      push-in-flight lock) and then pushes again, recording the outcome.
+    - When the push-in-flight lock stays held past the wait, the pass
+      records a failure naming the lock, keeps the marker, and the worker
+      stops; the next bdw call tries again.
+    - Any other error inside a pass is recorded as a failure.
+
+    What is not: with no later bdw call, nothing retries; an orphaned push
+    that fails is not itself recorded, only the push that follows it; and
+    a `bd dolt push` that survives SIGKILL past KILL_WAIT is left running,
+    held off only by the push-in-flight lock."""
+    held: list = []
+    opted_out: list[bool] = []
+
+    def plain_runner(argv, environment, cwd):
+        if runner is not None:
+            return runner(argv, environment, cwd, pass_fds=())
+        return run_command(argv, environment, cwd)
+
+    def push_runner(argv, environment, cwd):
+        fds = (held[0].fileno(),) if held else ()
+        if runner is not None:
+            return runner(argv, environment, cwd, pass_fds=fds)
+        return run_command(argv, environment, cwd, pass_fds=fds)
+
+    def no_push() -> bool:
+        if not opted_out:
+            environment = dict(environ)
+            environment["BD_NO_REMOTE_ADOPT"] = "1"
+            opted_out.append(no_push_configured(
+                bd, beads_dir.parent, environment, plain_runner))
+        return opted_out[0]
+
+    if push is None:
+        def push():
+            return push_once(beads_dir, state, bd, environ,
+                             runner=plain_runner, push_runner=push_runner,
+                             remotes=remotes, no_push=no_push)
+
+    def one_pass() -> "tuple[str | None, bool]":
+        """One pass: its outcome (None when nothing was waiting), and
+        whether the worker must stop."""
+        try:
+            inflight = _wait_for_inflight(state, inflight_timeout)
+        except InflightBusy:
+            _record_failure(
+                state, "a previous push still holds the push-in-flight lock "
+                f"{state / INFLIGHT_LOCK} (see lsof)")
+            return "failed", True
+        except Exception as error:  # noqa: BLE001 -- recorded, never lost
+            _record_failure(state, f"the push worker failed: {error}")
+            return "failed", True
+        held[:] = [inflight]
+        try:
+            if not _claim_mark(state):
+                return None, True
+            _unrecorded.clear()
+            try:
+                outcome = push()
+            except Exception as error:  # noqa: BLE001 -- recorded
+                _record_failure(state, f"the push worker failed: {error}")
+                outcome = "failed"
+            if _unrecorded:
+                # The failure could not be written down: keep PUSHING, so
+                # the write stays owed, and stop rather than loop on it.
+                return outcome, True
+            _finish_claim(state, outcome)
+            return outcome, False
+        finally:
+            held[:] = []
+            inflight.close()
+
+    outcomes: list[str] = []
+    while True:
+        handle = _try_lock(state)
+        if handle is None:
+            return outcomes
+        try:
+            while _has_mark(state):
+                outcome, stop = one_pass()
+                if outcome is not None:
+                    outcomes.append(outcome)
+                if stop:
+                    return outcomes
+        finally:
+            handle.close()
+        # A write may have set the mark after the last check but before the
+        # release, when its own request found the lock still held.
+        if not _has_mark(state):
+            return outcomes
+
+
+def exit_code(outcomes: Sequence[str]) -> int:
+    """The worker's exit under the Exit-code contract, from its last push:
+    1 when the push failed, 4 when the destination checks refused it
+    otherwise 0 (pushed, nothing to push, opted out, or left to the lock's
+    holder). Nothing reads it today; the push log and last-failure.json
+    are what bdw reports from."""
+    last = outcomes[-1] if outcomes else None
+    if last == "failed":
+        return 1
+    if last == "refused":
+        return 4
+    return 0
+
+
+def request_push(beads_dir: Path, bd: str, environ: Mapping[str, str],
+                 spawn: Callable[[Sequence[str], Mapping[str, str]], None]
+                 | None = None) -> str | None:
+    """Leave PENDING and start a detached worker, unless a worker already
+    holds the coordination lock (it sees PENDING, before or after its
+    release). Returns None when the push was requested, or when there is no
+    state directory to request it in (lib.paths finds no state root);
+    otherwise a one-line reason the push could not be requested, for bdw to
+    warn with."""
+    state = state_dir(beads_dir, environ)
+    if state is None:
+        return None
+    try:
+        paths.ensure_private_dir(state, paths.state_root(environ))
+        (state / PENDING).touch()
+    except OSError as error:
+        return (f"cannot request a push: state directory {state} is not "
+                f"writable ({error.strerror or error})")
+    return _start_worker(state, beads_dir, bd, environ, spawn)
+
+
+def resume_push(beads_dir: Path, bd: str, environ: Mapping[str, str],
+                spawn: Callable[[Sequence[str], Mapping[str, str]], None]
+                | None = None) -> str | None:
+    """For a call that left no write: start a worker when one is owed
+    (PENDING or PUSHING exists) and none is running, so a killed worker's
+    write is pushed again on the next call of any kind, not only the next
+    write. Creates nothing; cheap when nothing is owed. Returns what
+    request_push does."""
+    state = state_dir(beads_dir, environ)
+    if state is None or not _has_mark(state):
+        return None
+    return _start_worker(state, beads_dir, bd, environ, spawn)
+
+
+def _start_worker(state: Path, beads_dir: Path, bd: str,
+                  environ: Mapping[str, str],
+                  spawn: Callable[[Sequence[str], Mapping[str, str]], None]
+                  | None) -> str | None:
+    try:
+        handle = _try_lock(state)
+    except OSError as error:
+        return (f"cannot request a push: cannot lock "
+                f"{state / COORDINATION_LOCK} ({error.strerror or error})")
+    if handle is None:
+        return None
+    handle.close()
+    argv = [WORKER_PYTHON, str(Path(__file__).resolve()), str(beads_dir), bd]
+    try:
+        (spawn or _spawn_detached)(argv, environ)
+    except OSError as error:
+        _record_failure(state, f"cannot start the push worker: {error}")
+        return f"cannot start the push worker: {error}"
+    return None
+
+
+def _spawn_detached(argv: Sequence[str], environ: Mapping[str, str]) -> None:
+    subprocess.Popen(
+        list(argv), env=dict(environ), stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        close_fds=True, start_new_session=True)
+
+
+def main(argv: Iterable[str]) -> int:
+    arguments = list(argv)
+    if len(arguments) != 2:
+        return 2
+    beads_dir, bd = Path(arguments[0]), arguments[1]
+    state = state_dir(beads_dir, os.environ)
+    if state is None:
+        return 0
+    try:
+        return exit_code(run_worker(beads_dir, state, bd, os.environ))
+    except Exception as error:  # noqa: BLE001 -- detached: record, not raise
+        _record_failure(state, f"the push worker failed: {error}")
+        return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

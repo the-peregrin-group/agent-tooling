@@ -62,6 +62,28 @@ them.
   a `config.yaml` written before init, and whether init overwrites that
   file is untested. `bdw help dolt remote` confirms `remove <name>`.
 
+- [ ] Optionally, give the database a private Dolt remote, never one on a
+  public origin; `bdw` then pushes to it after every write, but only to
+  hosts on its push-host allowlist, and never to a remote that names the
+  same repository as a git remote of the workspace. In the primary
+  checkout:
+  1. Create the remote repository with an initial commit (a README is
+     enough): a Dolt push to a repository with no branches fails.
+  2. Add it: `bd dolt remote add origin <url>`. This writes `sync.remote`
+     into the tracked `config.yaml` and commits it to the current branch
+     without asking, so check `git log` at once and drop that commit
+     (and the line) before anything pushes it; Dolt keeps its own copy of
+     the remote, which is all `bdw` needs. In a public repository the
+     remote's address must never be committed.
+  3. List the remote's host in the push-host allowlist, once per machine,
+     in `~/.config/agent-tooling/bdw/config.toml` (or under
+     `$XDG_CONFIG_HOME`): `push_hosts = ["<host>"]`, the host alone, with
+     no scheme, user, port, or path. Until it does, every push is refused
+     and `bdw` warns; the warning clears once a push `bdw` runs succeeds
+     (the next write starts one), not after a `bd dolt push` by hand. The
+     format is in the [bdw project doc](../../docs/projects/bdw/index.md).
+  4. Push once by hand (`bd dolt push --no-adopt`) to confirm access.
+
 - [ ] Move the backup out of the repo. Init enables auto-backup when a
   remote exists, and the first backup lands in `.beads/backup/` inside
   the repo (already ignored, so this is disk hygiene). Point it at a local

@@ -49,6 +49,18 @@ for reads (reads run with a warning). A refusal is not something to
 rephrase around: on exit 4 fix the call or report the gap; on exit 5
 stop and report it.
 
+Where the database has a Dolt remote, `bdw` pushes to it in the
+background after every write; you never push. If a call prints any
+`bdw: warning:` line about the push, your call itself worked: carry on,
+and tell the user once, in your report, with the reason the line gives.
+Do not try to push by hand. `bdw` pushes only to hosts on the user's
+push-host allowlist (`~/.config/agent-tooling/bdw/config.toml`); when the
+warning says the allowlist is missing or a host is not on it, writing that
+file is the user's decision, not yours: report it. The push's record and
+log live in `bdw`'s subdirectory of the Machine State Directory
+(`~/.local/state/agent-tooling/bdw/push/` by default), and the warning
+names the log.
+
 The repo's own conventions are in `.beads/PRIME.md`, which `bdw prime`
 prints. Read this skill's `quirks.md` when bd surprises you, and
 `onboarding.md` only when setting Beads up in a new repo. `rules.json`

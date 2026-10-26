@@ -24,14 +24,25 @@ Run from the cli/ directory:
 
 from __future__ import annotations
 
+import contextlib
+import fcntl
+import importlib.machinery
+import importlib.util
+import io
 import os
 import shutil
 import signal
 import stat
 import subprocess
+import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
+from unittest import mock
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from lib import bdw_push  # noqa: E402
 
 _SCRIPT = Path(__file__).resolve().parent / "bdw"
 
@@ -51,6 +62,11 @@ if [ "$1" = version ] && [ "$2" = --json ] && [ "$#" -eq 2 ] \\
         && [ -n "${FAKE_BD_VERSION-}" ]; then
     printf '{"version": "%s"}\\n' "$FAKE_BD_VERSION"
     exit 0
+fi
+if [ "$1" = dolt ] && [ "$2" = push ]; then
+    printf '%s\\n' "BD_NO_REMOTE_ADOPT=${BD_NO_REMOTE_ADOPT-<unset>}" \\
+        >> "${FAKE_BD_LOG:-/dev/null}"
+    exit "${FAKE_BD_PUSH_EXIT:-0}"
 fi
 printf '%s\\n' "BD_ACTOR=${BD_ACTOR-<unset>}"
 printf '%s\\n' "BEADS_ACTOR=${BEADS_ACTOR-<unset>}"
@@ -96,6 +112,7 @@ exit 0
 
 _HEADER_LINES = 3
 _SESSION = "ae218998-349e-47c7-a5c8-8073c15ef975"
+_PRIVATE_REMOTE = "git+ssh://git@forge.example:2299/someone/the-repo-dolt.git"
 
 
 class BdwTest(unittest.TestCase):
@@ -107,8 +124,26 @@ class BdwTest(unittest.TestCase):
         self.bin.mkdir()
         self.beads = root / "ws" / ".beads"
         self.beads.mkdir(parents=True)
-        (self.beads / "metadata.json").write_text("{}\n")
+        # A realistic embedded database with no Dolt remote: every write
+        # still starts a push worker, which finds nothing to push to and
+        # stays silent, without calling bd.
+        (self.beads / "metadata.json").write_text(
+            '{"dolt_mode": "embedded", "dolt_database": "db"}\n')
+        self.dolt = self.beads / "embeddeddolt" / "db" / ".dolt"
+        self.dolt.mkdir(parents=True)
+        (self.dolt / "repo_state.json").write_text('{"remotes": {}}\n')
         self.log = root / "bd.log"
+        # Every bdw run gets temporary state and config roots, so no test
+        # can reach the real ~/.local/state or ~/.config.
+        self.state_home = root / "state"
+        self.config_home = root / "config"
+        # Cleanups run last-registered first: let any detached worker a
+        # write started finish before the directory above is removed.
+        self.addCleanup(self.settle_workers)
+
+    def settle_workers(self) -> None:
+        if (self.state_home / "agent-tooling" / "bdw" / "push").is_dir():
+            self.wait_for_worker()
 
     def install_fake_bd(self, script: str = _FAKE_BD) -> None:
         fake = self.bin / "bd"
@@ -121,6 +156,8 @@ class BdwTest(unittest.TestCase):
             "FAKE_BEADS_DIR": str(self.beads),
             "FAKE_BD_VERSION": "1.3.0",
             "FAKE_BD_LOG": str(self.log),
+            "XDG_STATE_HOME": str(self.state_home),
+            "XDG_CONFIG_HOME": str(self.config_home),
             **environment,
         }
         return {name: value for name, value in env.items() if value is not None}
@@ -551,6 +588,235 @@ class BdwTest(unittest.TestCase):
         result = self.run_bdw("create", "x", USER="dan")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stderr, "")
+
+    # The push to the Dolt remote after writes.
+
+    def setup_push(self, dolt_url: str = _PRIVATE_REMOTE,
+                   push_hosts: str = '"forge.example"') -> dict:
+        """A fake Dolt remote, a fake git with a public origin, a push-host
+        allowlist, and a state directory; return the environment that
+        enables the push."""
+        self.install_fake_bd()
+        config = self.config_home / "agent-tooling" / "bdw"
+        config.mkdir(parents=True)
+        (config / "config.toml").write_text(f"push_hosts = [{push_hosts}]\n")
+        (self.dolt / "repo_state.json").write_text(
+            '{"remotes": {"origin": {"name": "origin", "url": "%s"}}}\n'
+            % dolt_url)
+        fake_git = self.bin / "git"
+        fake_git.write_text(
+            "#!/bin/sh\nprintf 'remote.origin.url %s\\n' "
+            "'git@github.com:the-org/the-repo.git'\n")
+        fake_git.chmod(0o755)
+        return {"USER": "dan"}
+
+    def state(self) -> Path:
+        (state,) = (self.state_home / "agent-tooling" / "bdw" / "push").iterdir()
+        return state
+
+    def wait_for_worker(self) -> None:
+        """Wait until the detached worker has released its state: both
+        write markers gone and the lock free."""
+        deadline = time.monotonic() + 20
+        while time.monotonic() < deadline:
+            state_root = self.state_home / "agent-tooling" / "bdw" / "push"
+            states = list(state_root.iterdir()) if state_root.exists() else []
+            if states and not (states[0] / "pending").exists() \
+                    and not (states[0] / "pushing").exists():
+                with open(states[0] / "lock", "a") as handle:
+                    try:
+                        fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                        return
+                    except OSError:
+                        pass
+            time.sleep(0.05)
+        self.fail("the push worker did not finish")
+
+    def pushes(self) -> list:
+        return [call for call in self.bd_calls()
+                if call.startswith("dolt push")]
+
+    def test_a_write_pushes_in_the_background_without_adoption(self):
+        environment = self.setup_push()
+        result = self.run_bdw("create", "x", **environment)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stderr, "")
+        self.wait_for_worker()
+        self.assertEqual(self.pushes(), ["dolt push --no-adopt"])
+        self.assertIn("BD_NO_REMOTE_ADOPT=1", self.bd_calls())
+        self.assertIn("pushed", (self.state() / "push.log").read_text())
+
+    def test_reads_failures_and_opt_outs_do_not_push(self):
+        environment = self.setup_push()
+        cases = (
+            (("show", "x-1"), {}),
+            (("list", "--status=open"), {}),
+            (("dolt", "push"), {}),
+            (("create", "x"), {"FAKE_BD_EXIT": "1"}),
+            (("create", "x"), {"BD_NO_PUSH": "1"}),
+            (("create", "x"), {"BD_NO_PUSH": "yes"}),
+            (("help",), {}),
+        )
+        for arguments, extra in cases:
+            with self.subTest(arguments=arguments, extra=extra):
+                self.run_bdw(*arguments, **environment, **extra)
+                self.assertFalse(
+                    (self.state_home / "agent-tooling").exists())
+        self.assertEqual([c for c in self.bd_calls()
+                          if c == "dolt push --no-adopt"], [])
+
+    def test_a_dolt_remote_on_the_git_origin_is_refused_and_warned(self):
+        # github.com is allowed, as for a private Dolt repository beside the
+        # public code; the git-remote comparison still refuses this one.
+        environment = self.setup_push(
+            "git+ssh://git@github.com/the-org/the-repo.git",
+            push_hosts='"forge.example", "github.com"')
+        self.assertEqual(self.run_bdw("create", "x", **environment)
+                         .returncode, 0)
+        self.wait_for_worker()
+        self.assertEqual(self.pushes(), [])
+        result = self.run_bdw("show", "x-1", **environment)
+        self.assertEqual(result.returncode, 0)
+        (warning,) = result.stderr.splitlines()
+        self.assertTrue(warning.startswith(
+            "bdw: warning: the last push of this Beads database to its Dolt "
+            "remote failed ("), warning)
+        self.assertIn("same repository", warning)
+        self.assertNotIn("github", warning)
+
+    def test_a_failed_push_warns_until_one_succeeds(self):
+        environment = self.setup_push()
+        self.run_bdw("create", "x", FAKE_BD_PUSH_EXIT="1", **environment)
+        self.wait_for_worker()
+        warned = self.run_bdw("show", "x-1", **environment)
+        self.assertIn("bd dolt push exited 1", warned.stderr)
+        self.assertEqual(warned.returncode, 0)
+        self.run_bdw("create", "y", **environment)
+        self.wait_for_worker()
+        self.assertEqual(self.run_bdw("show", "x-1", **environment).stderr,
+                         "")
+
+    def test_a_read_restarts_a_push_a_killed_worker_left_owed(self):
+        environment = self.setup_push()
+        state = bdw_push.state_dir(self.beads,
+                                   self.bdw_environment(**environment))
+        state.mkdir(parents=True)
+        (state / "pushing").touch()  # a worker was killed mid-push
+        result = self.run_bdw("show", "x-1", **environment)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stderr, "")
+        self.wait_for_worker()
+        self.assertEqual(self.pushes(), ["dolt push --no-adopt"])
+
+    def test_without_an_allowlist_the_warning_says_what_to_write(self):
+        environment = self.setup_push()
+        config = self.config_home / "agent-tooling" / "bdw" / "config.toml"
+        config.unlink()
+        self.run_bdw("create", "x", **environment)
+        self.wait_for_worker()
+        self.assertEqual(self.pushes(), [])
+        (warning,) = self.run_bdw("show", "x-1", **environment) \
+            .stderr.splitlines()
+        self.assertIn("no push-host allowlist: create " + str(config),
+                      warning)
+        self.assertIn('push_hosts = ["<host>"]', warning)
+        self.assertNotIn("forge.example", warning)
+
+    def test_a_read_with_nothing_owed_starts_no_worker(self):
+        environment = self.setup_push()
+        self.run_bdw("show", "x-1", **environment)
+        self.assertFalse((self.state_home / "agent-tooling").exists())
+        self.assertEqual(self.pushes(), [])
+
+    def test_a_workspace_without_a_dolt_remote_pushes_nothing(self):
+        self.install_fake_bd()
+        result = self.run_bdw("create", "x", USER="dan")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.wait_for_worker()
+        self.assertEqual(self.pushes(), [])
+        self.assertIsNone(bdw_push.last_failure(self.state()))
+
+    def test_stdout_is_byte_identical_with_a_push_requested(self):
+        environment = self.setup_push()
+        pushed = subprocess.run(
+            [str(_SCRIPT), "create", "x", "--json"],
+            env=self.bdw_environment(**environment),
+            stdin=subprocess.DEVNULL, capture_output=True, timeout=30)
+        self.wait_for_worker()
+        self.assertEqual(self.pushes(), ["dolt push --no-adopt"])
+        unpushed = subprocess.run(
+            [str(_SCRIPT), "create", "x", "--json"],
+            env=self.bdw_environment(BD_NO_PUSH="1", **environment),
+            stdin=subprocess.DEVNULL, capture_output=True, timeout=30)
+        self.assertEqual(pushed.returncode, 0, pushed.stderr)
+        self.assertEqual(pushed.stdout, unpushed.stdout)
+        self.assertEqual(pushed.stderr, b"")
+
+    def test_an_opted_out_call_does_not_repeat_an_old_warning(self):
+        environment = self.setup_push()
+        self.run_bdw("create", "x", FAKE_BD_PUSH_EXIT="1", **environment)
+        self.wait_for_worker()
+        self.assertIn("bd dolt push exited 1",
+                      self.run_bdw("show", "x-1", **environment).stderr)
+        for value in ("1", "yes"):
+            with self.subTest(BD_NO_PUSH=value):
+                result = self.run_bdw("show", "x-1", BD_NO_PUSH=value,
+                                      **environment)
+                self.assertEqual(result.stderr, "")
+                self.assertEqual(result.returncode, 0)
+
+    def test_an_unwritable_state_directory_is_warned_about(self):
+        environment = self.setup_push()
+        self.state_home.write_text("a file where the state root should be")
+        result = self.run_bdw("create", "x", **environment)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        (warning,) = result.stderr.splitlines()
+        self.assertTrue(warning.startswith(
+            "bdw: warning: cannot request a push:"), warning)
+        self.assertIn("not pushed to the Dolt remote", warning)
+
+    def test_an_exception_in_the_push_setup_never_changes_the_exit(self):
+        loader = importlib.machinery.SourceFileLoader("bdw_under_test",
+                                                      str(_SCRIPT))
+        spec = importlib.util.spec_from_file_location(
+            loader.name, str(_SCRIPT), loader=loader)
+        module = importlib.util.module_from_spec(spec)
+        loader.exec_module(module)
+        stderr = io.StringIO()
+
+        def explode(*_):
+            raise RuntimeError("boom")
+
+        with mock.patch.object(bdw_push, "request_push", explode), \
+                contextlib.redirect_stderr(stderr):
+            module._after_call(self.beads, "bd", ["create", "x"], 0, False,
+                               {"XDG_STATE_HOME": str(self.state_home)})
+        self.assertEqual(
+            stderr.getvalue(),
+            "bdw: warning: the push step failed: boom\n")
+
+    def test_a_call_that_owes_nothing_never_imports_the_push_machinery(self):
+        # In a fresh interpreter: load bdw, run its push step for a read and
+        # for a failed write, and report whether lib.bdw_push got imported.
+        script = (
+            "import importlib.machinery, importlib.util, sys\n"
+            "from pathlib import Path\n"
+            "loader = importlib.machinery.SourceFileLoader('b', sys.argv[1])\n"
+            "spec = importlib.util.spec_from_file_location("
+            "'b', sys.argv[1], loader=loader)\n"
+            "module = importlib.util.module_from_spec(spec)\n"
+            "loader.exec_module(module)\n"
+            "environ = {'XDG_STATE_HOME': sys.argv[3]}\n"
+            "module._after_call(Path(sys.argv[2]), 'bd', ['show', 'x'], 0,"
+            " False, environ)\n"
+            "module._after_call(Path(sys.argv[2]), 'bd', ['create', 'x'], 1,"
+            " False, environ)\n"
+            "print('lib.bdw_push' in sys.modules)\n")
+        result = subprocess.run(
+            ["/usr/bin/python3", "-c", script, str(_SCRIPT), str(self.beads),
+             str(self.state_home)], capture_output=True, text=True, timeout=30)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout, "False\n")
 
 
 if __name__ == "__main__":

@@ -132,3 +132,16 @@ harness is out of scope here.
   Issue ID in the GitHub issue body.
 - Dolt pushes through its own git-protocol client, so a Beads push never
   passes through git: neither git's pre-push hooks nor gitw sees it.
+- `bd dolt remote add` writes `sync.remote` into the tracked `config.yaml`
+  and commits it, with any other pending change to that file, to the
+  current git branch without asking (as "bd: update sync.remote").
+- A Dolt push to a git repository with no branches fails ("initialize the
+  repository with an initial branch/commit first"). Once it succeeds, the
+  repository holds `refs/dolt/data` and a `__dolt_remote_info__` branch.
+- With no Dolt remote configured, `bd dolt push` offers to adopt one
+  derived from the git origin; `--no-adopt` or `BD_NO_REMOTE_ADOPT=1`
+  disables that.
+- In embedded mode bd does not push after writes, even with `sync.remote`
+  set. Environment variables `BD_SYNC_REMOTE` and `BD_NO_PUSH` set
+  `sync.remote` and `no-push` without touching tracked config (the
+  `BEADS_` prefix does not, for these keys).
