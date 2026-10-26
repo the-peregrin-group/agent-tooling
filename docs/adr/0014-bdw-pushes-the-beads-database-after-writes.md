@@ -14,7 +14,7 @@ status: current
 ## Consequences
 
 - Agents never type a push, and they stay denied every `dolt` verb; the Permission rules see `bdw <verb>`, not the push `bdw` runs.
-- A push failure never fails the write: `bdw` warns on later calls until a push succeeds, and the next push sends every unpushed commit.
+- A push failure never fails the write: a recorded failure makes `bdw` warn on later calls until a push succeeds, and the next push sends every unpushed commit.
 - A maintainer's raw `bd` writes are pushed by the next `bdw` write.
 
 ## Alternatives Considered

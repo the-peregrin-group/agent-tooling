@@ -145,13 +145,26 @@ What one call does:
    Two locks keep pushes apart. The coordination lock means a worker is
    running; only the worker holds it, so a killed worker frees it at once
    and the next write starts a new one. The push-in-flight lock means a
-   push's commands may still be running: the worker takes it before a
-   push's first command and hands it to each of them, and bd's
-   descendants inherit it. A push left running by a killed worker, or a
-   descendant that outlives bd (git's detached gc, a credential daemon),
-   therefore makes the next push wait, up to the push timeout, instead of
-   running beside it; past that wait the push records a failure, so the
-   warning above names it rather than the write going silently unpushed.
+   `bd dolt push` may still be running: the worker takes it, waiting up
+   to the push timeout, before each pass, holds it for the whole pass,
+   and hands it to `bd dolt push` alone, whose descendants inherit it. A
+   push left running by a killed worker, or a descendant that outlives bd
+   (git's detached gc, a credential daemon), therefore makes the next
+   pass wait instead of running beside it.
+
+   What this guarantees, and what it does not:
+   - A pass claims the waiting write (the dirty mark) only once it holds
+     the push-in-flight lock. A worker killed while it waits, or one
+     that fails before the claim, leaves the mark, and the next write's
+     worker pushes it along with that write; until a write follows, it
+     waits.
+   - If the push-in-flight lock is still held when the wait runs out,
+     the pass records a failure naming the lock's path, keeps the mark,
+     and the worker stops, so the warning above names it.
+   - Any other error inside a pass is recorded as a failure.
+   - Not covered: a worker killed after the claim, mid-push. Its orphaned
+     `bd dolt push` runs on, and if it then fails nothing records it; the
+     claimed write is pushed only with the next write.
 
    Its state lives outside the repo, in
    `$XDG_STATE_HOME/agent-tooling/bdw-push/<key>/` (`XDG_STATE_HOME`

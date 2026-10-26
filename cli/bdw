@@ -459,7 +459,9 @@ def main(argv: list[str]) -> int:
 
 def _after_call(beads_dir: Path, bd: str, argv: Sequence[str], code: int,
                 usage_error: bool, environment: Mapping[str, str]) -> None:
-    """Step 6: warn about a failed last push, and request the next one.
+    """The push step (the last step in the module docstring; step 7 in
+    docs/projects/bdw/index.md): warn about a failed last push, and
+    request the next one.
     Nothing here may change bdw's exit, so any exception becomes one
     warning line."""
     try:
