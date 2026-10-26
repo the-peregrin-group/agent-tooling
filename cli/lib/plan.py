@@ -23,10 +23,10 @@ from typing import NoReturn
 # The six-code Exit-code contract (docs/index.md#exit-code-contract).
 EXIT_OK = 0  # done
 EXIT_BROKEN = 1  # broken on our side, not the caller's fault
-EXIT_CALLER = 2  # the caller must change the call, or the state it acts on
+EXIT_CALLER_ERROR = 2  # the caller must change the call, or the state it acts on
 EXIT_NOT_FOUND = 3  # the named resource does not exist
 EXIT_FORBIDDEN = 4  # policy forbids this caller this action
-EXIT_PARTIAL = 5  # partial completion, with caller work to do
+EXIT_PARTIAL_COMPLETION = 5  # partial completion, with caller work to do
 
 # Transitional: the earlier seven-code taxonomy, still exited by families
 # that have not migrated. Values are unchanged so those families exit as
@@ -34,9 +34,9 @@ EXIT_PARTIAL = 5  # partial completion, with caller work to do
 # family's migration reclassifies each exit path rather than renaming
 # blindly. The epic's final pass removes these names.
 EXIT_RUNTIME = 1  # unclassified failure -> EXIT_BROKEN (1)
-EXIT_USAGE = 2  # usage error -> EXIT_CALLER (2)
-EXIT_REFUSED = 4  # refusal -> EXIT_FORBIDDEN (4) if authorization, else EXIT_CALLER (2)
-EXIT_AUTH = 5  # roster/auth/config -> EXIT_BROKEN (1); 5 now means EXIT_PARTIAL
+EXIT_USAGE = 2  # usage error -> EXIT_CALLER_ERROR (2)
+EXIT_REFUSED = 4  # refusal -> EXIT_FORBIDDEN (4) if authorization, else EXIT_CALLER_ERROR (2)
+EXIT_AUTH = 5  # roster/auth/config -> EXIT_BROKEN (1); 5 now means EXIT_PARTIAL_COMPLETION
 EXIT_NETWORK = 6  # network failure -> EXIT_BROKEN (1); the contract has no 6
 
 
@@ -64,4 +64,4 @@ def usage_die(message: str, usage: str) -> NoReturn:
     message must let an agent self-correct in one round-trip.
     """
     print(f"error: {message}\nusage: {usage}", file=sys.stderr)
-    sys.exit(EXIT_CALLER)
+    sys.exit(EXIT_CALLER_ERROR)
