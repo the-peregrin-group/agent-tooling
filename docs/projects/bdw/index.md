@@ -98,9 +98,11 @@ What one call does:
 7. Push the database to its Dolt remote (see
    [ADR 0014](../../adr/0014-bdw-pushes-the-beads-database-after-writes.md),
    bdw pushes the Beads database after every write). After any call that
-   probed the workspace in step 3, unless `BD_NO_PUSH` is set to `1`,
-   `true`, `yes`, or `on` (bd maps the same variable to its `no-push`
-   config, and reads its raw value through the same set):
+   probed the workspace in step 3, unless the push is turned off.
+   `BD_NO_PUSH`, or bd's `no-push` config (which bd also maps from
+   `BD_NO_PUSH`), turns it off when its value is one of `1`, `t`,
+   `true`, `yes`, or `on`, in any case. `bdw` is what pushes, so this
+   set, not bd's own parsing, decides:
    - while the last push failed, print one warning line on stderr naming
      the failure's time and reason and the push log, never the remote's
      address;
@@ -110,8 +112,9 @@ What one call does:
      and `backup` calls never push either. A write this misses (a read
      verb with a writing flag) is pushed by the next write, since a Dolt
      push sends every unpushed commit. If the push cannot be requested
-     (its state directory or mark cannot be written, or the worker cannot
-     start), print one warning line saying so.
+     (its state directory or mark cannot be written, its lock cannot be
+     taken, or the worker cannot start), print one warning line saying
+     so.
 
    Nothing in this step, an exception included, changes `bdw`'s exit
    code. The push (`cli/lib/bdw_push.py`) runs as a detached background
@@ -135,14 +138,25 @@ What one call does:
      data never goes where the public code goes;
    - runs `bd dolt push --no-adopt` with `BD_NO_REMOTE_ADOPT=1`, because
      bd 1.3.0 otherwise offers to adopt a remote derived from the git
-     origin. bd runs in its own process group, killed whole on a timeout,
-     and inherits the worker's lock, so a worker killed mid-push cannot
-     let a second push start beside the orphaned one.
+     origin. bd runs in its own process group, killed whole on a timeout;
+     its output goes to files, so a detached descendant holding it cannot
+     stretch that timeout.
+
+   Two locks keep pushes apart. The coordination lock means a worker is
+   running; only the worker holds it, so a killed worker frees it at once
+   and the next write starts a new one. The push-in-flight lock means a
+   push's commands may still be running: the worker takes it before a
+   push's first command and hands it to each of them, and bd's
+   descendants inherit it. A push left running by a killed worker, or a
+   descendant that outlives bd (git's detached gc, a credential daemon),
+   therefore makes the next push wait, up to the push timeout, instead of
+   running beside it; past that wait the push records a failure, so the
+   warning above names it rather than the write going silently unpushed.
 
    Its state lives outside the repo, in
    `$XDG_STATE_HOME/agent-tooling/bdw-push/<key>/` (`XDG_STATE_HOME`
    defaulting to `~/.local/state`, `<key>` a hash of the Beads
-   directory, created mode `0700`): the lock, the dirty mark,
+   directory, kept at mode `0700`): the two locks, the dirty mark,
    `last-failure.json` while the last push failed (replaced atomically),
    and `push.log`. With neither `XDG_STATE_HOME` nor `HOME` set, nothing
    is pushed.
