@@ -16,11 +16,12 @@ import shutil
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from lib import bdw_push
 
 _PUBLIC = "git@github.com:the-org/the-repo.git"
-_PRIVATE = "git+ssh://git@forge.example:2222/someone/the-repo-dolt.git"
+_PRIVATE = "git+ssh://git@forge.example:2299/someone/the-repo-dolt.git"
 
 
 class RepositoryKeyTest(unittest.TestCase):
@@ -201,6 +202,52 @@ class WorkerTest(unittest.TestCase):
             return "pushed"
 
         self.assertEqual(self.run_worker(push), ["pushed"] * 3)
+
+    def test_a_long_run_of_writes_is_pushed_to_the_end(self):
+        # Writes keep landing during each push, more passes in a row than
+        # any cap would allow; the mark set during the last push still
+        # gets its push, and nothing is left dirty.
+        (self.state / "dirty").touch()
+        writes_during_pushes = 60
+        pushes = []
+
+        def push():
+            pushes.append(1)
+            if len(pushes) <= writes_during_pushes:
+                (self.state / "dirty").touch()
+            return "pushed"
+
+        self.assertEqual(self.run_worker(push),
+                         ["pushed"] * (writes_during_pushes + 1))
+        self.assertFalse((self.state / "dirty").exists())
+
+    def test_a_mark_set_after_the_last_take_is_pushed_after_unlock(self):
+        # A write lands after the worker's last take but before it releases
+        # the lock, so that write's own worker found the lock held and
+        # left; the re-check after the release must push it.
+        (self.state / "dirty").touch()
+        take = bdw_push._take_dirty
+        empty_takes = []
+
+        def take_then_write(state):
+            taken = take(state)
+            if not taken and not empty_takes:
+                empty_takes.append(1)
+                (state / "dirty").touch()
+            return taken
+
+        with mock.patch.object(bdw_push, "_take_dirty", take_then_write):
+            outcomes = self.run_worker(lambda: "pushed")
+        self.assertEqual(outcomes, ["pushed", "pushed"])
+        self.assertFalse((self.state / "dirty").exists())
+
+    def test_exit_code_follows_the_last_push(self):
+        cases = (([], 0), (["pushed"], 0), (["no-remote"], 0),
+                 (["opted-out"], 0), (["pushed", "failed"], 1),
+                 (["failed", "pushed"], 0), (["refused"], 4))
+        for outcomes, code in cases:
+            with self.subTest(outcomes=outcomes):
+                self.assertEqual(bdw_push.exit_code(outcomes), code)
 
     def test_a_held_lock_leaves_the_work_to_its_holder(self):
         (self.state / "dirty").touch()

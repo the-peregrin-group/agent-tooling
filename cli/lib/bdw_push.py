@@ -2,15 +2,21 @@
 
 bdw calls request_push() after every write that bd ran successfully. That
 records a dirty mark and starts this file as a detached background worker
-(`python3 bdw_push.py <beads-dir>`), so the write returns at once and bdw's
-exit code stays bd's. The worker:
+(`python3 bdw_push.py <beads-dir> <bd>`), so the write returns at once and
+the push never affects bdw's exit code. The worker:
 
 1. takes a lock (fcntl.flock, non-blocking); if another worker holds it,
    exits at once, since the holder sees the dirty mark;
 2. while the dirty mark exists: clears it and pushes once, so writes that
-   land during a push get exactly one more push;
+   land during a push get exactly one more push. There is no cap on
+   passes: the loop runs only while writes keep arriving;
 3. releases the lock, then checks the dirty mark once more and goes back to
    1, so a mark set just before the release is not lost.
+
+The worker exits under the Exit-code contract (see exit_code): 2 for a
+malformed invocation, 1 when its last push failed, 4 when the destination
+guard refused it, else 0. Nothing reads that exit today; bdw reports from
+the state files below.
 
 One push:
 
@@ -51,7 +57,6 @@ from pathlib import Path
 from typing import Callable, Iterable, Mapping, Sequence
 
 PUSH_TIMEOUT = 300
-MAX_PASSES = 20
 LOG_LIMIT = 256 * 1024
 STDERR_TAIL = 2000
 
@@ -286,23 +291,42 @@ def run_worker(beads_dir: Path, state: Path, bd: str,
                environ: Mapping[str, str],
                push: Callable[[], str] | None = None) -> list[str]:
     """Push until the dirty mark stays clear; return each push's outcome.
-    Returns [] at once when another worker holds the lock."""
+    Returns [] at once when another worker holds the lock.
+
+    There is no cap on passes: the worker loops only while writes keep
+    setting the mark, and a cap would have to clear a mark without pushing,
+    stranding the last writes of a busy session until the next write."""
     if push is None:
         def push():
             return push_once(beads_dir, state, bd, environ)
     outcomes: list[str] = []
-    while len(outcomes) < MAX_PASSES:
+    while True:
         handle = _try_lock(state)
         if handle is None:
             return outcomes
         try:
-            while _take_dirty(state) and len(outcomes) < MAX_PASSES:
+            while _take_dirty(state):
                 outcomes.append(push())
         finally:
             handle.close()
+        # A write may have set the mark after the last take but before the
+        # release, when its own worker found the lock still held.
         if not (state / "dirty").exists():
             return outcomes
-    return outcomes
+
+
+def exit_code(outcomes: Sequence[str]) -> int:
+    """The worker's exit under the Exit-code contract, from its last push:
+    1 when the push failed, 4 when the destination guard refused it,
+    otherwise 0 (pushed, nothing to push, opted out, or left to the lock's
+    holder). Nothing reads it today; the push log and last-failure.json
+    are what bdw reports from."""
+    last = outcomes[-1] if outcomes else None
+    if last == "failed":
+        return 1
+    if last == "refused":
+        return 4
+    return 0
 
 
 def request_push(beads_dir: Path, bd: str, environ: Mapping[str, str],
@@ -342,8 +366,7 @@ def main(argv: Iterable[str]) -> int:
     state = state_dir(beads_dir, os.environ)
     if state is None:
         return 0
-    run_worker(beads_dir, state, bd, os.environ)
-    return 0
+    return exit_code(run_worker(beads_dir, state, bd, os.environ))
 
 
 if __name__ == "__main__":

@@ -103,7 +103,7 @@ exit 0
 
 _HEADER_LINES = 3
 _SESSION = "ae218998-349e-47c7-a5c8-8073c15ef975"
-_PRIVATE_REMOTE = "git+ssh://git@forge.example:2222/someone/the-repo-dolt.git"
+_PRIVATE_REMOTE = "git+ssh://git@forge.example:2299/someone/the-repo-dolt.git"
 
 
 class BdwTest(unittest.TestCase):
