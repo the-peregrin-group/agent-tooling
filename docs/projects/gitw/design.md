@@ -149,6 +149,10 @@ check and an explicit go-ahead.
 In a forge Wrapper, a repo argument stops cwd from redirecting a write.
 For git, cwd *is* the repo, so every Verb takes a leading Roster label
 resolved against the machine-local Roster, `~/.config/gitw/repos.toml`.
+The Roster is part of gitw's Machine Config, so its intended home is
+`repos.toml` in gitw's subdirectory of the Machine Config Directory
+([ADR 0015 (three places for machine-specific files)](../../adr/0015-three-roots-for-machine-specific-files.md));
+the move, with a fallback to the old path, is `agent-tooling-fpkl.5`.
 
 - **Entry fields:** `checkout` (required, absolute path of the primary
   checkout), `remote_url`, `remote` (default `origin`, only with a URL),

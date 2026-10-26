@@ -1,4 +1,5 @@
-"""Unit tests for lib.paths (the config and state directories).
+"""Unit tests for lib.paths (each tool's subdirectory of the Machine Config
+Directory and the Machine State Directory).
 
 Run from the cli/ directory:
     /usr/bin/python3 -m unittest discover -s . -p '*_test.py'

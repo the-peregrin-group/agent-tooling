@@ -175,10 +175,11 @@ Config Directory or the Machine State Directory from the environment
 mapping the caller passes; `config_root` and `state_root` return the XDG
 base directory above each; and `ensure_private_dir(path, root)` creates
 a directory at or below a base directory with mode 0700, creating the
-base directory if it is missing but never its parent. An unset, empty, or relative XDG variable falls back to its
-default under `HOME`, as the XDG Base Directory spec directs; with no
-usable `HOME` either, the resolvers return None and the caller decides
-whether that means skip or fail. The module docstring has the details.
+base directory if it is missing but never its parent. An unset, empty,
+or relative XDG variable falls back to its default under `HOME`, as the
+XDG Base Directory spec directs; with no usable `HOME` either, the
+resolvers return None and the caller decides whether that means skip or
+fail. The module docstring has the details.
 
 Staging directories (`/tmp/claude/`, a background job's `tmp/`) are
 scratch space for message and body files, not machine-specific files, and
@@ -187,6 +188,8 @@ sit outside the layout (`cli/lib/staging.py`).
 Code that predates the layout does not follow it yet, and each move has
 its own Issue: gitw's Roster (`agent-tooling-fpkl.5`) and fjw's config
 (`agent-tooling-fpkl.6`) are still read from `~/.config/gitw/` and
-`~/.config/fjw/` without the helper, and triage-issues' guard marker and
+`~/.config/fjw/` without the helper; triage-issues' guard marker and
 lock have yet to move into the Machine State Directory
-(`agent-tooling-fpkl.9`).
+(`agent-tooling-fpkl.9`); and the README's deny rules cover neither the
+Machine Config Directory nor the Machine State Directory
+(`agent-tooling-fpkl.7`).

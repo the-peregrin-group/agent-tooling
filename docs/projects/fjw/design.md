@@ -170,7 +170,12 @@ no dependencies. It sends `Authorization: token …` and a fixed
 
 ## Configuration
 
-`~/.config/fjw/config.toml` holds one identity:
+`~/.config/fjw/config.toml` holds one identity. The file is fjw's Machine
+Config, so its intended home is `config.toml` in fjw's subdirectory of the
+Machine Config Directory
+([ADR 0015 (three places for machine-specific files)](../../adr/0015-three-roots-for-machine-specific-files.md));
+the move, with a fallback to the old path, is `agent-tooling-fpkl.6`. The
+identity's fields:
 
 - `api_url` (required, `https://` only; a trailing `/api/v1` is
   normalized away)
@@ -187,7 +192,8 @@ loudly), because `tomllib` needs Python 3.11 and the Wrapper runs on the
 system Python 3.9. Mode 0600 is advised; a wider mode only warns.
 
 Deny rules cover `~/.config/fjw/**` wholesale (Read and Edit, plus
-shell-read patterns). Deny rules are the one rule class safe to deploy at
+shell-read patterns); they follow the file to the Machine Config
+Directory (`agent-tooling-fpkl.7`). Deny rules are the one rule class safe to deploy at
 the user level, because a deny rule only ever narrows, so deploying it at
 the user level cannot widen any project's grants; and directory-wide
 coverage means files added later are covered at birth. Deny rules stop
