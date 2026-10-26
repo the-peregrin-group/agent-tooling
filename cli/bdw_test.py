@@ -136,6 +136,13 @@ class BdwTest(unittest.TestCase):
         # Every bdw run gets a temporary state root, so no test can reach
         # the real ~/.local/state.
         self.state_home = root / "state"
+        # Cleanups run last-registered first: let any detached worker a
+        # write started finish before the directory above is removed.
+        self.addCleanup(self.settle_workers)
+
+    def settle_workers(self) -> None:
+        if (self.state_home / "agent-tooling" / "bdw-push").is_dir():
+            self.wait_for_worker()
 
     def install_fake_bd(self, script: str = _FAKE_BD) -> None:
         fake = self.bin / "bd"
@@ -743,7 +750,7 @@ class BdwTest(unittest.TestCase):
                                {"XDG_STATE_HOME": str(self.state_home)})
         self.assertEqual(
             stderr.getvalue(),
-            "bdw: warning: cannot start the push to the Dolt remote: boom\n")
+            "bdw: warning: the push step failed: boom\n")
 
 
 if __name__ == "__main__":

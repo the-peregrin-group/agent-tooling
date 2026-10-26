@@ -473,7 +473,7 @@ def _after_call(beads_dir: Path, bd: str, argv: Sequence[str], code: int,
                 _say(f"warning: {problem}; this write is not pushed to the "
                      "Dolt remote")
     except Exception as error:  # noqa: BLE001 -- the push must never fail bdw
-        _say(f"warning: cannot start the push to the Dolt remote: {error}")
+        _say(f"warning: the push step failed: {error}")
 
 
 if __name__ == "__main__":
