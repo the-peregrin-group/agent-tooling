@@ -15,6 +15,7 @@ import fcntl
 import json
 import os
 import shutil
+import subprocess
 import tempfile
 import time
 import unittest
@@ -264,22 +265,22 @@ class WorkerTest(unittest.TestCase):
                          ["pushed"] * (writes_during_pushes + 1))
         self.assertFalse((self.state / "dirty").exists())
 
-    def test_a_mark_set_after_the_last_take_is_pushed_after_unlock(self):
-        # A write lands after the worker's last take but before it releases
-        # the lock, so that write's own worker found the lock held and
-        # left; the re-check after the release must push it.
+    def test_a_mark_set_after_the_last_check_is_pushed_after_unlock(self):
+        # A write lands after the worker's last check for a mark but before
+        # it releases the lock, so that write's own request found the lock
+        # held; the re-check after the release must push it.
         (self.state / "dirty").touch()
-        take = bdw_push._take_dirty
-        empty_takes = []
+        has_mark = bdw_push._has_mark
+        empty_checks = []
 
-        def take_then_write(state):
-            taken = take(state)
-            if not taken and not empty_takes:
-                empty_takes.append(1)
+        def check_then_write(state):
+            found = has_mark(state)
+            if not found and not empty_checks:
+                empty_checks.append(1)
                 (state / "dirty").touch()
-            return taken
+            return found
 
-        with mock.patch.object(bdw_push, "_take_dirty", take_then_write):
+        with mock.patch.object(bdw_push, "_has_mark", check_then_write):
             outcomes = self.run_worker(lambda: "pushed")
         self.assertEqual(outcomes, ["pushed", "pushed"])
         self.assertFalse((self.state / "dirty").exists())
@@ -320,33 +321,32 @@ class WorkerTest(unittest.TestCase):
                         if call[0][1:] == ["config", "get", "no-push"]]
         self.assertEqual(len(config_calls), 1)
 
-    def test_only_the_inflight_lock_is_handed_to_a_push_s_commands(self):
+    def test_the_inflight_fd_reaches_only_bd_dolt_push(self):
         (self.state / "dirty").touch()
-        seen = []
+        seen = {}
 
         def runner(argv, environ, cwd, pass_fds=()):
-            # Checked while the command "runs": the one fd passed is the
-            # inflight lock file, held, and never the coordination lock.
-            (fd,) = pass_fds
-            seen.append(os.fstat(fd).st_ino)
+            seen[" ".join(argv[1:3])] = [os.fstat(fd).st_ino
+                                          for fd in pass_fds]
+            # The worker holds the push-in-flight lock for the whole pass.
             self.assertIsNone(bdw_push._try_lock(self.state, "inflight"))
-            return 0, "false\n", ""
+            return (1, "", "") if argv[0] == "git" else (0, "false\n", "")
 
         outcomes = bdw_push.run_worker(
             self.beads, self.state, "/bin/bd", {}, runner=runner,
             remotes=lambda _: [_PRIVATE])
         self.assertEqual(outcomes, ["pushed"])
         inflight = (self.state / "inflight").stat().st_ino
-        coordination = (self.state / "lock").stat().st_ino
-        self.assertTrue(seen)
-        self.assertEqual(set(seen), {inflight})
-        self.assertNotEqual(inflight, coordination)
-        # Released after the push.
+        self.assertNotEqual(inflight, (self.state / "lock").stat().st_ino)
+        self.assertEqual(seen, {"-C " + str(self.beads.parent): [],
+                                "config get": [],
+                                "dolt push": [inflight]})
+        # Released after the pass.
         handle = bdw_push._try_lock(self.state, "inflight")
         self.assertIsNotNone(handle)
         handle.close()
 
-    def test_a_held_inflight_lock_is_waited_for_then_reported(self):
+    def test_a_held_inflight_lock_keeps_the_mark_and_stops(self):
         (self.state / "dirty").touch()
         runner = FakeRunner()
         with open(self.state / "inflight", "a") as orphan:
@@ -356,9 +356,44 @@ class WorkerTest(unittest.TestCase):
                 remotes=lambda _: [_PRIVATE], inflight_timeout=0.3)
         self.assertEqual(outcomes, ["failed"])
         self.assertEqual(runner.calls, [])
-        self.assertIn("still holds the push lock",
-                      bdw_push.last_failure(self.state)["reason"])
+        self.assertTrue((self.state / "dirty").exists())
+        reason = bdw_push.last_failure(self.state)["reason"]
+        self.assertIn("push-in-flight lock", reason)
+        self.assertIn(str(self.state / "inflight"), reason)
         self.assertEqual(bdw_push.exit_code(outcomes), 1)
+
+    def test_an_unexpected_error_before_the_claim_is_recorded(self):
+        # The push-in-flight lock path cannot be opened (the reviewer's
+        # repro): recorded, the mark kept, the worker stopped.
+        (self.state / "inflight").mkdir()
+        (self.state / "dirty").touch()
+        outcomes = bdw_push.run_worker(
+            self.beads, self.state, "/bin/bd", {}, runner=FakeRunner(),
+            remotes=lambda _: [_PRIVATE])
+        self.assertEqual(outcomes, ["failed"])
+        self.assertTrue((self.state / "dirty").exists())
+        self.assertIn("the push worker failed",
+                      bdw_push.last_failure(self.state)["reason"])
+
+    def test_an_unexpected_error_inside_a_push_is_recorded(self):
+        (self.state / "dirty").touch()
+
+        def explode():
+            raise RuntimeError("boom")
+
+        self.assertEqual(self.run_worker(explode), ["failed"])
+        self.assertEqual(bdw_push.last_failure(self.state)["reason"],
+                         "the push worker failed: boom")
+
+    def test_main_records_an_error_outside_any_pass(self):
+        environ = {"XDG_STATE_HOME": str(self.state.parent / "xdg")}
+        state = bdw_push.state_dir(self.beads, environ)
+        state.mkdir(parents=True)
+        (state / "lock").mkdir()  # the coordination lock cannot be opened
+        with mock.patch.dict(os.environ, environ, clear=True):
+            self.assertEqual(bdw_push.main([str(self.beads), "bd"]), 1)
+        self.assertIn("the push worker failed",
+                      bdw_push.last_failure(state)["reason"])
 
 
 # A bd stand-in whose push leaves a detached (setsid) sleeper behind, as
@@ -418,15 +453,64 @@ class OrphanedDescendantTest(unittest.TestCase):
         handle = bdw_push._try_lock(self.state)
         self.assertIsNotNone(handle)
         handle.close()
-        # ...which, while the orphan lives, waits, then warns...
+        # ...which, while the orphan lives, waits, then warns, keeping the
+        # write...
         self.assertEqual(self.worker(inflight_timeout=0.3), ["failed"])
-        self.assertIn("still holds the push lock",
+        self.assertIn("push-in-flight lock",
                       bdw_push.last_failure(self.state)["reason"])
+        self.assertTrue((self.state / "dirty").exists())
         self.assertEqual(self.pushes(), 1)
         # ...and once the orphan exits within the wait, pushes.
         self.assertEqual(self.worker(inflight_timeout=10), ["pushed"])
         self.assertEqual(self.pushes(), 2)
         self.assertIsNone(bdw_push.last_failure(self.state))
+
+
+class KilledWorkerTest(unittest.TestCase):
+    """A real worker process, SIGKILLed while it waits for a held
+    push-in-flight lock, leaves the write's mark for the next worker."""
+
+    def setUp(self):
+        root = Path(tempfile.mkdtemp()).resolve()
+        self.addCleanup(shutil.rmtree, root, ignore_errors=True)
+        self.beads = root / "ws" / ".beads"
+        dolt = self.beads / "embeddeddolt" / "db" / ".dolt"
+        dolt.mkdir(parents=True)
+        (self.beads / "metadata.json").write_text(
+            json.dumps({"dolt_mode": "embedded", "dolt_database": "db"}))
+        (dolt / "repo_state.json").write_text(
+            json.dumps({"remotes": {"origin": {"url": _PRIVATE}}}))
+        bin_dir = root / "bin"
+        bin_dir.mkdir()
+        self.bd = bin_dir / "bd"
+        self.bd.write_text(_ORPHANING_BD)
+        self.bd.chmod(0o755)
+        git = bin_dir / "git"
+        git.write_text("#!/bin/sh\nexit 1\n")
+        git.chmod(0o755)
+        self.push_log = root / "pushes"
+        self.environ = {"PATH": str(bin_dir), "PUSH_LOG": str(self.push_log),
+                        "SLEEPER_SECONDS": "0",
+                        "XDG_STATE_HOME": str(root / "xdg")}
+        self.state = bdw_push.state_dir(self.beads, self.environ)
+        self.state.mkdir(parents=True)
+
+    def test_a_worker_killed_while_waiting_leaves_the_mark(self):
+        (self.state / "dirty").touch()  # a write
+        with open(self.state / "inflight", "a") as orphan:
+            fcntl.flock(orphan, fcntl.LOCK_EX)  # an earlier push's orphan
+            worker = subprocess.Popen(
+                ["/usr/bin/python3", bdw_push.__file__, str(self.beads),
+                 str(self.bd)], env=self.environ)
+            time.sleep(1)  # the worker is polling the held lock
+            worker.kill()
+            worker.wait()
+        self.assertTrue((self.state / "dirty").exists())
+        self.assertFalse(self.push_log.exists())
+        # The next write's worker pushes the kept write with its own.
+        self.assertEqual(bdw_push.run_worker(
+            self.beads, self.state, str(self.bd), self.environ), ["pushed"])
+        self.assertFalse((self.state / "dirty").exists())
 
 
 class RunCommandTest(unittest.TestCase):
@@ -474,6 +558,23 @@ class RunCommandTest(unittest.TestCase):
             timeout=6)
         self.assertEqual((code, out), (3, "done\n"))
         self.assertLess(time.monotonic() - started, 4)
+
+    def test_a_timeout_keeps_what_the_command_said_first(self):
+        code, _, err = bdw_push.run_command(
+            ["/bin/sh", "-c", "echo 'Host key verification pending' >&2; "
+             "/bin/sleep 30"], {"PATH": "/bin"}, self.root, timeout=1)
+        self.assertEqual(code, 124)
+        self.assertTrue(err.startswith("timed out after 1s\n"), err)
+        self.assertIn("Host key verification pending", err)
+
+    def test_only_the_tail_of_the_output_is_read(self):
+        script = ("/usr/bin/python3 -c \"import sys; "
+                  "sys.stderr.write('x' * 50000 + 'END')\"")
+        code, _, err = bdw_push.run_command(
+            ["/bin/sh", "-c", script], {"PATH": "/bin"}, self.root)
+        self.assertEqual(code, 0)
+        self.assertEqual(len(err), bdw_push.STDERR_TAIL)
+        self.assertTrue(err.endswith("END"))
 
     def test_passed_fds_reach_the_child(self):
         with open(self.root / "lock", "a") as handle:

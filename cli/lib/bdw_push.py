@@ -38,10 +38,12 @@ One push:
   1.3.0 otherwise offers to adopt a remote derived from the git origin. It
   runs in its own process group, killed whole on timeout.
 
-Before a push's first command the worker takes the push-in-flight lock,
-waiting up to PUSH_TIMEOUT, and hands it to every command the push runs;
-descendants that outlive the push keep it, so the next push waits for
-them, and records a failure if they outlast the wait (see run_worker).
+Before each pass the worker takes the push-in-flight lock, waiting up to
+PUSH_TIMEOUT, and only then claims the dirty mark; it hands the lock to
+`bd dolt push` alone, whose descendants keep it if they outlive the push,
+so the next pass waits for them, and records a failure (keeping the mark)
+if they outlast the wait. run_worker's docstring says exactly what is and
+is not guaranteed.
 
 State lives outside the repo, under
 `$XDG_STATE_HOME/agent-tooling/bdw-push/<key>/` (XDG_STATE_HOME defaulting
@@ -71,8 +73,10 @@ from pathlib import Path
 from typing import Callable, Iterable, Mapping, Sequence
 
 PUSH_TIMEOUT = 300
+KILL_WAIT = 10
 LOG_LIMIT = 256 * 1024
 STDERR_TAIL = 2000
+STDOUT_LIMIT = 64 * 1024
 
 # The interpreter the worker runs under: the system one every shebang here
 # pins, since on macOS it is the one Local Network access is granted to (a
@@ -264,7 +268,12 @@ def run_command(argv: Sequence[str], environ: Mapping[str, str],
     process itself: a descendant that left the group (a daemon that called
     setsid) and still holds the child's stdout or stderr then neither keeps
     the worker past `timeout` nor turns a finished command into a
-    timeout."""
+    timeout. Only the tail of each file is read (STDOUT_LIMIT and
+    STDERR_TAIL bytes), and a timeout keeps the stderr tail, since what a
+    push printed before it hung (a host-key prompt, say) is the clue."""
+    # The temporary files are unlinked at once; a detached descendant that
+    # inherited them may go on writing to them after this returns. That
+    # costs disk until it exits and is accepted: nothing reads them later.
     with tempfile.TemporaryFile() as out, tempfile.TemporaryFile() as err:
         try:
             child = subprocess.Popen(
@@ -280,12 +289,20 @@ def run_command(argv: Sequence[str], environ: Mapping[str, str],
                 os.killpg(child.pid, signal.SIGKILL)
             except OSError:
                 pass
-            child.wait()
-            return 124, "", f"timed out after {timeout}s"
-        out.seek(0)
-        err.seek(0)
-        return (code, out.read().decode("utf-8", "replace"),
-                err.read().decode("utf-8", "replace"))
+            try:
+                child.wait(timeout=KILL_WAIT)
+            except subprocess.TimeoutExpired:
+                pass  # unkillable for now; the failure is recorded anyway
+            return (124, "", f"timed out after {timeout}s\n"
+                    + _tail(err, STDERR_TAIL))
+        return code, _tail(out, STDOUT_LIMIT), _tail(err, STDERR_TAIL)
+
+
+def _tail(handle, limit: int) -> str:
+    """The last `limit` bytes written to `handle`, decoded."""
+    size = handle.seek(0, os.SEEK_END)
+    handle.seek(max(0, size - limit))
+    return handle.read(limit).decode("utf-8", "replace")
 
 
 def no_push_configured(bd: str, workspace: Path, environ: Mapping[str, str],
@@ -301,10 +318,13 @@ def push_once(beads_dir: Path, state: Path, bd: str,
               environ: Mapping[str, str], runner: Runner = run_command,
               remotes: Callable[[Path], "list[str] | None"] = dolt_remote_urls,
               no_push: Callable[[], bool] | None = None,
+              push_runner: Runner | None = None,
               ) -> str:
     """Push once; return what happened: 'pushed', 'no-remote', 'opted-out',
     'refused', or 'failed'. `no_push` answers whether bd's no-push is set;
-    run_worker passes one that asks bd once per run."""
+    run_worker passes one that asks bd once per run. `push_runner` (default
+    `runner`) runs `bd dolt push` alone; run_worker's hands that one
+    command the push-in-flight lock."""
     workspace = beads_dir.parent
     environment = dict(environ)
     environment["BD_NO_REMOTE_ADOPT"] = "1"
@@ -334,8 +354,8 @@ def push_once(beads_dir: Path, state: Path, bd: str,
             _record_failure(state, "refused: a Dolt remote names the same "
                             "repository as a git remote of this workspace")
             return "refused"
-    code, _, err = runner([bd, "dolt", "push", "--no-adopt"], environment,
-                          workspace)
+    code, _, err = (push_runner or runner)(
+        [bd, "dolt", "push", "--no-adopt"], environment, workspace)
     if code != 0:
         _record_failure(state, f"bd dolt push exited {code}",
                         err[-STDERR_TAIL:])
@@ -384,12 +404,26 @@ def _wait_for_inflight(state: Path, timeout: float):
         time.sleep(INFLIGHT_POLL)
 
 
-def _take_dirty(state: Path) -> bool:
+def _has_mark(state: Path) -> bool:
+    """Whether a write is waiting to be pushed."""
+    return (state / "dirty").exists()
+
+
+def _claim_mark(state: Path) -> bool:
+    """Claim the waiting write for the push about to start; False when
+    there is none. Called only once the push can start (the push-in-flight
+    lock is held), so a worker killed while it waits leaves the mark for
+    the next worker."""
     try:
         os.unlink(state / "dirty")
     except FileNotFoundError:
         return False
     return True
+
+
+def _finish_claim(state: Path, outcome: str) -> None:
+    """Called once a claimed push has an outcome (recorded, when it
+    failed). Nothing to do while _claim_mark deletes the mark outright."""
 
 
 def run_worker(beads_dir: Path, state: Path, bd: str,
@@ -412,62 +446,101 @@ def run_worker(beads_dir: Path, state: Path, bd: str,
     Two locks, with two jobs. The coordination lock (`lock`) says a worker
     is running; only the worker holds it, never a child, so a killed
     worker frees it at once and the next write starts a new worker. The
-    push-in-flight lock (`inflight`) says a push's commands may still be
-    running: the worker takes it before a push's first command, waiting
-    up to `inflight_timeout`, and hands it to every command the push runs
-    (pass_fds). bd's descendants inherit it too, so a push left running by
-    a killed worker, or a descendant that outlives bd (git's detached
-    gc, a credential daemon), makes the next push wait instead of running
-    beside it; past the wait, the push records a failure, so bdw warns
-    rather than leaving the write silently unpushed."""
-    inflight: list = []
+    push-in-flight lock (`inflight`) says a `bd dolt push` may still be
+    running: the worker takes it, waiting up to `inflight_timeout`, before
+    each pass, holds it for the whole pass, and hands it to `bd dolt push`
+    alone (pass_fds), whose descendants inherit it too. So a push left
+    running by a killed worker, or a descendant that outlives bd (git's
+    detached gc, a credential daemon), makes the next pass wait instead of
+    running beside it.
+
+    What is guaranteed, and what is not:
+    - A pass claims the waiting write (the dirty mark) only after it holds
+      the push-in-flight lock. A worker killed while it waits, or that
+      fails before the claim, leaves the mark, and the next write's worker
+      pushes it with that write. If no write follows, it waits until one
+      does.
+    - When the push-in-flight lock stays held past the wait, the pass
+      records a failure naming the lock, keeps the mark, and the worker
+      stops (bdw then warns on every call).
+    - Any other error inside a pass is recorded as a failure.
+    - Not covered: a worker killed after the claim, mid-push. Its
+      orphaned `bd dolt push` runs on; if that push then fails, nothing
+      records it, and the claimed write is pushed only with the next
+      write."""
+    held: list = []
     opted_out: list[bool] = []
 
-    def locked_runner(argv, environment, cwd):
-        if not inflight:
-            inflight.append(_wait_for_inflight(state, inflight_timeout))
-        fds = (inflight[0].fileno(),)
+    def plain_runner(argv, environment, cwd):
+        if runner is not None:
+            return runner(argv, environment, cwd, pass_fds=())
+        return run_command(argv, environment, cwd)
+
+    def push_runner(argv, environment, cwd):
+        fds = (held[0].fileno(),) if held else ()
         if runner is not None:
             return runner(argv, environment, cwd, pass_fds=fds)
         return run_command(argv, environment, cwd, pass_fds=fds)
-
-    def release_inflight() -> None:
-        while inflight:
-            inflight.pop().close()
 
     def no_push() -> bool:
         if not opted_out:
             environment = dict(environ)
             environment["BD_NO_REMOTE_ADOPT"] = "1"
             opted_out.append(no_push_configured(
-                bd, beads_dir.parent, environment, locked_runner))
+                bd, beads_dir.parent, environment, plain_runner))
         return opted_out[0]
 
     if push is None:
         def push():
+            return push_once(beads_dir, state, bd, environ,
+                             runner=plain_runner, push_runner=push_runner,
+                             remotes=remotes, no_push=no_push)
+
+    def one_pass() -> "tuple[str | None, bool]":
+        """One pass: its outcome (None when nothing was waiting), and
+        whether the worker must stop."""
+        try:
+            inflight = _wait_for_inflight(state, inflight_timeout)
+        except InflightBusy:
+            _record_failure(
+                state, "a previous push still holds the push-in-flight lock "
+                f"{state / INFLIGHT_LOCK} (see lsof)")
+            return "failed", True
+        except Exception as error:  # noqa: BLE001 -- recorded, never lost
+            _record_failure(state, f"the push worker failed: {error}")
+            return "failed", True
+        held[:] = [inflight]
+        try:
+            if not _claim_mark(state):
+                return None, True
             try:
-                return push_once(beads_dir, state, bd, environ,
-                                 runner=locked_runner, remotes=remotes,
-                                 no_push=no_push)
-            except InflightBusy:
-                _record_failure(state, "a previous push's process still "
-                                "holds the push lock")
-                return "failed"
-            finally:
-                release_inflight()
+                outcome = push()
+            except Exception as error:  # noqa: BLE001 -- recorded
+                _record_failure(state, f"the push worker failed: {error}")
+                outcome = "failed"
+            _finish_claim(state, outcome)
+            return outcome, False
+        finally:
+            held[:] = []
+            inflight.close()
+
     outcomes: list[str] = []
     while True:
         handle = _try_lock(state)
         if handle is None:
             return outcomes
         try:
-            while _take_dirty(state):
-                outcomes.append(push())
+            while _has_mark(state):
+                outcome, stop = one_pass()
+                if outcome is not None:
+                    outcomes.append(outcome)
+                if stop:
+                    return outcomes
         finally:
             handle.close()
-        # A write may have set the mark after the last take but before the
-        # release, when its own worker found the lock still held.
-        if not (state / "dirty").exists():
+        # A write may have set the mark after the last check but before the
+        # release, when its own request found the lock still held.
+        if not _has_mark(state):
             return outcomes
 
 
@@ -536,7 +609,11 @@ def main(argv: Iterable[str]) -> int:
     state = state_dir(beads_dir, os.environ)
     if state is None:
         return 0
-    return exit_code(run_worker(beads_dir, state, bd, os.environ))
+    try:
+        return exit_code(run_worker(beads_dir, state, bd, os.environ))
+    except Exception as error:  # noqa: BLE001 -- detached: record, not raise
+        _record_failure(state, f"the push worker failed: {error}")
+        return 1
 
 
 if __name__ == "__main__":
