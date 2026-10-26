@@ -1,9 +1,11 @@
 """Push a Beads database to its Dolt remote, coalesced, for bdw.
 
 bdw calls request_push() after every write that bd ran successfully. That
-records a dirty mark and starts this file as a detached background worker
-(`python3 bdw_push.py <beads-dir> <bd>`), so the write returns at once and
-the push never affects bdw's exit code. The worker:
+records a dirty mark and, unless a worker already holds the lock, starts
+this file as a detached background worker under the system interpreter
+(`/usr/bin/python3 bdw_push.py <beads-dir> <bd>`), so the write returns at
+once and the push never affects bdw's exit code. A state directory or mark
+that cannot be written comes back as a reason bdw warns with. The worker:
 
 1. takes a lock (fcntl.flock, non-blocking); if another worker holds it,
    exits at once, since the holder sees the dirty mark;
@@ -23,21 +25,26 @@ One push:
 - reads the Dolt remotes from the embedded database's repo_state.json
   (`<beads-dir>/embeddeddolt/<dolt_database>/.dolt/repo_state.json`,
   named by metadata.json); with no remote, or a database not in embedded
-  mode, it does nothing;
+  mode, it does nothing; when that state cannot be read, it records a
+  failure;
+- skips, clearing any recorded failure, when bd's effective `no-push` is
+  set (config.yaml, or BD_NO_PUSH, which bd maps to it; asked once per
+  worker run, and read through TRUTHY);
 - refuses when any Dolt remote URL names the same repository as any of the
   workspace's git remotes (see same_repository), so Issue data never goes
   where the code goes;
-- skips when bd's effective `no-push` config is true (config.yaml, or the
-  BD_NO_PUSH environment variable, which bd maps to it);
 - runs `bd dolt push --no-adopt` with BD_NO_REMOTE_ADOPT=1, because bd
-  1.3.0 otherwise offers to adopt a remote derived from the git origin.
+  1.3.0 otherwise offers to adopt a remote derived from the git origin. It
+  runs in its own process group, killed whole on timeout, and holds the
+  worker's lock for its whole life (see run_command).
 
 State lives outside the repo, under
 `$XDG_STATE_HOME/agent-tooling/bdw-push/<key>/` (XDG_STATE_HOME defaulting
-to ~/.local/state; <key> a hash of the Beads directory): `lock`, `dirty`,
-`last-failure.json` (present only while the last push failed), and
-`push.log`. bdw reads last-failure.json to warn on its next call. Without a
-resolvable state directory nothing is pushed.
+to ~/.local/state; <key> a hash of the Beads directory; created mode
+0o700): `lock`, `dirty`, `last-failure.json` (present only while the last
+push failed, written atomically), and `push.log`. bdw reads
+last-failure.json to warn on its next call. Without a resolvable state
+directory nothing is pushed.
 
 Standard library only; Python 3.9.
 """
@@ -50,6 +57,7 @@ import hashlib
 import json
 import os
 import re
+import signal
 import subprocess
 import sys
 import time
@@ -60,7 +68,22 @@ PUSH_TIMEOUT = 300
 LOG_LIMIT = 256 * 1024
 STDERR_TAIL = 2000
 
+# The interpreter the worker runs under: the system one every shebang here
+# pins, since on macOS it is the one Local Network access is granted to (a
+# Homebrew or pyenv interpreter is silently denied it in background
+# sessions), whatever interpreter bdw itself was started with.
+WORKER_PYTHON = "/usr/bin/python3"
+
+# Values that mean "yes" for BD_NO_PUSH and for bd's `no-push` config, as
+# `bd config get` prints them (the raw value, such as `1` or `yes`). bdw's
+# pre-spawn opt-out and the worker's check share this one set.
+TRUTHY = frozenset({"1", "true", "yes", "on"})
+
 Runner = Callable[[Sequence[str], Mapping[str, str], Path], "tuple[int, str, str]"]
+
+
+def is_truthy(value: str | None) -> bool:
+    return (value or "").strip().lower() in TRUTHY
 
 
 # -- state ------------------------------------------------------------------
@@ -105,12 +128,19 @@ def _now() -> str:
 
 
 def _record_failure(state: Path, reason: str, detail: str = "") -> None:
+    """Log a failure and write last-failure.json atomically (a temporary
+    file, then os.replace), so bdw never reads a half-written record."""
     _log(state, f"FAILED: {reason}" + (f"\n{detail}" if detail else ""))
     payload = {"time": _now(), "reason": reason}
+    temporary = state / f"last-failure.json.{os.getpid()}.tmp"
     try:
-        (state / "last-failure.json").write_text(json.dumps(payload) + "\n")
+        temporary.write_text(json.dumps(payload) + "\n")
+        os.replace(temporary, state / "last-failure.json")
     except OSError:
-        pass
+        try:
+            os.unlink(temporary)
+        except OSError:
+            pass
 
 
 def _clear_failure(state: Path) -> None:
@@ -124,8 +154,9 @@ def _clear_failure(state: Path) -> None:
 
 def dolt_remote_urls(beads_dir: Path) -> list[str] | None:
     """The Dolt remote URLs of the workspace's embedded database; [] when
-    there are none; None when the database is not embedded or its state
-    cannot be read (nothing to push to that bdw knows of)."""
+    it has none, or when the database is not in embedded mode (bdw pushes
+    only embedded databases); None when its metadata or Dolt state cannot
+    be read, which is a failure, not an absence of remotes."""
     try:
         metadata = json.loads((beads_dir / "metadata.json").read_text())
     except (OSError, ValueError):
@@ -133,7 +164,7 @@ def dolt_remote_urls(beads_dir: Path) -> list[str] | None:
     if not isinstance(metadata, dict):
         return None
     if metadata.get("dolt_mode", "embedded") != "embedded":
-        return None
+        return []
     database = metadata.get("dolt_database")
     if not isinstance(database, str) or not database or "/" in database:
         return None
@@ -211,34 +242,70 @@ def git_remote_urls(workspace: Path, environ: Mapping[str, str],
 # -- one push ---------------------------------------------------------------
 
 def run_command(argv: Sequence[str], environ: Mapping[str, str],
-                cwd: Path) -> tuple[int, str, str]:
+                cwd: Path, timeout: float = PUSH_TIMEOUT,
+                pass_fds: Sequence[int] = ()) -> tuple[int, str, str]:
+    """Run a command in its own process group; on timeout, kill the whole
+    group, so no grandchild (Dolt's git or ssh) outlives it. `pass_fds`
+    hands the worker's lock to the child, so the lock stays held for as
+    long as the child or anything it started is alive, even if the worker
+    itself is killed."""
     try:
-        result = subprocess.run(
+        child = subprocess.Popen(
             list(argv), env=dict(environ), cwd=str(cwd),
             stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE, timeout=PUSH_TIMEOUT)
-    except subprocess.TimeoutExpired:
-        return 124, "", f"timed out after {PUSH_TIMEOUT}s"
+            stderr=subprocess.PIPE, start_new_session=True,
+            pass_fds=tuple(pass_fds))
     except OSError as error:
         return 127, "", str(error)
-    return (result.returncode,
-            result.stdout.decode("utf-8", "replace"),
-            result.stderr.decode("utf-8", "replace"))
+    try:
+        out, err = child.communicate(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        try:
+            os.killpg(child.pid, signal.SIGKILL)
+        except OSError:
+            pass
+        child.communicate()
+        return 124, "", f"timed out after {timeout}s"
+    return (child.returncode, out.decode("utf-8", "replace"),
+            err.decode("utf-8", "replace"))
+
+
+def no_push_configured(bd: str, workspace: Path, environ: Mapping[str, str],
+                       runner: Runner) -> bool:
+    """Whether bd's effective `no-push` is set: config.yaml, or BD_NO_PUSH,
+    which bd maps to it."""
+    code, out, _ = runner([bd, "config", "get", "no-push"], environ,
+                          workspace)
+    return code == 0 and is_truthy(out)
 
 
 def push_once(beads_dir: Path, state: Path, bd: str,
               environ: Mapping[str, str], runner: Runner = run_command,
               remotes: Callable[[Path], "list[str] | None"] = dolt_remote_urls,
+              no_push: Callable[[], bool] | None = None,
               ) -> str:
     """Push once; return what happened: 'pushed', 'no-remote', 'opted-out',
-    'refused', or 'failed'."""
+    'refused', or 'failed'. `no_push` answers whether bd's no-push is set;
+    run_worker passes one that asks bd once per run."""
     workspace = beads_dir.parent
+    environment = dict(environ)
+    environment["BD_NO_REMOTE_ADOPT"] = "1"
     dolt_urls = remotes(beads_dir)
+    if dolt_urls is None:
+        _record_failure(state, "cannot read this database's Dolt remotes "
+                        "(metadata.json or Dolt's repo_state.json)")
+        return "failed"
     if not dolt_urls:
         _clear_failure(state)
         return "no-remote"
-    environment = dict(environ)
-    environment["BD_NO_REMOTE_ADOPT"] = "1"
+    if no_push is None:
+        def no_push():
+            return no_push_configured(bd, workspace, environment, runner)
+    if no_push():
+        # An opted-out push clears any old failure, so bdw stops warning.
+        _clear_failure(state)
+        _log(state, "skipped: no-push is set")
+        return "opted-out"
     git_urls = git_remote_urls(workspace, environment, runner)
     if git_urls is None:
         _record_failure(state, "refused: cannot read the workspace's git "
@@ -249,11 +316,6 @@ def push_once(beads_dir: Path, state: Path, bd: str,
             _record_failure(state, "refused: a Dolt remote names the same "
                             "repository as a git remote of this workspace")
             return "refused"
-    code, out, _ = runner([bd, "config", "get", "no-push"], environment,
-                          workspace)
-    if code == 0 and out.strip().lower() == "true":
-        _log(state, "skipped: no-push is set")
-        return "opted-out"
     code, _, err = runner([bd, "dolt", "push", "--no-adopt"], environment,
                           workspace)
     if code != 0:
@@ -289,25 +351,54 @@ def _take_dirty(state: Path) -> bool:
 
 def run_worker(beads_dir: Path, state: Path, bd: str,
                environ: Mapping[str, str],
-               push: Callable[[], str] | None = None) -> list[str]:
+               push: Callable[[], str] | None = None,
+               runner: Runner | None = None,
+               remotes: Callable[[Path], "list[str] | None"] = dolt_remote_urls,
+               ) -> list[str]:
     """Push until the dirty mark stays clear; return each push's outcome.
     Returns [] at once when another worker holds the lock.
 
     There is no cap on passes: the worker loops only while writes keep
     setting the mark, and a cap would have to clear a mark without pushing,
-    stranding the last writes of a busy session until the next write."""
+    stranding the last writes of a busy session until the next write.
+
+    bd's `no-push` is asked once per run, at the first push that has a
+    remote to go to. Every command a push runs inherits the lock (see
+    run_command), so a worker killed mid-push cannot let a second push
+    start beside the orphaned one."""
+    lock: list = []
+    opted_out: list[bool] = []
+
+    def locked_runner(argv, environment, cwd):
+        fds = (lock[0].fileno(),) if lock else ()
+        if runner is not None:
+            return runner(argv, environment, cwd)
+        return run_command(argv, environment, cwd, pass_fds=fds)
+
+    def no_push() -> bool:
+        if not opted_out:
+            environment = dict(environ)
+            environment["BD_NO_REMOTE_ADOPT"] = "1"
+            opted_out.append(no_push_configured(
+                bd, beads_dir.parent, environment, locked_runner))
+        return opted_out[0]
+
     if push is None:
         def push():
-            return push_once(beads_dir, state, bd, environ)
+            return push_once(beads_dir, state, bd, environ,
+                             runner=locked_runner, remotes=remotes,
+                             no_push=no_push)
     outcomes: list[str] = []
     while True:
         handle = _try_lock(state)
         if handle is None:
             return outcomes
+        lock[:] = [handle]
         try:
             while _take_dirty(state):
                 outcomes.append(push())
         finally:
+            lock[:] = []
             handle.close()
         # A write may have set the mark after the last take but before the
         # release, when its own worker found the lock still held.
@@ -331,24 +422,33 @@ def exit_code(outcomes: Sequence[str]) -> int:
 
 def request_push(beads_dir: Path, bd: str, environ: Mapping[str, str],
                  spawn: Callable[[Sequence[str], Mapping[str, str]], None]
-                 | None = None) -> Path | None:
-    """Mark the database dirty and start a detached worker. Returns the
-    state directory, or None when there is none (nothing is pushed)."""
+                 | None = None) -> str | None:
+    """Mark the database dirty and start a detached worker, unless a worker
+    already holds the lock (it sees the mark, before or after its release).
+    Returns None when the push was requested, or when there is no state
+    directory to request it in (neither XDG_STATE_HOME nor HOME set);
+    otherwise a one-line reason the push could not be requested, for bdw to
+    warn with."""
     state = state_dir(beads_dir, environ)
     if state is None:
         return None
     try:
-        state.mkdir(parents=True, exist_ok=True)
+        state.mkdir(parents=True, exist_ok=True, mode=0o700)
         (state / "dirty").touch()
-    except OSError:
+        handle = _try_lock(state)
+    except OSError as error:
+        return (f"cannot request a push: state directory {state} is not "
+                f"writable ({error.strerror or error})")
+    if handle is None:
         return None
-    argv = [sys.executable, str(Path(__file__).resolve()),
-            str(beads_dir), bd]
+    handle.close()
+    argv = [WORKER_PYTHON, str(Path(__file__).resolve()), str(beads_dir), bd]
     try:
         (spawn or _spawn_detached)(argv, environ)
     except OSError as error:
         _record_failure(state, f"cannot start the push worker: {error}")
-    return state
+        return f"cannot start the push worker: {error}"
+    return None
 
 
 def _spawn_detached(argv: Sequence[str], environ: Mapping[str, str]) -> None:
