@@ -5,8 +5,9 @@ is the operating manual; this file holds only this repo's conventions.
 
 - **Issue Tracker.** Beads is this repo's only Issue Tracker (see
   `docs/projects/beads-trial/index.md`; why GitHub Issues takes no work is
-  in `CLAUDE.md`). The database is local to the maintainer's machine and
-  syncs nowhere yet.
+  in `CLAUDE.md`). The database is local to the maintainer's machine, and
+  `bdw` pushes it after every write to a private Dolt remote; never push it
+  by hand.
 - **Labels.** Area labels in use: `area:dev-x`, `area:installer`,
   `area:skills`, `area:wrappers`. Issues imported from GitHub also carry
   their old type labels (`bug`, `debt`, `feature`, `improvement`, `meta`);

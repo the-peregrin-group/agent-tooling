@@ -20,23 +20,26 @@ Beads tracks agent-swarmed work).
 - **No sync, in either direction.** Any cross-repo view of Issues is
   read-only aggregation on top of each repo's Issue Tracker. None is
   built.
-- **Issue data stays private.** The database has no remote today. The one
-  remote it will get is a private repository on the maintainer's
-  self-hosted Forgejo, never the public GitHub origin (see
+- **Issue data stays private.** The database's one remote is a private
+  repository on the maintainer's self-hosted Forgejo, never the public
+  GitHub origin (see
   [ADR 0012](../../adr/0012-beads-data-syncs-to-private-forgejo-remote.md),
   Beads data syncs to a private Forgejo remote).
 
 ## The shape, and why
 
-- **Local-only, no Dolt remote, for now.** A Beads push never passes
-  through git (see [known behavior](index.md#beads-130-known-behavior)):
-  neither git's pre-push hooks nor any gitw Verb sees it. This repo's
-  pushes pass a pre-push content lint, and Issue content pushed through
-  Dolt to the public origin would escape it. The database therefore stays
-  on the maintainer's machine until its private remote lands
-  (`agent-tooling-cy3`), which keeps Issue content off any public host so
-  that it needs no lint path. Backups go to a local directory outside the
-  repo, and `backup.git-push: false` is pinned in the tracked config.
+- **A private Dolt remote, configured outside tracked config.** A Beads
+  push never passes through git (see
+  [known behavior](index.md#beads-130-known-behavior)): neither git's
+  pre-push hooks nor any gitw Verb sees it. This repo's pushes pass a
+  pre-push content lint, and Issue content pushed through Dolt to the
+  public origin would escape it. The remote is therefore a private Forgejo
+  repository, which keeps Issue content off any public host so that it
+  needs no lint path. Its address lives only in Dolt's own remote state, not
+  in the tracked `config.yaml`, because this repo is public. `bdw` carries
+  the push (see [`bdw`](../bdw/index.md)): after every write, and only to a
+  host on its push-host allowlist. Backups go to a local directory outside
+  the repo, and `backup.git-push: false` is pinned in the tracked config.
 - **Tracked config, not a stealth init.** The three config files under
   `.beads/` are committed, beside the repo's `PRIME.md`: worktrees and
   fresh clones need the Issue prefix, and removing the trial is the
