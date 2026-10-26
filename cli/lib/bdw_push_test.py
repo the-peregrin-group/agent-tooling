@@ -607,7 +607,7 @@ class RequestPushTest(unittest.TestCase):
         state = self.state()
         self.assertTrue((state / "dirty").exists())
         self.assertTrue(str(state).startswith(
-            str(self.root / "s" / "agent-tooling" / "bdw-push")))
+            str(self.root / "s" / "agent-tooling" / "bdw" / "push")))
         (argv,) = spawned
         self.assertEqual(argv[0], "/usr/bin/python3")
         self.assertTrue(argv[1].endswith("bdw_push.py"))
@@ -618,12 +618,14 @@ class RequestPushTest(unittest.TestCase):
                               spawn=lambda *_: None)
         self.assertEqual(self.state().stat().st_mode & 0o777, 0o700)
 
-    def test_an_existing_state_directory_is_tightened(self):
+    def test_an_existing_state_directory_keeps_its_mode(self):
+        # ADR 0015 (three places for machine-specific files): tightening a
+        # directory that already exists is the user's call.
         self.state().mkdir(parents=True)
         os.chmod(self.state(), 0o755)
         bdw_push.request_push(self.beads, "bd", self.environ,
                               spawn=lambda *_: None)
-        self.assertEqual(self.state().stat().st_mode & 0o777, 0o700)
+        self.assertEqual(self.state().stat().st_mode & 0o777, 0o755)
 
     def test_a_lock_error_is_reported_as_one(self):
         def no_locks(*_):
@@ -650,8 +652,10 @@ class RequestPushTest(unittest.TestCase):
 
     def test_home_fallback_and_no_state_dir(self):
         state = bdw_push.state_dir(self.beads, {"HOME": "/h"})
-        self.assertEqual(state.parent, Path("/h/.local/state/agent-tooling/"
-                                            "bdw-push"))
+        self.assertEqual(state.parent,
+                         Path("/h/.local/state/agent-tooling/bdw/push"))
+        self.assertIsNone(bdw_push.state_dir(
+            self.beads, {"XDG_STATE_HOME": "relative", "HOME": "relative"}))
         self.assertIsNone(bdw_push.request_push(
             self.beads, "bd", {}, spawn=lambda *_: None))
 

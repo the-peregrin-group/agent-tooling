@@ -45,13 +45,16 @@ so the next pass waits for them, and records a failure (keeping the mark)
 if they outlast the wait. run_worker's docstring says exactly what is and
 is not guaranteed.
 
-State lives outside the repo, under
-`$XDG_STATE_HOME/agent-tooling/bdw-push/<key>/` (XDG_STATE_HOME defaulting
-to ~/.local/state; <key> a hash of the Beads directory; mode 0o700): the
-two locks `lock` and `inflight`, `dirty`, `last-failure.json` (present
-only while the last push failed, written atomically), and `push.log`. bdw reads
+State is Machine State (docs/adr/0015-three-roots-for-machine-specific-
+files.md), in `push/<key>/` under bdw's subdirectory of the Machine State
+Directory, `${XDG_STATE_HOME:-~/.local/state}/agent-tooling/bdw/`, as
+lib.paths resolves it (<key> a hash of the Beads directory; missing
+directories are created 0700 by lib.paths.ensure_private_dir, and an
+existing one keeps its mode, as ADR 0015 decides): the two locks `lock`
+and `inflight`, `dirty`, `last-failure.json` (present only while the last
+push failed, written atomically), and `push.log`. bdw reads
 last-failure.json to warn on its next call. Without a resolvable state
-directory nothing is pushed.
+root nothing is pushed.
 
 Standard library only; Python 3.9.
 """
@@ -71,6 +74,11 @@ import tempfile
 import time
 from pathlib import Path
 from typing import Callable, Iterable, Mapping, Sequence
+
+if __package__ in (None, ""):
+    # Run as a script (the push worker): make `lib` importable, as bdw does.
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from lib import paths  # noqa: E402
 
 PUSH_TIMEOUT = 300
 KILL_WAIT = 10
@@ -102,18 +110,15 @@ def is_truthy(value: str | None) -> bool:
 # -- state ------------------------------------------------------------------
 
 def state_dir(beads_dir: Path, environ: Mapping[str, str]) -> Path | None:
-    """The per-database state directory, or None when neither
-    XDG_STATE_HOME nor HOME is set."""
-    base = environ.get("XDG_STATE_HOME")
-    if base:
-        root = Path(base)
-    elif environ.get("HOME"):
-        root = Path(environ["HOME"]) / ".local" / "state"
-    else:
+    """The per-database push state directory, `push/<key>/` in bdw's
+    subdirectory of the Machine State Directory (lib.paths), `<key>` a hash
+    of the Beads directory; None when lib.paths finds no state root."""
+    tool = paths.state_dir("bdw", environ)
+    if tool is None:
         return None
     key = hashlib.sha256(
         str(beads_dir.resolve()).encode("utf-8")).hexdigest()[:16]
-    return root / "agent-tooling" / "bdw-push" / key
+    return tool / "push" / key
 
 
 def last_failure(state: Path) -> dict | None:
@@ -564,15 +569,14 @@ def request_push(beads_dir: Path, bd: str, environ: Mapping[str, str],
     """Mark the database dirty and start a detached worker, unless a worker
     already holds the lock (it sees the mark, before or after its release).
     Returns None when the push was requested, or when there is no state
-    directory to request it in (neither XDG_STATE_HOME nor HOME set);
+    directory to request it in (lib.paths finds no state root);
     otherwise a one-line reason the push could not be requested, for bdw to
     warn with."""
     state = state_dir(beads_dir, environ)
     if state is None:
         return None
     try:
-        state.mkdir(parents=True, exist_ok=True, mode=0o700)
-        os.chmod(state, 0o700)  # an existing directory is tightened too
+        paths.ensure_private_dir(state, paths.state_root(environ))
         (state / "dirty").touch()
     except OSError as error:
         return (f"cannot request a push: state directory {state} is not "

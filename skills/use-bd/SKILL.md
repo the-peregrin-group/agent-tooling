@@ -53,7 +53,10 @@ Where the database has a Dolt remote, `bdw` pushes to it in the
 background after every write; you never push. If a call prints any
 `bdw: warning:` line about the push, your call itself worked: carry on,
 and tell the user once, in your report, with the reason the line gives.
-Do not try to push by hand.
+Do not try to push by hand. The push's record and log live in `bdw`'s
+subdirectory of the Machine State Directory
+(`~/.local/state/agent-tooling/bdw/push/` by default), and the warning
+names the log.
 
 The repo's own conventions are in `.beads/PRIME.md`, which `bdw prime`
 prints. Read this skill's `quirks.md` when bd surprises you, and

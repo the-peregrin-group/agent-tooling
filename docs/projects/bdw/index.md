@@ -166,13 +166,17 @@ What one call does:
      `bd dolt push` runs on, and if it then fails nothing records it; the
      claimed write is pushed only with the next write.
 
-   Its state lives outside the repo, in
-   `$XDG_STATE_HOME/agent-tooling/bdw-push/<key>/` (`XDG_STATE_HOME`
-   defaulting to `~/.local/state`, `<key>` a hash of the Beads
-   directory, kept at mode `0700`): the two locks, the dirty mark,
-   `last-failure.json` while the last push failed (replaced atomically),
-   and `push.log`. With neither `XDG_STATE_HOME` nor `HOME` set, nothing
-   is pushed.
+   Its state is Machine State, in `push/<key>/` under `bdw`'s
+   subdirectory of the Machine State Directory
+   (`${XDG_STATE_HOME:-~/.local/state}/agent-tooling/bdw/push/<key>/`,
+   resolved through `cli/lib/paths.py`; see the
+   [Path layout](../../index.md#path-layout)). `<key>` is a hash of the
+   Beads directory, so each database has its own. Missing directories are
+   created with mode `0700`; one that already exists keeps its mode. It
+   holds the two locks, the dirty mark, `last-failure.json` while the
+   last push failed (replaced atomically), and `push.log`. When no state
+   root resolves (no usable `XDG_STATE_HOME` or `HOME`), nothing is
+   pushed.
 
 `bdw` follows the [Exit-code contract](../../index.md#exit-code-contract)
 (why: [ADR 0013 (one exit-code contract for all agent-tooling software)](../../adr/0013-one-exit-code-contract-for-all-agent-tooling.md)).

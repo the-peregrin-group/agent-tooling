@@ -141,7 +141,7 @@ class BdwTest(unittest.TestCase):
         self.addCleanup(self.settle_workers)
 
     def settle_workers(self) -> None:
-        if (self.state_home / "agent-tooling" / "bdw-push").is_dir():
+        if (self.state_home / "agent-tooling" / "bdw" / "push").is_dir():
             self.wait_for_worker()
 
     def install_fake_bd(self, script: str = _FAKE_BD) -> None:
@@ -604,7 +604,7 @@ class BdwTest(unittest.TestCase):
         return {"USER": "dan"}
 
     def state(self) -> Path:
-        (state,) = (self.state_home / "agent-tooling" / "bdw-push").iterdir()
+        (state,) = (self.state_home / "agent-tooling" / "bdw" / "push").iterdir()
         return state
 
     def wait_for_worker(self) -> None:
@@ -612,7 +612,7 @@ class BdwTest(unittest.TestCase):
         mark gone and the lock free."""
         deadline = time.monotonic() + 20
         while time.monotonic() < deadline:
-            state_root = self.state_home / "agent-tooling" / "bdw-push"
+            state_root = self.state_home / "agent-tooling" / "bdw" / "push"
             states = list(state_root.iterdir()) if state_root.exists() else []
             if states and not (states[0] / "dirty").exists():
                 with open(states[0] / "lock", "a") as handle:
