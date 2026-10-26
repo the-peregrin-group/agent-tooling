@@ -292,6 +292,3 @@ its commits carry one identity.
   edit it, or point `XDG_CONFIG_HOME` elsewhere for its own calls, until
   deny rules cover the Machine Config and Machine State Directories
   (`agent-tooling-fpkl.7`).
-
-- A push started from a background session on macOS has not yet been
-  verified against a remote on the local network (`agent-tooling-cy3`).
