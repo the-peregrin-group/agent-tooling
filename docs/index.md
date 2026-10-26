@@ -155,3 +155,35 @@ positional and an unrecognized flag (the shared case for the `gitw-*`,
 `tooling-install`'s cases are in `cli/lib/install_test.py`). `bdw` is outside it by design: it passes its
 arguments to `bd`, whose own parser owns the refusal. The `triage-*`
 reference wrappers have not been audited against it.
+
+## Path layout
+
+agent-tooling's machine-specific files live in three roots, one per kind
+of file, each with one subdirectory per tool under a single product name.
+Why three, and the layouts rejected, is
+[ADR 0015 (three roots for machine-specific files)](adr/0015-three-roots-for-machine-specific-files.md).
+
+| Root | Where | Holds |
+|---|---|---|
+| config | `${XDG_CONFIG_HOME:-~/.config}/agent-tooling/<tool>/` | small, hand-maintained files, some secret: a roster, a token, an allowlist |
+| state | `${XDG_STATE_HOME:-~/.local/state}/agent-tooling/<tool>/` | machine-generated, churning files, safe to delete: a lock, a failure record, a log |
+| Install Targets | `~/.local/libexec/agent-tooling/`, `~/.claude/skills/`, `~/.claude/agents/` | installed tooling, written only by the Installer ([installer](projects/installer/index.md)) |
+
+Code finds the config and state directories through `cli/lib/paths.py`
+and no other way: `config_dir(tool, environ)` and `state_dir(tool,
+environ)` resolve a tool's directory from the environment mapping the
+caller passes, and `ensure_private_dir(path)` creates it with mode 0700.
+An unset, empty, or relative XDG variable falls back to its default under
+`HOME`, as the XDG Base Directory spec directs; with no usable `HOME`
+either, the resolvers return None and the caller decides whether that
+means skip or fail. The module docstring has the details.
+
+Staging directories (`/tmp/claude/`, a background job's `tmp/`) are
+scratch space for message and body files, not machine-specific files, and
+sit outside the layout (`cli/lib/staging.py`).
+
+Files that predate the layout move onto it under their own Issues: gitw's
+roster (`agent-tooling-fpkl.5`) and fjw's config
+(`agent-tooling-fpkl.6`) are still read from `~/.config/gitw/` and
+`~/.config/fjw/`, and triage-issues' guard marker and lock have yet to
+get a state directory (`agent-tooling-fpkl.9`).
