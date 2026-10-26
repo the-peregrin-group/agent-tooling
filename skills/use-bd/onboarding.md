@@ -79,8 +79,9 @@ them.
      in `~/.config/agent-tooling/bdw/config.toml` (or under
      `$XDG_CONFIG_HOME`): `push_hosts = ["<host>"]`, the host alone, with
      no scheme, user, port, or path. Until it does, every push is refused
-     and `bdw` warns. The format is in the
-     [bdw project doc](../../docs/projects/bdw/index.md).
+     and `bdw` warns; the warning clears once a push `bdw` runs succeeds
+     (the next write starts one), not after a `bd dolt push` by hand. The
+     format is in the [bdw project doc](../../docs/projects/bdw/index.md).
   4. Push once by hand (`bd dolt push --no-adopt`) to confirm access.
 
 - [ ] Move the backup out of the repo. Init enables auto-backup when a

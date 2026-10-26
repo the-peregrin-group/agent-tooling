@@ -165,7 +165,10 @@ What one call does:
    and hands it to `bd dolt push` alone, whose descendants inherit it. A
    push left running by a killed worker, or a descendant that outlives bd
    (git's detached gc, a credential daemon), therefore makes the next
-   pass wait instead of running beside it.
+   pass wait instead of running beside it. A long-lived one, such as a
+   git credential-cache daemon should a push start one (an ssh remote
+   does not), would hold the lock for its whole life, so each pass then
+   waits out the push timeout and records a failure naming the lock.
 
    What this guarantees: once a write's marker exists, its push either
    completes or leaves a recorded failure, which the warning above then
@@ -219,10 +222,14 @@ push_hosts = ["git.example.org"]
   itself, since the system Python 3.9 has no `tomllib`: the one key
   `push_hosts`, an array of quoted host names on one line or several (a
   trailing comma is fine), and `#` comments. Anything else in the file
-  makes it malformed. It is valid TOML, so a later `tomllib` reads it
-  unchanged.
-- **An entry is a host**, compared without case: no scheme, user, port,
-  or path. The list answers which machine may hold the Issue data, and one
+  makes it malformed, a padded entry (`" host"`) included. A file it
+  accepts is valid TOML, from which `tomllib` reads the same hosts.
+- **An entry is a host**, an ASCII DNS name compared without case: no
+  scheme, user, port, path, empty label, or label that starts or ends
+  with a hyphen. A Dolt remote's host is read the way git reads it, and a
+  URL whose host could be read two ways (a `#` or `?` before the path,
+  more than one `@`, a backslash, a non-ASCII host) counts as having no
+  host. The list answers which machine may hold the Issue data, and one
   server answers on several ports (ssh on 22 or another, https on 443),
   so listing ports would break the list on a change of transport without
   keeping anything out.
@@ -234,6 +241,9 @@ push_hosts = ["git.example.org"]
   or host; `bd dolt remote list` shows the remotes.
 - **Writing it is a person's act**, once per machine, after the Dolt
   remote is added (use-bd's onboarding checklist has the order).
+- **The warning clears** when a push that `bdw` runs succeeds, which the
+  next write (or the next call, while a push is owed) starts. A push run
+  by hand, `bd dolt push`, does not clear it.
 
 `bdw` follows the [Exit-code contract](../../index.md#exit-code-contract)
 (why: [ADR 0013 (one exit-code contract for all agent-tooling software)](../../adr/0013-one-exit-code-contract-for-all-agent-tooling.md)).
@@ -262,7 +272,7 @@ its commits carry one identity.
 | `bd` run as a child process, arguments unchanged, output and termination signals relayed | shipped | `bdw` |
 | The use-bd help line on every help output, usage error, and refusal | shipped | `bdw` |
 | Exit codes per the [Exit-code contract](../../index.md#exit-code-contract) | shipped | `bdw` |
-| Coalesced background push to the Dolt remote after writes, restarted by any later call when owed, with the failure warning | shipped | `bdw`; `cli/lib/bdw_push.py` |
+| Coalesced background push to the Dolt remote after writes, restarted by any later call when owed, with the failure warning | shipped | `bdw`; `cli/lib/bdw_push.py`, `cli/lib/bdw_push_state.py` |
 | Fail-closed push-host allowlist in the Machine Config Directory, plus refusal of a Dolt remote on the code's own repository | shipped | `cli/lib/bdw_push.py`; [the push-host allowlist](#the-push-host-allowlist) |
 
 ### Known gaps
@@ -277,6 +287,11 @@ its commits carry one identity.
 - `bdw` still passes bd's exit code through and exits its own codes in
   the earlier seven-code taxonomy, not the six-code Exit-code contract
   (`agent-tooling-cjvo.4`).
+
+- No Permission rule yet protects the push-host allowlist: an agent can
+  edit it, or point `XDG_CONFIG_HOME` elsewhere for its own calls, until
+  deny rules cover the Machine Config and Machine State Directories
+  (`agent-tooling-fpkl.7`).
 
 - A push started from a background session on macOS has not yet been
   verified against a remote on the local network (`agent-tooling-cy3`).
