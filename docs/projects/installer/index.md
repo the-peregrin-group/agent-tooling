@@ -29,4 +29,6 @@ that agent tooling runs only from installed copies, is
 
 ### Known gaps
 
-None.
+- `tooling-install` still exits its own codes (`diff` exits 1 on drift,
+  refusals exit 4), not the six-code Exit-code contract
+  (`agent-tooling-cjvo.5`).

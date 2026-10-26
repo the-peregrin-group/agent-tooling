@@ -36,7 +36,7 @@ How and why it works: [design.md](design.md).
 | Repo tracking bootstrap: labels, board, backlog import | shipped | `setup-github-issues` |
 | Backlog triage and grooming, with autonomous writes through dedicated wrappers | shipped | `triage-issues`, `triage-*` |
 | Scheduled unattended triage via a guard-script background job | shipped | [DEPLOYMENT.md](../../../skills/triage-issues/reference/DEPLOYMENT.md) |
-| The full Exit-code contract: `gh` failures classified into 3, 5, and 6; policy refusals past parse time exit 4 | shipped | [Exit-code contract](../../index.md#exit-code-contract); `lib/github/gh.py`, each Verb |
+| Exit codes per the [Exit-code contract](../../index.md#exit-code-contract), with `gh` and API failures classified in one place | shipped | `lib/github/gh.py`, each Verb |
 | `triage-*` wrappers rebased onto the shared library | planned | [triage-library-rebase.md](triage-library-rebase.md); `agent-tooling-t7y` |
 
 ### Known gaps
@@ -55,3 +55,7 @@ How and why it works: [design.md](design.md).
   (`agent-tooling-2ul`).
 - The six `triage-*` reference scripts run the first `python3` on PATH
   rather than the system interpreter the Wrappers pin (`agent-tooling-15u`).
+- The `ghw-*` Verbs still exit the earlier seven-code taxonomy, not the
+  six-code Exit-code contract (`agent-tooling-cjvo.2`).
+- The six `triage-*` reference scripts exit `0`, `1`, and `2` only, not
+  the six-code Exit-code contract (`agent-tooling-cjvo.7`).

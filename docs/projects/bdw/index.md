@@ -28,7 +28,7 @@ bd's grammar.
 
 What one call does:
 
-1. Refuse, with exit 4:
+1. Refuse:
    - any argument equal to `--actor` or starting with `--actor=`, wherever
      it appears, including after `--`, because bd's own flag would
      override the environment;
@@ -41,20 +41,20 @@ What one call does:
    - a first argument that is a flag, other than `help`, `--help`, `-h`,
      `version`, `--version`, `-V`: the verb comes first.
 2. Find the first `bd` on PATH. If there is none, or it resolves (by
-   realpath) to `bdw` itself, exit 3; the search does not continue past
+   realpath) to `bdw` itself, exit 1; the search does not continue past
    it.
 3. Unless the call is a help call (no arguments, or a first argument of
    `help`, `--help`, or `-h`) or a version call, probe bd twice, each a
    child run with its output captured:
    - `bd where --json` must name a Beads directory holding
-     `metadata.json`; otherwise exit 5. bd 1.3.0 falls back silently to an
+     `metadata.json`; otherwise exit 1. bd 1.3.0 falls back silently to an
      empty database when that file is missing, so this refusal keeps
      writes from going to the wrong database. bd's own discovery
      (worktrees, redirects, and a caller-set `BEADS_DIR`) decides which
      directory counts; see Known gaps.
    - `bd version --json` must name a version in `VERIFIED_BD_VERSIONS`
      (`1.3.0` today). On any other version, or one it cannot read, a
-     write exits 5 and a read runs after a warning on stderr. A read is
+     write is refused and a read runs after a warning on stderr. A read is
      one of the verbs `blocked`, `children`, `context`, `count`, `diff`,
      `find-duplicates`, `graph`, `history`, `info`, `lint`, `list`,
      `prime`, `query`, `ready`, `schema`, `search`, `show`, `stale`,
@@ -83,26 +83,29 @@ What one call does:
    override whatever the caller supplied. Arguments pass unchanged; stdin
    and stdout are bd's own, and bd's stderr is relayed line by line as it
    arrives, so `bdw` can read it. If `bdw`'s own stderr closes (a caller
-   that stops reading it), `bdw` keeps draining bd's and still returns
-   bd's exit code. `SIGTERM`, `SIGHUP`, and `SIGQUIT`
+   that stops reading it), `bdw` keeps draining bd's and still waits for
+   bd's exit. `SIGTERM`, `SIGHUP`, and `SIGQUIT`
    sent to `bdw` are forwarded to bd, and `bdw` keeps waiting for bd to
    exit; `SIGINT` is not forwarded, since a terminal delivers it to bd as
-   well. If bd cannot be started, exit 1; otherwise the exit code is bd's
-   own (128 + N when signal N ends it).
+   well. If bd cannot be started, exit 1; otherwise bd's exit is
+   translated into the contract (below).
 6. Print `Agents, load /use-bd immediately.` on stderr after a help call,
    after any call whose arguments before a `--` include `--help` or `-h`,
    after bd reports a usage error (a stderr line starting with cobra's
    usage-error messages, such as `Error: unknown command`,
    `Error: unknown flag:`, or `Run 'bd --help' for usage.`), and after
-   every failure of its own (exits 1, 3, 4, and 5).
+   every failure of its own.
 
-These are bdw's codes under the
-[Exit-code contract](../../index.md#exit-code-contract): its own codes
-are 1, 3, 4, and 5; any other code is bd's. The argument refusals in
-step 1 exit 4, a caller bug to fix in the call. The step 3 refusals
-exit 5, a configuration problem: a missing workspace config or an
-unverified bd version cannot be fixed by changing the call, so the
-caller stops and flags the deployment.
+`bdw` follows the [Exit-code contract](../../index.md#exit-code-contract)
+(why: [ADR 0013 (one exit-code contract for all agent-tooling software)](../../adr/0013-one-exit-code-contract-for-all-agent-tooling.md)).
+bd's own exit code never reaches the caller: `bdw` translates it, and a
+bd that succeeds exits 0. A signal that ends bd passes through as
+128 + N, which is outside the contract. In step 1, the forbidden flags
+(`--actor` and the database-switching flags) are 4, and a flag before
+the verb is a malformed call, 2. A missing `bd` and a missing workspace
+config are 1. How bd's failures and a write on an unverified bd version
+classify is settled by `agent-tooling-cjvo.4`, and `bdw` does not exit
+this way yet; see Known gaps.
 
 `gitw-commit` derives the same Actor from the same module and writes it as
 the `Executed-By:` commit trailer, so a session's Issue Tracker writes and
@@ -117,7 +120,7 @@ its commits carry one identity.
 | Refusal of the database-switching flags in any position, and of a flag before the verb | shipped | `bdw` |
 | Refusal to run without the workspace's Beads config | shipped | `bdw` |
 | Verified bd versions: writes refused and reads warned on any other version | shipped | `bdw` |
-| `bd` run as a child process, arguments unchanged, output, exit status, and termination signals relayed | shipped | `bdw` |
+| `bd` run as a child process, arguments unchanged, output and termination signals relayed | shipped | `bdw` |
 | The use-bd help line on every help output, usage error, and refusal | shipped | `bdw` |
 | Exit codes per the [Exit-code contract](../../index.md#exit-code-contract) | shipped | `bdw` |
 
@@ -129,3 +132,7 @@ its commits carry one identity.
 - Sub-agents share their session's environment, session ID included, so
   they record one Actor and the trail cannot tell an orchestrator from its
   implementers (`agent-tooling-jk2`).
+
+- `bdw` still passes bd's exit code through and exits its own codes in
+  the earlier seven-code taxonomy, not the six-code Exit-code contract
+  (`agent-tooling-cjvo.4`).

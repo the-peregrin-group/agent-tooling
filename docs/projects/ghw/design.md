@@ -156,8 +156,7 @@ resolution) before the write itself.
   spelled `add-blocked-by Y X`; there are no blocking subverbs, so each
   relationship has one spelling. Issue numbers only. Self-links are refused,
   edges to other repos are ignored, and when the edge list comes back
-  truncated without the target in it, the Verb refuses (exit 4) rather than
-  guess.
+  truncated without the target in it, the Verb refuses rather than guess.
 - `ghw-board-set <repo> <field-name> <option-name> <issue#> [--project <n>]`:
   the field name at position 2 lets `ghw-board-set <repo> Priority *` grant
   Priority without Status. Adds the issue to the board if missing, then sets
@@ -176,7 +175,7 @@ resolution) before the write itself.
   `gh issue comment` refuses PR numbers.
 - `ghw-pr-merge <repo> <base-branch> <strategy> <pr#>`: the strategy is a
   positional mode, so a Permission rule pins it. It accepts only `merge`
-  and refuses `squash` with exit 2, because squash is banned by policy
+  and refuses `squash`, because squash is banned by policy
   (invariant 10); the slot stays so existing Permission rules keep matching.
   Gates, all required: the PR
   is open, its actual base equals `<base-branch>`, it is not a draft, and its
@@ -231,7 +230,7 @@ linked boards by these rules, which `ghw-orient` names in its output:
   board it names is linked (trust but verify: otherwise a session in an
   unrelated directory would apply another repo's profile);
 - `none-linked` and `ambiguous`: no canonical board; `ghw-orient` reports the
-  candidates and write Verbs refuse with exit 4.
+  candidates and write Verbs refuse.
 
 `TRIAGE.md` discovery walks upward from the working directory and stops at
 the enclosing git work tree's root; outside a work tree there is no
@@ -253,70 +252,46 @@ writes to this repo, and the flag only narrows which board is touched.
 
 ## Shared conventions
 
-- **Exit codes, as implemented:** the full
-  [Exit-code contract](../../index.md#exit-code-contract). `0` success,
-  including a converged no-op. `2` a usage error, which includes a refusal
-  made at argument-parse time, before any network call: argument shape, a
-  surplus positional or unknown flag, the `squash` ban, a type label outside
-  the canonical five, a self-link, a body or schema file outside the staging
-  directories or malformed, a blank closing comment. `4` a policy refusal
-  past parse time, once the Verb has read live state: the label attachment
-  contract (`ghw-issue-create`, `ghw-issue-edit add-label`), the merge gates
-  (`ghw-pr-merge`), an unlinked `--project`, an unresolvable canonical board
-  or an unknown field or option (`ghw-board-set`), a project number not
-  linked to the repo or `new` on an already-boarded repo (`ghw-board-sync`),
-  a head or base branch missing on the remote (`ghw-pr-create`), and an edge
-  list too long to verify (`ghw-issue-link`). A `4` is a caller bug: never
-  retry it unchanged, never work around it with raw `gh`.
-- **Why refusals past parse time are `4`, not `2`:** the maintainer ratified
-  the migration (`agent-tooling-bus`) because it complies with the Exit-code
-  contract, which reserves `2` for "fix the call" and `4` for "the call was
-  well formed and policy refused it". gitw splits them that way, and so
-  does fjw except for `fjw-pr-create`'s missing head or base branch check,
-  which still exits `2` after its network call (`agent-tooling-46p`).
-  Collapsing both into `2` would leave a caller unable to tell a typo from
-  a refusal. The split follows when the check runs, not what it checks: a
-  refusal made before any network call is `2`, one made after is `4`. So
-  `ghw-issue-create`, which checks its whole label set against the
-  attachment contract after fetching the registry, exits `4` for every
-  contract violation, the `area:` and second-type-label rules included,
-  while its parse-time check that the type label is one of the canonical
-  five stays `2`. Hoisting the rules that argv alone can decide (a missing
-  `area:` label, a second type label) ahead of the fetch, to keep them at
-  `2`, was rejected: the attachment contract is one check against one
-  authority, the registry, and splitting it by what happens to be derivable
-  offline would tie the exit code to an implementation detail rather than
-  to the policy.
-- **`gh` and API failures** take the shared taxonomy's classes: `3` not
-  found, `5` auth, `6` network, `1` anything unrecognized. `gh.GhError` carries the code
-  and every Verb exits with it; classification lives in one place,
-  `gh.classify`, which matches `gh`'s stderr loosely and case-insensitively
-  (its wording is not a stable interface). A 403 counts as auth only when
-  nothing points at rate limiting or SAML enforcement; a missing `gh` binary
-  stays `1`. A `gh` below `ghw-issue-link`'s version floor is `5`: a
-  deployment fault that re-running cannot fix, the same class `bdw` uses for
-  an unverified `bd` version. A GraphQL `errors` payload is classified by its `type` first
-  (`NOT_FOUND` is `3`, `INSUFFICIENT_SCOPES` is `5`), because `gh` exits
-  nonzero on those and prints only a terse message to stderr; a token missing
-  a scope (`gh auth refresh`) is auth. A Verb's own not-found (a missing issue
-  or board node) is `3`. `ghw-board-sync new` exits `1` once the project
-  exists, whatever the underlying code, because `6` would invite a retry that
-  creates a second orphan project. Bare `timeout` is not a network hint (a repository
-  name can contain it), and a GraphQL error payload (including the stdout body of a
-  nonzero `gh` exit) is never classified as network, since `gh` got a
-  response. A timeout or reset may land after the
-  request was sent, so the create and comment Verbs (`ghw-issue-create`,
-  `ghw-issue-comment`, `ghw-pr-create`, `ghw-pr-comment`) and the project
-  creation in `ghw-board-sync new` (which would otherwise orphan an unlinked
-  board on a re-run) downgrade such a
-  `6` to `1` (`gh.write_exit_code`); only provably pre-send failures (DNS,
-  refused connection) stay `6` there. `ghw-issue-close`, whose comment is mandatory,
-  downgrades every network failure during the close to `1`, pre-send or not,
-  because `gh issue close --comment` posts the comment in a first request and
-  closes in a second, so a retry would post the comment twice (its read of the
-  issue's state keeps its classified code). Bare "not found" is not a
-  not-found hint either (a GraphQL schema error says it); only `HTTP 404` and
-  `Could not resolve to a ...` are. The `triage-*` wrappers still use `1` and `2` only.
+- **Exit codes:** ghw follows
+  [the Exit-code contract](../../index.md#exit-code-contract); why one
+  contract covers all agent-tooling software is
+  [ADR 0013 (one exit-code contract for all agent-tooling software)](../../adr/0013-one-exit-code-contract-for-all-agent-tooling.md).
+  A malformed call is `2` whether the Verb catches it while parsing or
+  only after fetching the label registry, so every violation of the
+  label attachment contract exits `2`. The merge gates are `4`. Where
+  this doc says a Verb refuses without naming a code, its placement under
+  the contract is classified by `agent-tooling-cjvo.2`. The Verbs do not
+  exit this way yet; see the Known gaps in
+  [ghw's index](index.md#known-gaps).
+- **`gh` and API failures** are classified in one place, `gh.classify`;
+  `gh.GhError` carries the code and every Verb exits with it.
+  `gh.classify` matches `gh`'s stderr loosely and case-insensitively,
+  because its wording is not a stable interface. A GraphQL `errors`
+  payload is classified by its `type` first (`NOT_FOUND` is `3`), because
+  `gh` exits nonzero on those and prints only a terse message to stderr.
+  Bare "not found" is not a not-found hint (a GraphQL schema error says
+  it); only `HTTP 404` and `Could not resolve to a ...` are. A Verb's own
+  not-found (a missing issue or board node) is `3`. A 403 counts as a
+  grant too weak for the action (`4`) only when nothing in `gh`'s text
+  points at rate limiting, abuse or secondary limits, or SAML
+  enforcement; those are not the caller's grant, and are `1`. Whether
+  GraphQL `INSUFFICIENT_SCOPES` is `4` (a grant too weak) or `1` (a
+  credential fault) is classified by `agent-tooling-cjvo.2`. Auth
+  failures, a missing `gh` binary, a `gh` below `ghw-issue-link`'s
+  version floor, and network failures are `1`.
+- **A write that may have landed exits `1`**, broken on our side, like
+  any network failure. The code alone does not stop a re-run, since a
+  caller applies its own retry threshold to a `1`; the protection is the
+  error message, which says the write may have landed and to check
+  before re-running. That matters most here: a timeout or reset may land
+  after the request was sent, so a re-run create or comment Verb may post
+  twice; `ghw-issue-close` posts its mandatory comment in a first request
+  and closes in a second, so a re-run may post the comment twice; and a
+  re-run `ghw-board-sync new` orphans a second project. For the same
+  reason `ghw-board-sync new` exits `1` once the project exists, whatever
+  fails after, and its error names the half-built project. The
+  `triage-*` wrappers follow the same contract; where they fall short is
+  a Known gap in [index.md](index.md).
 - **JSON output:** write Verbs print a JSON plan with `"action": "applied"`
   (or `"plan"`, from `ghw-label-sync plan` only), most with a `changed`
   field. `ghw-orient` prints its own blob.

@@ -154,7 +154,7 @@ resolved against the machine-local Roster, `~/.config/gitw/repos.toml`.
   checkout), `remote_url`, `remote` (default `origin`, only with a URL),
   `default_branch` (default `main`), `operable_from` (list of absolute
   paths). A repo with no remote has a path-only entry. A missing or
-  malformed Roster or an unknown key is exit 5; a mode looser than 0600
+  malformed Roster or an unknown key is exit 1; a mode looser than 0600
   warns and proceeds; an unknown label is exit 3 and lists the known
   labels. The parser is a hand-written TOML subset (stdlib `tomllib` is
   absent on Python 3.9).
@@ -233,9 +233,9 @@ was spelled, so they apply under every prefix:
   branch or `gitw-push` target whose first level is a git ref namespace
   (`refs`, `heads`, `remotes`, `tags`, `HEAD`) is a usage error (exit 2):
   that is fixed grammar, checked before the Roster is read. One whose
-  first level is the remote's name (`origin/x`) is refused (exit 4),
-  since it depends on the Roster entry; a machine-local repo has no
-  remote and nothing to shadow. Branches that already exist are not
+  first level is the remote's name (`origin/x`) is exit 2 as well,
+  checked once the Roster entry names the remote; a machine-local repo
+  has no remote and nothing to shadow. Branches that already exist are not
   re-checked.
 
 ## Wrapper invariants
@@ -254,9 +254,10 @@ Family-wide, shared with ghw and fjw:
   Permission rule is only as tight as this; the
   [argument contract](../../index.md#argument-contract) states it and
   its reason.
-- **Trust-but-verify.** Every scope claim is checked against reality;
-  mismatch is a refusal (exit 4 in every family). In gitw: the label against the Roster and cwd, the Branch prefix
-  against the current branch.
+- **Trust-but-verify.** Every scope claim is checked against reality,
+  and a mismatch is refused (its code is in Exit codes). In gitw: the
+  label against the Roster and cwd, the Branch prefix against the
+  current branch.
 - **Staged message files.** Message and body files come only from under
   `/tmp/claude/` or `~/.claude/jobs/<job-id>/tmp/`; any other path is
   exit 2. In gitw an empty message is exit 2 as well.
@@ -277,9 +278,9 @@ gitw's own:
 - **Non-interactive git.** Every git call runs with terminal prompts off,
   the editor set to `true`, the pager to `cat`, askpass to
   `/usr/bin/false`, optional locks off, `LC_ALL=C`, and ssh in batch mode
-  unless the user controls ssh. A 300-second timeout ends any call: exit
-  6 for a remote call, else 1, except a push that times out inside a
-  still-running pre-push hook, which is exit 4.
+  unless the user controls ssh. A 300-second timeout ends any call, as
+  exit 1, except a push that times out inside a still-running pre-push
+  hook, which is reported as a hung hook (see `gitw-push`).
 - **Fetch prunes.** Every fetch is `git fetch --prune <remote>`, so a ref
   deleted on the remote reads as absent instead of leaving a stale
   tracking ref that wedges later Verbs.
@@ -293,34 +294,32 @@ gitw's own:
 
 ### Exit codes
 
-gitw implements the full shared Exit-code contract; the taxonomy and
-every family's implemented codes live in
-[the Exit-code contract](../../index.md#exit-code-contract). gitw's codes:
+gitw follows [the Exit-code contract](../../index.md#exit-code-contract);
+why one contract covers all agent-tooling software is
+[ADR 0013 (one exit-code contract for all agent-tooling software)](../../adr/0013-one-exit-code-contract-for-all-agent-tooling.md).
+How it applies to git:
 
-- `0` success, including a converged no-op.
-- `1` unclassified git failure, or a local (non-remote) timeout.
-- `2` usage error, including a bad token or an unusable or empty message
-  file.
-- `3` not found: unknown label, missing branch or base, vanished remote
-  repository.
-- `4` refusal: identity or prefix mismatch, dirty worktree, stale rebase,
-  lease failure, sweep guard, nothing to commit or integrate, default-
-  branch push, machine-local push or integrate, local pre-push hook
-  refusal or hang, a decline by the remote's own hook, and
-  `gitw-trunk-sync`'s refusals (dirty primary checkout, default branch
-  held by a linked worktree, a rebase of it in progress in any worktree,
-  local default branch not an ancestor of the fetched tip, or the branch
-  moved concurrently during the update). Also `gitw-rebase`'s conflict
-  stop, which is expected,
-  resumable state rather than a caller bug.
-- `5` roster/auth/config (deployment): Roster missing or malformed, a
-  registered checkout that no longer exists, remote auth failure. All
-  mean "fix the deployment"; the label matches the
-  [exit-code contract](../../index.md#exit-code-contract).
-- `6` network failure or remote timeout (other than a hung pre-push
-  hook, which is 4), the one retryable class.
-  Remote failures are classified by git's English messages: auth markers
-  to 5, "repository not found" to 3, anything else to 6.
+- **The Roster is deployment.** A missing or malformed Roster, an unknown
+  key, and a registered checkout that no longer exists are `1`. An
+  unknown label is `3`, since the caller named it.
+- **Scope mismatches are policy, `4`:** the label against the Roster and
+  cwd, the Branch prefix against the current branch, the default branch
+  as a target, and a cwd admitted only by `operable_from`.
+- **State the caller must change first is `2`:** a dirty worktree, a
+  branch that already exists, a rebase that is not current, a lease
+  failure or lost ref-update race.
+- **A `gitw-rebase` conflict stop is `5`.** It is deliberate, resumable
+  state: the JSON (`"action": "conflict"`) lists the paths to resolve
+  before `continue`.
+- **Remote failures are classified by git's English messages** (every
+  git call runs under `LC_ALL=C`): "repository not found" is `3`, lease
+  markers and a lost ref-update race are `2`, and auth failures, remote
+  timeouts, and anything else are `1`.
+
+Where this doc says a Verb refuses without naming a code, its placement
+under the contract is classified by `agent-tooling-cjvo.6`. The Verbs do
+not exit this way yet; see the Known gaps in
+[gitw's index](index.md#known-gaps).
 
 ### Attribution
 
@@ -331,8 +330,8 @@ and `gitw-integrate` on the merge bubble:
 `CLAUDE_CODE_SESSION_ID`; without a usable session ID it falls back to
 `claude-job-<job-id>` or `attended-<user>`. The Actor is derived from the
 environment and replaces any one the caller wrote (more than one is exit
-4). A reader of history needs to know which session made a commit
-without trusting the message author. The Actor derivation is shared with
+2, a message file to fix). A reader of history needs to know which
+session made a commit without trusting the message author. The Actor derivation is shared with
 bdw (see [ADR 0002, Beads identity](../../adr/0002-beads-identity.md):
 one Actor per session, a visibly distinct fallback when the session's
 identity is missing). Both Verbs use one implementation
@@ -357,10 +356,10 @@ fetch: commit or park the changes as a WIP commit, never carry them
 silently across branches. Create form: refuses if the branch exists
 locally or on the remote (a collision with in-flight work), then creates
 `<prefix><name>` from the remote-tracking default without tracking it
-(`gitw-push` sets the upstream later); a missing default branch is exit
-3. `resume`: needs the branch locally or on the remote (else exit 3),
-creating a tracking branch when it exists only remotely, and refuses a
-branch checked out in another worktree. That refusal, courtesy of git's
+(`gitw-push` sets the upstream later); a default branch missing on the
+remote is a Roster fault, exit 1. `resume`: needs the branch locally or
+on the remote (else exit 3), creating a tracking branch when it exists
+only remotely, and refuses a branch checked out in another worktree. That refusal, courtesy of git's
 one-checkout-per-branch rule, means another agent may be live on the
 branch. For this Verb the prefix names the branch being created, so there
 is no current-branch check: it legitimately runs from the harness's
@@ -375,9 +374,11 @@ commit exactly those, refusing pre-existing staged changes outside them,
 and report remaining dirt in the JSON. The pathspec tail takes no flags:
 a pathspec beginning with `-` is a usage error (exit 2), and a path that
 really begins with `-` is spelled `./-name`. Raw `git add` is never
-needed: the index stops being agent-visible state. Refusals (exit 4): a pending
-merge, cherry-pick, or revert; unresolved conflicts; nothing to commit;
-the sweep guard; more than one caller-written `Executed-By` trailer.
+needed: the index stops being agent-visible state. A pending merge,
+cherry-pick, or revert and unresolved conflicts are state to resolve
+first (exit 2), and more than one caller-written `Executed-By` trailer is
+a message file to fix (exit 2). It also refuses when there is nothing to
+commit, and under the sweep guard.
 
 The **sweep guard** refuses any would-be-staged set, in either form,
 that contains a local-only file: a path component matching
@@ -393,7 +394,7 @@ form: refuses an in-progress rebase, a prefix mismatch, standing on the
 default branch, and a dirty worktree (before and after the fetch); then
 fetches and rebases the current branch onto the remote-tracking default
 branch. A conflict leaves git's conflict state in place, since it is the
-work product, and exits 4 with `"action": "conflict"`, the conflicted
+work product, and exits 5 with `"action": "conflict"`, the conflicted
 paths, the `onto` base, and a hint. `continue` verifies the in-progress
 branch against the prefix, refuses files still carrying a full
 conflict-marker triple, applies the sweep guard, stages exactly the
@@ -423,7 +424,7 @@ integration branch a project designates, whose other half is
   same conservative branch-name charset as `gitw-integrate`'s base, and
   it exists on the remote after the fetch (exit 3 otherwise).
 - **The default branch is refused in the onto form, under every
-  spelling** (exit 4, pointing at the bare form): its name, `HEAD` (or
+  spelling** (exit 2, pointing at the bare form): its name, `HEAD` (or
   any base whose first level is `HEAD`), and a symbolic remote-tracking
   ref aliasing it. One spelling per base keeps a grant's meaning
   legible: under exact rules, the bare rule is the only grant for
@@ -459,7 +460,7 @@ Pushes only to the authoritative remote.
   with `--force-with-lease --force-if-includes` and sets the upstream.
   Force is not an escalation here: under rebase-before-merge, non-fast-
   forward pushes of your own branch are routine. The lease turns "someone
-  else moved my branch" into a loud exit-4 refusal, which doubles as the
+  else moved my branch" into a loud exit-2 refusal, which doubles as the
   another-agent-touched-my-branch detector. **No fetch precedes the
   push**: refreshing the tracking ref would make the lease vacuous.
   Accepted residual: a mangled local branch over an intact remote passes
@@ -483,7 +484,7 @@ Pushes only to the authoritative remote.
 
 Both forms relay git's own push output verbatim to stderr beside the JSON,
 so whatever a pre-push hook prints reaches the caller. A local pre-push
-hook refusal is exit 4, detected from git's trace2 event stream (a
+hook refusal is reported as one, detected from git's trace2 event stream (a
 nonzero exit of the push's own `pre-push` hook child; a push that the hook
 itself runs appends to the same trace under a nested session id and is
 ignored), because git otherwise prints only a generic "failed to push some
@@ -491,19 +492,21 @@ refs". The hook verdict is checked
 before lease text, since a refusing hook ends the push before git prints
 any ref status. A push that times out with a pre-push hook started but
 not exited (a `child_start` with no `child_exit`, read from the trace
-before it is discarded) is a hung hook, also exit 4 with the output so
-far relayed, because a retry would re-run the hook; a timeout with no
-hung hook stays network (6). If trace2 events are unavailable,
-classification falls back to text and a hook refusal reads as exit 6, which the error line
-states. A decline by the remote's own pre-receive or update hook shows as
-a `[remote rejected]` status line and is exit 4; it is checked before the
+before it is discarded) is a hung hook, reported like a hook refusal with
+the output so far relayed, because a retry would re-run the hook; a
+timeout with no hung hook stays a plain timeout (1). If trace2 events are
+unavailable, classification falls back to text and a hook refusal reads
+as a push failure (1), which the error line states. A decline by the
+remote's own pre-receive or update hook shows as a `[remote rejected]`
+status line; it is checked before the
 lease text (the hook's output may contain anything) and before the shared
 classification. Its reason, in parentheses, picks the advice: a lost
 ref-update race ("failed to update ref", "incorrect old value provided",
-"reference already exists", "failed to lock") reads as the lease or base-moved case (fetch and reconcile); any
-other reason is relayed as the remote's refusal. Lease markers ("stale
-info", "remote ref updated since checkout") are exit 4; other failures
-are classified as auth (5), not found (3), or network (6).
+"reference already exists", "failed to lock") reads as the lease or
+base-moved case (exit 2: fetch and reconcile); any other reason is
+relayed as the remote's refusal. Lease markers ("stale info", "remote ref
+updated since checkout") are exit 2; other failures take the shared
+remote classification (see Exit codes).
 
 **`gitw-integrate <repo> <base-branch> <prefix> <message-file>`.** The
 mode-(b) Verb. Must run inside the repo on a branch matching the prefix
@@ -514,17 +517,17 @@ primary-checkout mutation it avoids). It never checks out the base:
 1. Fetch; a base missing on the remote is exit 3 (the prune keeps a
    deleted base from being silently recreated).
 2. Verify the branch tip descends from the fetched base tip (the rebase
-   is current); otherwise exit 4, "rebase first, then loop". Equal tips
-   are exit 4, nothing to integrate.
+   is current); otherwise exit 2, "rebase first, then loop". Equal tips
+   are refused: nothing to integrate.
 3. Build the two-parent bubble with `git commit-tree`: the branch tip's
    tree, first parent the base tip, second parent the branch tip, message
    from a private copy of the staged file with the `Executed-By` trailer
-   added (see Attribution; two caller-written trailers are exit 4, before
+   added (see Attribution; two caller-written trailers are exit 2, before
    anything is pushed).
 4. Push it to `refs/heads/<base>` under the exact lease
    `--force-with-lease=refs/heads/<base>:<fetched-tip>`, a compare-and-swap
    on the tip the descendant check used. If the base has moved or been
-   rewound, the push rejects (exit 4): the base moved, loop again from the
+   rewound, the push rejects (exit 2): the base moved, loop again from the
    rebase.
 
 `<base-branch>` is whatever the Permission rule pins. It is deliberately
@@ -534,11 +537,11 @@ reached by another spelling: a base whose first level is `HEAD`
 (case-insensitive) is refused before the fetch, and after it a base
 whose remote-tracking ref is a symbolic alias of the default (judged by
 the symref's target, never by commit equality, so a fresh integration
-branch on the default's tip passes) is refused too, both exit 4 telling
+branch on the default's tip passes) is refused too, both exit 2 telling
 the caller to name the default branch itself. Validation stays in the Skill,
 driven by the repo's own instructions; the Wrapper runs no repo-declared
 command. Output relay and hook detection match `gitw-push`; a hook
-refusal is exit 4 but does not mean the base moved. Afterwards the
+refusal does not mean the base moved. Afterwards the
 worktree is still on the integrated feature branch; syncing the human's
 local trunk is `gitw-trunk-sync`'s job, and cleaning up branches is left
 to the harness and the human. `gitw-integrate` is the only Verb that writes to the remote trunk.
@@ -551,17 +554,17 @@ mutation of the human's copy the design forbids. Must run inside the
 repo; a machine-local repo is a converged no-op before any fetch. After
 the fetch it compares the local branch with the remote-tracking tip:
 equal is a no-op (even in a dirty tree); a local tip that is not an
-ancestor of the fetched tip, whether diverged or merely ahead, is exit
-4, since unpushed local trunk commits are the human's parked work and the
-branch is never moved backwards. The move then depends on where
+ancestor of the fetched tip, whether diverged or merely ahead, is
+refused, since unpushed local trunk commits are the human's parked work
+and the branch is never moved backwards. The move then depends on where
 `git worktree list --porcelain` says the branch is checked out:
 
 - **Rebase in progress:** before any move, every worktree is checked for
   a rebase of the default branch. A rebasing worktree is detached, so the
-  holder lookup below cannot see it; any such rebase is exit 4.
+  holder lookup below cannot see it; any such rebase is refused.
 - **Nowhere:** `git update-ref refs/heads/<default> <tip> <old>`, guarded
   by the old value. On failure the ref is re-read: changed means a
-  concurrent mover (exit 4, not retryable unchanged); unchanged means a
+  concurrent mover (exit 2, like a lost lease); unchanged means a
   git error such as a stale lock file (exit 1, with git's message).
 - **The primary checkout:** refused if it is dirty (untracked files
   count) or mid-merge, cherry-pick, or revert; otherwise
@@ -585,8 +588,8 @@ plan form prints the delta; `apply` appends it atomically (mode 0600),
 preserving the file's text, after validating the candidate. The same
 data again is a converged no-op (hand-added `operable_from` is ignored
 in the comparison); different data for the label, or a checkout another
-label claims, is exit 4. Any Roster error, such as an existing Roster
-that is malformed, is exit 5. It never writes `operable_from`.
+label claims, is refused. Any Roster error, such as an existing Roster
+that is malformed, is exit 1. It never writes `operable_from`.
 
 ## Permission rules
 

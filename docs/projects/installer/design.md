@@ -145,16 +145,26 @@ humans installing at once.
 
 ## Exit codes
 
-The Installer keeps its own codes rather than the Wrappers' Exit-code
-contract; [the Exit-code contract](../../index.md#exit-code-contract)
-lists each family's codes.
+The Installer follows
+[the Exit-code contract](../../index.md#exit-code-contract), like every
+Wrapper family; why one contract covers all agent-tooling software is
+[ADR 0013 (one exit-code contract for all agent-tooling software)](../../adr/0013-one-exit-code-contract-for-all-agent-tooling.md).
+What the contract leaves to the Installer:
 
-| Code | `diff` | `apply`, `adopt` |
-|---|---|---|
-| 0 | in sync | applied |
-| 1 | drift, or not installed | failed |
-| 2 | usage or environment error | usage or environment error, including an unknown superseded repo |
-| 4 | refused | refused: dirty source without `--force`, source/target overlap, conflicting collision, ambiguous crash recovery |
+- **`diff` exits 0 whenever it completes.** Drift is an answer, not a
+  failure: the per-Cohort status in the JSON (`in-sync`, `drift`,
+  `not-installed`) carries it, along with the lists of what an install
+  would destroy.
+- **`apply` exits 0 when it installed.** A missing Install Target is not a
+  failure, since creating it is `apply`'s job, so a fresh machine installs
+  with exit 0. `apply` exits 1 if it fails while installing and ends with
+  anything not installed. `adopt` installs as `apply` does.
+
+The refusals (a dirty source without `--force`, a source/target overlap,
+a conflicting collision, ambiguous crash recovery, an unknown superseded
+repo) have their placement under the contract classified by
+`agent-tooling-cjvo.5`. The commands do not exit this way yet; see the
+Known gaps in [the Installer's index](index.md#known-gaps).
 
 ## The executable-tooling directory
 
