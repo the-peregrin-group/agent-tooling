@@ -73,7 +73,7 @@ interpreter line, say), or a probe cannot be started.
 
 Design record: docs/adr/0002-beads-identity.md,
 docs/adr/0010-bdw-carries-beads-policy-in-tiers.md, and
-docs/adr/0013-bdw-pushes-the-beads-database-after-writes.md.
+docs/adr/0014-bdw-pushes-the-beads-database-after-writes.md.
 """
 
 from __future__ import annotations

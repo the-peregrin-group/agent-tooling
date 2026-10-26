@@ -96,7 +96,7 @@ What one call does:
    `Error: unknown flag:`, or `Run 'bd --help' for usage.`), and after
    every failure of its own.
 7. Push the database to its Dolt remote (see
-   [ADR 0013](../../adr/0013-bdw-pushes-the-beads-database-after-writes.md),
+   [ADR 0014](../../adr/0014-bdw-pushes-the-beads-database-after-writes.md),
    bdw pushes the Beads database after every write). After any call that
    probed the workspace in step 3:
    - while the last push failed, print one warning line on stderr naming
