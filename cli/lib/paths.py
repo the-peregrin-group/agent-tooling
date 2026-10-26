@@ -1,15 +1,16 @@
-"""Where agent-tooling keeps its machine-specific files: the config and
-state directories of the three-root layout (docs/adr/0015-three-roots-for-
-machine-specific-files.md).
+"""Where agent-tooling keeps its machine-specific files: each tool's
+subdirectory of the Machine Config Directory and the Machine State
+Directory (docs/adr/0015-three-roots-for-machine-specific-files.md).
 
     config_dir(tool, environ)  ${XDG_CONFIG_HOME:-$HOME/.config}/agent-tooling/<tool>
     state_dir(tool, environ)   ${XDG_STATE_HOME:-$HOME/.local/state}/agent-tooling/<tool>
 
-Config is small and hand-maintained, sometimes secret (a roster, a token);
-state is machine-generated, churns, and is safe to delete (a lock, a log).
-The third root, the Install Targets, is the Installer's (`lib.install`).
-`config_root(environ)` and `state_root(environ)` return the roots
-themselves, the part before `agent-tooling/`.
+Machine Config is small, written by people, sometimes secret (the Roster,
+a token); Machine State is written by the tools, churns, and is safe to
+delete (a lock, a log). The third place, the Install Targets, is the
+Installer's (`lib.install`). `config_root(environ)` and
+`state_root(environ)` return the XDG base directories, the part before
+`agent-tooling/`; this module calls them the roots.
 
 The resolvers are pure: they read only the mapping the caller passes
 (normally `os.environ`), never the process environment or the filesystem,
@@ -24,7 +25,8 @@ Resolution follows the XDG Base Directory spec where it speaks:
   and the default under HOME is used instead.
 - An absolute XDG value is honored as given, even one that is not a
   directory: `gitw_test_support` sets XDG_CONFIG_HOME to /dev/null for git
-  subprocesses, and there the config directory resolves under /dev/null,
+  subprocesses, and there the Machine Config Directory resolves under
+  /dev/null,
   reads find nothing, and `ensure_private_dir` raises OSError. Resolving
   stays pure rather than probing the filesystem to second-guess it.
 

@@ -317,7 +317,8 @@ writes to this repo, and the flag only narrows which board is touched.
   `In progress`), the terminal-state set, and Size XS to XL. Also
   `staging.py` (invariant 9), `plan.py` (JSON plan and exit codes),
   `arguments.py` (repo charset check, issue-number parsing), and
-  `paths.py` (each tool's config and state directories, per the
+  `paths.py` (each tool's subdirectory of the Machine Config Directory and
+  the Machine State Directory, per the
   [Path layout](../../index.md#path-layout)).
 - `cli/lib/github/`: `gh.py` is the subprocess layer. Every call has a
   120-second timeout with stdin closed when nothing is piped, so a prompting

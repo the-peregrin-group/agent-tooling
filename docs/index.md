@@ -158,24 +158,24 @@ reference wrappers have not been audited against it.
 
 ## Path layout
 
-agent-tooling's machine-specific files live in three roots, one per kind
-of file, each with one subdirectory per tool under a single product name.
-Why three, and the layouts rejected, is
-[ADR 0015 (three roots for machine-specific files)](adr/0015-three-roots-for-machine-specific-files.md).
+agent-tooling's machine-specific files live in three places, one per kind
+of file. Why three, and the layouts rejected, is
+[ADR 0015 (three places for machine-specific files)](adr/0015-three-roots-for-machine-specific-files.md).
 
-| Root | Where | Holds |
+| Holds | Where | Subdivided |
 |---|---|---|
-| config | `${XDG_CONFIG_HOME:-~/.config}/agent-tooling/<tool>/` | small, hand-maintained files, some secret: a roster, a token, an allowlist |
-| state | `${XDG_STATE_HOME:-~/.local/state}/agent-tooling/<tool>/` | machine-generated, churning files, safe to delete: a lock, a failure record, a log |
-| Install Targets | `~/.local/libexec/agent-tooling/`, `~/.claude/skills/`, `~/.claude/agents/` | installed tooling, written only by the Installer ([installer](projects/installer/index.md)) |
+| Machine Config: small files a person writes, some secret (the Roster, a token, an allowlist) | the Machine Config Directory, `${XDG_CONFIG_HOME:-~/.config}/agent-tooling/` | one subdirectory per tool |
+| Machine State: what the tools record for their own later runs, safe to delete (a lock, a failure record, a log) | the Machine State Directory, `${XDG_STATE_HOME:-~/.local/state}/agent-tooling/` | one subdirectory per tool |
+| installed tooling, written only by the Installer ([installer](projects/installer/index.md)) | the Install Targets: `~/.local/libexec/agent-tooling/`, `~/.claude/skills/`, `~/.claude/agents/` | one Install Target per kind of tooling |
 
-Code that touches these files finds them through `cli/lib/paths.py` and
-no other way. `config_dir(tool, environ)` and `state_dir(tool, environ)`
-resolve a tool's directory from the environment mapping the caller
-passes, `config_root` and `state_root` the roots above them, and
-`ensure_private_dir(path, root)` creates a directory at or below a root
-with mode 0700, creating the root if it is missing but never the root's
-parent. An unset, empty, or relative XDG variable falls back to its
+Code that touches Machine Config or Machine State finds it through
+`cli/lib/paths.py` and no other way. `config_dir(tool, environ)` and
+`state_dir(tool, environ)` resolve a tool's subdirectory of the Machine
+Config Directory or the Machine State Directory from the environment
+mapping the caller passes; `config_root` and `state_root` return the XDG
+base directory above each; and `ensure_private_dir(path, root)` creates
+a directory at or below a base directory with mode 0700, creating the
+base directory if it is missing but never its parent. An unset, empty, or relative XDG variable falls back to its
 default under `HOME`, as the XDG Base Directory spec directs; with no
 usable `HOME` either, the resolvers return None and the caller decides
 whether that means skip or fail. The module docstring has the details.
@@ -185,7 +185,8 @@ scratch space for message and body files, not machine-specific files, and
 sit outside the layout (`cli/lib/staging.py`).
 
 Code that predates the layout does not follow it yet, and each move has
-its own Issue: gitw's roster (`agent-tooling-fpkl.5`) and fjw's config
+its own Issue: gitw's Roster (`agent-tooling-fpkl.5`) and fjw's config
 (`agent-tooling-fpkl.6`) are still read from `~/.config/gitw/` and
-`~/.config/fjw/` without the helper, and triage-issues' guard marker and lock have yet to
-get a state directory (`agent-tooling-fpkl.9`).
+`~/.config/fjw/` without the helper, and triage-issues' guard marker and
+lock have yet to move into the Machine State Directory
+(`agent-tooling-fpkl.9`).

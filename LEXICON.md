@@ -165,6 +165,29 @@ tooling from one Source repo to another.
 - _Invariants_: happens without an explicit request only when the incoming
   content is identical to what is installed
 
+### Machine Config and State
+
+**Machine Config**: The settings a person keeps on one machine for
+agent-tooling's tools (e.g., which repos a Wrapper may act on, a forge
+credential), some of them secret, one part per tool.
+- _Invariants_: written by a person or a Verb a person approves, never by a
+  tool's routine run; kept only in the Machine Config Directory
+
+**Machine State**: What agent-tooling's tools record on one machine for their
+own later runs (e.g., a lock, a record of the last failure, a log), one part
+per tool.
+- _Invariants_: written only by the tools; deleting it loses no one's work;
+  kept only in the Machine State Directory
+
+**Machine Config Directory**: The one directory on a machine that holds all
+Machine Config, with one subdirectory per tool.
+- _Invariants_: one per machine; never written by the Installer
+
+**Machine State Directory**: The one directory on a machine that holds all
+Machine State, with one subdirectory per tool.
+- _Invariants_: one per machine; safe to delete as a whole; never written by
+  the Installer
+
 ### Tracking Work
 
 **Issue Tracker**: The one system of record (e.g., Beads, GitHub Issues) for
@@ -253,6 +276,9 @@ discarded as already captured or outdated.
   repo's tooling owns there.
 - The Installer is the only writer of Install Targets and Receipts; an
   Adoption moves ownership between two Source repos within one Receipt.
+- The Machine Config Directory, the Machine State Directory, and the Install
+  Targets are distinct directories, none inside another.
+- The Roster is part of gitw's Machine Config.
 - The Issue Tracker holds many Issues; an Issue has exactly one Issue ID.
 - An Issue is either a Branch Issue or a Leaf Issue, never both.
 - A Branch Issue has zero or more child Issues; a Leaf Issue has none.
