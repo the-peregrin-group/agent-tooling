@@ -8,8 +8,10 @@ machine-specific-files.md).
 Config is small and hand-maintained, sometimes secret (a roster, a token);
 state is machine-generated, churns, and is safe to delete (a lock, a log).
 The third root, the Install Targets, is the Installer's (`lib.install`).
+`config_root(environ)` and `state_root(environ)` return the roots
+themselves, the part before `agent-tooling/`.
 
-Both resolvers are pure: they read only the mapping the caller passes
+The resolvers are pure: they read only the mapping the caller passes
 (normally `os.environ`), never the process environment or the filesystem,
 and never create anything. That makes every caller's source of location
 explicit and gives tests one seam: pass a mapping whose roots point into a
@@ -30,13 +32,17 @@ HOME is the one way home is found: not `Path.home()` or `expanduser()`,
 which fall back to the password database and so escape the injected
 mapping. A HOME that is unset, empty, or relative is unusable (a relative
 one would resolve against whatever directory the caller runs in), and when
-it is needed the resolver returns None. Callers treat None as "no place to
+it is needed the resolvers return None. Callers treat None as "no place to
 keep this file" and decide for themselves whether that means skip or fail.
 
-`ensure_private_dir(path)` creates a resolved directory, and any missing
-parents, with mode 0700, as the spec asks of directories it creates. A
-directory that already exists keeps its mode: tightening a user's own
-directory is the user's call.
+`ensure_private_dir(path, root)` creates `path`, a directory at or below
+one of the roots, with mode 0700, as the spec asks of directories it
+creates. It creates the root itself when missing (`~/.local/state` often
+is), but never the root's parent: a missing home directory, or an XDG
+variable naming a place that does not exist, is a misconfigured
+environment to report, not a tree to build. A directory that already
+exists keeps its mode: tightening a user's own directory is the user's
+call.
 
 `tool` names one tool's subdirectory (`gitw`, `bdw`, `triage-issues`): a
 lowercase name of letters, digits, and hyphens, so that it is one path
@@ -57,28 +63,48 @@ PRODUCT = "agent-tooling"
 _TOOL = re.compile(r"[a-z0-9]+(-[a-z0-9]+)*")
 
 
+def config_root(environ: Mapping[str, str]) -> Path | None:
+    """The config root, or None when neither XDG_CONFIG_HOME nor HOME is
+    usable."""
+    return _root(environ, "XDG_CONFIG_HOME", (".config",))
+
+
+def state_root(environ: Mapping[str, str]) -> Path | None:
+    """The state root, or None when neither XDG_STATE_HOME nor HOME is
+    usable."""
+    return _root(environ, "XDG_STATE_HOME", (".local", "state"))
+
+
 def config_dir(tool: str, environ: Mapping[str, str]) -> Path | None:
     """`<config root>/agent-tooling/<tool>`, or None when no root resolves."""
-    return _resolve(tool, environ, "XDG_CONFIG_HOME", (".config",))
+    return _tool_dir(tool, config_root(environ))
 
 
 def state_dir(tool: str, environ: Mapping[str, str]) -> Path | None:
     """`<state root>/agent-tooling/<tool>`, or None when no root resolves."""
-    return _resolve(tool, environ, "XDG_STATE_HOME", (".local", "state"))
+    return _tool_dir(tool, state_root(environ))
 
 
-def ensure_private_dir(path: Path) -> None:
-    """Create `path` and any missing parents with mode 0700.
+def ensure_private_dir(path: Path, root: Path) -> None:
+    """Create `path`, and whatever is missing between `root` and it, with
+    mode 0700.
 
-    Existing directories are left as they are. Raises OSError when a
-    component cannot be created (a parent that is a file, say)."""
+    Raises ValueError when `path` is not `root` or below it, and OSError
+    when a directory cannot be created: FileNotFoundError when the root's
+    parent is missing, another OSError when a file is in the way.
+    Existing directories are left as they are."""
+    if (path != root and root not in path.parents) or \
+            ".." in path.relative_to(root).parts:
+        raise ValueError(f"{path} is not under {root}")
     missing = []
     current = path
     while not current.is_dir():
         missing.append(current)
-        if current.parent == current:
+        if current == root:
             break
         current = current.parent
+    if root in missing and not root.parent.is_dir():
+        raise FileNotFoundError(f"no such directory: {root.parent}")
     for directory in reversed(missing):
         try:
             directory.mkdir(mode=0o700)
@@ -90,17 +116,19 @@ def ensure_private_dir(path: Path) -> None:
         os.chmod(directory, 0o700)
 
 
-def _resolve(tool: str, environ: Mapping[str, str], variable: str,
-             default: tuple[str, ...]) -> Path | None:
+def _root(environ: Mapping[str, str], variable: str,
+          default: tuple[str, ...]) -> Path | None:
+    root = _absolute(environ.get(variable))
+    if root is not None:
+        return root
+    home = _absolute(environ.get("HOME"))
+    return None if home is None else home.joinpath(*default)
+
+
+def _tool_dir(tool: str, root: Path | None) -> Path | None:
     if not isinstance(tool, str) or not _TOOL.fullmatch(tool):
         raise ValueError(f"not a tool name: {tool!r}")
-    root = _absolute(environ.get(variable))
-    if root is None:
-        home = _absolute(environ.get("HOME"))
-        if home is None:
-            return None
-        root = home.joinpath(*default)
-    return root / PRODUCT / tool
+    return None if root is None else root / PRODUCT / tool
 
 
 def _absolute(value: str | None) -> Path | None:

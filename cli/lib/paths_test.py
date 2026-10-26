@@ -1,7 +1,7 @@
 """Unit tests for lib.paths (the config and state directories).
 
 Run from the cli/ directory:
-    python3 -m unittest discover -s . -p '*_test.py'
+    /usr/bin/python3 -m unittest discover -s . -p '*_test.py'
 
 Every case passes its own environment mapping, and the creation cases work
 under a temporary directory, so no test touches the real config or state
@@ -21,12 +21,17 @@ from unittest import mock
 if __package__ in (None, ""):  # direct invocation: python3 lib/paths_test.py
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from lib.paths import config_dir, ensure_private_dir, state_dir
+from lib.paths import (config_dir, config_root, ensure_private_dir,
+                       state_dir, state_root)
 
 
 RESOLVERS = (
     ("config", config_dir, "XDG_CONFIG_HOME", Path("/home/u/.config")),
     ("state", state_dir, "XDG_STATE_HOME", Path("/home/u/.local/state")),
+)
+ROOTS = (
+    ("config", config_root, config_dir),
+    ("state", state_root, state_dir),
 )
 
 
@@ -109,10 +114,22 @@ class ResolveTest(unittest.TestCase):
             self.assertEqual(config_dir("bdw", {"HOME": "/injected"}),
                              Path("/injected/.config/agent-tooling/bdw"))
 
+    def test_the_roots_are_the_tool_directories_minus_the_product(self):
+        for environ in ({"HOME": "/home/u"},
+                        {"XDG_CONFIG_HOME": "/c", "XDG_STATE_HOME": "/s"}):
+            for kind, root, resolve in ROOTS:
+                with self.subTest(kind, environ=environ):
+                    self.assertEqual(resolve("bdw", environ),
+                                     root(environ) / "agent-tooling" / "bdw")
+        for kind, root, _ in ROOTS:
+            with self.subTest(kind):
+                self.assertIsNone(root({}))
+
     def test_resolving_creates_nothing(self):
         with tempfile.TemporaryDirectory() as tmp:
             for _, resolve, variable, _ in RESOLVERS:
                 resolve("bdw", {variable: tmp})
+                resolve("bdw", {"HOME": tmp})
             self.assertEqual(os.listdir(tmp), [])
 
     def test_an_absolute_root_that_is_not_a_directory_is_honored(self):
@@ -123,13 +140,16 @@ class ResolveTest(unittest.TestCase):
         self.assertEqual(path, Path(os.devnull) / "agent-tooling" / "gitw")
         self.assertFalse(path.exists())
         with self.assertRaises(OSError):
-            ensure_private_dir(path)
+            ensure_private_dir(path, config_root(environ))
 
 
 class EnsurePrivateDirTest(unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
-        self.root = Path(self._tmp.name)
+        self.base = Path(self._tmp.name)
+        self.home = self.base / "home"
+        self.home.mkdir()
+        self.environ = {"HOME": str(self.home)}
 
     def tearDown(self):
         self._tmp.cleanup()
@@ -137,48 +157,108 @@ class EnsurePrivateDirTest(unittest.TestCase):
     def _mode(self, path: Path) -> int:
         return stat.S_IMODE(path.stat().st_mode)
 
-    def test_creates_the_directory_and_missing_parents_0700(self):
-        path = state_dir("bdw", {"XDG_STATE_HOME": str(self.root / "state")})
+    def test_creates_the_root_and_below_0700(self):
+        (self.home / ".local").mkdir()
+        root = state_root(self.environ)
+        path = state_dir("bdw", self.environ) / "per-database-key"
         old_umask = os.umask(0o022)
         try:
-            ensure_private_dir(path)
+            ensure_private_dir(path, root)
         finally:
             os.umask(old_umask)
-        for directory in (path, path.parent, path.parent.parent):
+        for directory in (path, path.parent, path.parent.parent, root):
             with self.subTest(directory=directory):
                 self.assertTrue(directory.is_dir())
                 self.assertEqual(self._mode(directory), 0o700)
 
+    def test_never_creates_the_roots_parent(self):
+        # ~/.local is missing, so the state root cannot be created; nor can
+        # a home directory that does not exist.
+        missing_home = {"HOME": str(self.base / "absent")}
+        for environ in (self.environ, missing_home):
+            with self.subTest(environ=environ):
+                with self.assertRaises(FileNotFoundError):
+                    ensure_private_dir(state_dir("bdw", environ),
+                                       state_root(environ))
+        self.assertFalse((self.home / ".local").exists())
+        self.assertFalse((self.base / "absent").exists())
+
+    def test_a_path_outside_the_root_is_refused(self):
+        root = config_root(self.environ)
+        for path in (self.base / "elsewhere", root.parent,
+                     root / "agent-tooling" / ".." / ".." / "escape"):
+            with self.subTest(path=path):
+                with self.assertRaises(ValueError):
+                    ensure_private_dir(path, root)
+        self.assertEqual(sorted(os.listdir(self.home)), [])
+
     def test_the_umask_cannot_loosen_or_strip_the_mode(self):
+        root = config_root(self.environ)
         for umask in (0o000, 0o077, 0o700):
             with self.subTest(umask=oct(umask)):
-                path = self.root / f"u{umask:o}" / "agent-tooling" / "bdw"
+                path = root / "agent-tooling" / f"u{umask:o}"
                 old_umask = os.umask(umask)
                 try:
-                    ensure_private_dir(path)
+                    ensure_private_dir(path, root)
                 finally:
                     os.umask(old_umask)
                 self.assertEqual(self._mode(path), 0o700)
 
     def test_existing_directories_keep_their_mode(self):
-        existing = self.root / "agent-tooling"
-        existing.mkdir()
-        os.chmod(existing, 0o755)
-        ensure_private_dir(existing / "bdw")
-        self.assertEqual(self._mode(existing), 0o755)
-        self.assertEqual(self._mode(existing / "bdw"), 0o700)
+        root = config_root(self.environ)
+        product = root / "agent-tooling"
+        product.mkdir(parents=True)
+        os.chmod(product, 0o755)
+        ensure_private_dir(product / "bdw", root)
+        self.assertEqual(self._mode(product), 0o755)
+        self.assertEqual(self._mode(product / "bdw"), 0o700)
 
     def test_an_existing_directory_is_a_no_op(self):
-        path = self.root / "bdw"
-        path.mkdir()
+        root = config_root(self.environ)
+        path = config_dir("bdw", self.environ)
+        path.mkdir(parents=True)
         os.chmod(path, 0o750)
-        ensure_private_dir(path)
+        ensure_private_dir(path, root)
         self.assertEqual(self._mode(path), 0o750)
 
-    def test_a_file_in_the_way_raises(self):
-        (self.root / "agent-tooling").write_text("")
+    def test_a_symlink_to_a_directory_counts_as_existing(self):
+        root = config_root(self.environ)
+        target = self.base / "target"
+        target.mkdir()
+        os.chmod(target, 0o755)
+        root.mkdir()
+        (root / "agent-tooling").symlink_to(target)
+        ensure_private_dir(root / "agent-tooling" / "bdw", root)
+        self.assertEqual(self._mode(target), 0o755)
+        self.assertEqual(self._mode(target / "bdw"), 0o700)
+
+    def test_a_dangling_symlink_in_the_way_raises(self):
+        root = config_root(self.environ)
+        root.mkdir()
+        (root / "agent-tooling").symlink_to(self.base / "nowhere")
         with self.assertRaises(OSError):
-            ensure_private_dir(self.root / "agent-tooling" / "bdw")
+            ensure_private_dir(root / "agent-tooling" / "bdw", root)
+        self.assertFalse((self.base / "nowhere").exists())
+
+    def test_a_file_in_the_way_raises(self):
+        root = config_root(self.environ)
+        root.mkdir()
+        (root / "agent-tooling").write_text("")
+        with self.assertRaises(OSError):
+            ensure_private_dir(root / "agent-tooling" / "bdw", root)
+
+    def test_a_concurrent_creator_is_not_an_error(self):
+        root = config_root(self.environ)
+        path = config_dir("bdw", self.environ)
+        real_mkdir = Path.mkdir
+
+        def racing_mkdir(directory, *args, **kwargs):
+            real_mkdir(directory, *args, **kwargs)  # the other caller wins
+            raise FileExistsError(str(directory))
+
+        with mock.patch.object(Path, "mkdir", racing_mkdir):
+            ensure_private_dir(path, root)
+        self.assertTrue(path.is_dir())
 
 
 if __name__ == "__main__":

@@ -169,21 +169,23 @@ Why three, and the layouts rejected, is
 | state | `${XDG_STATE_HOME:-~/.local/state}/agent-tooling/<tool>/` | machine-generated, churning files, safe to delete: a lock, a failure record, a log |
 | Install Targets | `~/.local/libexec/agent-tooling/`, `~/.claude/skills/`, `~/.claude/agents/` | installed tooling, written only by the Installer ([installer](projects/installer/index.md)) |
 
-Code finds the config and state directories through `cli/lib/paths.py`
-and no other way: `config_dir(tool, environ)` and `state_dir(tool,
-environ)` resolve a tool's directory from the environment mapping the
-caller passes, and `ensure_private_dir(path)` creates it with mode 0700.
-An unset, empty, or relative XDG variable falls back to its default under
-`HOME`, as the XDG Base Directory spec directs; with no usable `HOME`
-either, the resolvers return None and the caller decides whether that
-means skip or fail. The module docstring has the details.
+Code that touches these files finds them through `cli/lib/paths.py` and
+no other way. `config_dir(tool, environ)` and `state_dir(tool, environ)`
+resolve a tool's directory from the environment mapping the caller
+passes, `config_root` and `state_root` the roots above them, and
+`ensure_private_dir(path, root)` creates a directory at or below a root
+with mode 0700, creating the root if it is missing but never the root's
+parent. An unset, empty, or relative XDG variable falls back to its
+default under `HOME`, as the XDG Base Directory spec directs; with no
+usable `HOME` either, the resolvers return None and the caller decides
+whether that means skip or fail. The module docstring has the details.
 
 Staging directories (`/tmp/claude/`, a background job's `tmp/`) are
 scratch space for message and body files, not machine-specific files, and
 sit outside the layout (`cli/lib/staging.py`).
 
-Files that predate the layout move onto it under their own Issues: gitw's
-roster (`agent-tooling-fpkl.5`) and fjw's config
+Code that predates the layout does not follow it yet, and each move has
+its own Issue: gitw's roster (`agent-tooling-fpkl.5`) and fjw's config
 (`agent-tooling-fpkl.6`) are still read from `~/.config/gitw/` and
-`~/.config/fjw/`, and triage-issues' guard marker and lock have yet to
+`~/.config/fjw/` without the helper, and triage-issues' guard marker and lock have yet to
 get a state directory (`agent-tooling-fpkl.9`).
