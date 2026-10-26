@@ -7,8 +7,9 @@ this file as a detached background worker under the system interpreter
 once and the push never affects bdw's exit code. A state directory or mark
 that cannot be written comes back as a reason bdw warns with. The worker:
 
-1. takes a lock (fcntl.flock, non-blocking); if another worker holds it,
-   exits at once, since the holder sees the dirty mark;
+1. takes the coordination lock (fcntl.flock, non-blocking), which no
+   child ever inherits; if another worker holds it, exits at once, since
+   the holder sees the dirty mark;
 2. while the dirty mark exists: clears it and pushes once, so writes that
    land during a push get exactly one more push. There is no cap on
    passes: the loop runs only while writes keep arriving;
@@ -29,20 +30,24 @@ One push:
   failure;
 - skips, clearing any recorded failure, when bd's effective `no-push` is
   set (config.yaml, or BD_NO_PUSH, which bd maps to it; asked once per
-  worker run, and read through TRUTHY);
+  worker run, and read through bdw's own TRUTHY);
 - refuses when any Dolt remote URL names the same repository as any of the
   workspace's git remotes (see same_repository), so Issue data never goes
   where the code goes;
 - runs `bd dolt push --no-adopt` with BD_NO_REMOTE_ADOPT=1, because bd
   1.3.0 otherwise offers to adopt a remote derived from the git origin. It
-  runs in its own process group, killed whole on timeout, and holds the
-  worker's lock for its whole life (see run_command).
+  runs in its own process group, killed whole on timeout.
+
+Before a push's first command the worker takes the push-in-flight lock,
+waiting up to PUSH_TIMEOUT, and hands it to every command the push runs;
+descendants that outlive the push keep it, so the next push waits for
+them, and records a failure if they outlast the wait (see run_worker).
 
 State lives outside the repo, under
 `$XDG_STATE_HOME/agent-tooling/bdw-push/<key>/` (XDG_STATE_HOME defaulting
-to ~/.local/state; <key> a hash of the Beads directory; created mode
-0o700): `lock`, `dirty`, `last-failure.json` (present only while the last
-push failed, written atomically), and `push.log`. bdw reads
+to ~/.local/state; <key> a hash of the Beads directory; mode 0o700): the
+two locks `lock` and `inflight`, `dirty`, `last-failure.json` (present
+only while the last push failed, written atomically), and `push.log`. bdw reads
 last-failure.json to warn on its next call. Without a resolvable state
 directory nothing is pushed.
 
@@ -60,6 +65,7 @@ import re
 import signal
 import subprocess
 import sys
+import tempfile
 import time
 from pathlib import Path
 from typing import Callable, Iterable, Mapping, Sequence
@@ -74,10 +80,13 @@ STDERR_TAIL = 2000
 # sessions), whatever interpreter bdw itself was started with.
 WORKER_PYTHON = "/usr/bin/python3"
 
-# Values that mean "yes" for BD_NO_PUSH and for bd's `no-push` config, as
-# `bd config get` prints them (the raw value, such as `1` or `yes`). bdw's
-# pre-spawn opt-out and the worker's check share this one set.
-TRUTHY = frozenset({"1", "true", "yes", "on"})
+# The values, compared case-insensitively after trimming, that turn the
+# push off: in BD_NO_PUSH, and in bd's `no-push` config as `bd config get`
+# prints it (the raw value, such as `1` or `yes`). bdw is the one that
+# pushes, so this set, not bd's own parsing, decides; it takes the forms
+# Go's strconv.ParseBool reads as true (1, t, true) plus yes and on. bdw's
+# pre-spawn opt-out and the worker's check share it.
+TRUTHY = frozenset({"1", "t", "true", "yes", "on"})
 
 Runner = Callable[[Sequence[str], Mapping[str, str], Path], "tuple[int, str, str]"]
 
@@ -134,7 +143,10 @@ def _record_failure(state: Path, reason: str, detail: str = "") -> None:
     payload = {"time": _now(), "reason": reason}
     temporary = state / f"last-failure.json.{os.getpid()}.tmp"
     try:
-        temporary.write_text(json.dumps(payload) + "\n")
+        with temporary.open("w") as handle:
+            handle.write(json.dumps(payload) + "\n")
+            handle.flush()
+            os.fsync(handle.fileno())
         os.replace(temporary, state / "last-failure.json")
     except OSError:
         try:
@@ -246,28 +258,34 @@ def run_command(argv: Sequence[str], environ: Mapping[str, str],
                 pass_fds: Sequence[int] = ()) -> tuple[int, str, str]:
     """Run a command in its own process group; on timeout, kill the whole
     group, so no grandchild (Dolt's git or ssh) outlives it. `pass_fds`
-    hands the worker's lock to the child, so the lock stays held for as
-    long as the child or anything it started is alive, even if the worker
-    itself is killed."""
-    try:
-        child = subprocess.Popen(
-            list(argv), env=dict(environ), cwd=str(cwd),
-            stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE, start_new_session=True,
-            pass_fds=tuple(pass_fds))
-    except OSError as error:
-        return 127, "", str(error)
-    try:
-        out, err = child.communicate(timeout=timeout)
-    except subprocess.TimeoutExpired:
+    hands the child the push-in-flight lock (see run_worker).
+
+    Output goes to temporary files, not pipes, and the wait is on the
+    process itself: a descendant that left the group (a daemon that called
+    setsid) and still holds the child's stdout or stderr then neither keeps
+    the worker past `timeout` nor turns a finished command into a
+    timeout."""
+    with tempfile.TemporaryFile() as out, tempfile.TemporaryFile() as err:
         try:
-            os.killpg(child.pid, signal.SIGKILL)
-        except OSError:
-            pass
-        child.communicate()
-        return 124, "", f"timed out after {timeout}s"
-    return (child.returncode, out.decode("utf-8", "replace"),
-            err.decode("utf-8", "replace"))
+            child = subprocess.Popen(
+                list(argv), env=dict(environ), cwd=str(cwd),
+                stdin=subprocess.DEVNULL, stdout=out, stderr=err,
+                start_new_session=True, pass_fds=tuple(pass_fds))
+        except OSError as error:
+            return 127, "", str(error)
+        try:
+            code = child.wait(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            try:
+                os.killpg(child.pid, signal.SIGKILL)
+            except OSError:
+                pass
+            child.wait()
+            return 124, "", f"timed out after {timeout}s"
+        out.seek(0)
+        err.seek(0)
+        return (code, out.read().decode("utf-8", "replace"),
+                err.read().decode("utf-8", "replace"))
 
 
 def no_push_configured(bd: str, workspace: Path, environ: Mapping[str, str],
@@ -329,8 +347,20 @@ def push_once(beads_dir: Path, state: Path, bd: str,
 
 # -- coalescing -------------------------------------------------------------
 
-def _try_lock(state: Path):
-    handle = open(state / "lock", "a")
+COORDINATION_LOCK = "lock"
+INFLIGHT_LOCK = "inflight"
+INFLIGHT_POLL = 0.1
+
+
+class InflightBusy(Exception):
+    """A previous push's process still holds the push-in-flight lock."""
+
+
+def _try_lock(state: Path, name: str = COORDINATION_LOCK):
+    """Take `state/name` with a non-blocking exclusive flock; None when
+    another holder has it. The file is opened non-inheritable (Python's
+    default), so no child gets it unless handed it through pass_fds."""
+    handle = open(state / name, "a")
     try:
         fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
     except OSError as error:
@@ -339,6 +369,19 @@ def _try_lock(state: Path):
             return None
         raise
     return handle
+
+
+def _wait_for_inflight(state: Path, timeout: float):
+    """Take the push-in-flight lock, polling for up to `timeout` seconds;
+    raise InflightBusy when it stays held."""
+    deadline = time.monotonic() + timeout
+    while True:
+        handle = _try_lock(state, INFLIGHT_LOCK)
+        if handle is not None:
+            return handle
+        if time.monotonic() >= deadline:
+            raise InflightBusy()
+        time.sleep(INFLIGHT_POLL)
 
 
 def _take_dirty(state: Path) -> bool:
@@ -352,8 +395,9 @@ def _take_dirty(state: Path) -> bool:
 def run_worker(beads_dir: Path, state: Path, bd: str,
                environ: Mapping[str, str],
                push: Callable[[], str] | None = None,
-               runner: Runner | None = None,
+               runner: Callable[..., "tuple[int, str, str]"] | None = None,
                remotes: Callable[[Path], "list[str] | None"] = dolt_remote_urls,
+               inflight_timeout: float = PUSH_TIMEOUT,
                ) -> list[str]:
     """Push until the dirty mark stays clear; return each push's outcome.
     Returns [] at once when another worker holds the lock.
@@ -363,17 +407,33 @@ def run_worker(beads_dir: Path, state: Path, bd: str,
     stranding the last writes of a busy session until the next write.
 
     bd's `no-push` is asked once per run, at the first push that has a
-    remote to go to. Every command a push runs inherits the lock (see
-    run_command), so a worker killed mid-push cannot let a second push
-    start beside the orphaned one."""
-    lock: list = []
+    remote to go to.
+
+    Two locks, with two jobs. The coordination lock (`lock`) says a worker
+    is running; only the worker holds it, never a child, so a killed
+    worker frees it at once and the next write starts a new worker. The
+    push-in-flight lock (`inflight`) says a push's commands may still be
+    running: the worker takes it before a push's first command, waiting
+    up to `inflight_timeout`, and hands it to every command the push runs
+    (pass_fds). bd's descendants inherit it too, so a push left running by
+    a killed worker, or a descendant that outlives bd (git's detached
+    gc, a credential daemon), makes the next push wait instead of running
+    beside it; past the wait, the push records a failure, so bdw warns
+    rather than leaving the write silently unpushed."""
+    inflight: list = []
     opted_out: list[bool] = []
 
     def locked_runner(argv, environment, cwd):
-        fds = (lock[0].fileno(),) if lock else ()
+        if not inflight:
+            inflight.append(_wait_for_inflight(state, inflight_timeout))
+        fds = (inflight[0].fileno(),)
         if runner is not None:
-            return runner(argv, environment, cwd)
+            return runner(argv, environment, cwd, pass_fds=fds)
         return run_command(argv, environment, cwd, pass_fds=fds)
+
+    def release_inflight() -> None:
+        while inflight:
+            inflight.pop().close()
 
     def no_push() -> bool:
         if not opted_out:
@@ -385,20 +445,25 @@ def run_worker(beads_dir: Path, state: Path, bd: str,
 
     if push is None:
         def push():
-            return push_once(beads_dir, state, bd, environ,
-                             runner=locked_runner, remotes=remotes,
-                             no_push=no_push)
+            try:
+                return push_once(beads_dir, state, bd, environ,
+                                 runner=locked_runner, remotes=remotes,
+                                 no_push=no_push)
+            except InflightBusy:
+                _record_failure(state, "a previous push's process still "
+                                "holds the push lock")
+                return "failed"
+            finally:
+                release_inflight()
     outcomes: list[str] = []
     while True:
         handle = _try_lock(state)
         if handle is None:
             return outcomes
-        lock[:] = [handle]
         try:
             while _take_dirty(state):
                 outcomes.append(push())
         finally:
-            lock[:] = []
             handle.close()
         # A write may have set the mark after the last take but before the
         # release, when its own worker found the lock still held.
@@ -434,11 +499,16 @@ def request_push(beads_dir: Path, bd: str, environ: Mapping[str, str],
         return None
     try:
         state.mkdir(parents=True, exist_ok=True, mode=0o700)
+        os.chmod(state, 0o700)  # an existing directory is tightened too
         (state / "dirty").touch()
-        handle = _try_lock(state)
     except OSError as error:
         return (f"cannot request a push: state directory {state} is not "
                 f"writable ({error.strerror or error})")
+    try:
+        handle = _try_lock(state)
+    except OSError as error:
+        return (f"cannot request a push: cannot lock "
+                f"{state / COORDINATION_LOCK} ({error.strerror or error})")
     if handle is None:
         return None
     handle.close()

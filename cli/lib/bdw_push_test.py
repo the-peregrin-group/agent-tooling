@@ -10,6 +10,7 @@ Run from the cli/ directory:
 
 from __future__ import annotations
 
+import errno
 import fcntl
 import json
 import os
@@ -100,8 +101,9 @@ class FakeRunner:
         self.push_stderr = push_stderr
         self.calls = []
 
-    def __call__(self, argv, environ, cwd):
+    def __call__(self, argv, environ, cwd, pass_fds=()):
         self.calls.append((list(argv), dict(environ)))
+        self.fds = [os.fstat(fd).st_ino for fd in pass_fds]
         if argv[0] == "git":
             out = "".join(f"remote.r{i}.url {url}\n"
                           for i, url in enumerate(self.git_urls))
@@ -303,8 +305,8 @@ class WorkerTest(unittest.TestCase):
         pushes_left = [3]
         real_call = runner.__call__
 
-        def runner_with_writes(argv, environ, cwd):
-            result = real_call(argv, environ, cwd)
+        def runner_with_writes(argv, environ, cwd, pass_fds=()):
+            result = real_call(argv, environ, cwd, pass_fds=pass_fds)
             if argv[1:2] == ["dolt"] and pushes_left[0]:
                 pushes_left[0] -= 1
                 (self.state / "dirty").touch()  # a write during the push
@@ -318,22 +320,113 @@ class WorkerTest(unittest.TestCase):
                         if call[0][1:] == ["config", "get", "no-push"]]
         self.assertEqual(len(config_calls), 1)
 
-    def test_the_lock_is_handed_to_every_command_of_a_push(self):
+    def test_only_the_inflight_lock_is_handed_to_a_push_s_commands(self):
         (self.state / "dirty").touch()
         seen = []
 
-        def runner(argv, environ, cwd, timeout=None, pass_fds=()):
-            seen.append(tuple(pass_fds))
+        def runner(argv, environ, cwd, pass_fds=()):
+            # Checked while the command "runs": the one fd passed is the
+            # inflight lock file, held, and never the coordination lock.
+            (fd,) = pass_fds
+            seen.append(os.fstat(fd).st_ino)
+            self.assertIsNone(bdw_push._try_lock(self.state, "inflight"))
             return 0, "false\n", ""
 
-        with mock.patch.object(bdw_push, "run_command", runner):
-            outcomes = bdw_push.run_worker(
-                self.beads, self.state, "/bin/bd", {},
-                remotes=lambda _: [_PRIVATE])
+        outcomes = bdw_push.run_worker(
+            self.beads, self.state, "/bin/bd", {}, runner=runner,
+            remotes=lambda _: [_PRIVATE])
         self.assertEqual(outcomes, ["pushed"])
+        inflight = (self.state / "inflight").stat().st_ino
+        coordination = (self.state / "lock").stat().st_ino
         self.assertTrue(seen)
-        for fds in seen:
-            self.assertEqual(len(fds), 1)
+        self.assertEqual(set(seen), {inflight})
+        self.assertNotEqual(inflight, coordination)
+        # Released after the push.
+        handle = bdw_push._try_lock(self.state, "inflight")
+        self.assertIsNotNone(handle)
+        handle.close()
+
+    def test_a_held_inflight_lock_is_waited_for_then_reported(self):
+        (self.state / "dirty").touch()
+        runner = FakeRunner()
+        with open(self.state / "inflight", "a") as orphan:
+            fcntl.flock(orphan, fcntl.LOCK_EX)
+            outcomes = bdw_push.run_worker(
+                self.beads, self.state, "/bin/bd", {}, runner=runner,
+                remotes=lambda _: [_PRIVATE], inflight_timeout=0.3)
+        self.assertEqual(outcomes, ["failed"])
+        self.assertEqual(runner.calls, [])
+        self.assertIn("still holds the push lock",
+                      bdw_push.last_failure(self.state)["reason"])
+        self.assertEqual(bdw_push.exit_code(outcomes), 1)
+
+
+# A bd stand-in whose push leaves a detached (setsid) sleeper behind, as
+# git's background gc or a credential daemon would: the sleeper inherits
+# every fd bd had, the inflight lock included.
+_ORPHANING_BD = """#!/bin/sh
+case "$1 $2" in
+"config get") echo false; exit 0 ;;
+"dolt push")
+    echo push >> "$PUSH_LOG"
+    /usr/bin/python3 -c 'import os, time; os.setsid(); \\
+time.sleep(float(os.environ["SLEEPER_SECONDS"]))' &
+    exit 0 ;;
+esac
+exit 0
+"""
+
+
+class OrphanedDescendantTest(unittest.TestCase):
+    """End to end, with the real run_command: a write after a push whose
+    descendant outlived it is pushed or warned about, never stranded."""
+
+    def setUp(self):
+        root = Path(tempfile.mkdtemp()).resolve()
+        self.addCleanup(shutil.rmtree, root, ignore_errors=True)
+        self.beads = root / "ws" / ".beads"
+        self.beads.mkdir(parents=True)
+        self.state = root / "state"
+        self.state.mkdir()
+        bin_dir = root / "bin"
+        bin_dir.mkdir()
+        self.bd = bin_dir / "bd"
+        self.bd.write_text(_ORPHANING_BD)
+        self.bd.chmod(0o755)
+        git = bin_dir / "git"
+        git.write_text("#!/bin/sh\nexit 1\n")  # no git remotes
+        git.chmod(0o755)
+        self.push_log = root / "pushes"
+        self.environ = {"PATH": str(bin_dir), "PUSH_LOG": str(self.push_log),
+                        "SLEEPER_SECONDS": "2"}
+
+    def worker(self, inflight_timeout):
+        (self.state / "dirty").touch()  # a write
+        return bdw_push.run_worker(
+            self.beads, self.state, str(self.bd), self.environ,
+            remotes=lambda _: [_PRIVATE], inflight_timeout=inflight_timeout)
+
+    def pushes(self):
+        if not self.push_log.exists():
+            return 0
+        return len(self.push_log.read_text().splitlines())
+
+    def test_a_write_after_an_orphaning_push_is_warned_or_pushed(self):
+        self.assertEqual(self.worker(inflight_timeout=5), ["pushed"])
+        # The worker is gone and the coordination lock is free at once, so
+        # the next write starts a worker...
+        handle = bdw_push._try_lock(self.state)
+        self.assertIsNotNone(handle)
+        handle.close()
+        # ...which, while the orphan lives, waits, then warns...
+        self.assertEqual(self.worker(inflight_timeout=0.3), ["failed"])
+        self.assertIn("still holds the push lock",
+                      bdw_push.last_failure(self.state)["reason"])
+        self.assertEqual(self.pushes(), 1)
+        # ...and once the orphan exits within the wait, pushes.
+        self.assertEqual(self.worker(inflight_timeout=10), ["pushed"])
+        self.assertEqual(self.pushes(), 2)
+        self.assertIsNone(bdw_push.last_failure(self.state))
 
 
 class RunCommandTest(unittest.TestCase):
@@ -358,6 +451,29 @@ class RunCommandTest(unittest.TestCase):
                 return
             time.sleep(0.05)
         self.fail("the grandchild outlived the timeout")
+
+    def test_a_detached_descendant_holding_output_does_not_stretch_a_timeout(
+            self):
+        # sh blocks; its child calls setsid (escaping the group kill) and
+        # keeps sh's stdout and stderr open for 8 s.
+        script = ("/usr/bin/python3 -c 'import os, time; os.setsid(); "
+                  "time.sleep(8)' & /bin/sleep 100")
+        started = time.monotonic()
+        code, _, _ = bdw_push.run_command(
+            ["/bin/sh", "-c", script], {"PATH": "/bin"}, self.root,
+            timeout=1)
+        self.assertEqual(code, 124)
+        self.assertLess(time.monotonic() - started, 4)
+
+    def test_a_finished_command_is_not_held_by_its_detached_descendant(self):
+        script = ("/usr/bin/python3 -c 'import os, time; os.setsid(); "
+                  "time.sleep(8)' & echo done; exit 3")
+        started = time.monotonic()
+        code, out, _ = bdw_push.run_command(
+            ["/bin/sh", "-c", script], {"PATH": "/bin"}, self.root,
+            timeout=6)
+        self.assertEqual((code, out), (3, "done\n"))
+        self.assertLess(time.monotonic() - started, 4)
 
     def test_passed_fds_reach_the_child(self):
         with open(self.root / "lock", "a") as handle:
@@ -401,6 +517,24 @@ class RequestPushTest(unittest.TestCase):
                               spawn=lambda *_: None)
         self.assertEqual(self.state().stat().st_mode & 0o777, 0o700)
 
+    def test_an_existing_state_directory_is_tightened(self):
+        self.state().mkdir(parents=True)
+        os.chmod(self.state(), 0o755)
+        bdw_push.request_push(self.beads, "bd", self.environ,
+                              spawn=lambda *_: None)
+        self.assertEqual(self.state().stat().st_mode & 0o777, 0o700)
+
+    def test_a_lock_error_is_reported_as_one(self):
+        def no_locks(*_):
+            raise OSError(errno.ENOLCK, "No locks available")
+
+        with mock.patch.object(bdw_push.fcntl, "flock", no_locks):
+            problem = bdw_push.request_push(self.beads, "bd", self.environ,
+                                            spawn=lambda *_: None)
+        self.assertIn("cannot lock", problem)
+        self.assertIn("No locks available", problem)
+        self.assertNotIn("not writable", problem)
+
     def test_a_held_lock_means_no_new_worker(self):
         state = self.state()
         state.mkdir(parents=True)
@@ -441,9 +575,9 @@ class RequestPushTest(unittest.TestCase):
 
 class TruthyTest(unittest.TestCase):
     def test_raw_config_values(self):
-        for value in ("1", "true", "TRUE", " yes\n", "on"):
+        for value in ("1", "t", "T", "true", "True", "TRUE", " yes\n", "on"):
             self.assertTrue(bdw_push.is_truthy(value), value)
-        for value in (None, "", "0", "false", "no", "off", "2"):
+        for value in (None, "", "0", "f", "false", "no", "off", "2"):
             self.assertFalse(bdw_push.is_truthy(value), value)
 
 
