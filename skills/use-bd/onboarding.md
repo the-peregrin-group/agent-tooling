@@ -85,9 +85,12 @@ them.
   4. Push once by hand (`bd dolt push --no-adopt`) to confirm access.
   5. Confirm a restore works, without touching the live database: clone
      the remote with the standalone dolt CLI into a scratch directory
-     outside the repo (`dolt clone <url> <scratch-dir>`), then compare
-     `dolt sql -q "select count(*) from issues"` run in the clone with
-     `bdw count --include-infra` in the checkout. Never use
+     outside the repo (`dolt clone <url> <scratch-dir>`). In the clone,
+     `dolt sql -q "select count(*) from issues"` must equal plain
+     `bdw count` in the checkout, which shows the copy is complete. Then
+     look up an Issue closed recently
+     (`dolt sql -q "select id, status from issues where id = '<id>'"`) and
+     confirm it reads closed, which shows the copy is current. Never use
      `bd init --remote <url>` for this: it persists `sync.remote` into the
      tracked `config.yaml`. Restoring over a checkout's own database is a
      maintainer step, done only after a real loss.
