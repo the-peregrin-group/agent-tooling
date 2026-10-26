@@ -315,8 +315,11 @@ writes to this repo, and the flag only narrows which board is touched.
   colors, canonical field names, the eight Status states with their exact
   casing (title case like `Needs Triage` beside sentence case like
   `In progress`), the terminal-state set, and Size XS to XL. Also
-  `staging.py` (invariant 9), `plan.py` (JSON plan and exit codes), and
-  `arguments.py` (repo charset check, issue-number parsing).
+  `staging.py` (invariant 9), `plan.py` (JSON plan and exit codes),
+  `arguments.py` (repo charset check, issue-number parsing), and
+  `paths.py` (each tool's subdirectory of the Machine Config Directory and
+  the Machine State Directory, per the
+  [Path layout](../../index.md#path-layout)).
 - `cli/lib/github/`: `gh.py` is the subprocess layer. Every call has a
   120-second timeout with stdin closed when nothing is piped, so a prompting
   subcommand or stalled connection fails loudly instead of hanging an
