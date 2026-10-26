@@ -55,6 +55,11 @@ state, and is otherwise never updated after its date.
   as of 2026-10-11: every point where a Skill or Wrapper decides what an
   agent may do on its own and what needs a human, the principles behind
   them, and the inconsistencies awaiting the maintainer's decisions.
+- [Issue guidance extraction](audits/2026-10-26-issue-guidance-extraction/index.md),
+  as of 2026-10-26: every principle about how agents use Issues, quoted
+  from the issue Skills, the ADRs, the lexicon, and the Issue Tracker, with
+  its provenance, merged into one catalog and a requirements draft for the
+  Issue Tracker skill family.
 
 ## Exit-code contract
 
