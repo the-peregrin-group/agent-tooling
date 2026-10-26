@@ -98,43 +98,54 @@ What one call does:
 7. Push the database to its Dolt remote (see
    [ADR 0014](../../adr/0014-bdw-pushes-the-beads-database-after-writes.md),
    bdw pushes the Beads database after every write). After any call that
-   probed the workspace in step 3:
+   probed the workspace in step 3, unless `BD_NO_PUSH` is set to `1`,
+   `true`, `yes`, or `on` (bd maps the same variable to its `no-push`
+   config, and reads its raw value through the same set):
    - while the last push failed, print one warning line on stderr naming
      the failure's time and reason and the push log, never the remote's
      address;
-   - when bd exited 0 and the call is not a read, start a push and return
-     at once. For this step a read is any call to a verb or subcommand in
-     the read tables of step 3, whatever its flags; `dolt` and `backup`
-     calls never push either. A write this misses (a read verb with a
-     writing flag) is pushed by the next write, since a Dolt push sends
-     every unpushed commit. `BD_NO_PUSH` set to `1`, `true`, `yes`, or `on`
-     skips the push; bd maps the same variable to its `no-push` config.
+   - when bd exited 0 and the call is not a read, request a push and
+     return at once. For this step a read is any call to a verb or
+     subcommand in the read tables of step 3, whatever its flags; `dolt`
+     and `backup` calls never push either. A write this misses (a read
+     verb with a writing flag) is pushed by the next write, since a Dolt
+     push sends every unpushed commit. If the push cannot be requested
+     (its state directory or mark cannot be written, or the worker cannot
+     start), print one warning line saying so.
 
-   The push (`cli/lib/bdw_push.py`) runs as a detached background process,
-   so it never changes `bdw`'s exit code. It is coalesced: `bdw` leaves a
-   dirty mark and starts a worker; one worker at a time holds a lock and
-   pushes until the mark stays clear, so writes landing during a push get
-   exactly one more. Each push:
+   Nothing in this step, an exception included, changes `bdw`'s exit
+   code. The push (`cli/lib/bdw_push.py`) runs as a detached background
+   process under `/usr/bin/python3`, the interpreter macOS grants Local
+   Network access to, whatever interpreter `bdw` itself ran under. It is
+   coalesced: `bdw` leaves a dirty mark and starts a worker unless one
+   already holds the lock; one worker at a time holds the lock and pushes
+   until the mark stays clear, so writes landing during a push get exactly
+   one more. A worker asks bd for `no-push` once per run. Each push:
    - reads the Dolt remotes from the embedded database's
      `repo_state.json` (named through `metadata.json`), and does nothing
-     when there are none or the database is not in embedded mode. That
-     file is Dolt's own, not a bd interface, so a bd upgrade re-checks it
-     with the rest of the verified behavior;
+     when there are none or the database is not in embedded mode; when
+     that state cannot be read, it records a failure. That file is
+     Dolt's own, not a bd interface, so a bd upgrade re-checks it with the
+     rest of the verified behavior;
+   - skips when bd's effective `no-push` is set, clearing any recorded
+     failure so the warning above stops;
    - refuses, and records a failure, when any Dolt remote names the same
      repository as any git remote of the workspace, comparing host and
      path with scheme, user, port, `.git`, and case dropped, so the Issue
      data never goes where the public code goes;
-   - skips when bd's effective `no-push` is true;
    - runs `bd dolt push --no-adopt` with `BD_NO_REMOTE_ADOPT=1`, because
      bd 1.3.0 otherwise offers to adopt a remote derived from the git
-     origin.
+     origin. bd runs in its own process group, killed whole on a timeout,
+     and inherits the worker's lock, so a worker killed mid-push cannot
+     let a second push start beside the orphaned one.
 
    Its state lives outside the repo, in
    `$XDG_STATE_HOME/agent-tooling/bdw-push/<key>/` (`XDG_STATE_HOME`
    defaulting to `~/.local/state`, `<key>` a hash of the Beads
-   directory): the lock, the dirty mark, `last-failure.json` while the
-   last push failed, and `push.log`. With neither `XDG_STATE_HOME` nor
-   `HOME` set, nothing is pushed.
+   directory, created mode `0700`): the lock, the dirty mark,
+   `last-failure.json` while the last push failed (replaced atomically),
+   and `push.log`. With neither `XDG_STATE_HOME` nor `HOME` set, nothing
+   is pushed.
 
 `bdw` follows the [Exit-code contract](../../index.md#exit-code-contract)
 (why: [ADR 0013 (one exit-code contract for all agent-tooling software)](../../adr/0013-one-exit-code-contract-for-all-agent-tooling.md)).

@@ -50,11 +50,11 @@ rephrase around: on exit 4 fix the call or report the gap; on exit 5
 stop and report it.
 
 Where the database has a Dolt remote, `bdw` pushes to it in the
-background after every write; you never push. If a call prints
-`bdw: warning: the last push of this Beads database to its Dolt remote
-failed (...)`, your call itself worked: carry on, and tell the user once,
-in your report, with the reason the line gives. Do not try to push by
-hand.
+background after every write; you never push. If a call prints a
+`bdw: warning:` line about that push (`the last push of this Beads
+database to its Dolt remote failed (...)`, or `cannot request a push`),
+your call itself worked: carry on, and tell the user once, in your
+report, with the reason the line gives. Do not try to push by hand.
 
 The repo's own conventions are in `.beads/PRIME.md`, which `bdw prime`
 prints. Read this skill's `quirks.md` when bd surprises you, and
