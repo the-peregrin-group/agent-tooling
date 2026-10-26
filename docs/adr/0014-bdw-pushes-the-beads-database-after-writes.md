@@ -7,7 +7,7 @@ status: current
 
 **Context:** [ADR 0012](0012-beads-data-syncs-to-private-forgejo-remote.md) (Beads data syncs to a private Forgejo remote) gave the database a remote but left open what triggers a push, and bd 1.3.0 in embedded mode was observed not to push on writes, even with `sync.remote` set. Agents are denied every `dolt` verb, a Beads push bypasses gitw and git's pre-push hooks, and the 2026-10-12 workjam ran about 300 sub-agents writing to one database at once. The mechanism is described in the [bdw project doc](../projects/bdw/index.md).
 
-**Decision:** After each call that `bd` ran successfully and that is not a read, `bdw` starts a detached, coalesced background push of the database to its Dolt remote, refusing any remote that names the same repository as a git remote of the workspace.
+**Decision:** After each call that `bd` ran successfully and that is not a read, `bdw` starts a detached, coalesced background push of the database to its Dolt remote.
 
 **Rationale:** `bdw` already sits on every agent write and carries the Beads policy Permission rules cannot express ([ADR 0010](0010-bdw-carries-beads-policy-in-tiers.md), bdw carries Beads policy in tiers), so the remote stays current with no hook, timer, or agent instruction, and the one remote write stays in code agents cannot talk past.
 
@@ -16,6 +16,7 @@ status: current
 - Agents never type a push, and they stay denied every `dolt` verb; the Permission rules see `bdw <verb>`, not the push `bdw` runs.
 - A push failure never fails the write: a recorded failure makes `bdw` warn on later calls until a push succeeds, and the next push sends every unpushed commit.
 - A maintainer's raw `bd` writes are pushed by the next `bdw` write.
+- Where a push may go is a decision of its own, [ADR 0016](0016-bdw-pushes-only-to-allowlisted-hosts.md) (bdw pushes only to hosts on a fail-closed allowlist).
 
 ## Alternatives Considered
 
