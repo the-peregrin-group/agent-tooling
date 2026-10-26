@@ -228,21 +228,45 @@ class WorkerTest(unittest.TestCase):
         return bdw_push.run_worker(self.beads, self.state, "bd", {},
                                    push=push)
 
-    def test_nothing_dirty_means_no_push(self):
+    def test_no_marker_means_no_push(self):
         self.assertEqual(self.run_worker(lambda: "pushed"), [])
 
-    def test_one_dirty_mark_means_one_push(self):
-        (self.state / "dirty").touch()
+    def test_one_marker_means_one_push(self):
+        (self.state / "pending").touch()
         self.assertEqual(self.run_worker(lambda: "pushed"), ["pushed"])
-        self.assertFalse((self.state / "dirty").exists())
+        self.assertFalse((self.state / "pending").exists())
+        self.assertFalse((self.state / "pushing").exists())
+
+    def test_the_write_is_pushing_until_its_outcome_is_recorded(self):
+        (self.state / "pending").touch()
+        seen = []
+
+        def push():
+            seen.append(((self.state / "pending").exists(),
+                         (self.state / "pushing").exists()))
+            return "failed"
+
+        self.assertEqual(self.run_worker(push), ["failed"])
+        self.assertEqual(seen, [(False, True)])
+        self.assertFalse((self.state / "pushing").exists())
+
+    def test_a_leftover_pushing_is_pushed_and_folds_in_pending(self):
+        for markers in (("pushing",), ("pushing", "pending")):
+            with self.subTest(markers=markers):
+                for marker in markers:
+                    (self.state / marker).touch()
+                self.assertEqual(self.run_worker(lambda: "pushed"),
+                                 ["pushed"])
+                self.assertFalse((self.state / "pending").exists())
+                self.assertFalse((self.state / "pushing").exists())
 
     def test_writes_during_a_push_get_one_more_push(self):
-        (self.state / "dirty").touch()
+        (self.state / "pending").touch()
         marks = [True, True, False]
 
         def push():
             if marks.pop(0):
-                (self.state / "dirty").touch()  # a write landed meanwhile
+                (self.state / "pending").touch()  # a write landed meanwhile
             return "pushed"
 
         self.assertEqual(self.run_worker(push), ["pushed"] * 3)
@@ -250,26 +274,26 @@ class WorkerTest(unittest.TestCase):
     def test_a_long_run_of_writes_is_pushed_to_the_end(self):
         # Writes keep landing during each push, more passes in a row than
         # any cap would allow; the mark set during the last push still
-        # gets its push, and nothing is left dirty.
-        (self.state / "dirty").touch()
+        # gets its push, and no marker is left.
+        (self.state / "pending").touch()
         writes_during_pushes = 60
         pushes = []
 
         def push():
             pushes.append(1)
             if len(pushes) <= writes_during_pushes:
-                (self.state / "dirty").touch()
+                (self.state / "pending").touch()
             return "pushed"
 
         self.assertEqual(self.run_worker(push),
                          ["pushed"] * (writes_during_pushes + 1))
-        self.assertFalse((self.state / "dirty").exists())
+        self.assertFalse((self.state / "pending").exists())
 
     def test_a_mark_set_after_the_last_check_is_pushed_after_unlock(self):
         # A write lands after the worker's last check for a mark but before
         # it releases the lock, so that write's own request found the lock
         # held; the re-check after the release must push it.
-        (self.state / "dirty").touch()
+        (self.state / "pending").touch()
         has_mark = bdw_push._has_mark
         empty_checks = []
 
@@ -277,13 +301,13 @@ class WorkerTest(unittest.TestCase):
             found = has_mark(state)
             if not found and not empty_checks:
                 empty_checks.append(1)
-                (state / "dirty").touch()
+                (state / "pending").touch()
             return found
 
         with mock.patch.object(bdw_push, "_has_mark", check_then_write):
             outcomes = self.run_worker(lambda: "pushed")
         self.assertEqual(outcomes, ["pushed", "pushed"])
-        self.assertFalse((self.state / "dirty").exists())
+        self.assertFalse((self.state / "pending").exists())
 
     def test_exit_code_follows_the_last_push(self):
         cases = (([], 0), (["pushed"], 0), (["no-remote"], 0),
@@ -294,14 +318,14 @@ class WorkerTest(unittest.TestCase):
                 self.assertEqual(bdw_push.exit_code(outcomes), code)
 
     def test_a_held_lock_leaves_the_work_to_its_holder(self):
-        (self.state / "dirty").touch()
+        (self.state / "pending").touch()
         with open(self.state / "lock", "a") as handle:
             fcntl.flock(handle, fcntl.LOCK_EX)
             self.assertEqual(self.run_worker(lambda: "pushed"), [])
-        self.assertTrue((self.state / "dirty").exists())
+        self.assertTrue((self.state / "pending").exists())
 
     def test_no_push_is_asked_once_per_run(self):
-        (self.state / "dirty").touch()
+        (self.state / "pending").touch()
         runner = FakeRunner()
         pushes_left = [3]
         real_call = runner.__call__
@@ -310,7 +334,7 @@ class WorkerTest(unittest.TestCase):
             result = real_call(argv, environ, cwd, pass_fds=pass_fds)
             if argv[1:2] == ["dolt"] and pushes_left[0]:
                 pushes_left[0] -= 1
-                (self.state / "dirty").touch()  # a write during the push
+                (self.state / "pending").touch()  # a write during the push
             return result
 
         outcomes = bdw_push.run_worker(
@@ -322,7 +346,7 @@ class WorkerTest(unittest.TestCase):
         self.assertEqual(len(config_calls), 1)
 
     def test_the_inflight_fd_reaches_only_bd_dolt_push(self):
-        (self.state / "dirty").touch()
+        (self.state / "pending").touch()
         seen = {}
 
         def runner(argv, environ, cwd, pass_fds=()):
@@ -347,7 +371,7 @@ class WorkerTest(unittest.TestCase):
         handle.close()
 
     def test_a_held_inflight_lock_keeps_the_mark_and_stops(self):
-        (self.state / "dirty").touch()
+        (self.state / "pending").touch()
         runner = FakeRunner()
         with open(self.state / "inflight", "a") as orphan:
             fcntl.flock(orphan, fcntl.LOCK_EX)
@@ -356,7 +380,7 @@ class WorkerTest(unittest.TestCase):
                 remotes=lambda _: [_PRIVATE], inflight_timeout=0.3)
         self.assertEqual(outcomes, ["failed"])
         self.assertEqual(runner.calls, [])
-        self.assertTrue((self.state / "dirty").exists())
+        self.assertTrue((self.state / "pending").exists())
         reason = bdw_push.last_failure(self.state)["reason"]
         self.assertIn("push-in-flight lock", reason)
         self.assertIn(str(self.state / "inflight"), reason)
@@ -366,17 +390,17 @@ class WorkerTest(unittest.TestCase):
         # The push-in-flight lock path cannot be opened (the reviewer's
         # repro): recorded, the mark kept, the worker stopped.
         (self.state / "inflight").mkdir()
-        (self.state / "dirty").touch()
+        (self.state / "pending").touch()
         outcomes = bdw_push.run_worker(
             self.beads, self.state, "/bin/bd", {}, runner=FakeRunner(),
             remotes=lambda _: [_PRIVATE])
         self.assertEqual(outcomes, ["failed"])
-        self.assertTrue((self.state / "dirty").exists())
+        self.assertTrue((self.state / "pending").exists())
         self.assertIn("the push worker failed",
                       bdw_push.last_failure(self.state)["reason"])
 
     def test_an_unexpected_error_inside_a_push_is_recorded(self):
-        (self.state / "dirty").touch()
+        (self.state / "pending").touch()
 
         def explode():
             raise RuntimeError("boom")
@@ -436,7 +460,7 @@ class OrphanedDescendantTest(unittest.TestCase):
                         "SLEEPER_SECONDS": "2"}
 
     def worker(self, inflight_timeout):
-        (self.state / "dirty").touch()  # a write
+        (self.state / "pending").touch()  # a write
         return bdw_push.run_worker(
             self.beads, self.state, str(self.bd), self.environ,
             remotes=lambda _: [_PRIVATE], inflight_timeout=inflight_timeout)
@@ -458,7 +482,7 @@ class OrphanedDescendantTest(unittest.TestCase):
         self.assertEqual(self.worker(inflight_timeout=0.3), ["failed"])
         self.assertIn("push-in-flight lock",
                       bdw_push.last_failure(self.state)["reason"])
-        self.assertTrue((self.state / "dirty").exists())
+        self.assertTrue((self.state / "pending").exists())
         self.assertEqual(self.pushes(), 1)
         # ...and once the orphan exits within the wait, pushes.
         self.assertEqual(self.worker(inflight_timeout=10), ["pushed"])
@@ -496,7 +520,7 @@ class KilledWorkerTest(unittest.TestCase):
         self.state.mkdir(parents=True)
 
     def test_a_worker_killed_while_waiting_leaves_the_mark(self):
-        (self.state / "dirty").touch()  # a write
+        (self.state / "pending").touch()  # a write
         with open(self.state / "inflight", "a") as orphan:
             fcntl.flock(orphan, fcntl.LOCK_EX)  # an earlier push's orphan
             worker = subprocess.Popen(
@@ -505,12 +529,66 @@ class KilledWorkerTest(unittest.TestCase):
             time.sleep(1)  # the worker is polling the held lock
             worker.kill()
             worker.wait()
-        self.assertTrue((self.state / "dirty").exists())
+        self.assertTrue((self.state / "pending").exists())
         self.assertFalse(self.push_log.exists())
-        # The next write's worker pushes the kept write with its own.
-        self.assertEqual(bdw_push.run_worker(
-            self.beads, self.state, str(self.bd), self.environ), ["pushed"])
-        self.assertFalse((self.state / "dirty").exists())
+        # The next bdw call of any kind, a read included, starts a worker
+        # that pushes the kept write.
+        self.assertIsNone(self.next_call())
+        self.assertEqual(self.pushes(), 1)
+        self.assertNoMarkers()
+
+    def test_a_worker_killed_mid_push_is_pushed_again_on_the_next_call(self):
+        self.bd.write_text(_FAILS_FIRST_BD)
+        (self.state / "pending").touch()  # a write
+        worker = subprocess.Popen(
+            ["/usr/bin/python3", bdw_push.__file__, str(self.beads),
+             str(self.bd)], env=self.environ)
+        deadline = time.monotonic() + 10
+        while self.pushes() < 1 and time.monotonic() < deadline:
+            time.sleep(0.05)  # until bd's push is under way
+        self.assertTrue((self.state / "pushing").exists())
+        worker.kill()
+        worker.wait()
+        # The orphaned push goes on and fails (exit 7), and nothing records
+        # that; but the write's `pushing` marker survives, so the next call
+        # waits for the orphan, then pushes again and records the outcome.
+        self.assertTrue((self.state / "pushing").exists())
+        self.assertIsNone(self.next_call())
+        self.assertEqual(self.pushes(), 2)
+        self.assertIsNone(bdw_push.last_failure(self.state))
+        self.assertNoMarkers()
+
+    def next_call(self):
+        """What bdw does on a call that leaves no write, with the worker
+        run to completion in the foreground."""
+        return bdw_push.resume_push(
+            self.beads, str(self.bd), self.environ,
+            spawn=lambda argv, environ: subprocess.run(
+                list(argv), env=dict(environ), timeout=60))
+
+    def pushes(self):
+        if not self.push_log.exists():
+            return 0
+        return len(self.push_log.read_text().splitlines())
+
+    def assertNoMarkers(self):
+        self.assertFalse((self.state / "pending").exists())
+        self.assertFalse((self.state / "pushing").exists())
+
+
+# A bd stand-in whose first push hangs for 2 s and fails (exit 7), and
+# whose later pushes succeed at once.
+_FAILS_FIRST_BD = """#!/bin/sh
+case "$1 $2" in
+"config get") echo false; exit 0 ;;
+"dolt push")
+    echo push >> "$PUSH_LOG"
+    n=$(/usr/bin/wc -l < "$PUSH_LOG")
+    if [ "$n" -eq 1 ]; then /bin/sleep 2; exit 7; fi
+    exit 0 ;;
+esac
+exit 0
+"""
 
 
 class RunCommandTest(unittest.TestCase):
@@ -599,13 +677,13 @@ class RequestPushTest(unittest.TestCase):
     def state(self) -> Path:
         return bdw_push.state_dir(self.beads, self.environ)
 
-    def test_marks_dirty_and_spawns_the_system_interpreter(self):
+    def test_leaves_pending_and_spawns_the_system_interpreter(self):
         spawned = []
         self.assertIsNone(bdw_push.request_push(
             self.beads, "/bin/bd", self.environ,
             spawn=lambda argv, environ: spawned.append(list(argv))))
         state = self.state()
-        self.assertTrue((state / "dirty").exists())
+        self.assertTrue((state / "pending").exists())
         self.assertTrue(str(state).startswith(
             str(self.root / "s" / "agent-tooling" / "bdw" / "push")))
         (argv,) = spawned
@@ -638,6 +716,37 @@ class RequestPushTest(unittest.TestCase):
         self.assertIn("No locks available", problem)
         self.assertNotIn("not writable", problem)
 
+    def test_resume_starts_a_worker_only_when_a_push_is_owed(self):
+        spawned = []
+
+        def spawn(argv, environ):
+            spawned.append(argv)
+
+        # No state at all: nothing owed, nothing created.
+        self.assertIsNone(bdw_push.resume_push(self.beads, "bd", self.environ,
+                                               spawn=spawn))
+        self.assertFalse((self.root / "s").exists())
+        state = self.state()
+        state.mkdir(parents=True)
+        self.assertIsNone(bdw_push.resume_push(self.beads, "bd", self.environ,
+                                               spawn=spawn))
+        self.assertEqual(spawned, [])
+        for marker in ("pending", "pushing"):
+            with self.subTest(marker=marker):
+                spawned.clear()
+                (state / marker).touch()
+                bdw_push.resume_push(self.beads, "bd", self.environ,
+                                     spawn=spawn)
+                self.assertEqual(len(spawned), 1)
+                # A running worker (the lock held) means no second one.
+                spawned.clear()
+                with open(state / "lock", "a") as handle:
+                    fcntl.flock(handle, fcntl.LOCK_EX)
+                    bdw_push.resume_push(self.beads, "bd", self.environ,
+                                         spawn=spawn)
+                self.assertEqual(spawned, [])
+                os.unlink(state / marker)
+
     def test_a_held_lock_means_no_new_worker(self):
         state = self.state()
         state.mkdir(parents=True)
@@ -648,7 +757,7 @@ class RequestPushTest(unittest.TestCase):
                 self.beads, "bd", self.environ,
                 spawn=lambda *args: spawned.append(args)))
         self.assertEqual(spawned, [])
-        self.assertTrue((state / "dirty").exists())
+        self.assertTrue((state / "pending").exists())
 
     def test_home_fallback_and_no_state_dir(self):
         state = bdw_push.state_dir(self.beads, {"HOME": "/h"})

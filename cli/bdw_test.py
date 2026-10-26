@@ -608,13 +608,14 @@ class BdwTest(unittest.TestCase):
         return state
 
     def wait_for_worker(self) -> None:
-        """Wait until the detached worker has released its state: the dirty
-        mark gone and the lock free."""
+        """Wait until the detached worker has released its state: both
+        write markers gone and the lock free."""
         deadline = time.monotonic() + 20
         while time.monotonic() < deadline:
             state_root = self.state_home / "agent-tooling" / "bdw" / "push"
             states = list(state_root.iterdir()) if state_root.exists() else []
-            if states and not (states[0] / "dirty").exists():
+            if states and not (states[0] / "pending").exists() \
+                    and not (states[0] / "pushing").exists():
                 with open(states[0] / "lock", "a") as handle:
                     try:
                         fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -684,6 +685,24 @@ class BdwTest(unittest.TestCase):
         self.wait_for_worker()
         self.assertEqual(self.run_bdw("show", "x-1", **environment).stderr,
                          "")
+
+    def test_a_read_restarts_a_push_a_killed_worker_left_owed(self):
+        environment = self.setup_push()
+        state = bdw_push.state_dir(self.beads,
+                                   self.bdw_environment(**environment))
+        state.mkdir(parents=True)
+        (state / "pushing").touch()  # a worker was killed mid-push
+        result = self.run_bdw("show", "x-1", **environment)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stderr, "")
+        self.wait_for_worker()
+        self.assertEqual(self.pushes(), ["dolt push --no-adopt"])
+
+    def test_a_read_with_nothing_owed_starts_no_worker(self):
+        environment = self.setup_push()
+        self.run_bdw("show", "x-1", **environment)
+        self.assertFalse((self.state_home / "agent-tooling").exists())
+        self.assertEqual(self.pushes(), [])
 
     def test_a_workspace_without_a_dolt_remote_pushes_nothing(self):
         self.install_fake_bd()

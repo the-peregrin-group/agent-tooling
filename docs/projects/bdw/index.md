@@ -111,19 +111,27 @@ What one call does:
      subcommand in the read tables of step 3, whatever its flags; `dolt`
      and `backup` calls never push either. A write this misses (a read
      verb with a writing flag) is pushed by the next write, since a Dolt
-     push sends every unpushed commit. If the push cannot be requested
-     (its state directory or mark cannot be written, its lock cannot be
-     taken, or the worker cannot start), print one warning line saying
-     so.
+     push sends every unpushed commit;
+   - after any other call, a read included, start a worker when a push is
+     still owed (a write marker is left, as a killed worker leaves one)
+     and no worker is running. Nothing is created when nothing is owed.
+
+   If a push cannot be requested or restarted (its state directory or
+   marker cannot be written, its lock cannot be taken, or the worker
+   cannot start), `bdw` prints one warning line saying so.
 
    Nothing in this step, an exception included, changes `bdw`'s exit
    code. The push (`cli/lib/bdw_push.py`) runs as a detached background
    process under `/usr/bin/python3`, the interpreter macOS grants Local
    Network access to, whatever interpreter `bdw` itself ran under. It is
-   coalesced: `bdw` leaves a dirty mark and starts a worker unless one
-   already holds the lock; one worker at a time holds the lock and pushes
-   until the mark stays clear, so writes landing during a push get exactly
-   one more. A worker asks bd for `no-push` once per run. Each push:
+   coalesced: a write leaves the marker `pending` and starts a worker
+   unless one already holds the lock; one worker at a time holds the lock
+   and pushes until no marker is left, so writes landing during a push
+   get exactly one more. A pass takes the write by renaming `pending` to
+   `pushing`, and deletes `pushing` only once the push's outcome is
+   recorded (pushed, nothing to push, opted out, or a failure written); a
+   worker treats a leftover `pushing` as work. A worker asks bd for
+   `no-push` once per run. Each push:
    - reads the Dolt remotes from the embedded database's
      `repo_state.json` (named through `metadata.json`), and does nothing
      when there are none or the database is not in embedded mode; when
@@ -144,7 +152,7 @@ What one call does:
 
    Two locks keep pushes apart. The coordination lock means a worker is
    running; only the worker holds it, so a killed worker frees it at once
-   and the next write starts a new one. The push-in-flight lock means a
+   and the next `bdw` call starts a new one. The push-in-flight lock means a
    `bd dolt push` may still be running: the worker takes it, waiting up
    to the push timeout, before each pass, holds it for the whole pass,
    and hands it to `bd dolt push` alone, whose descendants inherit it. A
@@ -152,19 +160,24 @@ What one call does:
    (git's detached gc, a credential daemon), therefore makes the next
    pass wait instead of running beside it.
 
-   What this guarantees, and what it does not:
-   - A pass claims the waiting write (the dirty mark) only once it holds
-     the push-in-flight lock. A worker killed while it waits, or one
-     that fails before the claim, leaves the mark, and the next write's
-     worker pushes it along with that write; until a write follows, it
-     waits.
+   What this guarantees: once a write's marker exists, its push either
+   completes or leaves a recorded failure, which the warning above then
+   names, as long as `bdw` is called again in this workspace with a state
+   root and the push turned on. In particular:
+   - A worker killed while it waits for the push-in-flight lock, or one
+     that fails before taking the write, leaves `pending`.
+   - A worker killed mid-push leaves `pushing`. The next `bdw` call starts
+     a worker, which waits for the orphaned `bd dolt push` and then
+     pushes again, recording the outcome.
    - If the push-in-flight lock is still held when the wait runs out,
-     the pass records a failure naming the lock's path, keeps the mark,
-     and the worker stops, so the warning above names it.
+     the pass records a failure naming the lock's path, keeps the marker,
+     and the worker stops; the next call tries again.
    - Any other error inside a pass is recorded as a failure.
-   - Not covered: a worker killed after the claim, mid-push. Its orphaned
-     `bd dolt push` runs on, and if it then fails nothing records it; the
-     claimed write is pushed only with the next write.
+
+   What it does not: with no later `bdw` call, nothing retries; an
+   orphaned push that fails is not itself recorded, only the push that
+   follows it; and a `bd dolt push` that survives `SIGKILL` for 10
+   seconds is left running, held off only by the push-in-flight lock.
 
    Its state is Machine State, in `push/<key>/` under `bdw`'s
    subdirectory of the Machine State Directory
@@ -173,7 +186,8 @@ What one call does:
    [Path layout](../../index.md#path-layout)). `<key>` is a hash of the
    Beads directory, so each database has its own. Missing directories are
    created with mode `0700`; one that already exists keeps its mode. It
-   holds the two locks, the dirty mark, `last-failure.json` while the
+   holds the two locks, the markers `pending` and `pushing`,
+   `last-failure.json` while the
    last push failed (replaced atomically), and `push.log`. When no state
    root resolves (no usable `XDG_STATE_HOME` or `HOME`), nothing is
    pushed.

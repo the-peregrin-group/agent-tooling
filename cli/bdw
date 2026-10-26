@@ -54,9 +54,10 @@ One call, in order:
    while the last push to the Dolt remote failed; and after a call bd ran
    successfully, unless wants_push says it was a read, request a coalesced
    background push of the database to its Dolt remote (lib.bdw_push,
-   which documents the push, its destination guard, and its state files),
-   warning in one line when it cannot be requested. Nothing in this step,
-   an exception included, changes bdw's exit code.
+   which documents the push, its destination guard, and its state files);
+   after any other call, start a worker if a push is still owed and none
+   is running. Either warns in one line when it cannot. Nothing in this
+   step, an exception included, changes bdw's exit code.
 
 Beads records who acted from an environment variable, and every harness
 Bash call is a fresh shell, so nothing exported once survives to the next
@@ -460,20 +461,23 @@ def main(argv: list[str]) -> int:
 def _after_call(beads_dir: Path, bd: str, argv: Sequence[str], code: int,
                 usage_error: bool, environment: Mapping[str, str]) -> None:
     """The push step (the last step in the module docstring; step 7 in
-    docs/projects/bdw/index.md): warn about a failed last push, and
-    request the next one.
+    docs/projects/bdw/index.md): warn about a failed last push; request a
+    push after a write; on any other call, start a worker if a push is
+    still owed (a killed worker's, say) and none is running.
     Nothing here may change bdw's exit, so any exception becomes one
     warning line."""
     try:
-        opted_out = _push_opted_out(environment)
-        if not opted_out:
-            _warn_last_push(beads_dir, environment)
-        if (code == 0 and not usage_error and wants_push(argv)
-                and not opted_out):
+        if _push_opted_out(environment):
+            return
+        _warn_last_push(beads_dir, environment)
+        if code == 0 and not usage_error and wants_push(argv):
             problem = bdw_push.request_push(beads_dir, bd, environment)
-            if problem is not None:
-                _say(f"warning: {problem}; this write is not pushed to the "
-                     "Dolt remote")
+            suffix = "this write is not pushed to the Dolt remote"
+        else:
+            problem = bdw_push.resume_push(beads_dir, bd, environment)
+            suffix = "an owed push to the Dolt remote is not restarted"
+        if problem is not None:
+            _say(f"warning: {problem}; {suffix}")
     except Exception as error:  # noqa: BLE001 -- the push must never fail bdw
         _say(f"warning: the push step failed: {error}")
 

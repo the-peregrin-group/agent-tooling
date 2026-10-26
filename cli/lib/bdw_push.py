@@ -1,20 +1,22 @@
 """Push a Beads database to its Dolt remote, coalesced, for bdw.
 
 bdw calls request_push() after every write that bd ran successfully. That
-records a dirty mark and, unless a worker already holds the lock, starts
-this file as a detached background worker under the system interpreter
-(`/usr/bin/python3 bdw_push.py <beads-dir> <bd>`), so the write returns at
-once and the push never affects bdw's exit code. A state directory or mark
-that cannot be written comes back as a reason bdw warns with. The worker:
+leaves the write marker `pending` and, unless a worker already holds the
+coordination lock, starts this file as a detached background worker under
+the system interpreter (`/usr/bin/python3 bdw_push.py <beads-dir> <bd>`),
+so the write returns at once and the push never affects bdw's exit code.
+On every other call bdw calls resume_push(), which starts a worker when a
+marker is left and no worker is running. A state directory or marker that
+cannot be written comes back as a reason bdw warns with. The worker:
 
 1. takes the coordination lock (fcntl.flock, non-blocking), which no
    child ever inherits; if another worker holds it, exits at once, since
-   the holder sees the dirty mark;
-2. while the dirty mark exists: clears it and pushes once, so writes that
-   land during a push get exactly one more push. There is no cap on
-   passes: the loop runs only while writes keep arriving;
-3. releases the lock, then checks the dirty mark once more and goes back to
-   1, so a mark set just before the release is not lost.
+   the holder sees the marker;
+2. while a marker exists: pushes once per pass, so writes that land
+   during a push get exactly one more push. There is no cap on passes:
+   the loop runs only while writes keep arriving;
+3. releases the lock, then checks for a marker once more and goes back to
+   1, so a marker left just before the release is not lost.
 
 The worker exits under the Exit-code contract (see exit_code): 2 for a
 malformed invocation, 1 when its last push failed, 4 when the destination
@@ -39,11 +41,12 @@ One push:
   runs in its own process group, killed whole on timeout.
 
 Before each pass the worker takes the push-in-flight lock, waiting up to
-PUSH_TIMEOUT, and only then claims the dirty mark; it hands the lock to
-`bd dolt push` alone, whose descendants keep it if they outlive the push,
-so the next pass waits for them, and records a failure (keeping the mark)
-if they outlast the wait. run_worker's docstring says exactly what is and
-is not guaranteed.
+PUSH_TIMEOUT, and only then takes the write, renaming `pending` to
+`pushing`; it deletes `pushing` once the outcome is recorded. It hands the
+lock to `bd dolt push` alone, whose descendants keep it if they outlive
+the push, so the next pass waits for them, and records a failure (keeping
+the marker) if they outlast the wait. run_worker's docstring says exactly
+what is and is not guaranteed.
 
 State is Machine State (docs/adr/0015-three-roots-for-machine-specific-
 files.md), in `push/<key>/` under bdw's subdirectory of the Machine State
@@ -51,10 +54,10 @@ Directory, `${XDG_STATE_HOME:-~/.local/state}/agent-tooling/bdw/`, as
 lib.paths resolves it (<key> a hash of the Beads directory; missing
 directories are created 0700 by lib.paths.ensure_private_dir, and an
 existing one keeps its mode, as ADR 0015 decides): the two locks `lock`
-and `inflight`, `dirty`, `last-failure.json` (present only while the last
-push failed, written atomically), and `push.log`. bdw reads
-last-failure.json to warn on its next call. Without a resolvable state
-root nothing is pushed.
+and `inflight`, the markers `pending` and `pushing`, `last-failure.json`
+(present only while the last push failed, written atomically), and
+`push.log`. bdw reads last-failure.json to warn on its next call. Without
+a resolvable state root nothing is pushed.
 
 Standard library only; Python 3.9.
 """
@@ -409,26 +412,41 @@ def _wait_for_inflight(state: Path, timeout: float):
         time.sleep(INFLIGHT_POLL)
 
 
+# The two write markers. A write leaves PENDING; a pass that is about to
+# push renames it to PUSHING, and deletes PUSHING only once the push's
+# outcome is recorded. A PUSHING left behind therefore means a push that
+# was taken and never finished (its worker was killed), and the next
+# worker pushes it again.
+PENDING = "pending"
+PUSHING = "pushing"
+
+
 def _has_mark(state: Path) -> bool:
-    """Whether a write is waiting to be pushed."""
-    return (state / "dirty").exists()
+    """Whether a write is waiting to be pushed, or a push was taken and
+    never finished."""
+    return (state / PENDING).exists() or (state / PUSHING).exists()
 
 
 def _claim_mark(state: Path) -> bool:
-    """Claim the waiting write for the push about to start; False when
-    there is none. Called only once the push can start (the push-in-flight
-    lock is held), so a worker killed while it waits leaves the mark for
-    the next worker."""
+    """Take the waiting write for the push about to start: rename PENDING
+    to PUSHING, or take over a PUSHING left by a killed worker (folding in
+    any PENDING too). False when there is neither. Called only once the
+    push can start (the push-in-flight lock is held), so a worker killed
+    while it waits leaves PENDING for the next worker."""
     try:
-        os.unlink(state / "dirty")
+        os.replace(state / PENDING, state / PUSHING)
+        return True
     except FileNotFoundError:
-        return False
-    return True
+        return (state / PUSHING).exists()
 
 
 def _finish_claim(state: Path, outcome: str) -> None:
-    """Called once a claimed push has an outcome (recorded, when it
-    failed). Nothing to do while _claim_mark deletes the mark outright."""
+    """Called once a taken push's outcome is recorded (pushed, nothing to
+    do, or a failure written): only now may the write be forgotten."""
+    try:
+        os.unlink(state / PUSHING)
+    except FileNotFoundError:
+        pass
 
 
 def run_worker(beads_dir: Path, state: Path, bd: str,
@@ -438,19 +456,19 @@ def run_worker(beads_dir: Path, state: Path, bd: str,
                remotes: Callable[[Path], "list[str] | None"] = dolt_remote_urls,
                inflight_timeout: float = PUSH_TIMEOUT,
                ) -> list[str]:
-    """Push until the dirty mark stays clear; return each push's outcome.
-    Returns [] at once when another worker holds the lock.
+    """Push until no write marker is left; return each push's outcome.
+    Returns [] at once when another worker holds the coordination lock.
 
     There is no cap on passes: the worker loops only while writes keep
-    setting the mark, and a cap would have to clear a mark without pushing,
-    stranding the last writes of a busy session until the next write.
+    leaving markers, and a cap would have to drop a marker without pushing,
+    stranding the last writes of a busy session.
 
     bd's `no-push` is asked once per run, at the first push that has a
     remote to go to.
 
     Two locks, with two jobs. The coordination lock (`lock`) says a worker
     is running; only the worker holds it, never a child, so a killed
-    worker frees it at once and the next write starts a new worker. The
+    worker frees it at once and the next bdw call starts a new worker. The
     push-in-flight lock (`inflight`) says a `bd dolt push` may still be
     running: the worker takes it, waiting up to `inflight_timeout`, before
     each pass, holds it for the whole pass, and hands it to `bd dolt push`
@@ -459,20 +477,31 @@ def run_worker(beads_dir: Path, state: Path, bd: str,
     detached gc, a credential daemon), makes the next pass wait instead of
     running beside it.
 
-    What is guaranteed, and what is not:
-    - A pass claims the waiting write (the dirty mark) only after it holds
-      the push-in-flight lock. A worker killed while it waits, or that
-      fails before the claim, leaves the mark, and the next write's worker
-      pushes it with that write. If no write follows, it waits until one
-      does.
+    The write markers. A write leaves `pending`. A pass takes it, renaming
+    it to `pushing`, only once it holds the push-in-flight lock, and
+    deletes `pushing` only once the outcome is recorded: pushed, nothing
+    to push, opted out, or a failure written. Every bdw call that finds a
+    marker and a free coordination lock starts a worker (resume_push), and
+    a worker treats a leftover `pushing` as work.
+
+    What is guaranteed: once a write's marker exists, its push either
+    completes or leaves a recorded failure (which bdw then warns about), as
+    long as bdw is called again in this workspace with a state root and
+    the push turned on. In particular:
+    - A worker killed while it waits for the push-in-flight lock, or that
+      fails before taking the write, leaves `pending`.
+    - A worker killed mid-push leaves `pushing`. The next bdw call starts
+      a worker, which waits for the orphaned `bd dolt push` (it holds the
+      push-in-flight lock) and then pushes again, recording the outcome.
     - When the push-in-flight lock stays held past the wait, the pass
-      records a failure naming the lock, keeps the mark, and the worker
-      stops (bdw then warns on every call).
+      records a failure naming the lock, keeps the marker, and the worker
+      stops; the next bdw call tries again.
     - Any other error inside a pass is recorded as a failure.
-    - Not covered: a worker killed after the claim, mid-push. Its
-      orphaned `bd dolt push` runs on; if that push then fails, nothing
-      records it, and the claimed write is pushed only with the next
-      write."""
+
+    What is not: with no later bdw call, nothing retries; an orphaned push
+    that fails is not itself recorded, only the push that follows it; and
+    a `bd dolt push` that survives SIGKILL past KILL_WAIT is left running,
+    held off only by the push-in-flight lock."""
     held: list = []
     opted_out: list[bool] = []
 
@@ -566,10 +595,10 @@ def exit_code(outcomes: Sequence[str]) -> int:
 def request_push(beads_dir: Path, bd: str, environ: Mapping[str, str],
                  spawn: Callable[[Sequence[str], Mapping[str, str]], None]
                  | None = None) -> str | None:
-    """Mark the database dirty and start a detached worker, unless a worker
-    already holds the lock (it sees the mark, before or after its release).
-    Returns None when the push was requested, or when there is no state
-    directory to request it in (lib.paths finds no state root);
+    """Leave PENDING and start a detached worker, unless a worker already
+    holds the coordination lock (it sees PENDING, before or after its
+    release). Returns None when the push was requested, or when there is no
+    state directory to request it in (lib.paths finds no state root);
     otherwise a one-line reason the push could not be requested, for bdw to
     warn with."""
     state = state_dir(beads_dir, environ)
@@ -577,10 +606,31 @@ def request_push(beads_dir: Path, bd: str, environ: Mapping[str, str],
         return None
     try:
         paths.ensure_private_dir(state, paths.state_root(environ))
-        (state / "dirty").touch()
+        (state / PENDING).touch()
     except OSError as error:
         return (f"cannot request a push: state directory {state} is not "
                 f"writable ({error.strerror or error})")
+    return _start_worker(state, beads_dir, bd, environ, spawn)
+
+
+def resume_push(beads_dir: Path, bd: str, environ: Mapping[str, str],
+                spawn: Callable[[Sequence[str], Mapping[str, str]], None]
+                | None = None) -> str | None:
+    """For a call that left no write: start a worker when one is owed
+    (PENDING or PUSHING exists) and none is running, so a killed worker's
+    write is pushed again on the next call of any kind, not only the next
+    write. Creates nothing; cheap when nothing is owed. Returns what
+    request_push does."""
+    state = state_dir(beads_dir, environ)
+    if state is None or not _has_mark(state):
+        return None
+    return _start_worker(state, beads_dir, bd, environ, spawn)
+
+
+def _start_worker(state: Path, beads_dir: Path, bd: str,
+                  environ: Mapping[str, str],
+                  spawn: Callable[[Sequence[str], Mapping[str, str]], None]
+                  | None) -> str | None:
     try:
         handle = _try_lock(state)
     except OSError as error:
