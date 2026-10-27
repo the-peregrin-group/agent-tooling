@@ -82,6 +82,14 @@ term's.
 **Skill**: A package, compliant with the agentskills.io standard, that teaches
 agents an additional capability.
 
+**Knowledge Skill**: A Skill that teaches knowledge (e.g., a principle, a
+fact, a condensed approach to a craft) rather than directing a procedure. Its
+description gives a concise distillation of that knowledge, so that it
+reaches every session before the Skill is loaded; its body optionally adds
+depth that did not fit in the description, and guidance on how to apply the
+knowledge.
+- _Invariants_: named with the `know-` prefix (e.g., `know-unattended`)
+
 **Agent definition**: A package that defines a specialized agent (e.g., its
 role, instructions, and permitted capabilities) that another agent can spawn
 to carry out a delegated task. An agent is the running session; an Agent
@@ -288,5 +296,6 @@ discarded as already captured or outdated.
   log, an append-only TODO list) at its end; that section owns events and
   the rest owns facts; a Stream that is unbounded or large lives in its own
   document, referenced from the State doc.
+- A Knowledge Skill is a Skill; its name begins with `know-`.
 
 ## Retired terms
