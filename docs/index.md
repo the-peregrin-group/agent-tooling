@@ -44,6 +44,8 @@ projects, which lives under `docs/audits/`.
 - [handoff](projects/handoff/index.md): the Skill that writes a Handoff.
 - [refine-state-doc](projects/refine-state-doc/index.md): the guide for
   writing and refining State docs.
+- [know](projects/know/index.md): the Knowledge Skills, which teach
+  knowledge rather than direct a procedure, under the `know-` prefix.
 
 ## Cross-cutting audits
 
