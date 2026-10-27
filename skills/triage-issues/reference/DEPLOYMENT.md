@@ -134,7 +134,7 @@ Claude Code background job:
 - **Dispatch,** from the project directory so `TRIAGE.md` is found:
 
     ```sh
-    claude --bg "Run an unattended triage pass on this repo per the triage-issues skill." \
+    claude --bg 'You are running an `unattended` session (see `/know-unattended`). Run a triage pass on this repo per the triage-issues skill.' \
       --name triage-<date> --worktree triage-<date> \
       --permission-mode dontAsk \
       --allowedTools "Edit(<worktree-root>/**),Edit(<job-tmp-root>/**)" \
