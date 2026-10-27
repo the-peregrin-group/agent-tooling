@@ -29,6 +29,9 @@ and need not mirror the raw tool's operations one to one: each is shaped by
 the journey the Wrapper supports and the restrictions it imposes (e.g., gitw's
 integrate runs several git operations while allowing few git capabilities
 during integration).
+- _Invariants_: when a Verb applies in situations a project may grant
+  separately, each situation is a different invocation, so that a Permission
+  rule can match it
 - _Avoid_: command, subcommand
 
 **Exit-code contract**: The fixed meaning of an exit status, shared by all
@@ -44,6 +47,15 @@ piece of work and is recorded as having done so.
 **Actor ID**: The identifier recorded for an Actor, unambiguous across every
 Actor, agent or person.
 - _Invariants_: never shared by two Actors
+
+**Forge identity**: An account on a forge, registered by name in a person's
+Machine Config, under which a Wrapper performs an operation (e.g., a machine
+account, or the person's own). A Forge identity belongs to one forge; which
+ones an agent may act under is granted per repo by Permission rules.
+- _Invariants_: named on every forge operation, reads included; resolved by
+  the Wrapper from Machine Config, never supplied as a raw account; every
+  write made under one is also marked with the Actor ID
+- _Avoid_: account, user, actor, persona
 
 ### Repos and branches
 
@@ -106,6 +118,21 @@ sender's conversation.
 action on its own, only with a human's approval, or never.
 - _Invariants_: enforced programmatically, never left to agent judgment
 - _Avoid_: allowlist, permission row
+
+**Attended session**: A session in which a person may be asked and is
+expected to answer, however the session was launched (e.g., as a background
+job).
+- _Invariants_: every session is attended unless its prompt declares
+  otherwise
+- _Avoid_: interactive, foreground
+
+**Unattended session**: A session whose prompt declares that no person will
+answer during it.
+- _Invariants_: declared by the prompt, never inferred from how the session
+  was launched or whether it is headless; an act that would need a person's
+  approval is written up as a proposal in the session's report instead of
+  attempted
+- _Avoid_: background, headless, autonomous
 
 ### Homing in
 
@@ -276,6 +303,10 @@ discarded as already captured or outdated.
 - bdw and gitw record the Actor on the writes they attribute: bdw on the Issue
   Tracker, gitw on its commits.
 - An Actor has exactly one Actor ID.
+- A Forge identity belongs to exactly one forge; ghw and fjw perform each
+  operation under exactly one Forge identity.
+- A write on a forge is recorded under one Forge identity and marked with one
+  Actor ID.
 - A Source repo contains exactly one Install Manifest, which declares one or
   more Cohorts.
 - A Cohort holds one or more tools, and a tool may belong to more than one
