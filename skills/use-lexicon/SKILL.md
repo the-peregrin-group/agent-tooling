@@ -30,9 +30,9 @@ concepts, not implementation.
   the mechanical steps of conversion (below), and moving Retired terms lines
   to `LEXICON-RETIRED.md`. Rewording and tightening need ratification. Write
   each ratified change at once; never batch changes for later.
-- A session is unattended only if its prompt says "unattended"; otherwise it
-  is attended. Never edit the lexicon in an unattended session: write a
-  proposal instead (procedure C).
+- If a `know-unattended` skill is listed, load it: it says how to tell an
+  attended session from an unattended one. Never edit the lexicon in an
+  unattended session: write a proposal instead (procedure C).
 - If a `use-privacy` skill is listed among your available skills, load it
   before composing any text bound for outside this machine: a commit message,
   a PR or issue body, a comment, LEXICON.md, a proposal file.
