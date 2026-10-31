@@ -112,9 +112,10 @@ How the boundaries fall:
 - **Outside the contract:** 126 and 127 (the shell could not run the
   command) and 128 + N (signal N ended it).
 
-The code constants live in `cli/lib/plan.py`, which still defines the
-earlier seven codes until `agent-tooling-cjvo.1` (the shared six-code
-constants) lands. Where a family's Verbs do not exit this way yet, its
+The code constants live in `cli/lib/plan.py`, beside transitional names
+for the earlier seven codes that unmigrated families still exit with;
+the last family's migration removes them (`agent-tooling-cjvo`, the
+six-code migration epic). Where a family's Verbs do not exit this way yet, its
 Known gaps says so; until a family's gap clears, its Skill states the
 codes it actually exits with.
 

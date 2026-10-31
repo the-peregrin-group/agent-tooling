@@ -24,6 +24,8 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+from lib import plan
+
 
 class StagingPathError(Exception):
     """Raised when a staged-file path violates the staging-directory policy."""
@@ -91,7 +93,7 @@ def resolve_staging_path(path: str, *, description: str = "body file") -> Path:
             "then re-run.",
             file=sys.stderr,
         )
-        sys.exit(2)
+        sys.exit(plan.EXIT_CALLER_ERROR)
 
 
 def read_staged_body(path: str, *, description: str = "body file") -> str:
@@ -117,11 +119,11 @@ def read_body(resolved: Path, *, description: str = "body file") -> str:
             "Re-write it as plain UTF-8 text, then re-run.",
             file=sys.stderr,
         )
-        sys.exit(2)
+        sys.exit(plan.EXIT_CALLER_ERROR)
     except OSError as error:
         # E.g. deleted or chmod'd between validation and the read.
         print(
             f"refusing {description} {str(resolved)!r}: unreadable ({error})",
             file=sys.stderr,
         )
-        sys.exit(2)
+        sys.exit(plan.EXIT_CALLER_ERROR)
