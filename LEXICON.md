@@ -225,13 +225,15 @@ Machine State, with one subdirectory per tool.
 
 ### Tracking Work
 
-**Issue Tracker**: The one system of record (e.g., Beads, GitHub Issues) for
-this repo's actionable work: each unit of work is an Issue, tracked from filed
-to done.
+**Issue Tracker**: A system of record (e.g., Beads, GitHub Issues) for a
+repo's actionable work: each unit of work is an Issue, tracked from filed to
+done. A repo may use more than one, each Issue having exactly one writable
+home.
 - _Avoid_: backlog, board
 
 **Issue**: One tracked unit of actionable work in the Issue Tracker (e.g., a
-bug, a feature, a task), with a status and dependencies on other Issues.
+bug, a feature, a task), with an Issue State and dependencies on other
+Issues.
 - _Avoid_: ticket
 
 **Issue ID**: An Issue's stable identifier in the Issue Tracker: unambiguous,
@@ -244,14 +246,80 @@ it has any children, open or closed, or if it is of a kind designated to hold
 children (e.g., an epic), even before it has any. The work of a Branch Issue
 is management: scoping, setting success criteria, breaking down into child
 Issues, and verifying completion.
-- _Invariants_: ready work exactly when it has no open children; never closed
-  without a pass verifying completion
+- _Invariants_: states success criteria, which its verifying pass checks
+  against the outcome; ready work exactly when it has no open children; never
+  closed without a pass verifying completion
 - _Avoid_: branch (alone), parent, container
 
 **Leaf Issue**: An Issue that is not a Branch Issue: a unit of work meant to
 be claimed and finished in one session (e.g., a task, a bug). A Leaf Issue
 that is given a child becomes a Branch Issue.
+- _Invariants_: states acceptance criteria; closed when they hold
 - _Avoid_: subtask
+
+### The Tracker Schema
+
+**Tracker Schema**: A repo's declared structure for its Issue Tracker: its
+Issue Kinds, Issue Priorities, Issue Label Schema, and Issue State Diagram. It
+is bootstrapped from a shipped default and records which revision of that
+default it was copied from, so later changes to the default can be shown
+against it.
+- _Invariants_: exactly one per repo, always present; the repo owner's to
+  change; data that grants nothing, since what an agent may do is decided by
+  Permission rules alone; read by agents and tooling alike
+- _Avoid_: config, workflow configuration, conventions
+
+**Issue Kind**: What sort of thing an Issue is (e.g., a bug, a feature, a
+chore), drawn from the set the Tracker Schema declares.
+- _Invariants_: every Issue has exactly one; recorded once, in the tracker's
+  own mechanism for kind
+- _Avoid_: category
+
+**Issue Priority**: An Issue's rank for "what do I work on next?", drawn from
+the levels the Tracker Schema declares.
+- _Invariants_: every Issue has one from filing on, set as best the filer can
+  and adjusted later; lives in exactly one place per repo
+- _Avoid_: severity, urgency
+
+**Issue Label**: A tag attached to an Issue to classify it along an axis the
+Issue Label Schema declares (e.g., its area), whatever the tracker calls such
+tags.
+- _Invariants_: drawn from the Issue Label Schema; an unknown label is a
+  mistake to fix, not a new label
+- _Avoid_: tag
+
+**Issue Label Schema**: The part of the Tracker Schema that declares the
+allowed Issue Labels, their meanings, and the axes they classify along.
+- _Avoid_: label scheme, taxonomy
+
+**Area Label**: An Issue Label naming the part of the project an Issue
+concerns (e.g., `area:skills`).
+- _Invariants_: every Issue carries at least one
+
+**Kind Label**: The Issue Label that carries an Issue's Issue Kind on a
+tracker that has no native field for kind.
+- _Invariants_: exists only where the tracker has no kind field; never used
+  beside one
+
+**Issue State Diagram**: The part of the Tracker Schema that declares the
+Issue States and the Issue Transitions between them, in natural language, so
+that whoever moves an Issue judges the move against it.
+- _Invariants_: every Issue State is marked open or closed; the one place
+  state meanings and transition conditions are written
+- _Avoid_: workflow, lifecycle
+
+**Issue State**: One state an Issue can be in, declared in the Issue State
+Diagram with what it means: what kind of attention the Issue needs next.
+- _Invariants_: every Issue is in exactly one; recorded once, in the
+  tracker's own mechanism for status where it has one, otherwise in the one
+  place the Tracker Schema designates; whether an Issue is open or closed
+  follows from its Issue State
+
+**Issue Transition**: A move from one Issue State to another, declared in the
+Issue State Diagram together with the condition under which it is taken.
+- _Invariants_: taken only when its condition holds, judged by whoever moves
+  the Issue; a move back to an earlier Issue State is a transition like any
+  other
 
 ### Documents
 
@@ -320,6 +388,12 @@ discarded as already captured or outdated.
 - The Roster is part of gitw's Machine Config.
 - The Issue Tracker holds many Issues; an Issue has exactly one Issue ID.
 - An Issue is either a Branch Issue or a Leaf Issue, never both.
+- A Tracker Schema declares the Issue Kinds, Issue Priorities, Issue Label
+  Schema, and Issue State Diagram of one repo.
+- An Issue has exactly one Issue Kind, one Issue Priority, one Issue State,
+  and one or more Issue Labels, at least one of them an Area Label.
+- An Issue State Diagram has one or more Issue States and, between any two,
+  zero or more Issue Transitions.
 - A Branch Issue has zero or more child Issues; a Leaf Issue has none.
 - A Line of Inquiry contains zero or more finer Lines of Inquiry.
 - A document as a whole is either a State doc or a Stream doc, never both.
