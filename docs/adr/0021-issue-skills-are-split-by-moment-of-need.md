@@ -5,7 +5,7 @@ status: current
 
 # The issue skills are split by moment of need, with the fundamentals as a Knowledge Skill
 
-**Context:** The issue guidance lived in long per-platform operating manuals that every session loaded whole and that drifted as each restated the others; the maintainer's sketch for the family had a generic `use-issues` skill as both fundamentals and table of contents, which other skills would tell agents to load. This family is the pilot for restructuring every skill for progressive disclosure (`agent-tooling-jat`). The 2026-11-03 home-in on the Issue Tracker skill family ([proposal](../projects/use-issues/2026-10-27-proposal.md)) settled the shape.
+**Context:** The issue guidance lived in long per-platform operating manuals that every session loaded whole and that drifted as each restated the others; the maintainer's sketch for the family had a generic `use-issues` skill as both fundamentals and table of contents, which other skills would tell agents to load. This family is the pilot for restructuring every skill for progressive disclosure (`agent-tooling-jat`). The 2026-11-03 home-in on the Issue Tracker skill family ([proposal](../projects/use-issues/2026-11-05-proposal.md)) settled the shape.
 
 **Decision:** The generic issue skills are split by moment of need (filing, working an Issue, breaking down a Branch Issue, triage, setup), one skill per moment and none per platform. The fundamentals are a Knowledge Skill, `know-issues`, whose description carries the distillation into every session. There is no table-of-contents skill: the graph's edges are the skill descriptions in the session listing, pointers in skill text at the moment of need, and the wrappers' help and refusals.
 

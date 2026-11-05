@@ -5,7 +5,7 @@ status: current
 
 # Every repo carries its own copy of the Tracker Schema, bootstrapped from the shipped default
 
-**Context:** With lifecycle semantics in a per-repo Issue State Diagram ([ADR 0019](0019-issue-lifecycle-semantics-live-in-the-issue-state-diagram.md), lifecycle semantics live in the Issue State Diagram), each repo needs a Tracker Schema, yet most of the maintainer's projects will use the shipped default untouched, which invites keeping the default implicit and letting a repo override pieces of it. The 2026-11-03 home-in on the Issue Tracker skill family ([proposal](../projects/use-issues/2026-10-27-proposal.md)) settled how a repo gets and keeps its schema.
+**Context:** With lifecycle semantics in a per-repo Issue State Diagram ([ADR 0019](0019-issue-lifecycle-semantics-live-in-the-issue-state-diagram.md), lifecycle semantics live in the Issue State Diagram), each repo needs a Tracker Schema, yet most of the maintainer's projects will use the shipped default untouched, which invites keeping the default implicit and letting a repo override pieces of it. The 2026-11-03 home-in on the Issue Tracker skill family ([proposal](../projects/use-issues/2026-11-05-proposal.md)) settled how a repo gets and keeps its schema.
 
 **Decision:** Setup writes a full copy of the shipped default Tracker Schema into every repo, recording the revision of this repo it was copied from. Any edit to that copy is the repo's customization. No repo relies on an implicit default or a reference to the shipped one.
 
