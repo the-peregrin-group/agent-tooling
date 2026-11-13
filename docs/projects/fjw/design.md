@@ -101,8 +101,8 @@ numbers to be positive integers.
 - `fjw-pr-close <owner/repo> <pr#> <comment-file>` closes with a mandatory
   comment, so a silent unattended close is inexpressible. It reads the PR
   first; an already-closed PR is a no-op success that posts nothing. It
-  then posts the comment, unless the machine account already did (see
-  Close is idempotent, below), and PATCHes the state. If the comment
+  then posts the comment, unless the PR's last comment already matches it
+  (see Close is comment, then PATCH, and idempotent, below), and PATCHes the state. If the comment
   fails, the PR stays open. If the close fails after the comment landed,
   stderr says `PARTIAL: comment <id> is on PR #<n> but the close failed`
   and the Verb exits 5: re-running with the same comment file finishes
@@ -143,39 +143,21 @@ no dependencies. It sends `Authorization: token …` and a fixed
   quarterly. The tests use synthetic swagger fixtures, so re-verify the
   mechanics above against a live instance on each major upgrade.
 - **Close is comment, then PATCH, and idempotent.** Forgejo has no atomic
-  close-with-comment, so a close can fail after its comment landed. The
-  rule that makes a re-run safe is: same account, same comment, no second
-  post. Before posting, `fjw-pr-close` reads the PR's comments and looks
-  for one by the machine account whose body matches the staged comment
-  once both are canonicalized: line endings normalized, trailing
+  close-with-comment, so a close can fail after its comment landed. What
+  makes a re-run safe: before posting, `fjw-pr-close` reads the PR's
+  comments (paginated to the end, since the route cannot sort newest
+  first) and skips the post when the most recent one matches the staged
+  comment once both are canonicalized: line endings normalized, trailing
   whitespace dropped, every whitespace run collapsed to one space, and
-  casefolded. Only comments after the PR's most recent reopen count, so a
-  close, reopen, and close again with the same text still posts its second
-  comment. The match rests on what the forge holds, not on local state
-  from an earlier run, so any re-run from any machine converges. A
-  matching comment by another account does not count; one the machine
-  account left earlier through `fjw-pr-comment`, with no reopen since,
-  does, since it says the same thing. The plan's `comment_posted` says
-  whether this run posted.
-- **The reopen comes from the timeline, the match from the comments.**
-  The timeline (`GET /repos/{repo}/issues/{n}/timeline`) holds the
-  `reopen` events, but Forgejo drops entries from it after paginating
-  (inline review comments, cross-references the caller cannot see), so a
-  short page is not its end, and an empty page can come early when a
-  whole page was dropped. The comments route filters before paginating,
-  so it is read in full and the match never misses a comment. The
-  timeline is read to the first empty page for the latest reopen, and
-  ordering rests on ids, which events and comments draw from one
-  sequence. A reopen hidden behind a whole dropped page (50 such entries
-  in a row) is missed; the cost is bounded, since the close then skips a
-  comment identical to one from before that reopen and still closes.
-- **The machine account's login is configuration.** The token cannot
-  read its own identity: `GET /user` needs the `read:user` scope, which
-  the token lacks on purpose. So `fjw-pr-close` takes the login from the
-  config's `login` key, exits 1 before posting or closing anything when
-  the key is absent (an already-closed PR is still a no-op 0), and
-  warns when a comment it posts comes back under another login (a
-  misconfigured key would stop a re-run recognizing the comment).
+  casefolded. The match rests on what the forge holds, not on local state
+  from an earlier run, so any re-run from any machine converges. The
+  plan's `comment_posted` says whether this run posted. The author is not
+  checked, because the token cannot cheaply learn its own login
+  (`GET /user` needs the `read:user` scope, which it lacks on purpose). Two
+  consequences are accepted as harmless: another author's identical last
+  comment counts as the close's own, and a close, reopen, and close again
+  with identical text and no comment in between skips the second comment.
+  Either way the PR closes under a comment that says why.
 - **Token scopes cannot exclude merge.** The minimal scopes are
   `write:repository` (PR routes) and `write:issue` (comment routes, which
   live under issues). `write:repository` covers create, close, and merge
@@ -213,9 +195,6 @@ identity's fields:
 - `api_url` (required, `https://` only; a trailing `/api/v1` is
   normalized away)
 - `token` (required)
-- `login` (optional): the machine account's login. `fjw-pr-close`
-  requires it, to recognize its own comment on a re-run; no other Verb
-  reads it.
 - `ssh_host`, `ssh_port` (optional): the git-over-SSH endpoint, which
   differs from the API host. They are parsed, but no Verb uses them today:
   no Verb touches git over SSH.

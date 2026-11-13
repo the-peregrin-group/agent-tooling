@@ -26,9 +26,7 @@ _SCRIPT = Path(__file__).resolve().parent / "fjw-pr-close"
 _CONTRACT_BODY = "/tmp/claude/argument-contract-body.md"
 _MODULE = ghw_test_support.load_wrapper_module(_SCRIPT)
 _MISSING_COMMENT = "/tmp/claude/fjw-pr-close-test-missing-comment.md"
-_CONFIG = Config(
-    api_url="https://forge.example.com", token="t", login="fjw-bot"
-)
+_CONFIG = Config(api_url="https://forge.example.com", token="t")
 
 
 def _run(*arguments: str) -> subprocess.CompletedProcess:
@@ -73,13 +71,13 @@ class FjwPrCloseBehaviorTest(unittest.TestCase):
         self._comment_path = handle.name
         self.addCleanup(os.unlink, self._comment_path)
 
-    def _patches(self, *, state="open", comments=(), reopen_id=0,
-                 config=_CONFIG, comment=None, close=None, reads=None):
+    def _patches(self, *, state="open", comments=(), comment=None,
+                 close=None, reads=None):
         """Patch the config and every pulls call; returns an ExitStack and
         the create_comment and close_pr mocks."""
         stack = contextlib.ExitStack()
         stack.enter_context(
-            mock.patch.object(_MODULE.fjw_config, "load", return_value=config)
+            mock.patch.object(_MODULE.fjw_config, "load", return_value=_CONFIG)
         )
         stack.enter_context(mock.patch.object(
             _MODULE.pulls, "get_pr", return_value={"number": 5, "state": state}
@@ -87,9 +85,6 @@ class FjwPrCloseBehaviorTest(unittest.TestCase):
         stack.enter_context(mock.patch.object(
             _MODULE.pulls, "list_comments",
             **(reads or {"return_value": list(comments)}),
-        ))
-        stack.enter_context(mock.patch.object(
-            _MODULE.pulls, "latest_reopen_id", return_value=reopen_id
         ))
         create = stack.enter_context(mock.patch.object(
             _MODULE.pulls, "create_comment",
@@ -135,9 +130,10 @@ class FjwPrCloseBehaviorTest(unittest.TestCase):
         self.assertTrue(json.loads(stdout.getvalue())["noop"])
         self.assertIn("already closed", stderr.getvalue())
 
-    def test_our_matching_comment_is_not_posted_again(self):
+    def test_a_matching_last_comment_is_not_posted_again(self):
         # The re-run after a partial failure: the comment already landed.
-        comments = [{"id": 4, "user": {"login": "FJW-bot"},
+        comments = [{"id": 2, "user": {"login": "human"}, "body": "hmm"},
+                    {"id": 4, "user": {"login": "fjw-bot"},
                      "body": "Superseded by #13\r\n"}]
         stack, create, close = self._patches(comments=comments)
         with stack, contextlib.redirect_stdout(io.StringIO()) as stdout, \
@@ -150,31 +146,26 @@ class FjwPrCloseBehaviorTest(unittest.TestCase):
         self.assertFalse(payload["comment_posted"])
         self.assertIn("not posting it again", stderr.getvalue())
 
-    def test_matching_text_from_another_account_still_posts(self):
+    def test_matching_last_comment_by_another_account_counts(self):
+        # Accepted trade-off: the author is not checked.
         comments = [{"id": 4, "user": {"login": "human"},
                      "body": "superseded by #13"}]
         stack, create, close = self._patches(comments=comments)
-        with stack, contextlib.redirect_stdout(io.StringIO()):
+        with stack, contextlib.redirect_stdout(io.StringIO()), \
+                contextlib.redirect_stderr(io.StringIO()):
             self.assertEqual(_MODULE.main(["o/r", "5", self._comment_path]), 0)
-        create.assert_called_once()
-
-    def test_our_comment_before_a_reopen_does_not_count(self):
-        comments = [{"id": 4, "user": {"login": "fjw-bot"},
-                     "body": "superseded by #13"}]
-        stack, create, _close = self._patches(comments=comments, reopen_id=6)
-        with stack, contextlib.redirect_stdout(io.StringIO()):
-            self.assertEqual(_MODULE.main(["o/r", "5", self._comment_path]), 0)
-        create.assert_called_once()
-
-    def test_missing_login_is_broken_and_acts_on_nothing(self):
-        stack, create, close = self._patches(
-            config=Config(api_url="https://forge.example.com", token="t")
-        )
-        code, stderr = self._exit_code(stack)
-        self.assertEqual(code, 1)
-        self.assertIn("'login'", stderr)
         create.assert_not_called()
-        close.assert_not_called()
+        close.assert_called_once()
+
+    def test_a_match_followed_by_another_comment_posts_again(self):
+        comments = [{"id": 4, "user": {"login": "fjw-bot"},
+                     "body": "superseded by #13"},
+                    {"id": 5, "user": {"login": "human"}, "body": "reopening"}]
+        stack, create, _close = self._patches(comments=comments)
+        with stack, contextlib.redirect_stdout(io.StringIO()) as stdout:
+            self.assertEqual(_MODULE.main(["o/r", "5", self._comment_path]), 0)
+        create.assert_called_once()
+        self.assertTrue(json.loads(stdout.getvalue())["comment_posted"])
 
     def test_comment_failure_leaves_the_pr_open(self):
         stack, _create, close = self._patches(
@@ -218,24 +209,6 @@ class FjwPrCloseBehaviorTest(unittest.TestCase):
         close.assert_not_called()
         self.assertIn("nothing posted, PR left open", stderr)
 
-    def test_missing_login_does_not_block_the_already_closed_noop(self):
-        stack, create, _close = self._patches(
-            state="closed",
-            config=Config(api_url="https://forge.example.com", token="t"),
-        )
-        with stack, contextlib.redirect_stdout(io.StringIO()) as stdout, \
-                contextlib.redirect_stderr(io.StringIO()):
-            self.assertEqual(_MODULE.main(["o/r", "5", self._comment_path]), 0)
-        self.assertTrue(json.loads(stdout.getvalue())["noop"])
-
-    def test_posted_as_another_login_warns(self):
-        stack, _create, _close = self._patches(
-            comment={"return_value": {"id": 9, "user": {"login": "other"}}}
-        )
-        with stack, contextlib.redirect_stdout(io.StringIO()), \
-                contextlib.redirect_stderr(io.StringIO()) as stderr:
-            self.assertEqual(_MODULE.main(["o/r", "5", self._comment_path]), 0)
-        self.assertIn("will not recognize it", stderr.getvalue())
 
 
 class FjwPrCloseArgumentContractTest(

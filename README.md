@@ -86,9 +86,8 @@ unattended or background session. The board wrappers (`ghw-board-*`,
     gitw-repo-register <label> <checkout-path> apply
     ```
 
-5. For Forgejo, write `~/.config/fjw/config.toml` with the API URL, a machine
-   account token, and that account's login (`fjw-pr-close` needs it). The
-   keys are documented in `cli/lib/forgejo/config.py`.
+5. For Forgejo, write `~/.config/fjw/config.toml` with the API URL and a machine
+   account token. The keys are documented in `cli/lib/forgejo/config.py`.
    If a Beads database here has a Dolt remote, list that remote's host in
    `bdw`'s push-host allowlist,
    `~/.config/agent-tooling/bdw/config.toml`, as

@@ -293,26 +293,6 @@ class ReviewsTest(unittest.TestCase):
         self.assertEqual(pulls.list_review_comments(_CONFIG, "o/r", 5, 1), [])
 
 
-class LatestReopenIdTest(unittest.TestCase):
-    @mock.patch("lib.forgejo.pulls.api.request")
-    def test_reads_past_a_short_page_and_returns_the_newest_reopen(self, request):
-        # Forgejo filters timeline entries after paginating.
-        short = [{"id": i, "type": "comment"} for i in range(1, pulls._PAGE_SIZE)]
-        short[3] = {"id": 4, "type": "reopen"}
-        request.side_effect = [short, [{"id": 90, "type": "reopen"}], None]
-        self.assertEqual(pulls.latest_reopen_id(_CONFIG, "o/r", 5), 90)
-        self.assertEqual(
-            request.call_args.args[1:], ("GET", "/repos/o/r/issues/5/timeline")
-        )
-        pages = [c.kwargs["query"]["page"] for c in request.call_args_list]
-        self.assertEqual(pages, ["1", "2", "3"])
-
-    @mock.patch("lib.forgejo.pulls.api.request")
-    def test_never_reopened_is_zero(self, request):
-        request.side_effect = [[{"id": 3, "type": "close"}], []]
-        self.assertEqual(pulls.latest_reopen_id(_CONFIG, "o/r", 5), 0)
-
-
 def _comment(login, body: str, entry_id: int = 1) -> dict:
     user = None if login is None else {"login": login}
     return {"id": entry_id, "user": user, "body": body}
@@ -339,47 +319,36 @@ class CanonicalCommentTest(unittest.TestCase):
         )
 
 
-class FindOwnCommentTest(unittest.TestCase):
-    def test_matching_comment_by_the_machine_account_is_found(self):
-        comments = [_comment("Fjw-Bot", "Superseded by #13\r\n", 7)]
-        found = pulls.find_own_comment(comments, "fjw-bot", "superseded by #13")
-        self.assertEqual(found["id"], 7)
+class MatchingLastCommentTest(unittest.TestCase):
+    def test_matching_last_comment_is_returned_whoever_wrote_it(self):
+        for login in ("fjw-bot", "human", None):
+            with self.subTest(login=login):
+                comments = [
+                    _comment("x", "earlier", 3),
+                    _comment(login, "Superseded by #13\r\n", 7),
+                ]
+                found = pulls.matching_last_comment(comments, "superseded by #13")
+                self.assertEqual(found["id"], 7)
 
-    def test_the_newest_of_several_matches_wins(self):
+    def test_a_match_that_is_not_the_last_comment_does_not_count(self):
         comments = [
             _comment("fjw-bot", "superseded by #13", 7),
-            _comment("fjw-bot", "superseded by #13", 12),
-            _comment("fjw-bot", "superseded by #13", 9),
+            _comment("human", "please keep this open", 8),
         ]
-        found = pulls.find_own_comment(comments, "fjw-bot", "superseded by #13")
-        self.assertEqual(found["id"], 12)
+        self.assertIsNone(
+            pulls.matching_last_comment(comments, "superseded by #13")
+        )
 
-    def test_same_text_by_someone_else_or_nobody_is_not_ours(self):
+    def test_the_newest_is_judged_by_id_not_list_order(self):
         comments = [
-            _comment("human", "superseded by #13", 1),
-            _comment(None, "superseded by #13", 2),  # a deleted account
+            _comment("fjw-bot", "superseded by #13", 9),
+            _comment("human", "older", 4),
         ]
-        self.assertIsNone(
-            pulls.find_own_comment(comments, "fjw-bot", "superseded by #13")
-        )
+        found = pulls.matching_last_comment(comments, "superseded by #13")
+        self.assertEqual(found["id"], 9)
 
-    def test_different_text_by_the_machine_account_is_not_a_match(self):
-        comments = [_comment("fjw-bot", "superseded by #12")]
-        self.assertIsNone(
-            pulls.find_own_comment(comments, "fjw-bot", "superseded by #13")
-        )
-
-    def test_only_comments_after_the_reopen_count(self):
-        # close, reopen (id 20), close again with the same text: post again.
-        comments = [_comment("fjw-bot", "superseded by #13", 10)]
-        self.assertIsNone(pulls.find_own_comment(
-            comments, "fjw-bot", "superseded by #13", after_id=20
-        ))
-        comments.append(_comment("fjw-bot", "superseded by #13", 30))
-        found = pulls.find_own_comment(
-            comments, "fjw-bot", "superseded by #13", after_id=20
-        )
-        self.assertEqual(found["id"], 30)
+    def test_no_comments_is_no_match(self):
+        self.assertIsNone(pulls.matching_last_comment([], "superseded by #13"))
 
 
 class ClosePrTest(unittest.TestCase):

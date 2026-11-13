@@ -44,9 +44,8 @@ That's also why the **read** verbs are wrapped here (unlike `ghw`, which
 leans on `gh` for reads): there is no allowlistable read substrate either.
 
 Identity and credentials are deployment configuration
-(`~/.config/fjw/config.toml`): the machine-account token, the API host, and
-the machine account's login, which the wrappers use, plus optional
-`ssh_host`/`ssh_port` keys reserved for git-over-SSH (parsed but unused: no `fjw` Verb touches git over SSH, and
+(`~/.config/fjw/config.toml`): the machine-account token and the API host,
+which the wrappers use, plus optional `ssh_host`/`ssh_port` keys reserved for git-over-SSH (parsed but unused: no `fjw` Verb touches git over SSH, and
 pushing is `gitw`'s job over the remote as configured). **Never read, write,
 or work around that file** — deny rules cover it and token rotation is the
 deployment's job. On a credential or config
@@ -153,10 +152,10 @@ fjw-pr-close <owner/repo> <pr#> <comment-file>
 The comment is mandatory — say *why* it's being closed (typically: link the
 successor PR). Comment posts first, then the close. If the close half fails
 you'll see `PARTIAL` on stderr and exit 5; once the cause clears, re-run
-with the same comment file. The re-run is safe: it finds the machine
-account's matching comment (since the PR's last reopen) and closes without
-posting it again; the plan's `comment_posted` says whether a run posted. Closing an already-closed PR is a no-op success and posts
-nothing.
+with the same comment file. The re-run is safe: when the PR's most recent
+comment already matches the comment file, it closes without posting again;
+the plan's `comment_posted` says whether a run posted. Closing an
+already-closed PR is a no-op success and posts nothing.
 
 ```bash
 fjw-pr-comment <owner/repo> <head-prefix> <pr#> <body-file>

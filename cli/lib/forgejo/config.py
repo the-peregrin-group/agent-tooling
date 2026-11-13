@@ -11,10 +11,6 @@ Keys:
                 a trailing /api/v1 is tolerated and normalized away
     token    -- the machine-account API token (scopes: write:repository +
                 write:issue)
-    login    -- optional: the machine account's login name. fjw-pr-close
-                needs it to recognize its own earlier comment on a re-run
-                (the token cannot read its own identity: GET /user needs
-                the read:user scope, which the token lacks on purpose)
     ssh_host -- optional: the git-over-SSH host, which may differ from
                 the API host; reserved for git-over-SSH, parsed and
                 validated but read by no Verb
@@ -106,7 +102,6 @@ def _parse_toml_subset(text: str) -> dict:
 class Config:
     api_url: str
     token: str
-    login: str | None = None
     ssh_host: str | None = None
     ssh_port: int | None = None
 
@@ -152,9 +147,6 @@ def load(path_for_testing: Path | None = None) -> Config:
             f"{path}: 'api_url' must be https:// -- the token rides every "
             "request"
         )
-    login = data.get("login")
-    if login is not None and (not isinstance(login, str) or not login.strip()):
-        raise ConfigError(f"{path}: 'login' must be a non-empty string")
     ssh_host = data.get("ssh_host")
     if ssh_host is not None and not isinstance(ssh_host, str):
         raise ConfigError(f"{path}: 'ssh_host' must be a string")
@@ -168,7 +160,6 @@ def load(path_for_testing: Path | None = None) -> Config:
     return Config(
         api_url=normalized,
         token=token.strip(),
-        login=login.strip() if login is not None else None,
         ssh_host=ssh_host,
         ssh_port=ssh_port,
     )

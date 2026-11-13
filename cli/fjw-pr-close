@@ -5,22 +5,18 @@ The comment is mandatory by design: a silent unattended close must not be
 expressible (the consumer's close always links its successor PR). No atomic
 close-with-comment exists in the API, so the comment posts first, then the
 PR is PATCHed closed. The Verb is idempotent: before posting, it reads the
-PR's comments and skips the post when the machine account already left one
-matching the staged comment (compared after normalizing line endings,
-whitespace, and case), counting only comments after the PR's most recent
-reopen (read from its timeline). So a close that fails after the comment landed is finished by
-re-running with the same comment file, which closes without posting again.
-Recognizing its own comment takes the machine account's login, the
-deployment config's `login` key; without it the Verb exits 1 before
-posting or closing anything.
-Closing an already-closed PR is a converged no-op: exit 0, nothing posted
+PR's comments and skips the post when the most recent one matches the
+staged comment (compared after normalizing line endings, whitespace, and
+case), whoever wrote it. So a close that fails after the comment landed is
+finished by re-running with the same comment file, which closes without
+posting again. Closing an already-closed PR is a converged no-op: exit 0, nothing posted
 (the comment implies an act this run did not perform). Merge is not here
 and never will be: it is a human-only act, absent from the fjw surface
 entirely. Acts as the deployment's machine account.
 
 Exit codes (the Exit-code contract): 0 closed (including the already-closed
-no-op), 1 broken on our side (credentials, config including a missing
-`login`, the network, a server error; nothing was closed), 2 the call must
+no-op), 1 broken on our side (credentials, config, the network, a server
+error; nothing was closed), 2 the call must
 change (usage, comment file), 3 no such PR (or no such repository), 4 the
 machine account's grant is too weak for the action, 5 partial completion:
 the comment is on the PR but the close failed, whatever the cause; fix
@@ -76,33 +72,21 @@ def main(argv: list[str]) -> int:
         )
         return plan.EXIT_OK
 
-    login = configuration.login
-    if login is None:
-        api.die(
-            "the fjw deployment config has no 'login' key; fjw-pr-close "
-            "needs the machine account's login to recognize its own "
-            "comment on a re-run. Report it to the user: the deployment "
-            "must add it. Nothing was posted or closed",
-            plan.EXIT_BROKEN,
-        )
     try:
-        existing = pulls.find_own_comment(
-            pulls.list_comments(configuration, repository, index),
-            login,
-            comment,
-            after_id=pulls.latest_reopen_id(configuration, repository, index),
+        existing = pulls.matching_last_comment(
+            pulls.list_comments(configuration, repository, index), comment
         )
     except api.ApiError as error:
         api.die(
-            f"could not read the PR's comments and timeline; nothing "
-            f"posted, PR left open: {error}",
+            f"could not read the PR's comments; nothing posted, PR left "
+            f"open: {error}",
             error.exit_code,
         )
     if existing is not None:
         comment_id = existing.get("id")
         print(
-            f"note: comment {comment_id} on PR #{index} already matches the "
-            "comment file; not posting it again",
+            f"note: the last comment on PR #{index} ({comment_id}) already "
+            "matches the comment file; not posting it again",
             file=sys.stderr,
         )
     else:
@@ -118,14 +102,6 @@ def main(argv: list[str]) -> int:
                 error.exit_code,
             )
         comment_id = posted.get("id")
-        author = (posted.get("user") or {}).get("login")
-        if author and author.casefold() != login.casefold():
-            print(
-                f"warning: the comment was posted as {author!r}, but the "
-                f"deployment config's login is {login!r}; a re-run will not "
-                "recognize it. Report the mismatch to the user",
-                file=sys.stderr,
-            )
 
     try:
         closed = pulls.close_pr(configuration, repository, index)
