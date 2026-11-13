@@ -2,9 +2,11 @@
 
 `skills/use-bd/rules.json` is the canonical rule set, shipped with the Skill
 as data. This test checks the data's shape, then that every `bdw` command
-the Skill teaches (in code spans and fenced blocks of `SKILL.md`,
-`quirks.md`, and `onboarding.md`) is allowed by it: it matches an allow row
-and no deny or ask row, so it neither prompts nor is refused.
+the Skills teach (in code spans and fenced blocks of use-bd's `SKILL.md`,
+`quirks.md`, and `onboarding.md`, and of create-issue's `SKILL.md`, which
+holds the filing commands that moved out of use-bd) is allowed by it: it
+matches an allow row and no deny or ask row, so it neither prompts nor is
+refused.
 
 A command the Skill names only to forbid it, or as a template rather than a
 call, is listed in NOT_TAUGHT with the reason, and the test holds each of
@@ -28,7 +30,15 @@ from use_bd_rules_test_support import (
     rule_matches,
 )
 
-SKILL_FILES = ("SKILL.md", "quirks.md", "onboarding.md")
+# Every file that teaches `bdw` commands, relative to `skills/`. The test
+# moves with the text: a Skill that takes over Beads commands is added here.
+SKILLS_DIR = SKILL_DIR.parent
+SKILL_FILES = (
+    "use-bd/SKILL.md",
+    "use-bd/quirks.md",
+    "use-bd/onboarding.md",
+    "create-issue/SKILL.md",
+)
 
 # Commands the Skill writes in code but does not teach as calls, each with
 # why. The test requires that the rules do not allow them outright.
@@ -77,7 +87,7 @@ def skill_commands() -> dict:
     """Each `bdw` command the Skill writes, mapped to the files it is in."""
     seen: dict = {}
     for name in SKILL_FILES:
-        text = (SKILL_DIR / name).read_text(encoding="utf-8")
+        text = (SKILLS_DIR / name).read_text(encoding="utf-8")
         for command in commands_in(text):
             seen.setdefault(command, set()).add(name)
     return seen
@@ -219,6 +229,18 @@ class SkillTeachesOnlyAllowedCommandsTest(unittest.TestCase):
             "bdw gate create --blocks=X --type=gh:pr --await-id=X",
         ):
             self.assertIn(command, self.commands)
+
+    def test_the_extractor_finds_the_filing_commands(self) -> None:
+        # The filing commands live in create-issue; a file dropped from
+        # SKILL_FILES would leave them unchecked without failing anything.
+        for command in (
+            "bdw search X",
+            "bdw list --desc-contains=X --all",
+            'bdw create "X" --type=X --priority=X --labels=X --body-file=X',
+            "bdw dep add X X --type=blocks",
+            "bdw update X --body-file=X",
+        ):
+            self.assertIn("create-issue/SKILL.md", self.commands.get(command, ()))
 
     def test_every_taught_command_is_allowed(self) -> None:
         wrong = {}

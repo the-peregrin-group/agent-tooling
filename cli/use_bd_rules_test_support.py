@@ -2,7 +2,8 @@
 
 The canonical set is `skills/use-bd/rules.json`, data shipped with the Skill.
 Two tests read it: `repo_policy_test.py` (this repo's settings contain it) and
-`use_bd_rules_test.py` (every command the Skill teaches is allowed by it).
+`use_bd_rules_test.py` (every `bdw` command use-bd and create-issue teach is
+allowed by it).
 
 The matcher models the Claude Code Bash rule grammar these rules rely on:
 `*` matches any run of characters anywhere in the pattern, a single trailing
