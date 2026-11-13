@@ -59,8 +59,8 @@ What is found decides the next step:
   narrow lenses, and the real step is to zoom out. Unattended, propose it in
   the report.
 - **A closed match** (done, regressed, or closed unfinished): a reopen,
-  which carries its reason and sits in a higher permission tier than
-  filing.
+  which carries its reason and needs more authority (a higher permission
+  tier) than closing.
 
 Filing-time checks are best effort; a separate batch pass across the whole
 tracker reconciles what they miss.
@@ -70,11 +70,13 @@ tracker reconciles what they miss.
 The filing bar is the same on every tracker, and it is a minimum:
 
 - a title that states the outcome;
-- a body that says what is known and what is not, with no placeholder text:
-  what and why, and what done looks like as far as it is known, so someone
-  outside the conversation can pick it up;
+- a body that says what is known and what is not, with no placeholder text;
 - an Issue Kind, an Issue Priority, and the entry Issue State, each set as
   best the filer can.
+
+The title states the outcome; the body says what and why, and what done
+looks like as far as it is known, so someone outside the conversation can
+pick it up.
 
 An Issue with a title and one honest sentence is correctly in the entry
 state. A more complete Issue is welcome, so long as it states what is known
