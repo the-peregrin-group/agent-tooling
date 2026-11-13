@@ -17,9 +17,8 @@ Keys:
     ssh_port -- optional: the git-over-SSH port (reserved, unused, like
                 ssh_host)
 
-Config problems exit with the auth code (5): to an unattended caller a
-missing or malformed config is indistinguishable from revoked credentials --
-abort and flag the deployment, never retry.
+Config problems exit 1 (EXIT_BROKEN in the Exit-code contract): a missing
+or malformed config is the deployment's to fix, never the caller's.
 """
 
 from __future__ import annotations
@@ -54,7 +53,7 @@ def _parse_toml_subset(text: str) -> dict:
     background-agent contexts (no responsible app to hold the grant), and
     Apple platform binaries are exempt. Supported: blank lines, comments,
     basic-quoted strings without escapes, integers, booleans. Anything
-    richer raises -- fail loud (exit 5 upstream), never guess.
+    richer raises -- fail loud (exit 1 upstream), never guess.
     """
     data: dict = {}
     for number, raw_line in enumerate(text.splitlines(), start=1):

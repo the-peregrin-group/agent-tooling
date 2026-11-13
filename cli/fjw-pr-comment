@@ -11,9 +11,12 @@ admits any head branch, so a comment on an arbitrary PR takes a rule that
 pins '/' or stars the prefix position; there is no form that omits the
 token. Acts as the deployment's machine account.
 
-Exit codes: 0 success, 1 unclassified API failure, 2 usage error, 3 no such
-PR (or no such repository), 4 refused (head branch does not match the
-claimed prefix), 5 roster/auth/config (deployment), 6 network failure.
+Exit codes (the Exit-code contract): 0 success, 1 broken on our side
+(credentials, config, the network, a server error; a transport failure
+after the POST says the comment may have landed, so check before
+re-running), 2 usage error, 3 no such PR (or no such repository), 4
+forbidden (the head branch does not match the claimed prefix, or the
+machine account's grant is too weak to comment).
 """
 
 from __future__ import annotations
@@ -55,7 +58,7 @@ def main(argv: list[str]) -> int:
     try:
         configuration = fjw_config.load()
     except fjw_config.ConfigError as error:
-        api.die(str(error), plan.EXIT_AUTH)
+        api.die(str(error), plan.EXIT_BROKEN)
 
     try:
         pr = pulls.get_pr(configuration, repository, index)
@@ -66,7 +69,7 @@ def main(argv: list[str]) -> int:
         api.die(
             f"PR #{index} has head branch {actual_head!r}, which does not "
             f"match the claimed prefix {head_prefix!r}",
-            plan.EXIT_REFUSED,
+            plan.EXIT_FORBIDDEN,
         )
 
     try:

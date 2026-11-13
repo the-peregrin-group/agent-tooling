@@ -128,19 +128,19 @@ class QueryStateTest(unittest.TestCase):
 
 class CreatePrTest(unittest.TestCase):
     @mock.patch("lib.forgejo.pulls.api.request")
-    def test_duplicate_pr_conflict_reclassifies_to_refused(self, request):
-        request.side_effect = api.ApiError("HTTP 409", plan.EXIT_RUNTIME, 409)
+    def test_duplicate_pr_conflict_reclassifies_to_caller_error(self, request):
+        request.side_effect = api.ApiError("HTTP 409", plan.EXIT_BROKEN, 409)
         with self.assertRaises(api.ApiError) as caught:
             pulls.create_pr(_CONFIG, "o/r", "main", "b", "T", "body")
-        self.assertEqual(caught.exception.exit_code, plan.EXIT_REFUSED)
+        self.assertEqual(caught.exception.exit_code, plan.EXIT_CALLER_ERROR)
         self.assertIn("already exists", str(caught.exception))
 
     @mock.patch("lib.forgejo.pulls.api.request")
     def test_other_failures_pass_through_unreclassified(self, request):
-        request.side_effect = api.ApiError("HTTP 500", plan.EXIT_RUNTIME, 500)
+        request.side_effect = api.ApiError("HTTP 500", plan.EXIT_BROKEN, 500)
         with self.assertRaises(api.ApiError) as caught:
             pulls.create_pr(_CONFIG, "o/r", "main", "b", "T", "body")
-        self.assertEqual(caught.exception.exit_code, plan.EXIT_RUNTIME)
+        self.assertEqual(caught.exception.exit_code, plan.EXIT_BROKEN)
 
     @mock.patch("lib.forgejo.pulls.api.request")
     def test_posts_the_four_creation_fields(self, request):
@@ -187,21 +187,21 @@ class BranchExistsTest(unittest.TestCase):
 
     @mock.patch("lib.forgejo.pulls.api.request")
     def test_non_404_errors_pass_through_without_probing(self, request):
-        request.side_effect = api.ApiError("boom", plan.EXIT_RUNTIME, 500)
+        request.side_effect = api.ApiError("boom", plan.EXIT_BROKEN, 500)
         with self.assertRaises(api.ApiError) as caught:
             pulls.branch_exists(_CONFIG, "o/r", "b")
-        self.assertEqual(caught.exception.exit_code, plan.EXIT_RUNTIME)
+        self.assertEqual(caught.exception.exit_code, plan.EXIT_BROKEN)
         self.assertEqual(request.call_count, 1)
 
     @mock.patch("lib.forgejo.pulls.api.request")
     def test_probe_error_other_than_404_raises(self, request):
         request.side_effect = [
             api.ApiError("gone", plan.EXIT_NOT_FOUND, 404),
-            api.ApiError("boom", plan.EXIT_RUNTIME, 500),
+            api.ApiError("boom", plan.EXIT_BROKEN, 500),
         ]
         with self.assertRaises(api.ApiError) as caught:
             pulls.branch_exists(_CONFIG, "o/r", "b")
-        self.assertEqual(caught.exception.exit_code, plan.EXIT_RUNTIME)
+        self.assertEqual(caught.exception.exit_code, plan.EXIT_BROKEN)
 
 
 class RepoVisibleTest(unittest.TestCase):
@@ -211,7 +211,7 @@ class RepoVisibleTest(unittest.TestCase):
         self.assertTrue(pulls.repo_visible(_CONFIG, "o/r"))
         request.side_effect = api.ApiError("gone", plan.EXIT_NOT_FOUND, 404)
         self.assertFalse(pulls.repo_visible(_CONFIG, "o/r"))
-        request.side_effect = api.ApiError("boom", plan.EXIT_RUNTIME, 500)
+        request.side_effect = api.ApiError("boom", plan.EXIT_BROKEN, 500)
         with self.assertRaises(api.ApiError):
             pulls.repo_visible(_CONFIG, "o/r")
 
@@ -219,7 +219,7 @@ class RepoVisibleTest(unittest.TestCase):
 class DisambiguateNotFoundTest(unittest.TestCase):
     @mock.patch("lib.forgejo.pulls.api.request")
     def test_non_404_error_is_not_probed_or_relabelled(self, request):
-        error = api.ApiError("boom", plan.EXIT_RUNTIME, 500)
+        error = api.ApiError("boom", plan.EXIT_BROKEN, 500)
         self.assertIsNone(pulls.disambiguate_not_found(_CONFIG, "o/r", error))
         request.assert_not_called()
 
@@ -291,6 +291,64 @@ class ReviewsTest(unittest.TestCase):
     def test_list_review_comments_tolerates_null(self, request):
         request.return_value = None
         self.assertEqual(pulls.list_review_comments(_CONFIG, "o/r", 5, 1), [])
+
+
+def _comment(login, body: str, entry_id: int = 1) -> dict:
+    user = None if login is None else {"login": login}
+    return {"id": entry_id, "user": user, "body": body}
+
+
+class CanonicalCommentTest(unittest.TestCase):
+    def test_line_endings_trailing_space_runs_and_case_do_not_matter(self):
+        staged = "Superseded by #13.\n\nSee  the   successor.\n"
+        for posted in (
+            "  superseded BY #13.   \r\n\r\nSee the\tsuccessor.  \r",
+            "Superseded by #13.\r\n\r\nSee the successor.\r\n",
+            "Superseded by #13.\r\rSee the successor.",
+        ):
+            with self.subTest(posted=posted):
+                self.assertEqual(
+                    pulls.canonical_comment(staged),
+                    pulls.canonical_comment(posted),
+                )
+
+    def test_different_words_differ(self):
+        self.assertNotEqual(
+            pulls.canonical_comment("superseded by #13"),
+            pulls.canonical_comment("superseded by #14"),
+        )
+
+
+class MatchingLastCommentTest(unittest.TestCase):
+    def test_matching_last_comment_is_returned_whoever_wrote_it(self):
+        for login in ("fjw-bot", "human", None):
+            with self.subTest(login=login):
+                comments = [
+                    _comment("x", "earlier", 3),
+                    _comment(login, "Superseded by #13\r\n", 7),
+                ]
+                found = pulls.matching_last_comment(comments, "superseded by #13")
+                self.assertEqual(found["id"], 7)
+
+    def test_a_match_that_is_not_the_last_comment_does_not_count(self):
+        comments = [
+            _comment("fjw-bot", "superseded by #13", 7),
+            _comment("human", "please keep this open", 8),
+        ]
+        self.assertIsNone(
+            pulls.matching_last_comment(comments, "superseded by #13")
+        )
+
+    def test_the_newest_is_judged_by_id_not_list_order(self):
+        comments = [
+            _comment("fjw-bot", "superseded by #13", 9),
+            _comment("human", "older", 4),
+        ]
+        found = pulls.matching_last_comment(comments, "superseded by #13")
+        self.assertEqual(found["id"], 9)
+
+    def test_no_comments_is_no_match(self):
+        self.assertIsNone(pulls.matching_last_comment([], "superseded by #13"))
 
 
 class ClosePrTest(unittest.TestCase):

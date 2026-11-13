@@ -186,8 +186,9 @@ def create_pr(
     body: str,
 ) -> dict:
     """POST the PR; the raw PR object back. A 409 (an open PR for this
-    head/base already exists) reclassifies to exit 4: the consumer queries
-    before creating, so a duplicate create is a caller bug, never a retry."""
+    head/base already exists) reclassifies to EXIT_CALLER_ERROR (2): the
+    open PR is state the caller must change, and the consumer queries
+    before creating, so a re-run unchanged cannot succeed."""
     try:
         return api.request(
             config,
@@ -199,8 +200,8 @@ def create_pr(
         if error.status == 409:
             raise api.ApiError(
                 f"an open PR for {head!r} -> {base!r} already exists on "
-                f"{repository}: {error}",
-                plan.EXIT_REFUSED,
+                f"{repository}; query it first (fjw-pr-query): {error}",
+                plan.EXIT_CALLER_ERROR,
                 409,
             )
         raise
@@ -233,6 +234,32 @@ def list_comments(config: Config, repository: str, index: int) -> list[dict]:
         if len(batch) < _PAGE_SIZE:
             return comments
         page += 1
+
+
+def canonical_comment(body: str) -> str:
+    """`body` reduced for an equality test between a staged comment and a
+    posted one: line endings normalized (\\r\\n and \\r to \\n), trailing
+    whitespace dropped per line and at both ends, every run of whitespace
+    (line breaks included) collapsed to one space, then casefolded. The
+    server may rewrite line endings or trim, and none of this changes what
+    a comment says. str.split() with no argument does the first three
+    steps at once: it splits on every whitespace run, \\r and \\n included,
+    and drops empty ends."""
+    return " ".join(body.split()).casefold()
+
+
+def matching_last_comment(comments: list[dict], body: str) -> dict | None:
+    """The most recent of `comments` (as list_comments returns them; the
+    highest id is the newest) when its body matches `body` canonically (see
+    canonical_comment), else None. Who wrote it is not checked: the forge
+    gives this token no cheap way to learn its own login, and a matching
+    last comment says what the caller meant to say either way."""
+    if not comments:
+        return None
+    last = max(comments, key=lambda comment: comment.get("id") or 0)
+    if canonical_comment(last.get("body") or "") == canonical_comment(body):
+        return last
+    return None
 
 
 def list_reviews(config: Config, repository: str, index: int) -> list[dict]:

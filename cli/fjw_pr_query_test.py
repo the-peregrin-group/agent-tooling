@@ -75,16 +75,16 @@ class FjwPrQueryBehaviorTest(unittest.TestCase):
                 self.assertEqual(payload["state"], state)
                 self.assertEqual(payload["pr"]["number"], 4)
 
-    def test_network_failure_exits_retryable(self):
+    def test_network_failure_is_broken(self):
         with mock.patch.object(_MODULE.fjw_config, "load", return_value=_CONFIG), \
                 mock.patch.object(
                     _MODULE.pulls, "query_state",
-                    side_effect=_MODULE.api.ApiError("net down", 6),
+                    side_effect=_MODULE.api.ApiError("net down", 1),
                 ), \
                 contextlib.redirect_stderr(io.StringIO()):
             with self.assertRaises(SystemExit) as caught:
                 _MODULE.main(["o/r", "b"])
-        self.assertEqual(caught.exception.code, 6)
+        self.assertEqual(caught.exception.code, 1)
 
 
 class FjwPrQueryArgumentContractTest(

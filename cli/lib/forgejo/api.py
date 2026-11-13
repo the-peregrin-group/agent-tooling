@@ -5,15 +5,23 @@ are always relative, so the wrappers cannot egress anywhere else by
 construction. Auth is `Authorization: token <...>`; responses are parsed
 JSON, raw API objects end to end.
 
-Failures classify into the shared exit-code taxonomy (lib.plan): connection
-problems and timeouts are network (6, retryable); 401/403 are auth (5);
-404 is not-found (3); anything else HTTP is unclassified runtime (1), which
-callers may reclassify when a status carries verb-specific meaning (e.g.
-409 on create = duplicate PR = caller bug, exit 4).
+Failures classify into the Exit-code contract
+(docs/index.md#exit-code-contract; constants in lib.plan): a 403 is a grant
+too weak for the action (EXIT_FORBIDDEN, 4) unless it carries Retry-After,
+which marks rate limiting; 404 is not-found (EXIT_NOT_FOUND, 3);
+everything else -- 401, rate limiting, 5xx, any other status, a non-JSON
+body, a transport failure -- is broken on our side (EXIT_BROKEN, 1). A
+transport failure on a write says the write may have landed.
+
+Callers may reclassify a status that carries Verb-specific meaning (409 on
+create: an open PR already exists, state the caller must change,
+EXIT_CALLER_ERROR). There is no retry or backoff here: none has been
+needed, and persisting rate limiting is 1 either way.
 """
 
 from __future__ import annotations
 
+import http.client
 import json
 import socket
 import sys
@@ -30,7 +38,8 @@ USER_AGENT = "fjw (agent-tooling wrapper CLI)"
 
 
 class ApiError(Exception):
-    """A classified API failure: `exit_code` is from the shared taxonomy."""
+    """A classified API failure: `exit_code` is a code of the Exit-code
+    contract."""
 
     def __init__(self, message: str, exit_code: int, status: int | None = None):
         super().__init__(message)
@@ -78,11 +87,19 @@ def request(
             status = response.status
     except urllib.error.HTTPError as error:
         detail = _error_detail(error)
-        if error.code in (401, 403):
+        if error.code == 401:
             raise ApiError(
-                f"{method} {path}: HTTP {error.code} (auth){detail}",
-                plan.EXIT_AUTH,
-                error.code,
+                f"{method} {path}: HTTP 401 (the deployment's credentials "
+                f"were rejected; report it, do not retry){detail}",
+                plan.EXIT_BROKEN,
+                401,
+            )
+        if error.code == 403 and not _is_rate_limited(error):
+            raise ApiError(
+                f"{method} {path}: HTTP 403 (the machine account's grant is "
+                f"too weak for this action; ask a human){detail}",
+                plan.EXIT_FORBIDDEN,
+                403,
             )
         if error.code == 404:
             raise ApiError(
@@ -90,15 +107,28 @@ def request(
                 plan.EXIT_NOT_FOUND,
                 404,
             )
+        label = " (rate limited)" if error.code in (403, 429) else ""
         raise ApiError(
-            f"{method} {path}: HTTP {error.code}{detail}",
-            plan.EXIT_RUNTIME,
+            f"{method} {path}: HTTP {error.code}{label}{detail}",
+            plan.EXIT_BROKEN,
             error.code,
         )
-    except (urllib.error.URLError, socket.timeout, ConnectionError, OSError) as error:
+    except (
+        urllib.error.URLError,
+        socket.timeout,
+        ConnectionError,
+        OSError,
+        http.client.HTTPException,
+    ) as error:
         reason = getattr(error, "reason", None) or error
+        landed = (
+            "" if method == "GET" else
+            "; the write may or may not have landed, so check before "
+            "re-running"
+        )
         raise ApiError(
-            f"{method} {path}: network failure ({reason})", plan.EXIT_NETWORK
+            f"{method} {path}: network failure ({reason}){landed}",
+            plan.EXIT_BROKEN,
         )
     if status == 204 or not payload:
         return None
@@ -107,9 +137,16 @@ def request(
     except json.JSONDecodeError:
         raise ApiError(
             f"{method} {path}: server returned non-JSON (HTTP {status})",
-            plan.EXIT_RUNTIME,
+            plan.EXIT_BROKEN,
             status,
         )
+
+
+def _is_rate_limited(error: urllib.error.HTTPError) -> bool:
+    """True when a 403 carries Retry-After, the one signal that it means
+    rate limiting rather than a grant too weak for the action."""
+    headers = error.headers
+    return headers is not None and headers.get("Retry-After") is not None
 
 
 def _error_detail(error: urllib.error.HTTPError) -> str:

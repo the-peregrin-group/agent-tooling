@@ -5,8 +5,10 @@ Read verb: emits the raw Forgejo PR object. An index that names an issue
 rather than a PR is not-found (the /pulls route 404s there). Acts as the
 deployment's machine account.
 
-Exit codes: 0 success, 1 unclassified API failure, 2 usage error, 3 no such
-PR (or no such repository), 5 roster/auth/config (deployment), 6 network failure.
+Exit codes (the Exit-code contract): 0 success, 1 broken on our side
+(credentials, config, the network, a server error), 2 usage error, 3 no
+such PR (or no such repository), 4 the machine account's grant is too weak
+for the read.
 """
 
 from __future__ import annotations
@@ -41,7 +43,7 @@ def main(argv: list[str]) -> int:
     try:
         configuration = fjw_config.load()
     except fjw_config.ConfigError as error:
-        api.die(str(error), plan.EXIT_AUTH)
+        api.die(str(error), plan.EXIT_BROKEN)
     try:
         pr = pulls.get_pr(configuration, repository, index)
     except api.ApiError as error:

@@ -103,7 +103,7 @@ class FjwPrReviewsBehaviorTest(unittest.TestCase):
         mocks["list_review_comments"].assert_not_called()
 
     def test_api_error_exit_code_propagates(self):
-        for code in (1, 6):
+        for code in (1, 4):
             with self.subTest(code=code):
                 stack, _ = self._patches(
                     list_reviews=_MODULE.api.ApiError("boom", code, None))
@@ -112,14 +112,14 @@ class FjwPrReviewsBehaviorTest(unittest.TestCase):
                         _MODULE.main(["o/r", "5"])
                 self.assertEqual(caught.exception.code, code)
 
-    def test_config_failure_is_exit_5(self):
+    def test_config_failure_is_broken(self):
         with mock.patch.object(
                 _MODULE.fjw_config, "load",
                 side_effect=_MODULE.fjw_config.ConfigError("no config")), \
                 contextlib.redirect_stderr(io.StringIO()):
             with self.assertRaises(SystemExit) as caught:
                 _MODULE.main(["o/r", "5"])
-        self.assertEqual(caught.exception.code, 5)
+        self.assertEqual(caught.exception.code, 1)
 
 
 class FjwPrReviewsArgumentContractTest(

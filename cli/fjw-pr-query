@@ -18,8 +18,10 @@ finished" signal exists. All four states exit 0 -- "none" is an answer, not
 an error. When several open PRs share the head branch, the newest is judged.
 Acts as the deployment's machine account.
 
-Exit codes: 0 success (any state), 1 unclassified API failure, 2 usage
-error, 3 repository not found, 5 roster/auth/config (deployment), 6 network failure.
+Exit codes (the Exit-code contract): 0 success (any state), 1 broken on
+our side (credentials, config, the network, a server error), 2 usage
+error, 3 repository not found (or not visible to the machine account), 4
+the machine account's grant is too weak for the read.
 """
 
 from __future__ import annotations
@@ -52,7 +54,7 @@ def main(argv: list[str]) -> int:
     try:
         configuration = fjw_config.load()
     except fjw_config.ConfigError as error:
-        api.die(str(error), plan.EXIT_AUTH)
+        api.die(str(error), plan.EXIT_BROKEN)
     try:
         state, pr = pulls.query_state(configuration, repository, head)
     except api.ApiError as error:

@@ -6,9 +6,10 @@ exhaustion). The index is verified to name a PR before the comments are
 fetched -- comments ride the shared issue routes, and this verb must not
 become a covert issue reader. Acts as the deployment's machine account.
 
-Exit codes: 0 success (an empty array is success), 1 unclassified API
-failure, 2 usage error, 3 no such PR (or no such repository), 5
-roster/auth/config (deployment), 6 network failure.
+Exit codes (the Exit-code contract): 0 success (an empty array is
+success), 1 broken on our side (credentials, config, the network, a
+server error), 2 usage error, 3 no such PR (or no such repository), 4 the
+machine account's grant is too weak for the read.
 """
 
 from __future__ import annotations
@@ -43,7 +44,7 @@ def main(argv: list[str]) -> int:
     try:
         configuration = fjw_config.load()
     except fjw_config.ConfigError as error:
-        api.die(str(error), plan.EXIT_AUTH)
+        api.die(str(error), plan.EXIT_BROKEN)
     try:
         pulls.get_pr(configuration, repository, index)  # PR-ness gate
         comments = pulls.list_comments(configuration, repository, index)

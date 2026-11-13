@@ -8,7 +8,7 @@ Modules:
   config -- the deployment-config file: API URL, machine-account token,
             optional git-over-SSH host/port (reserved; parsed but unused)
   api    -- HTTP layer: auth header, JSON codec, error classification into
-            the shared exit-code taxonomy, swagger feature-probing
+            the Exit-code contract, swagger feature-probing
   pulls  -- PR operations: create/list/view/close/comment and the
             quad-state head-branch query
 """
