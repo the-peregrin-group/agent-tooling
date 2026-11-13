@@ -46,6 +46,17 @@ from lib import bdw_push  # noqa: E402
 
 _SCRIPT = Path(__file__).resolve().parent / "bdw"
 
+
+def _load_bdw():
+    """bdw as a module, for the in-process tests."""
+    loader = importlib.machinery.SourceFileLoader("bdw_under_test",
+                                                  str(_SCRIPT))
+    spec = importlib.util.spec_from_file_location(
+        loader.name, str(_SCRIPT), loader=loader)
+    module = importlib.util.module_from_spec(spec)
+    loader.exec_module(module)
+    return module
+
 _HELP_LINE = "Agents, load /use-bd immediately."
 
 _FAKE_BD = """#!/bin/sh
@@ -282,14 +293,37 @@ class BdwTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stdout.splitlines()[_HEADER_LINES:], arguments)
 
-    def test_bd_exit_code_and_stderr_are_relayed(self):
+    def test_bd_failure_is_translated_to_1_and_stderr_is_relayed(self):
+        # bd's own code never reaches the caller (Exit-code contract).
         self.install_fake_bd()
-        result = self.run_bdw("show", "x-1", USER="dan", FAKE_BD_EXIT="7",
-                              FAKE_BD_STDERR="Issue x-1 not found")
-        self.assertEqual(result.returncode, 7)
-        self.assertEqual(result.stderr, "Issue x-1 not found\n")
-        self.assertEqual(result.stdout.splitlines()[_HEADER_LINES:],
-                         ["show", "x-1"])
+        for bd_exit in ("1", "3", "7", "127", "128"):
+            with self.subTest(bd_exit=bd_exit):
+                result = self.run_bdw("show", "x-1", USER="dan",
+                                      FAKE_BD_EXIT=bd_exit,
+                                      FAKE_BD_STDERR="Issue x-1 not found")
+                self.assertEqual(result.returncode, 1)
+                self.assertEqual(result.stderr, "Issue x-1 not found\n")
+                self.assertEqual(result.stdout.splitlines()[_HEADER_LINES:],
+                                 ["show", "x-1"])
+
+    def test_bd_shell_style_signal_exit_passes_through(self):
+        # A bd that traps signal N and exits 128 + N itself reads as that
+        # signal, outside the contract, like a real signal death.
+        self.install_fake_bd()
+        result = self.run_bdw("show", "x-1", USER="dan", FAKE_BD_EXIT="143")
+        self.assertEqual(result.returncode, 143, result.stderr)
+
+    def test_translate_bd_exit(self):
+        cases = (
+            (0, False, 0), (0, True, 0), (1, False, 1), (1, True, 2),
+            (2, False, 1), (5, True, 2), (128, False, 1), (128, True, 2),
+            (130, False, 130), (130, True, 130), (137, False, 137),
+            (128 + signal.NSIG, False, 1), (255, True, 2),
+        )
+        for code, usage_error, expected in cases:
+            with self.subTest(code=code, usage_error=usage_error):
+                self.assertEqual(
+                    _load_bdw().translate_bd_exit(code, usage_error), expected)
 
     def test_a_signal_exit_maps_to_128_plus_the_signal(self):
         self.install_fake_bd()
@@ -303,11 +337,11 @@ class BdwTest(unittest.TestCase):
         # Python's 120 from a failed flush at exit.
         self.install_fake_bd()
         cases = (
-            (("show", "x-1"), "boom", "7", 7),
+            (("show", "x-1"), "boom", "7", 1),
             (("frobnicate",), "Error: unknown command \"frobnicate\" for \"bd\"",
-             "1", 1),
+             "1", 2),
             (("--help",), "", "0", 0),
-            (("create", "x"), "", "0", 5),  # refused: unverified version
+            (("create", "x"), "", "0", 1),  # refused: unverified version
         )
         for arguments, stderr_line, bd_exit, expected in cases:
             with self.subTest(arguments=arguments):
@@ -316,7 +350,8 @@ class BdwTest(unittest.TestCase):
                     env=self.bdw_environment(
                         USER="dan", FAKE_BD_SLEEP="0.5",
                         FAKE_BD_STDERR=stderr_line, FAKE_BD_EXIT=bd_exit,
-                        FAKE_BD_VERSION="1.4.0" if expected == 5 else "1.3.0"),
+                        FAKE_BD_VERSION=("1.4.0" if arguments[0] == "create"
+                                         else "1.3.0")),
                     stdin=subprocess.DEVNULL,
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.PIPE,
@@ -356,9 +391,9 @@ class BdwTest(unittest.TestCase):
         self.assertEqual(self.bd_calls(),
                          ["where --json", "version --json", "list"])
 
-    def test_missing_bd_exits_3_with_the_not_found_line(self):
+    def test_missing_bd_exits_1_with_the_not_found_line(self):
         result = self.run_bdw("list", USER="dan")
-        self.assertEqual(result.returncode, 3)
+        self.assertEqual(result.returncode, 1)
         self.assertEqual(result.stderr.splitlines(),
                          ["bdw: bd not found on PATH", _HELP_LINE])
         self.assertEqual(result.stdout, "")
@@ -374,7 +409,7 @@ class BdwTest(unittest.TestCase):
     def test_a_bd_that_is_this_script_is_treated_as_absent(self):
         os.symlink(str(_SCRIPT), str(self.bin / "bd"))
         result = self.run_bdw("list", USER="dan")
-        self.assertEqual(result.returncode, 3)
+        self.assertEqual(result.returncode, 1)
         self.assertIn("bd not found on PATH", result.stderr)
 
     # The help line.
@@ -401,7 +436,7 @@ class BdwTest(unittest.TestCase):
         result = self.run_bdw("create", "--", "--help", USER="dan")
         self.assertEqual(result.stderr, "")
 
-    def test_bd_usage_errors_get_the_help_line(self):
+    def test_bd_usage_errors_exit_2_with_the_help_line(self):
         self.install_fake_bd()
         for message in ('Error: unknown command "lsit" for "bd"',
                         "Error: unknown flag: --bogus",
@@ -410,7 +445,7 @@ class BdwTest(unittest.TestCase):
             with self.subTest(message=message):
                 result = self.run_bdw("show", "x", USER="dan",
                                       FAKE_BD_EXIT="1", FAKE_BD_STDERR=message)
-                self.assertEqual(result.returncode, 1)
+                self.assertEqual(result.returncode, 2)
                 self.assertEqual(result.stderr.splitlines(),
                                  [message, _HELP_LINE])
 
@@ -468,7 +503,7 @@ class BdwTest(unittest.TestCase):
                           ("--readonly", "list"), ("-", "list")):
             with self.subTest(arguments=arguments):
                 result = self.run_bdw(*arguments, USER="dan")
-                self.assert_refused(result, "put the verb first")
+                self.assert_refused(result, "put the verb first", 2)
                 self.assertEqual(self.bd_calls(), [])
         for arguments in (("--help",), ("-h",), ("--version",), ("-V",),
                           ("version",)):
@@ -489,7 +524,7 @@ class BdwTest(unittest.TestCase):
     def test_no_workspace_is_refused(self):
         self.install_fake_bd()
         result = self.run_bdw("list", USER="dan", FAKE_BEADS_DIR=None)
-        self.assert_refused(result, "no Beads workspace config found", 5)
+        self.assert_refused(result, "no Beads workspace config found", 1)
         self.assertIn("No active beads workspace found.", result.stderr)
         self.assertEqual(self.bd_calls(), ["where --json"])
 
@@ -497,7 +532,7 @@ class BdwTest(unittest.TestCase):
         self.install_fake_bd()
         (self.beads / "metadata.json").unlink()
         result = self.run_bdw("list", USER="dan")
-        self.assert_refused(result, "has no metadata.json", 5)
+        self.assert_refused(result, "has no metadata.json", 1)
         self.assertEqual(self.bd_calls(), ["where --json"])
 
     def test_version_runs_without_a_workspace(self):
@@ -519,7 +554,7 @@ class BdwTest(unittest.TestCase):
                                       FAKE_BD_VERSION="1.4.0")
                 self.assert_refused(
                     result, "refusing a write: bd version 1.4.0 is not "
-                    "verified (verified: 1.3.0)", 5)
+                    "verified (verified: 1.3.0)", 1)
                 self.assertEqual(self.bd_calls(),
                                  ["where --json", "version --json"])
 
@@ -573,7 +608,7 @@ class BdwTest(unittest.TestCase):
             with self.subTest(write=arguments):
                 result = self.run_bdw(*arguments, USER="dan",
                                       FAKE_BD_VERSION="1.4.0")
-                self.assert_refused(result, "refusing a write", 5)
+                self.assert_refused(result, "refusing a write", 1)
 
     def test_unreadable_version_counts_as_unverified(self):
         self.install_fake_bd()
@@ -581,7 +616,7 @@ class BdwTest(unittest.TestCase):
         # its ordinary non-JSON output.
         result = self.run_bdw("create", "x", USER="dan", FAKE_BD_VERSION=None)
         self.assert_refused(result, "bd version unknown is not verified",
-                            5)
+                            1)
 
     def test_verified_version_runs_writes_silently(self):
         self.install_fake_bd()
@@ -776,12 +811,7 @@ class BdwTest(unittest.TestCase):
         self.assertIn("not pushed to the Dolt remote", warning)
 
     def test_an_exception_in_the_push_setup_never_changes_the_exit(self):
-        loader = importlib.machinery.SourceFileLoader("bdw_under_test",
-                                                      str(_SCRIPT))
-        spec = importlib.util.spec_from_file_location(
-            loader.name, str(_SCRIPT), loader=loader)
-        module = importlib.util.module_from_spec(spec)
-        loader.exec_module(module)
+        module = _load_bdw()
         stderr = io.StringIO()
 
         def explode(*_):
