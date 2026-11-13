@@ -48,7 +48,8 @@ resolution) before the write itself.
    `ghw-issue-edit`, `ghw-issue-close`, and `ghw-issue-link`: declarative
    desired state, re-runs are converged no-ops. Deliberate exception:
    `ghw-issue-create`, which is inherently not idempotent; duplicate search
-   stays in `use-github`'s text as guidance.
+   stays skill guidance (the discipline in `create-issue`, the command in
+   `use-github`).
 6. **No ghw Permission rules at user level, reads included, and no
    `allowed-tools` grant.** Grants live in each repo's project or local
    settings, scoped to that repo's risk profile. Even `ghw-orient` is granted
@@ -340,9 +341,10 @@ terminal-state set. The planned rebase is
 
 - **use-github** is wrapper-first end to end: orientation through
   `ghw-orient`, the invocation form and literal staging paths, and the
-  guidance no Verb can absorb (search before filing, Status conservatism,
-  linkage keywords: `Closes #N` auto-closes while `furthers`, `part of`, and
-  `towards` link without closing; the `TODO(#N)` rule).
+  guidance no Verb can absorb (the search command for `create-issue`'s
+  search-first step, Status conservatism, linkage keywords: `Closes #N`
+  auto-closes while `furthers`, `part of`, and `towards` link without
+  closing; the `TODO(#N)` rule).
 - **setup-github-issues** bootstraps labels with `ghw-label-sync` (its JSON
   schema file declaring the `area:` and scope families) and the board with
   `ghw-board-sync <repo> new`, so the full canonical schema, `Size`

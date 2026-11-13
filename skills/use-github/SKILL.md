@@ -184,12 +184,12 @@ ghw-board-set acme/rocket-sled Priority P2 41
 ghw-board-set acme/rocket-sled Status "Needs Triage" 41
 ```
 
-New issues start at
-`Needs Triage` — setting that on a freshly filed issue is safe **provided the
-board actually has the option**: check the board's `conformance` verdict from
-Step 1, since a board with `gaps` may lack canonical states and the wrapper
-will refuse an option the field doesn't have. Status *transitions* belong to
-the `triage-issues` skill; don't invent them here.
+New issues start at `Needs Triage` — setting that on a freshly filed issue
+is safe **provided the board actually has the option**: check the board's
+`conformance` verdict from Step 1, since a board with `gaps` may lack
+canonical states and the wrapper will refuse an option the field doesn't
+have. Status *transitions* belong to the `triage-issues` skill; don't invent
+them here.
 
 ## Working an Issue (any time after filing)
 
