@@ -3,16 +3,16 @@ name: use-bd
 description: >
   The operating manual for Beads (`bd`) as a repo's Issue Tracker, run
   through the `bdw` wrapper: the session loop (prime, ready, claim, file,
-  close, land the plane), who may claim and close, Branch and Leaf Issues
-  and working a Branch Issue in passes, what Beads adds to filing (the
+  close, land the plane), who may claim and close, the Beads commands for
+  a Branch Issue pass (breakdown-issue), what Beads adds to filing (the
   filing discipline is create-issue), free text through files, work waiting
   on a human, and friction reporting. Load at the start of any session in a
   repo with a `.beads/` directory, before the first `bdw` or `bd` call, and
   whenever `bd prime` or a `bdw` message says to. Triggers: "bdw ready",
   "what's ready", "claim this issue", "file a bead", "close the bead",
-  "land the plane", "break this epic down", "Beads". EXCLUDE: GitHub Issues
-  (use-github) and setting Beads up in a new repo (this skill's
-  onboarding.md).
+  "land the plane", "Beads". EXCLUDE: GitHub Issues (use-github), the rules
+  for working a Branch Issue in passes (breakdown-issue), and setting Beads
+  up in a new repo (this skill's onboarding.md).
 ---
 
 # Use Beads
@@ -116,25 +116,23 @@ refuses it. Never take over someone else's claim (`unclaim --force`,
 
 ## Branch Issues and Leaf Issues
 
-A **Leaf Issue** is a unit of work sized for one session. A **Branch
-Issue** holds other Issues as children (an epic): its own work is
-management, scoping it, breaking it down, and verifying it is done. It is
-worked in **passes**, each a session that claims it and ends in one of
-two ways:
+What a Branch Issue's work is, how it is worked in passes, when an Issue
+belongs under a parent, and how big a Leaf Issue is are the
+`breakdown-issue` skill's: load it before claiming a Branch Issue. This
+section holds only the Beads commands for a pass.
 
-- **Breakdown.** Draft the whole breakdown first (each child's title,
-  description file, type, labels, and dependencies), then file the
-  children in one sitting with `--parent=<id>`, add the dependencies
-  between them, and release the Branch Issue (`bdw unclaim <id>`). Each
-  child is ready work the moment it exists, so file only what is drafted.
-- **Verification.** When every child is closed, check the Branch Issue's
-  own acceptance criteria against the result, then close it or file the
-  children still missing.
-
-Only an epic takes children. When a task proves bigger than a session,
-retype it first (`bdw update <id> --type=epic`) and break it down;
-otherwise file a sibling Leaf Issue linked by a dependency. Never claim a
-Branch Issue that has open children.
+- **A Branch Issue is an epic,** and only an epic takes children. To
+  reorganize a Leaf Issue as a Branch Issue, retype it first
+  (`bdw update <id> --type=epic`).
+- **Adding children:** file each with `--parent=<id>`, then add the
+  dependencies between them.
+- **Removing a child** that is not wanted: `bdw close <id>
+  --reason-file=<path>`. **Redrawing one:** rewrite its description
+  (`bdw update <id> --body-file=<path>`).
+- **Ending the pass:** release the Branch Issue (`bdw unclaim <id>`), or,
+  after verifying it, close it (`bdw close <id> --reason-file=<path>`).
+- **Never claim a Branch Issue that has open children.** `bdw ready` lists
+  them all the same (see The loop).
 
 ## Filing
 
