@@ -15,7 +15,11 @@ slice that replaces each one lands.
 
 The design, its alternatives, the plan, and the approved requirements are
 in the [proposal](2026-11-13-proposal.md); the decisions are ADRs 0017 to
-0023. The work is tracked under `agent-tooling-u9n` (split the Issue
+0023, and
+[ADR 0024](../../adr/0024-a-pass-reorganizes-a-branch-issues-children.md),
+which amends ADR 0009 (Branch Issues are worked in passes) so that a pass
+reorganizes children, not only adds them. The work is tracked under
+`agent-tooling-u9n` (split the Issue
 Tracker skills into a generic layer and platform layers); the Wrapper work
 is tracked in `agent-tooling-84n3` (bdw), `agent-tooling-fyxo` (ghw),
 `agent-tooling-1vr` (fjw), and `agent-tooling-2340` (the triage scripts).
