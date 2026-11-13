@@ -23,25 +23,23 @@ State Diagram, Permission rule, Actor ID, and the rest) are the lexicon's
 ([LEXICON.md](https://github.com/the-peregrin-group/agent-tooling/blob/main/LEXICON.md)),
 and the lexicon is authoritative for them.
 
-The principles below are the approved requirements of the Issue Tracker
-skill family, in the maintainer's wording and under their original numbers
-([the proposal's appendix](https://github.com/the-peregrin-group/agent-tooling/blob/main/docs/projects/use-issues/2026-11-13-proposal.md#appendix-the-approved-requirements)).
-The numbers have gaps: the requirements that are procedures live in the
-moment skills.
+The principles below are approved requirements of the Issue Tracker skill
+family, in the maintainer's wording and under their original numbers.
+[The proposal's appendix](https://github.com/the-peregrin-group/agent-tooling/blob/main/docs/projects/use-issues/2026-11-13-proposal.md#appendix-the-approved-requirements)
+has every requirement in full. This skill carries the ones that are
+principles rather than procedures, so the numbers have gaps: a missing
+number is a requirement not carried here. A bullet marked "(Shortened.)"
+stops before the requirement's last sentence, which is in the appendix.
 
-## The moment skills
+## The family's shape
 
-The generic skills are split by moment of need (filing, working an Issue,
-breaking down a Branch Issue, triage, setup), one skill per moment, written
-against no platform.
-
-| Moment | Skill |
-|---|---|
-| filing | `create-issue` |
-| working an Issue | `work-issue` |
-| breaking down a Branch Issue | `breakdown-issue` |
-| triage | `triage-issues` |
-| setup | `setup-issue-tracker` |
+- **R52.** The generic skills are split by moment of need (filing, working
+  an Issue, breaking down a Branch Issue, triage, setup), one skill per
+  moment, written against no platform. The fundamentals are a Knowledge
+  Skill, `know-issues`, whose description carries the distillation. There
+  is no table-of-contents skill: the edges of the graph are the skill
+  descriptions in the session listing, pointers in skill text at the
+  moment of need, and the wrappers' help and refusals.
 
 ## Where Issues live
 
@@ -115,7 +113,7 @@ against no platform.
   own mechanism for kind, and is classified by the project's declared
   scheme.
 - **R18.** Priority lives in exactly one place per repo and exists to
-  answer "what do I work on next?"
+  answer "what do I work on next?" (Shortened.)
 - **R49.** The filing bar is the same on every tracker, and it is a
   minimum: a title that states the outcome; a body that says what is known
   and what is not, with no placeholder text; and an Issue Kind, an Issue
@@ -157,6 +155,7 @@ against no platform.
   source of truth; prose about it in a body is narrative only.
 - **R28.** Work waiting on a person shows as waiting on that person, and
   everything waiting on the human sits in one queue they can see.
+  (Shortened.)
 
 ## Lifecycle
 
@@ -171,9 +170,10 @@ against no platform.
   you learn to the Issue it belongs to, regardless of who filed it or who
   has claimed it; close it when its criteria hold; before you stop, close
   or release everything you hold. Never take over someone else's work in
-  progress; ask.
+  progress; ask. (Shortened.)
 - **R33.** An Issue is a living document: its description is its current
   state, rewritten in place, and its comments are an append-only log.
+  (Shortened.)
 - **R34.** A fresh session can resume any Issue from the tracker alone: the
   Issue points to context kept in the project's standard documents rather
   than holding it.
