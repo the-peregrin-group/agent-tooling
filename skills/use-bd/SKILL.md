@@ -121,9 +121,8 @@ belongs under a parent, and how big a Leaf Issue is are the
 `breakdown-issue` skill's: load it before claiming a Branch Issue. This
 section holds only the Beads commands for a pass.
 
-- **A Branch Issue is an epic,** and only an epic takes children. To
-  reorganize a Leaf Issue as a Branch Issue, retype it first
-  (`bdw update <id> --type=epic`).
+- **Only an epic takes children.** To reorganize a Leaf Issue as a Branch
+  Issue, retype it first (`bdw update <id> --type=epic`).
 - **Adding children:** file each with `--parent=<id>`, then add the
   dependencies between them.
 - **Removing a child** that is not wanted: `bdw close <id>

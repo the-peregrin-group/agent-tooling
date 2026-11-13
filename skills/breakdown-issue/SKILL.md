@@ -46,7 +46,7 @@ reorganizing its children (adding, removing, or redrawing their boundaries)
 or by verifying it against its criteria.
 
 1. Before touching the Branch Issue, make it visible that you are working
-   on it (claim it), since one person or agent advances an Issue at a time.
+   on it, since one person or agent advances an Issue at a time.
    An agent sharing its session's Actor ID (a sub-agent, a workflow agent)
    does not claim, close, or rewrite: it drafts the pass and hands the
    draft to the session that holds the claim.
@@ -62,7 +62,7 @@ or by verifying it against its criteria.
 
 A pass drafts its whole reorganization before filing any of it, with no
 placeholder breakdown or acceptance tasks. Children added in a pass become
-ready work as soon as they exist, so file only what is drafted.
+ready work as soon as they exist.
 
 - **Draft** every change first: each new child's title, body, Issue Kind,
   Issue Priority, Issue Labels, and dependencies, and each change to a
@@ -80,21 +80,25 @@ ready work as soon as they exist, so file only what is drafted.
   hides work.
 
 Changing or destroying existing data requires more delegation than purely
-additive change, and more still when the agent is making the decision
-itself rather than carrying one out. So adding children is routine, and
-removing or redrawing them may be denied or asked: if the grant exists, do
-the act; if not, that is the answer. Unattended, an act that would need a
-person's approval is written up as a proposal in the report instead of
-attempted. Never take over someone else's work in progress: when a child
-you would remove or redraw is claimed, ask.
+additive change. Within that, less judgement is needed when the action
+merely executes an existing, already-authorized plan (forming Issues from a
+design document's scope, say), and more when the agent is making the
+decision itself rather than carrying one out (inferring a new overarching
+project and reparenting existing Issues under it). So adding children is
+routine, and removing or redrawing them may be denied or asked: if the
+grant exists, do the act; if not, that is the answer. Unattended, an act
+that would need a person's approval is written up as a proposal in the
+report instead of attempted. Never take over someone else's work in
+progress: when a child you would remove or redraw is claimed, ask.
 
 ### Ending by verifying
 
 When every child is closed, check the Branch Issue's success criteria
 against the outcome. A parent's status is judged against its own definition
 and criteria, not on the state of its children. Then close it, with its
-reason, or reorganize: file the children still missing. An Issue is done
-only when everything that describes it agrees with the change.
+reason. A verifying pass that finds the criteria unmet ends as a
+reorganizing pass. An Issue is done only when everything that describes it
+agrees with the change.
 
 ## What goes under a parent
 
