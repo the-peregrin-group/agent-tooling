@@ -31,7 +31,8 @@ integrate runs several git operations while allowing few git capabilities
 during integration).
 - _Invariants_: when a Verb applies in situations a project may grant
   separately, each situation is a different invocation, so that a Permission
-  rule can match it
+  rule can match it; the token that names the situation comes before every
+  argument that varies
 - _Avoid_: command, subcommand
 
 **Exit-code contract**: The fixed meaning of an exit status, shared by all

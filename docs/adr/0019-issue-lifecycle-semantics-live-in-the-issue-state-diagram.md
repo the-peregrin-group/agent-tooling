@@ -5,7 +5,7 @@ status: current
 
 # Issue lifecycle semantics live in the repo's Issue State Diagram, not in the skills
 
-**Context:** The lifecycle guidance was spread across skills as fixed state lists with exit rules, which only fit software projects, drifted as each skill restated them, and could not be customized per repo without rewriting skill text. The maintainer's test case was that "ready" and "closed" are not properties of a state but of who is asking: a scoping agent's ready queue is a different state from an implementer's. The 2026-11-03 home-in on the Issue Tracker skill family ([proposal](../projects/use-issues/2026-11-05-proposal.md)) settled where lifecycle logic lives.
+**Context:** The lifecycle guidance was spread across skills as fixed state lists with exit rules, which only fit software projects, drifted as each skill restated them, and could not be customized per repo without rewriting skill text. The maintainer's test case was that "ready" and "closed" are not properties of a state but of who is asking: a scoping agent's ready queue is a different state from an implementer's. The 2026-11-03 home-in on the Issue Tracker skill family ([proposal](../projects/use-issues/2026-11-13-proposal.md)) settled where lifecycle logic lives.
 
 **Decision:** Every state meaning and every transition condition is written in natural language in the repo's Issue State Diagram, part of its Tracker Schema. Each Issue State carries one structural attribute, open or closed, and nothing else is encoded. The skills say one thing about states: judge every move against the repo's Issue State Diagram. The ready queue is defined by the agent, as the unclaimed, unblocked Issues in the states it works.
 
