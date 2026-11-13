@@ -15,9 +15,3 @@ knowledge, so the text lives in one place.
 | Capability | State | Where |
 |---|---|---|
 | `know-unattended`: How to tell an attended session from an unattended one, how to start an unattended one, and what changes when unattended | shipped | `skills/know-unattended/SKILL.md` |
-
-### Known gaps
-
-- `know-unattended` cites the lexicon's Attended session and Unattended
-  session entries, which land with the Issue Tracker skill-family home-in
-  (`agent-tooling-7kn`).

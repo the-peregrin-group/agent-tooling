@@ -46,6 +46,9 @@ projects, which lives under `docs/audits/`.
   writing and refining State docs.
 - [know](projects/know/index.md): the Knowledge Skills, which teach
   knowledge rather than direct a procedure, under the `know-` prefix.
+- [use-issues](projects/use-issues/index.md): the Issue Tracker skill
+  family, planned: generic skills split by moment of need over
+  self-documenting wrappers.
 
 ## Cross-cutting audits
 
