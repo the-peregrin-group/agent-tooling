@@ -6,12 +6,12 @@
 family: generic Skills split by the moment an agent needs them, a Knowledge
 Skill for the fundamentals, platform Skills that only point at their
 Wrapper, and Wrappers whose issue Verbs document themselves and share one
-top-level grammar. Only the Knowledge Skill, `know-issues` (documented
-under [know](../know/index.md)), is built so far. The rest of today's issue
-guidance is the `setup-github-issues`, `use-github`, and `triage-issues`
-Skills (documented under [ghw](../ghw/index.md)), `use-bd`
-([use-bd](../use-bd/index.md)), and `use-forgejo` ([fjw](../fjw/index.md)),
-and they stay in force until the slice that replaces each one lands.
+top-level grammar. It is being built in slices, and the Status table below
+says which have shipped. Today's issue guidance is the
+`setup-github-issues`, `use-github`, and `triage-issues` Skills (documented
+under [ghw](../ghw/index.md)), `use-bd` ([use-bd](../use-bd/index.md)), and
+`use-forgejo` ([fjw](../fjw/index.md)), and they stay in force until the
+slice that replaces each one lands.
 
 The design, its alternatives, the plan, and the approved requirements are
 in the [proposal](2026-11-13-proposal.md); the decisions are ADRs 0017 to
@@ -24,7 +24,8 @@ is tracked in `agent-tooling-84n3` (bdw), `agent-tooling-fyxo` (ghw),
 
 | Capability | State | Where |
 |---|---|---|
-| The default Tracker Schema, with its Issue State Diagram, and `know-issues` | planned | [proposal](2026-11-13-proposal.md), slice 1; `agent-tooling-u9n`, `agent-tooling-vb2v` |
+| The default Tracker Schema, with its Issue State Diagram | planned | [proposal](2026-11-13-proposal.md), slice 1; `agent-tooling-u9n.2`, `agent-tooling-vb2v` |
+| `know-issues`, the Knowledge Skill for the issue fundamentals | shipped | `skills/know-issues/SKILL.md`; documented under [know](../know/index.md) |
 | `create-issue` and `work-issue`, generic, against today's Verbs | planned | [proposal](2026-11-13-proposal.md), slice 2; `agent-tooling-u9n` |
 | `breakdown-issue`, and `triage-issues` read against the Issue State Diagram | planned | [proposal](2026-11-13-proposal.md), slice 3; `agent-tooling-u9n` |
 | bdw rebuilt with its own issue Verbs and per-Verb help; `use-bd` as a failsafe pointer | planned | [proposal](2026-11-13-proposal.md), slice 4; `agent-tooling-84n3` |
