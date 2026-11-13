@@ -45,8 +45,8 @@ leans on `gh` for reads): there is no allowlistable read substrate either.
 
 Identity and credentials are deployment configuration
 (`~/.config/fjw/config.toml`): the machine-account token, the API host, and
-the machine account's login, which the wrappers use, plus optional `ssh_host`/`ssh_port` keys reserved for
-git-over-SSH (parsed but unused: no `fjw` Verb touches git over SSH, and
+the machine account's login, which the wrappers use, plus optional
+`ssh_host`/`ssh_port` keys reserved for git-over-SSH (parsed but unused: no `fjw` Verb touches git over SSH, and
 pushing is `gitw`'s job over the remote as configured). **Never read, write,
 or work around that file** — deny rules cover it and token rotation is the
 deployment's job. On a credential or config
@@ -155,7 +155,7 @@ successor PR). Comment posts first, then the close. If the close half fails
 you'll see `PARTIAL` on stderr and exit 5; once the cause clears, re-run
 with the same comment file. The re-run is safe: it finds the machine
 account's matching comment (since the PR's last reopen) and closes without
-posting it again. Closing an already-closed PR is a no-op success and posts
+posting it again; the plan's `comment_posted` says whether a run posted. Closing an already-closed PR is a no-op success and posts
 nothing.
 
 ```bash

@@ -293,36 +293,44 @@ class ReviewsTest(unittest.TestCase):
         self.assertEqual(pulls.list_review_comments(_CONFIG, "o/r", 5, 1), [])
 
 
-class TimelineTest(unittest.TestCase):
+class LatestReopenIdTest(unittest.TestCase):
     @mock.patch("lib.forgejo.pulls.api.request")
-    def test_list_timeline_continues_past_a_short_page_until_empty(self, request):
+    def test_reads_past_a_short_page_and_returns_the_newest_reopen(self, request):
         # Forgejo filters timeline entries after paginating.
-        short = [{"id": i} for i in range(pulls._PAGE_SIZE - 1)]
-        request.side_effect = [short, [{"id": 999}], None]
-        entries = pulls.list_timeline(_CONFIG, "o/r", 5)
-        self.assertEqual(len(entries), pulls._PAGE_SIZE)
+        short = [{"id": i, "type": "comment"} for i in range(1, pulls._PAGE_SIZE)]
+        short[3] = {"id": 4, "type": "reopen"}
+        request.side_effect = [short, [{"id": 90, "type": "reopen"}], None]
+        self.assertEqual(pulls.latest_reopen_id(_CONFIG, "o/r", 5), 90)
         self.assertEqual(
             request.call_args.args[1:], ("GET", "/repos/o/r/issues/5/timeline")
         )
         pages = [c.kwargs["query"]["page"] for c in request.call_args_list]
         self.assertEqual(pages, ["1", "2", "3"])
 
+    @mock.patch("lib.forgejo.pulls.api.request")
+    def test_never_reopened_is_zero(self, request):
+        request.side_effect = [[{"id": 3, "type": "close"}], []]
+        self.assertEqual(pulls.latest_reopen_id(_CONFIG, "o/r", 5), 0)
 
-def _comment(login: str, body: str, entry_id: int = 1) -> dict:
-    return {"id": entry_id, "type": "comment", "user": {"login": login}, "body": body}
 
-
-def _event(kind: str) -> dict:
-    return {"id": 0, "type": kind, "user": {"login": "someone"}, "body": ""}
+def _comment(login, body: str, entry_id: int = 1) -> dict:
+    user = None if login is None else {"login": login}
+    return {"id": entry_id, "user": user, "body": body}
 
 
 class CanonicalCommentTest(unittest.TestCase):
     def test_line_endings_trailing_space_runs_and_case_do_not_matter(self):
         staged = "Superseded by #13.\n\nSee  the   successor.\n"
-        posted = "  superseded BY #13.   \r\n\r\nSee the\tsuccessor.  \r"
-        self.assertEqual(
-            pulls.canonical_comment(staged), pulls.canonical_comment(posted)
-        )
+        for posted in (
+            "  superseded BY #13.   \r\n\r\nSee the\tsuccessor.  \r",
+            "Superseded by #13.\r\n\r\nSee the successor.\r\n",
+            "Superseded by #13.\r\rSee the successor.",
+        ):
+            with self.subTest(posted=posted):
+                self.assertEqual(
+                    pulls.canonical_comment(staged),
+                    pulls.canonical_comment(posted),
+                )
 
     def test_different_words_differ(self):
         self.assertNotEqual(
@@ -333,44 +341,45 @@ class CanonicalCommentTest(unittest.TestCase):
 
 class FindOwnCommentTest(unittest.TestCase):
     def test_matching_comment_by_the_machine_account_is_found(self):
-        timeline = [_comment("Fjw-Bot", "Superseded by #13\r\n", 7)]
-        found = pulls.find_own_comment(timeline, "fjw-bot", "superseded by #13")
+        comments = [_comment("Fjw-Bot", "Superseded by #13\r\n", 7)]
+        found = pulls.find_own_comment(comments, "fjw-bot", "superseded by #13")
         self.assertEqual(found["id"], 7)
 
-    def test_same_text_by_someone_else_is_not_ours(self):
-        timeline = [_comment("human", "superseded by #13")]
+    def test_the_newest_of_several_matches_wins(self):
+        comments = [
+            _comment("fjw-bot", "superseded by #13", 7),
+            _comment("fjw-bot", "superseded by #13", 12),
+            _comment("fjw-bot", "superseded by #13", 9),
+        ]
+        found = pulls.find_own_comment(comments, "fjw-bot", "superseded by #13")
+        self.assertEqual(found["id"], 12)
+
+    def test_same_text_by_someone_else_or_nobody_is_not_ours(self):
+        comments = [
+            _comment("human", "superseded by #13", 1),
+            _comment(None, "superseded by #13", 2),  # a deleted account
+        ]
         self.assertIsNone(
-            pulls.find_own_comment(timeline, "fjw-bot", "superseded by #13")
+            pulls.find_own_comment(comments, "fjw-bot", "superseded by #13")
         )
 
     def test_different_text_by_the_machine_account_is_not_a_match(self):
-        timeline = [_comment("fjw-bot", "superseded by #12")]
+        comments = [_comment("fjw-bot", "superseded by #12")]
         self.assertIsNone(
-            pulls.find_own_comment(timeline, "fjw-bot", "superseded by #13")
+            pulls.find_own_comment(comments, "fjw-bot", "superseded by #13")
         )
 
-    def test_only_comments_after_the_latest_reopen_count(self):
-        # close, reopen, close again with the same text: post it again.
-        timeline = [
-            _comment("fjw-bot", "superseded by #13", 1),
-            _event("close"),
-            _event("reopen"),
-        ]
-        self.assertIsNone(
-            pulls.find_own_comment(timeline, "fjw-bot", "superseded by #13")
+    def test_only_comments_after_the_reopen_count(self):
+        # close, reopen (id 20), close again with the same text: post again.
+        comments = [_comment("fjw-bot", "superseded by #13", 10)]
+        self.assertIsNone(pulls.find_own_comment(
+            comments, "fjw-bot", "superseded by #13", after_id=20
+        ))
+        comments.append(_comment("fjw-bot", "superseded by #13", 30))
+        found = pulls.find_own_comment(
+            comments, "fjw-bot", "superseded by #13", after_id=20
         )
-        timeline.append(_comment("fjw-bot", "superseded by #13", 2))
-        found = pulls.find_own_comment(timeline, "fjw-bot", "superseded by #13")
-        self.assertEqual(found["id"], 2)
-
-    def test_non_comment_entries_are_ignored(self):
-        timeline = [
-            {"id": 3, "type": "pull_push", "user": {"login": "fjw-bot"},
-             "body": "superseded by #13"},
-        ]
-        self.assertIsNone(
-            pulls.find_own_comment(timeline, "fjw-bot", "superseded by #13")
-        )
+        self.assertEqual(found["id"], 30)
 
 
 class ClosePrTest(unittest.TestCase):

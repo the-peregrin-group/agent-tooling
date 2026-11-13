@@ -236,17 +236,21 @@ def list_comments(config: Config, repository: str, index: int) -> list[dict]:
         page += 1
 
 
-def list_timeline(config: Config, repository: str, index: int) -> list[dict]:
-    """Every timeline entry of PR `index`, oldest first, paginated until an
-    empty page.
+def latest_reopen_id(config: Config, repository: str, index: int) -> int:
+    """The id of PR `index`'s most recent "reopen" timeline event, or 0 when
+    it was never reopened.
 
-    The timeline (PR timelines ride the issue routes) interleaves comments
-    (`type` "comment") with events such as "close" and "reopen", each with
-    its `user`. Not the short-page stop: Forgejo filters timeline entries
-    after paginating (code comments and cross-references the caller cannot
-    see are dropped), so a short page does not mean the end.
+    Timeline events and comments are rows of one table, so their ids share
+    one increasing sequence: a comment with a larger id came later. The
+    timeline (on the issue routes) is paged until an empty page. Forgejo
+    drops inline review comments and cross-references the caller cannot
+    see after paginating, so a short page is not the end; an empty one
+    can be too, when a whole page was dropped (50 such entries in a row).
+    A reopen behind such a page is missed, and the cost is bounded: the
+    close skips posting a comment identical to one from before that
+    reopen, and still closes.
     """
-    entries: list[dict] = []
+    latest = 0
     page = 1
     while True:
         batch = api.request(
@@ -256,8 +260,10 @@ def list_timeline(config: Config, repository: str, index: int) -> list[dict]:
             query={"limit": str(_PAGE_SIZE), "page": str(page)},
         ) or []
         if not batch:
-            return entries
-        entries.extend(batch)
+            return latest
+        for entry in batch:
+            if entry.get("type") == "reopen":
+                latest = max(latest, entry.get("id") or 0)
         page += 1
 
 
@@ -274,27 +280,27 @@ def canonical_comment(body: str) -> str:
 
 
 def find_own_comment(
-    timeline: list[dict], login: str, body: str
+    comments: list[dict], login: str, body: str, after_id: int = 0
 ) -> dict | None:
-    """The latest comment in `timeline` posted by `login` whose body matches
-    `body` canonically (see canonical_comment), counting only comments after
-    the most recent "reopen" event, so a close/reopen/close cycle with the
-    same text still posts its second comment. None when there is none. The
-    login comparison is case-insensitive, as Forgejo's logins are."""
-    start = 0
-    for position, entry in enumerate(timeline):
-        if entry.get("type") == "reopen":
-            start = position + 1
+    """The newest of `comments` (as list_comments returns them) posted by
+    `login` with an id above `after_id` whose body matches `body`
+    canonically (see canonical_comment); None when there is none. Pass
+    latest_reopen_id as `after_id`, so a close/reopen/close cycle with the
+    same text still posts its second comment. The login comparison is
+    case-insensitive, as Forgejo's logins are."""
     wanted = canonical_comment(body)
-    for entry in reversed(timeline[start:]):
-        if entry.get("type") != "comment":
+    found = None
+    for comment in comments:
+        if (comment.get("id") or 0) <= after_id:
             continue
-        author = ((entry.get("user") or {}).get("login") or "")
+        author = (comment.get("user") or {}).get("login") or ""
         if author.casefold() != login.casefold():
             continue
-        if canonical_comment(entry.get("body") or "") == wanted:
-            return entry
-    return None
+        if canonical_comment(comment.get("body") or "") != wanted:
+            continue
+        if found is None or comment["id"] > found["id"]:
+            found = comment
+    return found
 
 
 def list_reviews(config: Config, repository: str, index: int) -> list[dict]:

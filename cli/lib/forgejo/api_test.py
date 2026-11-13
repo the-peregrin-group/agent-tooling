@@ -8,6 +8,7 @@ Run from the cli/ directory:
 from __future__ import annotations
 
 import email.message
+import http.client
 import io
 import json
 import unittest
@@ -144,6 +145,14 @@ class RequestTest(unittest.TestCase):
                     api.request(_CONFIG, method, "/x", body={})
                 self.assertEqual(caught.exception.exit_code, plan.EXIT_BROKEN)
                 self.assertIn("may or may not have landed", str(caught.exception))
+
+    @mock.patch("lib.forgejo.api.urllib.request.urlopen")
+    def test_truncated_response_is_broken(self, urlopen):
+        urlopen.side_effect = http.client.IncompleteRead(b"par")
+        with self.assertRaises(api.ApiError) as caught:
+            api.request(_CONFIG, "POST", "/x", body={})
+        self.assertEqual(caught.exception.exit_code, plan.EXIT_BROKEN)
+        self.assertIn("may or may not have landed", str(caught.exception))
 
     @mock.patch("lib.forgejo.api.urllib.request.urlopen")
     def test_timeout_is_broken(self, urlopen):

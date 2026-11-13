@@ -5,13 +5,14 @@ The comment is mandatory by design: a silent unattended close must not be
 expressible (the consumer's close always links its successor PR). No atomic
 close-with-comment exists in the API, so the comment posts first, then the
 PR is PATCHed closed. The Verb is idempotent: before posting, it reads the
-PR's timeline and skips the post when the machine account already left a
-comment matching the staged one (compared after normalizing line endings,
+PR's comments and skips the post when the machine account already left one
+matching the staged comment (compared after normalizing line endings,
 whitespace, and case), counting only comments after the PR's most recent
-reopen. So a close that fails after the comment landed is finished by
+reopen (read from its timeline). So a close that fails after the comment landed is finished by
 re-running with the same comment file, which closes without posting again.
 Recognizing its own comment takes the machine account's login, the
-deployment config's `login` key; without it the Verb exits 1 before acting.
+deployment config's `login` key; without it the Verb exits 1 before
+posting or closing anything.
 Closing an already-closed PR is a converged no-op: exit 0, nothing posted
 (the comment implies an act this run did not perform). Merge is not here
 and never will be: it is a human-only act, absent from the fjw surface
@@ -22,8 +23,9 @@ no-op), 1 broken on our side (credentials, config including a missing
 `login`, the network, a server error; nothing was closed), 2 the call must
 change (usage, comment file), 3 no such PR (or no such repository), 4 the
 machine account's grant is too weak for the action, 5 partial completion:
-the comment is on the PR but the close failed; fix the cause the message
-names, then re-run with the same comment file.
+the comment is on the PR but the close failed, whatever the cause; fix
+the cause the message names (it gives the code the failure alone would
+exit), then re-run with the same comment file.
 """
 
 from __future__ import annotations
@@ -59,16 +61,6 @@ def main(argv: list[str]) -> int:
         configuration = fjw_config.load()
     except fjw_config.ConfigError as error:
         api.die(str(error), plan.EXIT_BROKEN)
-    login = configuration.login
-    if login is None:
-        api.die(
-            "the fjw deployment config has no 'login' key; fjw-pr-close "
-            "needs the machine account's login to recognize its own "
-            "comment on a re-run. Report it to the user: the deployment "
-            "must add it. Nothing was posted or closed",
-            plan.EXIT_BROKEN,
-        )
-
     try:
         pr = pulls.get_pr(configuration, repository, index)
     except api.ApiError as error:
@@ -84,16 +76,26 @@ def main(argv: list[str]) -> int:
         )
         return plan.EXIT_OK
 
+    login = configuration.login
+    if login is None:
+        api.die(
+            "the fjw deployment config has no 'login' key; fjw-pr-close "
+            "needs the machine account's login to recognize its own "
+            "comment on a re-run. Report it to the user: the deployment "
+            "must add it. Nothing was posted or closed",
+            plan.EXIT_BROKEN,
+        )
     try:
         existing = pulls.find_own_comment(
-            pulls.list_timeline(configuration, repository, index),
+            pulls.list_comments(configuration, repository, index),
             login,
             comment,
+            after_id=pulls.latest_reopen_id(configuration, repository, index),
         )
     except api.ApiError as error:
         api.die(
-            f"could not read the PR's timeline; nothing posted, PR left "
-            f"open: {error}",
+            f"could not read the PR's comments and timeline; nothing "
+            f"posted, PR left open: {error}",
             error.exit_code,
         )
     if existing is not None:
@@ -130,9 +132,10 @@ def main(argv: list[str]) -> int:
     except api.ApiError as error:
         api.die(
             f"PARTIAL: comment {comment_id} is on PR #{index} but the close "
-            f"failed: {error}. Once the cause clears, re-run fjw-pr-close "
-            "with the same comment file to finish the close; it will not "
-            "post the comment again",
+            f"failed (alone, that failure would exit {error.exit_code}): "
+            f"{error}. Once the cause clears, re-run fjw-pr-close with the "
+            "same comment file to finish the close; it will not post the "
+            "comment again, and finds the PR closed if the close did land",
             plan.EXIT_PARTIAL_COMPLETION,
         )
 

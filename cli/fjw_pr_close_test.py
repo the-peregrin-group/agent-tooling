@@ -73,8 +73,8 @@ class FjwPrCloseBehaviorTest(unittest.TestCase):
         self._comment_path = handle.name
         self.addCleanup(os.unlink, self._comment_path)
 
-    def _patches(self, *, state="open", timeline=(), config=_CONFIG,
-                 comment=None, close=None):
+    def _patches(self, *, state="open", comments=(), reopen_id=0,
+                 config=_CONFIG, comment=None, close=None, reads=None):
         """Patch the config and every pulls call; returns an ExitStack and
         the create_comment and close_pr mocks."""
         stack = contextlib.ExitStack()
@@ -85,7 +85,11 @@ class FjwPrCloseBehaviorTest(unittest.TestCase):
             _MODULE.pulls, "get_pr", return_value={"number": 5, "state": state}
         ))
         stack.enter_context(mock.patch.object(
-            _MODULE.pulls, "list_timeline", return_value=list(timeline)
+            _MODULE.pulls, "list_comments",
+            **(reads or {"return_value": list(comments)}),
+        ))
+        stack.enter_context(mock.patch.object(
+            _MODULE.pulls, "latest_reopen_id", return_value=reopen_id
         ))
         create = stack.enter_context(mock.patch.object(
             _MODULE.pulls, "create_comment",
@@ -133,9 +137,9 @@ class FjwPrCloseBehaviorTest(unittest.TestCase):
 
     def test_our_matching_comment_is_not_posted_again(self):
         # The re-run after a partial failure: the comment already landed.
-        timeline = [{"id": 4, "type": "comment", "user": {"login": "FJW-bot"},
+        comments = [{"id": 4, "user": {"login": "FJW-bot"},
                      "body": "Superseded by #13\r\n"}]
-        stack, create, close = self._patches(timeline=timeline)
+        stack, create, close = self._patches(comments=comments)
         with stack, contextlib.redirect_stdout(io.StringIO()) as stdout, \
                 contextlib.redirect_stderr(io.StringIO()) as stderr:
             self.assertEqual(_MODULE.main(["o/r", "5", self._comment_path]), 0)
@@ -147,21 +151,17 @@ class FjwPrCloseBehaviorTest(unittest.TestCase):
         self.assertIn("not posting it again", stderr.getvalue())
 
     def test_matching_text_from_another_account_still_posts(self):
-        timeline = [{"id": 4, "type": "comment", "user": {"login": "human"},
+        comments = [{"id": 4, "user": {"login": "human"},
                      "body": "superseded by #13"}]
-        stack, create, close = self._patches(timeline=timeline)
+        stack, create, close = self._patches(comments=comments)
         with stack, contextlib.redirect_stdout(io.StringIO()):
             self.assertEqual(_MODULE.main(["o/r", "5", self._comment_path]), 0)
         create.assert_called_once()
 
     def test_our_comment_before_a_reopen_does_not_count(self):
-        timeline = [
-            {"id": 4, "type": "comment", "user": {"login": "fjw-bot"},
-             "body": "superseded by #13"},
-            {"id": 5, "type": "close", "user": {"login": "fjw-bot"}},
-            {"id": 6, "type": "reopen", "user": {"login": "human"}},
-        ]
-        stack, create, _close = self._patches(timeline=timeline)
+        comments = [{"id": 4, "user": {"login": "fjw-bot"},
+                     "body": "superseded by #13"}]
+        stack, create, _close = self._patches(comments=comments, reopen_id=6)
         with stack, contextlib.redirect_stdout(io.StringIO()):
             self.assertEqual(_MODULE.main(["o/r", "5", self._comment_path]), 0)
         create.assert_called_once()
@@ -196,16 +196,37 @@ class FjwPrCloseBehaviorTest(unittest.TestCase):
         self.assertIn("re-run fjw-pr-close with the same comment file", stderr)
 
     def test_close_failure_after_a_found_comment_is_partial_completion(self):
-        timeline = [{"id": 4, "type": "comment", "user": {"login": "fjw-bot"},
+        comments = [{"id": 4, "user": {"login": "fjw-bot"},
                      "body": "superseded by #13"}]
         stack, create, _close = self._patches(
-            timeline=timeline,
+            comments=comments,
             close={"side_effect": _MODULE.api.ApiError("HTTP 403", 4, 403)},
         )
         code, stderr = self._exit_code(stack)
         self.assertEqual(code, 5)
         create.assert_not_called()
         self.assertIn("comment 4", stderr)
+        self.assertIn("alone, that failure would exit 4", stderr)
+
+    def test_unreadable_comments_post_nothing_and_leave_the_pr_open(self):
+        stack, create, close = self._patches(
+            reads={"side_effect": _MODULE.api.ApiError("HTTP 500", 1, 500)}
+        )
+        code, stderr = self._exit_code(stack)
+        self.assertEqual(code, 1)
+        create.assert_not_called()
+        close.assert_not_called()
+        self.assertIn("nothing posted, PR left open", stderr)
+
+    def test_missing_login_does_not_block_the_already_closed_noop(self):
+        stack, create, _close = self._patches(
+            state="closed",
+            config=Config(api_url="https://forge.example.com", token="t"),
+        )
+        with stack, contextlib.redirect_stdout(io.StringIO()) as stdout, \
+                contextlib.redirect_stderr(io.StringIO()):
+            self.assertEqual(_MODULE.main(["o/r", "5", self._comment_path]), 0)
+        self.assertTrue(json.loads(stdout.getvalue())["noop"])
 
     def test_posted_as_another_login_warns(self):
         stack, _create, _close = self._patches(

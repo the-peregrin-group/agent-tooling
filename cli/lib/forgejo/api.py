@@ -11,14 +11,17 @@ too weak for the action (EXIT_FORBIDDEN, 4) unless it carries Retry-After,
 which marks rate limiting; 404 is not-found (EXIT_NOT_FOUND, 3);
 everything else -- 401, rate limiting, 5xx, any other status, a non-JSON
 body, a transport failure -- is broken on our side (EXIT_BROKEN, 1). A
-transport failure on a write says the write may have landed. Callers may reclassify a status that carries
-Verb-specific meaning (409 on create: an open PR already exists, state the
-caller must change, EXIT_CALLER_ERROR). There is no retry or backoff here:
-none has been needed, and persisting rate limiting is 1 either way.
+transport failure on a write says the write may have landed.
+
+Callers may reclassify a status that carries Verb-specific meaning (409 on
+create: an open PR already exists, state the caller must change,
+EXIT_CALLER_ERROR). There is no retry or backoff here: none has been
+needed, and persisting rate limiting is 1 either way.
 """
 
 from __future__ import annotations
 
+import http.client
 import json
 import socket
 import sys
@@ -110,7 +113,13 @@ def request(
             plan.EXIT_BROKEN,
             error.code,
         )
-    except (urllib.error.URLError, socket.timeout, ConnectionError, OSError) as error:
+    except (
+        urllib.error.URLError,
+        socket.timeout,
+        ConnectionError,
+        OSError,
+        http.client.HTTPException,
+    ) as error:
         reason = getattr(error, "reason", None) or error
         landed = (
             "" if method == "GET" else
