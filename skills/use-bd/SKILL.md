@@ -32,7 +32,7 @@ Three rules hold for every call:
 - **Verb first, global flags after:** `bdw ready --json`, never
   `bdw --json ready`. Permission rules are prefix rules, and a flag-first
   spelling either prompts or trips a deny meant for something else; `bdw`
-  refuses it anyway (exit 4), except `bdw --help` and `bdw --version`.
+  refuses it anyway (exit 2), except `bdw --help` and `bdw --version`.
 - **A denied call is the policy working.** Do not look for another
   spelling of it. If the normal path for a real need is denied or prompts,
   that is a gap: say so (see Friction, below).
@@ -40,14 +40,21 @@ Three rules hold for every call:
 `bdw` refuses, with exit 4 and before bd runs: `--actor` anywhere (the
 Actor comes from the session), and the flags that point bd at another
 database (`-C`, `--directory`, `--db`, `--database`, `--global`) anywhere.
-It refuses with exit 5, a deployment problem no change to the call can
-fix: any call when the workspace's `.beads/metadata.json` cannot be
-found, since bd would otherwise fall back to an empty database; and, on
-a bd version it has not been verified against, any call that is not a
-plain read: a read verb with no flags beyond the ones this skill uses
-for reads (reads run with a warning). A refusal is not something to
-rephrase around: on exit 4 fix the call or report the gap; on exit 5
-stop and report it.
+Policy forbids these: drop the flag, and if the need behind it is real,
+report the gap. It exits 1, a deployment problem no change to the call
+can fix, when no `bd` is on PATH; for any call when the workspace's
+`.beads/metadata.json` cannot be found, since bd would otherwise fall
+back to an empty database; and, on a bd version it has not been verified
+against, for any call that is not a plain read: a read verb with no
+flags beyond the ones this skill uses for reads (reads run with a
+warning). When a `bdw:` line on stderr explains an exit 1, stop and
+report it; do not rephrase around it.
+
+bd's own exit code never reaches you: `bdw` translates it under the
+Exit-code contract (`docs/index.md#exit-code-contract` in agent-tooling).
+A bd that succeeds exits 0. A bd that fails with a usage error (an unknown
+verb or flag, a missing argument) exits 2, followed by the help line: fix
+the call. Any other bd failure exits 1, with bd's own reason on stderr.
 
 Where the database has a Dolt remote, `bdw` pushes to it in the
 background after every write; you never push. If a call prints any

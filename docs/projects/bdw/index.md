@@ -247,14 +247,21 @@ push_hosts = ["git.example.org"]
 
 `bdw` follows the [Exit-code contract](../../index.md#exit-code-contract)
 (why: [ADR 0013 (one exit-code contract for all agent-tooling software)](../../adr/0013-one-exit-code-contract-for-all-agent-tooling.md)).
-bd's own exit code never reaches the caller: `bdw` translates it, and a
-bd that succeeds exits 0. A signal that ends bd passes through as
-128 + N, which is outside the contract. In step 1, the forbidden flags
-(`--actor` and the database-switching flags) are 4, and a flag before
-the verb is a malformed call, 2. A missing `bd` and a missing workspace
-config are 1. How bd's failures and a write on an unverified bd version
-classify is settled by `agent-tooling-cjvo.4`, and `bdw` does not exit
-this way yet; see Known gaps.
+bd's own exit code never reaches the caller: `bdw` translates it. A bd
+that succeeds exits 0. A bd that fails after reporting a usage error
+(the step 6 markers) exits 2; any other bd failure exits 1. A signal
+that ends bd passes through as 128 + N, as does a bd exit of 128 + N for
+a real signal number N (a bd that traps the forwarded `SIGTERM` and
+exits 143, say); both are outside the contract. In step 1, the forbidden
+flags (`--actor` and the database-switching flags) are 4, and a flag
+before the verb is a malformed call, 2. A missing `bd`, a missing
+workspace config, a write on an unverified bd version, and a bd that
+cannot be started are 1: faults inside the abstraction that no change to
+the call fixes. Reusing step 6's usage-error markers for the 2 adds no
+new reading of bd's output
+([ADR 0010](../../adr/0010-bdw-carries-beads-policy-in-tiers.md), bdw
+carries Beads policy in tiers), and a usage message a later bd changes
+degrades safely to 1.
 
 `gitw-commit` derives the same Actor from the same module and writes it as
 the `Executed-By:` commit trailer, so a session's Issue Tracker writes and
@@ -283,10 +290,6 @@ its commits carry one identity.
 - Sub-agents share their session's environment, session ID included, so
   they record one Actor and the trail cannot tell an orchestrator from its
   implementers (`agent-tooling-jk2`).
-
-- `bdw` still passes bd's exit code through and exits its own codes in
-  the earlier seven-code taxonomy, not the six-code Exit-code contract
-  (`agent-tooling-cjvo.4`).
 
 - No Permission rule yet protects the push-host allowlist: an agent can
   edit it, or point `XDG_CONFIG_HOME` elsewhere for its own calls, until
