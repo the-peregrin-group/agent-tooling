@@ -22,7 +22,7 @@ its own project ([installer](../installer/index.md)).
 | Read open PRs, one PR, and a PR's comments | shipped | `fjw-pr-list`, `fjw-pr-view`, `fjw-pr-comments` |
 | Read a PR's reviews with their inline review comments | shipped | `fjw-pr-reviews` |
 | Probe a head branch's open-PR state (none, draft, mergeable, conflicted) | shipped | `fjw-pr-query` |
-| Close a PR with a mandatory comment | shipped | `fjw-pr-close` |
+| Close a PR with a mandatory comment, never posting it twice on a re-run | shipped | `fjw-pr-close` |
 | Comment on a PR within a pinned head-branch prefix, or any PR under a bare `/` | shipped | `fjw-pr-comment` |
 | Agent conventions for the Verbs | shipped | use-forgejo Skill |
 | Issue and label Verbs, with PR/issue index guard | planned | [issue-verbs.md](issue-verbs.md); `agent-tooling-1vr` |
@@ -30,5 +30,3 @@ its own project ([installer](../installer/index.md)).
 ### Known gaps
 
 - The shipped PR Verbs exit 3, not 2, on an issue number (agent-tooling-1vr.6).
-- The Verbs still exit the earlier seven-code taxonomy, not the six-code
-  Exit-code contract (agent-tooling-cjvo.3).

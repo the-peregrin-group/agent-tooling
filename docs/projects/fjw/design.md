@@ -101,10 +101,12 @@ numbers to be positive integers.
 - `fjw-pr-close <owner/repo> <pr#> <comment-file>` closes with a mandatory
   comment, so a silent unattended close is inexpressible. It reads the PR
   first; an already-closed PR is a no-op success that posts nothing. It
-  then posts the comment and PATCHes the state. If the comment fails, the
-  PR stays open. If the close fails after the comment, stderr says
-  `PARTIAL: comment <id> posted but close failed` and the exit code is the
-  close failure's.
+  then posts the comment, unless the machine account already did (see
+  Close is idempotent, below), and PATCHes the state. If the comment
+  fails, the PR stays open. If the close fails after the comment landed,
+  stderr says `PARTIAL: comment <id> is on PR #<n> but the close failed`
+  and the Verb exits 5: re-running with the same comment file finishes
+  the close without posting the comment again.
 - `fjw-pr-comment <owner/repo> <head-prefix> <pr#> <body-file>` posts a
   standalone comment. `<head-prefix>` is a positional scope token that
   Permission rules pin; the Wrapper fetches the PR and refuses (exit 4)
@@ -140,9 +142,26 @@ no dependencies. It sends `Authorization: token …` and a fixed
 - **API compatibility is per major version.** Forgejo majors ship
   quarterly. The tests use synthetic swagger fixtures, so re-verify the
   mechanics above against a live instance on each major upgrade.
-- **Close is comment, then PATCH.** Forgejo has no atomic close-with-
-  comment, so partial failure is detected and reported (see
-  `fjw-pr-close`).
+- **Close is comment, then PATCH, and idempotent.** Forgejo has no atomic
+  close-with-comment, so a close can fail after its comment landed. The
+  rule that makes a re-run safe is: same account, same comment, no second
+  post. Before posting, `fjw-pr-close` reads the PR's timeline
+  (`GET /repos/{repo}/issues/{n}/timeline`, paginated until an empty page
+  because Forgejo filters entries after paginating) and looks for a
+  `comment` entry by the machine account whose body matches the staged
+  comment once both are canonicalized: line endings normalized, trailing
+  whitespace dropped, every whitespace run collapsed to one space, and
+  casefolded. Only entries after the most recent `reopen` event count, so
+  a close, reopen, and close again with the same text still posts its
+  second comment. The match rests on what the forge holds, not on local
+  state from an earlier run, so any re-run from any machine converges. A
+  matching comment by another account does not count.
+- **The machine account's login is configuration.** The token cannot
+  read its own identity: `GET /user` needs the `read:user` scope, which
+  the token lacks on purpose. So `fjw-pr-close` takes the login from the
+  config's `login` key, exits 1 before acting when the key is absent, and
+  warns when a comment it posts comes back under another login (a
+  misconfigured key would stop a re-run recognizing the comment).
 - **Token scopes cannot exclude merge.** The minimal scopes are
   `write:repository` (PR routes) and `write:issue` (comment routes, which
   live under issues). `write:repository` covers create, close, and merge
@@ -180,6 +199,9 @@ identity's fields:
 - `api_url` (required, `https://` only; a trailing `/api/v1` is
   normalized away)
 - `token` (required)
+- `login` (optional): the machine account's login. `fjw-pr-close`
+  requires it, to recognize its own comment on a re-run; no other Verb
+  reads it.
 - `ssh_host`, `ssh_port` (optional): the git-over-SSH endpoint, which
   differs from the API host. They are parsed, but no Verb uses them today:
   no Verb touches git over SSH.
@@ -215,19 +237,25 @@ How it applies to a forge API:
   the server answers alike for both (see Forgejo API mechanics).
 - **A 409 on create is 2**: the open PR it collides with is state the
   caller must change.
-- **A 403 that means the grant is too weak for the action is 4.** A
-  rate-limit 403 is not the caller's grant, and is 1.
+- **A missing head or base branch on `fjw-pr-create` is 3**: the named
+  branch does not exist on the forge.
+- **A head-prefix mismatch on `fjw-pr-comment` is 4**: policy forbids
+  the comment.
+- **A 403 that means the grant is too weak for the action is 4.** A 403
+  carrying `Retry-After` is rate limiting, not the caller's grant, and is
+  1, as is a 429. fjw has no retry or backoff of its own: none has been
+  needed, and rate limiting that persisted through one would be 1 anyway.
 - **A 401, a 5xx, a non-JSON response, a transport failure, and every
   config error are 1.** None is the caller's to fix. A transport failure
-  after a POST may or may not have landed. The code alone does not stop a
-  re-run, since a caller applies its own retry threshold to a 1; the
-  protection is the error message, which says the write may have landed
-  and to check before re-running, because a blind re-run of a create or
-  comment Verb can duplicate the write (`fjw-pr-close`'s `PARTIAL` line
-  is the same warning for its comment).
-
-The Verbs do not exit this way yet; see the Known gaps in
-[fjw's index](index.md#known-gaps).
+  after a POST or PATCH may or may not have landed. The code alone does
+  not stop a re-run, since a caller applies its own retry threshold to a
+  1; the protection is the error message, which says the write may have
+  landed and to check before re-running, because a blind re-run of
+  `fjw-pr-create` or `fjw-pr-comment` can duplicate the write.
+  `fjw-pr-close` is the exception: a re-run never duplicates its comment.
+- **`fjw-pr-close` exits 5 when the close fails after its comment
+  landed**, the one partial completion: the message says to re-run with
+  the same comment file once the cause clears.
 
 ## Implementation
 

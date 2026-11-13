@@ -107,9 +107,14 @@ How the boundaries fall:
   Python exception exits 1, which reads correctly. No code says "retry":
   a Wrapper retries internally where a retry is worthwhile and safe, and
   otherwise a retry is the caller's judgement.
-- **5 means stopped on purpose, part way.** A `gitw-rebase` conflict stop
-  is the case: the JSON (`"action": "conflict"`) lists what to resolve
-  before `continue`.
+- **5 means stopped part way, with the way to finish in the output.** A
+  `gitw-rebase` conflict stop is one case: the JSON
+  (`"action": "conflict"`) lists what to resolve before `continue`. A
+  Verb whose writes cannot be made atomic is the other: `fjw-pr-close`
+  posts its comment and then closes, and when the close fails it exits 5,
+  saying that a re-run with the same comment file finishes the close
+  without posting the comment again. A write that may or may not have
+  landed stays 1: nothing in hand says how to finish.
 - **An underlying tool's code never reaches the caller.** A Wrapper
   translates git's, gh's, or bd's failures into the contract.
 - **Outside the contract:** 126 and 127 (the shell could not run the

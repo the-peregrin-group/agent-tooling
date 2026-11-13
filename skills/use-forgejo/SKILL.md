@@ -44,37 +44,48 @@ That's also why the **read** verbs are wrapped here (unlike `ghw`, which
 leans on `gh` for reads): there is no allowlistable read substrate either.
 
 Identity and credentials are deployment configuration
-(`~/.config/fjw/config.toml`): the machine-account token and the API host,
-which the wrappers use, plus optional `ssh_host`/`ssh_port` keys reserved for
+(`~/.config/fjw/config.toml`): the machine-account token, the API host, and
+the machine account's login, which the wrappers use, plus optional `ssh_host`/`ssh_port` keys reserved for
 git-over-SSH (parsed but unused: no `fjw` Verb touches git over SSH, and
 pushing is `gitw`'s job over the remote as configured). **Never read, write,
 or work around that file** — deny rules cover it and token rotation is the
-deployment's job. On auth
-failures (exit 5), report to the user that the deployment config or token
-needs attention; do not retry and do not go looking for credentials.
+deployment's job. On a credential or config
+failure (exit 1, the message says which), report to the user that the
+deployment config or token needs attention; do not retry and do not go
+looking for credentials.
 
 ## Shared Conventions
 
 - `<owner/repo>` is always an explicit argument. The cwd never decides where
   a write lands.
-- **Exit codes are a contract** — branch on them, especially unattended:
-  - `0` success, including a converged no-op. `fjw-pr-query` exits 0 for
+- **Exit codes are a contract**, the one Exit-code contract shared by all
+  agent-tooling software. Branch on them, especially unattended:
+  - `0` done, including a converged no-op. `fjw-pr-query` exits 0 for
     *every* determinate answer; "no open PR" is an answer.
-  - `1` unclassified API failure.
-  - `2` usage error: read the message, fix the call.
-  - `3` not found (no such PR/repo). For probes this is data, not an error.
-    Forgejo answers 404 for a repo the caller may not see, so exit 3 on a
-    repo can mean a missing grant (see below).
-  - `4` refused: the call violated a wrapper-enforced policy (head-prefix
-    mismatch, duplicate PR create). A caller bug — never retry unchanged.
-  - `5` roster/auth/config (deployment): abort and flag the deployment. Never retry.
-  - `6` network failure: the one retryable class.
+  - `1` broken on our side, not yours: credentials, the deployment config,
+    the network, a server error. Stop and report. A transport failure
+    after a write says the write may have landed: check (query, or read
+    the comments) before any re-run.
+  - `2` the call must change, or the state it acts on: a usage error, or
+    an open PR already exists for that head/base on create (query first).
+    Read the message; never retry unchanged.
+  - `3` not found: no such PR, branch, or repo. For probes this is data,
+    not an error. A missing head or base branch on create means push it
+    first. Forgejo answers 404 for a repo the caller may not see, so exit 3
+    on a repo can mean a missing grant (see below).
+  - `4` forbidden: policy forbids this caller this action. A head-prefix
+    mismatch, or the machine account's grant is too weak (HTTP 403). Don't,
+    or ask a human; rephrasing the call is not the way forward.
+  - `5` partial completion: only `fjw-pr-close`, when its comment landed
+    but the close failed. Fix the cause the message names, then re-run
+    with the same comment file.
 - **A repo-level exit 3 with a correct slug is a missing grant.** The server
   gives the same 404 for a nonexistent repo and one the machine account
   cannot see. Check the slug once; if it is right, report it to the user.
   Never retry, never hunt for credentials, never push again.
-- **On exit 2 or 4, fix the call.** Never work around a refusal with raw
-  API calls, `curl`, or `tea` — the refusal is the contract doing its job.
+- **On exit 2, fix the call; on exit 4, don't, or ask a human.** Never
+  work around either with raw API calls, `curl`, or `tea` — the refusal is
+  the contract doing its job.
 - **Load `use-privacy` first, if listed.** If a `use-privacy` skill is
   listed among your available skills, load it before composing any text
   bound for outside this machine: a commit message, a PR or issue body, a
@@ -107,8 +118,9 @@ fjw-pr-create <owner/repo> <base-branch> <head-branch> <title> <body-file> [--dr
 Push the head branch first (both branches must exist on the remote; the
 wrapper verifies). `--draft` is the one sanctioned trailing flag (strictly a
 de-escalation); Forgejo has no draft field at create time, so it applies the
-`WIP: ` title prefix, which is what makes the forge mark the PR draft. An
-open PR for the same head/base already existing is exit 4 — query first.
+`WIP: ` title prefix, which is what makes the forge mark the PR draft. A
+head or base branch missing on the forge is exit 3. An open PR for the
+same head/base already existing is exit 2 — query first.
 
 ```bash
 fjw-pr-list <owner/repo>          # open PRs, raw JSON array
@@ -139,10 +151,12 @@ fjw-pr-close <owner/repo> <pr#> <comment-file>
 ```
 
 The comment is mandatory — say *why* it's being closed (typically: link the
-successor PR). Comment posts first, then the close; if the close half fails
-you'll see `PARTIAL` on stderr, and re-running after the cause clears is
-safe at the cost of a duplicate comment. Closing an already-closed PR is a
-no-op success and posts nothing.
+successor PR). Comment posts first, then the close. If the close half fails
+you'll see `PARTIAL` on stderr and exit 5; once the cause clears, re-run
+with the same comment file. The re-run is safe: it finds the machine
+account's matching comment (since the PR's last reopen) and closes without
+posting it again. Closing an already-closed PR is a no-op success and posts
+nothing.
 
 ```bash
 fjw-pr-comment <owner/repo> <head-prefix> <pr#> <body-file>
