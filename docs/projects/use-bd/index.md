@@ -26,8 +26,7 @@ Permission rule set, as data: each repo on Beads carries it in its own
 reviewed rules (policy never lives in a file an agent could edit to loosen
 its own limits). `cli/use_bd_rules_test.py` checks that every `bdw`
 command use-bd and `create-issue` teach as a call is allowed by it, and
-holds the data
-to a frozen snapshot of its expanded rows
+holds the data to a frozen snapshot of its expanded rows
 (`cli/use_bd_rules_snapshot_test_support.py`), so a change to the
 canonical set shows in review as rows added or removed.
 
@@ -38,7 +37,7 @@ canonical set shows in review as rows added or removed.
 | The session loop through `bdw`: prime, ready, claim, file discovered work, append, close, land the plane | shipped | `skills/use-bd/SKILL.md` |
 | The sub-agent rule (an agent sharing its session's Actor reads, files, and appends, never claims, closes, or rewrites) and claims ending with their session | shipped | `skills/use-bd/SKILL.md` |
 | Branch and Leaf Issues, and working a Branch Issue in passes, practiced by hand | shipped | `skills/use-bd/SKILL.md` |
-| What Beads adds to filing (the discipline itself is `create-issue`): one-session Leaf Issues, label inheritance, acceptance criteria in the description file, closing a duplicate, context linked by metadata key | shipped | `skills/use-bd/SKILL.md` |
+| What Beads adds to filing (the discipline itself is `create-issue`): label inheritance, acceptance criteria in the description file, closing a duplicate. Two rules kept until their own Skills take them: one-session Leaf Issues, context linked by metadata key | shipped | `skills/use-bd/SKILL.md` |
 | Free text through bd's existing file forms, switching to a file form when inline text is refused; description as state, notes and comments as log | shipped | `skills/use-bd/SKILL.md` |
 | Work waiting on a human: gates, the `human` label, `branch` and `pr` metadata | shipped | `skills/use-bd/SKILL.md`; gate rules in `skills/use-bd/rules.json` |
 | Friction reporting, and offering (never filing) upstream bug reports | shipped | `skills/use-bd/SKILL.md` |

@@ -5,9 +5,9 @@ description: >
   through the `bdw` wrapper: the session loop (prime, ready, claim, file,
   close, land the plane), who may claim and close, Branch and Leaf Issues
   and working a Branch Issue in passes, what Beads adds to filing (the
-  filing discipline is create-issue), free text through files, work waiting on a
-  human, and friction reporting. Load at the start of any session in a repo
-  with a `.beads/` directory, before the first `bdw` or `bd` call, and
+  filing discipline is create-issue), free text through files, work waiting
+  on a human, and friction reporting. Load at the start of any session in a
+  repo with a `.beads/` directory, before the first `bdw` or `bd` call, and
   whenever `bd prime` or a `bdw` message says to. Triggers: "bdw ready",
   "what's ready", "claim this issue", "file a bead", "close the bead",
   "land the plane", "break this epic down", "Beads". EXCLUDE: GitHub Issues
@@ -141,7 +141,9 @@ Branch Issue that has open children.
 Load `create-issue` before filing an Issue. It holds the filing discipline
 (search first and what each finding means, the filing bar, kind, priority,
 and labels, relationships, where the Issue came from, refining what you
-filed) and today's `bdw` spellings for each step. What Beads alone adds:
+filed) and today's `bdw` spellings for each step. What Beads adds, and two
+rules (sizing, context outside the tracker) that stay here until their own
+skills take them:
 
 - **One Issue, one session's work.** Anything bigger is an epic, broken
   down in its own pass.
