@@ -43,6 +43,17 @@ class LoadTest(unittest.TestCase):
         self.assertIsNone(loaded.ssh_host)
         self.assertIsNone(loaded.ssh_port)
 
+    def test_login_is_optional_and_loads_trimmed(self):
+        self.assertIsNone(self._load(_VALID).login)
+        loaded = self._load(_VALID + 'login = " fjw-bot "\n')
+        self.assertEqual(loaded.login, "fjw-bot")
+
+    def test_login_must_be_a_non_empty_string(self):
+        for line in ('login = ""\n', "login = 7\n"):
+            with self.subTest(line=line):
+                with self.assertRaises(config.ConfigError):
+                    self._load(_VALID + line)
+
     def test_ssh_pair_loads(self):
         loaded = self._load(_VALID + 'ssh_host = "git.example.com"\nssh_port = 2222\n')
         self.assertEqual(loaded.ssh_host, "git.example.com")

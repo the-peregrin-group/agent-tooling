@@ -9,11 +9,15 @@ sanctioned trailing flag (strictly a de-escalation); Forgejo's create API has
 no draft field, so --draft applies the instance's WIP title prefix ("WIP: "),
 which is what makes the created PR report draft=true.
 
-Exit codes: 0 success, 1 unclassified API failure, 2 usage error,
-3 repository not found (or not visible to the machine account: a
-missing grant; report it, never retry), 4 refused (an open PR for this
-head/base already exists -- query first, never retry), 5 roster/auth/config
-(deployment), 6 network failure.
+Exit codes (the Exit-code contract): 0 success, 1 broken on our side
+(credentials, config, the network, a server error; a transport failure
+after the POST says the PR may have been created, so query before
+re-running), 2 the call must change (a usage error, or an open PR for this
+head/base already exists: query first, never retry unchanged), 3 not found
+(the head or base branch does not exist on the forge -- push it first --
+or the repository does not exist or is not visible to the machine account:
+a missing grant; report it, never retry), 4 the machine account's grant is
+too weak to open the PR.
 """
 
 from __future__ import annotations
@@ -68,19 +72,19 @@ def main(argv: list[str]) -> int:
     try:
         configuration = fjw_config.load()
     except fjw_config.ConfigError as error:
-        api.die(str(error), plan.EXIT_AUTH)
+        api.die(str(error), plan.EXIT_BROKEN)
 
     try:
         if not pulls.branch_exists(configuration, repository, head):
             api.die(
                 f"head branch {head!r} does not exist on {repository}; "
                 "push it first",
-                plan.EXIT_USAGE,
+                plan.EXIT_NOT_FOUND,
             )
         if not pulls.branch_exists(configuration, repository, base):
             api.die(
                 f"base branch {base!r} does not exist on {repository}",
-                plan.EXIT_USAGE,
+                plan.EXIT_NOT_FOUND,
             )
         response = pulls.create_pr(
             configuration, repository, base, head, title, body

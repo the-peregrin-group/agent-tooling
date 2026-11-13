@@ -89,17 +89,17 @@ class FjwPrCreateBehaviorTest(unittest.TestCase):
         self._body_path = handle.name
         self.addCleanup(os.unlink, self._body_path)
 
-    def test_config_error_exits_with_auth_code(self):
+    def test_config_error_is_broken(self):
         with mock.patch.object(
             _MODULE.fjw_config, "load",
             side_effect=_MODULE.fjw_config.ConfigError("no config"),
         ), contextlib.redirect_stderr(io.StringIO()) as stderr:
             with self.assertRaises(SystemExit) as caught:
                 _MODULE.main(["o/r", "main", "b", "T", self._body_path])
-        self.assertEqual(caught.exception.code, 5)
+        self.assertEqual(caught.exception.code, 1)
         self.assertIn("no config", stderr.getvalue())
 
-    def test_nonexistent_head_branch_is_a_policy_refusal(self):
+    def test_missing_head_branch_is_not_found(self):
         with mock.patch.object(_MODULE.fjw_config, "load", return_value=_CONFIG), \
                 mock.patch.object(_MODULE.pulls, "branch_exists",
                                   side_effect=lambda c, r, b: b == "main"), \
@@ -107,9 +107,21 @@ class FjwPrCreateBehaviorTest(unittest.TestCase):
                 contextlib.redirect_stderr(io.StringIO()) as stderr:
             with self.assertRaises(SystemExit) as caught:
                 _MODULE.main(["o/r", "main", "b", "T", self._body_path])
-        self.assertEqual(caught.exception.code, 2)
+        self.assertEqual(caught.exception.code, 3)
         create.assert_not_called()
         self.assertIn("push it first", stderr.getvalue())
+
+    def test_missing_base_branch_is_not_found(self):
+        with mock.patch.object(_MODULE.fjw_config, "load", return_value=_CONFIG), \
+                mock.patch.object(_MODULE.pulls, "branch_exists",
+                                  side_effect=lambda c, r, b: b == "b"), \
+                mock.patch.object(_MODULE.pulls, "create_pr") as create, \
+                contextlib.redirect_stderr(io.StringIO()) as stderr:
+            with self.assertRaises(SystemExit) as caught:
+                _MODULE.main(["o/r", "main", "b", "T", self._body_path])
+        self.assertEqual(caught.exception.code, 3)
+        create.assert_not_called()
+        self.assertIn("base branch 'main' does not exist", stderr.getvalue())
 
     def _run_with_requests(self, side_effect):
         # Drive the real pulls.branch_exists; only the HTTP layer is faked.
@@ -130,10 +142,10 @@ class FjwPrCreateBehaviorTest(unittest.TestCase):
         self.assertIn("grant", stderr)
         self.assertNotIn("push it first", stderr)
 
-    def test_missing_branch_in_visible_repo_still_exits_2(self):
+    def test_missing_branch_in_visible_repo_exits_3_push_it_first(self):
         not_found = _MODULE.api.ApiError("HTTP 404", 3, 404)
         code, stderr, create = self._run_with_requests([not_found, {"name": "r"}])
-        self.assertEqual(code, 2)
+        self.assertEqual(code, 3)
         create.assert_not_called()
         self.assertIn("push it first", stderr)
 
@@ -170,17 +182,17 @@ class FjwPrCreateBehaviorTest(unittest.TestCase):
         self.assertEqual(create.call_args.args[4], "WIP: T")
         self.assertTrue(json.loads(stdout.getvalue())["draft"])
 
-    def test_duplicate_pr_refusal_propagates_exit_4(self):
+    def test_duplicate_pr_propagates_exit_2(self):
         with mock.patch.object(_MODULE.fjw_config, "load", return_value=_CONFIG), \
                 mock.patch.object(_MODULE.pulls, "branch_exists", return_value=True), \
                 mock.patch.object(
                     _MODULE.pulls, "create_pr",
-                    side_effect=_MODULE.api.ApiError("already exists", 4, 409),
+                    side_effect=_MODULE.api.ApiError("already exists", 2, 409),
                 ), \
                 contextlib.redirect_stderr(io.StringIO()) as stderr:
             with self.assertRaises(SystemExit) as caught:
                 _MODULE.main(["o/r", "main", "b", "T", self._body_path])
-        self.assertEqual(caught.exception.code, 4)
+        self.assertEqual(caught.exception.code, 2)
         self.assertIn("already exists", stderr.getvalue())
 
 

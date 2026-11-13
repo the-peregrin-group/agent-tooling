@@ -7,6 +7,7 @@ Run from the cli/ directory:
 
 from __future__ import annotations
 
+import email.message
 import io
 import json
 import unittest
@@ -21,10 +22,12 @@ _CONFIG = Config(api_url="https://forge.example.com", token="sekrit")
 
 
 def _http_error(
-    case: unittest.TestCase, code: int, body: bytes = b""
+    case: unittest.TestCase, code: int, body: bytes = b"", headers=None
 ) -> urllib.error.HTTPError:
     error = urllib.error.HTTPError(
-        "https://forge.example.com/api/v1/x", code, "msg", {}, io.BytesIO(body)
+        "https://forge.example.com/api/v1/x", code, "msg",
+        email.message.Message() if headers is None else headers,
+        io.BytesIO(body),
     )
     case.addCleanup(error.close)  # silence the ResourceWarning at GC
     return error
@@ -82,13 +85,14 @@ class RequestTest(unittest.TestCase):
             api.request(_CONFIG, "GET", "repos/o/r/pulls")
 
     @mock.patch("lib.forgejo.api.urllib.request.urlopen")
-    def test_http_statuses_classify_into_the_taxonomy(self, urlopen):
+    def test_http_statuses_classify_into_the_contract(self, urlopen):
         for status, expected in (
-            (401, plan.EXIT_AUTH),
-            (403, plan.EXIT_AUTH),
+            (401, plan.EXIT_BROKEN),  # credentials: the deployment's to fix
+            (403, plan.EXIT_FORBIDDEN),  # a grant too weak for the action
             (404, plan.EXIT_NOT_FOUND),
-            (409, plan.EXIT_RUNTIME),
-            (500, plan.EXIT_RUNTIME),
+            (409, plan.EXIT_BROKEN),  # Verb-specific meaning is the caller's
+            (429, plan.EXIT_BROKEN),  # rate limiting
+            (500, plan.EXIT_BROKEN),
         ):
             with self.subTest(status=status):
                 urlopen.side_effect = _http_error(self, status)
@@ -98,6 +102,25 @@ class RequestTest(unittest.TestCase):
                 self.assertEqual(caught.exception.status, status)
 
     @mock.patch("lib.forgejo.api.urllib.request.urlopen")
+    def test_rate_limit_403_is_broken_not_forbidden(self, urlopen):
+        # Retry-After marks a 403 as rate limiting, which is not the
+        # caller's grant.
+        headers = email.message.Message()
+        headers["Retry-After"] = "30"
+        urlopen.side_effect = _http_error(self, 403, headers=headers)
+        with self.assertRaises(api.ApiError) as caught:
+            api.request(_CONFIG, "GET", "/x")
+        self.assertEqual(caught.exception.exit_code, plan.EXIT_BROKEN)
+        self.assertIn("rate limited", str(caught.exception))
+
+    @mock.patch("lib.forgejo.api.urllib.request.urlopen")
+    def test_forbidden_403_says_to_ask_a_human(self, urlopen):
+        urlopen.side_effect = _http_error(self, 403)
+        with self.assertRaises(api.ApiError) as caught:
+            api.request(_CONFIG, "PATCH", "/x")
+        self.assertIn("grant is too weak", str(caught.exception))
+
+    @mock.patch("lib.forgejo.api.urllib.request.urlopen")
     def test_server_message_is_surfaced(self, urlopen):
         urlopen.side_effect = _http_error(self, 409, b'{"message": "pull exists"}')
         with self.assertRaises(api.ApiError) as caught:
@@ -105,21 +128,32 @@ class RequestTest(unittest.TestCase):
         self.assertIn("pull exists", str(caught.exception))
 
     @mock.patch("lib.forgejo.api.urllib.request.urlopen")
-    def test_connection_failure_is_network(self, urlopen):
+    def test_connection_failure_is_broken(self, urlopen):
         urlopen.side_effect = urllib.error.URLError("refused")
         with self.assertRaises(api.ApiError) as caught:
             api.request(_CONFIG, "GET", "/x")
-        self.assertEqual(caught.exception.exit_code, plan.EXIT_NETWORK)
+        self.assertEqual(caught.exception.exit_code, plan.EXIT_BROKEN)
+        self.assertNotIn("may or may not have landed", str(caught.exception))
 
     @mock.patch("lib.forgejo.api.urllib.request.urlopen")
-    def test_timeout_is_network(self, urlopen):
+    def test_transport_failure_on_a_write_says_it_may_have_landed(self, urlopen):
+        for method in ("POST", "PATCH"):
+            with self.subTest(method=method):
+                urlopen.side_effect = urllib.error.URLError("reset")
+                with self.assertRaises(api.ApiError) as caught:
+                    api.request(_CONFIG, method, "/x", body={})
+                self.assertEqual(caught.exception.exit_code, plan.EXIT_BROKEN)
+                self.assertIn("may or may not have landed", str(caught.exception))
+
+    @mock.patch("lib.forgejo.api.urllib.request.urlopen")
+    def test_timeout_is_broken(self, urlopen):
         urlopen.side_effect = TimeoutError("timed out")
         with self.assertRaises(api.ApiError) as caught:
             api.request(_CONFIG, "GET", "/x")
-        self.assertEqual(caught.exception.exit_code, plan.EXIT_NETWORK)
+        self.assertEqual(caught.exception.exit_code, plan.EXIT_BROKEN)
 
     @mock.patch("lib.forgejo.api.urllib.request.urlopen")
-    def test_non_json_success_body_is_runtime_failure(self, urlopen):
+    def test_non_json_success_body_is_broken(self, urlopen):
         reply = mock.MagicMock()
         reply.read.return_value = b"<html>gateway</html>"
         reply.status = 200
@@ -128,7 +162,7 @@ class RequestTest(unittest.TestCase):
         urlopen.return_value = context
         with self.assertRaises(api.ApiError) as caught:
             api.request(_CONFIG, "GET", "/x")
-        self.assertEqual(caught.exception.exit_code, plan.EXIT_RUNTIME)
+        self.assertEqual(caught.exception.exit_code, plan.EXIT_BROKEN)
 
     @mock.patch("lib.forgejo.api.urllib.request.urlopen")
     def test_empty_body_returns_none(self, urlopen):

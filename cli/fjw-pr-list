@@ -5,9 +5,11 @@ Read verb: emits the raw Forgejo PR objects (an array, paginated to
 exhaustion, open PRs only -- the one state the unattended consumer ever
 lists). Acts as the deployment's machine account.
 
-Exit codes: 0 success (an empty array is success), 1 unclassified API
-failure, 2 usage error, 3 repository not found, 5 roster/auth/config (deployment),
-6 network failure.
+Exit codes (the Exit-code contract): 0 success (an empty array is
+success), 1 broken on our side (credentials, config, the network, a
+server error), 2 usage error, 3 repository not found (or not visible to
+the machine account), 4 the machine account's grant is too weak for the
+read.
 """
 
 from __future__ import annotations
@@ -39,7 +41,7 @@ def main(argv: list[str]) -> int:
     try:
         configuration = fjw_config.load()
     except fjw_config.ConfigError as error:
-        api.die(str(error), plan.EXIT_AUTH)
+        api.die(str(error), plan.EXIT_BROKEN)
     try:
         prs = pulls.list_open_prs(configuration, repository)
     except api.ApiError as error:

@@ -186,8 +186,9 @@ def create_pr(
     body: str,
 ) -> dict:
     """POST the PR; the raw PR object back. A 409 (an open PR for this
-    head/base already exists) reclassifies to exit 4: the consumer queries
-    before creating, so a duplicate create is a caller bug, never a retry."""
+    head/base already exists) reclassifies to EXIT_CALLER_ERROR (2): the
+    open PR is state the caller must change, and the consumer queries
+    before creating, so a re-run unchanged cannot succeed."""
     try:
         return api.request(
             config,
@@ -199,8 +200,8 @@ def create_pr(
         if error.status == 409:
             raise api.ApiError(
                 f"an open PR for {head!r} -> {base!r} already exists on "
-                f"{repository}: {error}",
-                plan.EXIT_REFUSED,
+                f"{repository}; query it first (fjw-pr-query): {error}",
+                plan.EXIT_CALLER_ERROR,
                 409,
             )
         raise
@@ -233,6 +234,67 @@ def list_comments(config: Config, repository: str, index: int) -> list[dict]:
         if len(batch) < _PAGE_SIZE:
             return comments
         page += 1
+
+
+def list_timeline(config: Config, repository: str, index: int) -> list[dict]:
+    """Every timeline entry of PR `index`, oldest first, paginated until an
+    empty page.
+
+    The timeline (PR timelines ride the issue routes) interleaves comments
+    (`type` "comment") with events such as "close" and "reopen", each with
+    its `user`. Not the short-page stop: Forgejo filters timeline entries
+    after paginating (code comments and cross-references the caller cannot
+    see are dropped), so a short page does not mean the end.
+    """
+    entries: list[dict] = []
+    page = 1
+    while True:
+        batch = api.request(
+            config,
+            "GET",
+            f"/repos/{repository}/issues/{index}/timeline",
+            query={"limit": str(_PAGE_SIZE), "page": str(page)},
+        ) or []
+        if not batch:
+            return entries
+        entries.extend(batch)
+        page += 1
+
+
+def canonical_comment(body: str) -> str:
+    """`body` reduced for an equality test between a staged comment and a
+    posted one: line endings normalized (\\r\\n and \\r to \\n), trailing
+    whitespace dropped per line and at both ends, every run of whitespace
+    (line breaks included) collapsed to one space, then casefolded. The
+    server may rewrite line endings or trim, and none of this changes what
+    a comment says. str.split() with no argument does the first three
+    steps at once: it splits on every whitespace run, \\r and \\n included,
+    and drops empty ends."""
+    return " ".join(body.split()).casefold()
+
+
+def find_own_comment(
+    timeline: list[dict], login: str, body: str
+) -> dict | None:
+    """The latest comment in `timeline` posted by `login` whose body matches
+    `body` canonically (see canonical_comment), counting only comments after
+    the most recent "reopen" event, so a close/reopen/close cycle with the
+    same text still posts its second comment. None when there is none. The
+    login comparison is case-insensitive, as Forgejo's logins are."""
+    start = 0
+    for position, entry in enumerate(timeline):
+        if entry.get("type") == "reopen":
+            start = position + 1
+    wanted = canonical_comment(body)
+    for entry in reversed(timeline[start:]):
+        if entry.get("type") != "comment":
+            continue
+        author = ((entry.get("user") or {}).get("login") or "")
+        if author.casefold() != login.casefold():
+            continue
+        if canonical_comment(entry.get("body") or "") == wanted:
+            return entry
+    return None
 
 
 def list_reviews(config: Config, repository: str, index: int) -> list[dict]:
