@@ -15,3 +15,4 @@ knowledge, so the text lives in one place.
 | Capability | State | Where |
 |---|---|---|
 | `know-unattended`: How to tell an attended session from an unattended one, how to start an unattended one, and what changes when unattended | shipped | `skills/know-unattended/SKILL.md` |
+| `know-issues`: The fundamentals of how this ecosystem tracks work (one writable home per Issue, the filing bar, Branch and Leaf Issues, one person or agent advancing an Issue at a time, the Issue State Diagram, Permission rules for who may act), with the approved principles in its body | shipped | `skills/know-issues/SKILL.md` |

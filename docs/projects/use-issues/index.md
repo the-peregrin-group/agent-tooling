@@ -6,11 +6,12 @@
 family: generic Skills split by the moment an agent needs them, a Knowledge
 Skill for the fundamentals, platform Skills that only point at their
 Wrapper, and Wrappers whose issue Verbs document themselves and share one
-top-level grammar. None of it is built yet. Today's issue guidance is the
-`setup-github-issues`, `use-github`, and `triage-issues` Skills (documented
-under [ghw](../ghw/index.md)), `use-bd` ([use-bd](../use-bd/index.md)), and
-`use-forgejo` ([fjw](../fjw/index.md)), and they stay in force until the
-slice that replaces each one lands.
+top-level grammar. Only the Knowledge Skill, `know-issues` (documented
+under [know](../know/index.md)), is built so far. The rest of today's issue
+guidance is the `setup-github-issues`, `use-github`, and `triage-issues`
+Skills (documented under [ghw](../ghw/index.md)), `use-bd`
+([use-bd](../use-bd/index.md)), and `use-forgejo` ([fjw](../fjw/index.md)),
+and they stay in force until the slice that replaces each one lands.
 
 The design, its alternatives, the plan, and the approved requirements are
 in the [proposal](2026-11-13-proposal.md); the decisions are ADRs 0017 to
