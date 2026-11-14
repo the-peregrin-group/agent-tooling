@@ -11,9 +11,9 @@ description: >
   an Issue, and when work in progress turns up other work that needs doing.
   Triggers: "file an issue", "file a bead", "open an issue for this", "is
   there an issue for this", "track this", "what kind or priority is this".
-  EXCLUDE: claiming, working, or closing an Issue, and breaking down a
-  Branch Issue (the platform's skill: use-bd, use-github); a triage pass
-  over the whole tracker (triage-issues); setting a tracker up.
+  EXCLUDE: claiming, working, changing, or closing an Issue (work-issue);
+  breaking down a Branch Issue (the platform's skill: use-bd); a triage
+  pass over the whole tracker (triage-issues); setting a tracker up.
 ---
 
 # Create Issue
