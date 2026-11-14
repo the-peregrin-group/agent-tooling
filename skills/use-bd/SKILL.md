@@ -130,8 +130,9 @@ section holds only the Beads commands for a pass.
   (`bdw update <id> --body-file=<path>`).
 - **Ending the pass:** release the Branch Issue (`bdw unclaim <id>`), or,
   after verifying it, close it (`bdw close <id> --reason-file=<path>`).
-- **Never claim a Branch Issue that has open children.** `bdw ready` lists
-  them all the same (see The loop).
+- **A Branch Issue that has open children is not ready work,** though
+  `bdw ready` lists it all the same (see The loop). Starting a pass on one
+  for cause is `breakdown-issue`'s rule.
 
 ## Filing
 

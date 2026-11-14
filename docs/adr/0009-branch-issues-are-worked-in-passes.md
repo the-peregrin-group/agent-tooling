@@ -41,4 +41,4 @@ status: amended
 
 ## Amended by
 
-- [ADR-0024](0024-a-pass-reorganizes-a-branch-issues-children.md): a pass ends by reorganizing the Branch Issue's children (adding, removing, or redrawing their boundaries), not only by adding them, and drafts the whole reorganization first; the trigger and the verifying pass stand.
+- [ADR-0024](0024-a-pass-reorganizes-a-branch-issues-children.md): a pass ends by reorganizing the Branch Issue's children (adding, removing, or redrawing their boundaries), not only by adding them, and drafts the whole reorganization first; a Branch Issue is still ready work exactly when it has no open children, which says when a pass is due unprompted, and a pass may also be started for cause while children are open; the verifying pass stands.

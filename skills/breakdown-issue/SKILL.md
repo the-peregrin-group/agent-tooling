@@ -27,7 +27,9 @@ Verb, or load your tracker's platform skill (`use-bd` for Beads).
 A Branch Issue's work is management: scoping, setting success criteria,
 breaking down, and verifying completion. It is worked in session-sized
 passes, is ready exactly when it has no open children, and is never closed
-merely because its children closed.
+merely because its children closed. Ready says when a pass is due
+unprompted. A pass may also be started for cause while children are open: a
+child that does not belong under it, or one whose boundary was drawn wrong.
 
 An Issue is a Branch Issue if it has any children, open or closed, or if it
 is of a kind designated to hold children (e.g., an epic), even before it
