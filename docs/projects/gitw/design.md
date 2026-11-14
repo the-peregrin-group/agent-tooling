@@ -682,7 +682,8 @@ obligation, since a Wrapper cannot intercept what it does not mediate.
 including getting commits onto the authoritative remote: hygiene,
 concurrency, branch, commit, rebase, and push discipline, history policy,
 direct integration, and the floor of message discipline (small coherent
-commits, messages from staged files). The forge Skills (`use-github`,
+commits, messages from staged files, the `Lands:` and `Advances:` trailers
+that name a commit's Issue). The forge Skills (`use-github`,
 `use-forgejo`) own everything that happens to a pushed branch: PRs, review,
 forge merge. Commit messages are repo content and belong here; PR
 descriptions are forge artifacts. Writing style beyond that floor is out
