@@ -47,7 +47,7 @@ projects, which lives under `docs/audits/`.
 - [know](projects/know/index.md): the Knowledge Skills, which teach
   knowledge rather than direct a procedure, under the `know-` prefix.
 - [use-issues](projects/use-issues/index.md): the Issue Tracker skill
-  family, mostly planned: generic skills split by moment of need over
+  family, shipping in slices: generic skills split by moment of need over
   self-documenting wrappers; its [design](projects/use-issues/design.md)
   covers what has shipped, and the dated proposal the rest.
 
