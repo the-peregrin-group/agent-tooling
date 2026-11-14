@@ -263,6 +263,21 @@ and beyond that it's the user's call. The wrapper appends an
 `Executed-By:` trailer derived from the session environment (so does
 `gitw-integrate` on its bubble); do not write one yourself.
 
+A commit names the Issue it serves in a git trailer, `Lands: <Issue ID> (a
+few words)` when it finishes the Issue and `Advances: <Issue ID> (a few
+words)` when it only moves it, and never names the tracker; `work-issue`
+says when each applies. That is part of the floor too. Trailers are the
+message's last paragraph, one per line, and the wrapper's `Executed-By:`
+joins them there:
+
+```
+Cache label lookups per session
+
+Orient fetched the label registry on every call.
+
+Advances: rocket-sled-4f2 (cache label lookups per session)
+```
+
 ```bash
 gitw-rebase <repo> <branch-prefix> [continue|abort]
 gitw-rebase <repo> <branch-prefix> onto <base-branch>
