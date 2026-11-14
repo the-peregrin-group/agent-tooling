@@ -72,8 +72,8 @@ The repo's own conventions are in `.beads/PRIME.md`, which `bdw prime`
 prints. Read this skill's `quirks.md` when bd surprises you, and
 `onboarding.md` only when setting Beads up in a new repo. `rules.json`
 beside it is the canonical Permission rule set for Beads: every command
-this skill teaches as a call (not the ones it tells you never to make) is
-allowed by it, so a taught command that prompts or is denied means the
+this skill, `create-issue`, and `work-issue` teach as a call (not the ones
+they tell you never to make) is allowed by it, so a taught command that prompts or is denied means the
 repo's rules have drifted from it.
 
 ## Working an Issue
@@ -90,8 +90,8 @@ spellings for each step. What Beads adds:
   have open children; skip those by hand.
   `bdw epic status --eligible-only` lists the epics whose children are
   all closed, which are ready for their verifying pass.
-- **Releasing.** A claim never outlives its session: continuity lives in
-  the Issue's pick-up section and metadata, never in a claim.
+- **Continuity.** Beside the pick-up note, Beads keeps the Issue's branch
+  and PR as metadata (see Work waiting on a human).
 
 ## Who may claim, close, and rewrite
 
@@ -181,7 +181,7 @@ to the file form; never reword the text to get past the refusal.**
 
 bd 1.3.0 has no file form for the title, acceptance criteria, replacing
 notes (`--notes` overwrites them; append with `note --file`), or the
-reasons on `unclaim` and `gate`. Leave those reasons off and put the why
+reasons on `unclaim`, `reopen`, and `gate`. Leave those reasons off and put the why
 in a note. A title is the one place where keeping the word out is
 sanctioned until `bdw` adds a file form; log a friction entry when it
 happens.
@@ -195,9 +195,9 @@ section; notes and comments are both the log: append, never rewrite.
 
 ## Work waiting on a human
 
-When an Issue cannot move until a person acts (a PR in review, a
-decision), release it and block it with a gate, so it leaves ready work
-without a custom status:
+An Issue that waits on a person is released (`work-issue`). In Beads,
+also block it with a gate, so it leaves ready work without a custom
+status:
 
 - A PR on GitHub: `bdw gate create --blocks=<id> --type=gh:pr
   --await-id=<number>`. `bdw gate check` resolves it once the PR has

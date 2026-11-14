@@ -37,7 +37,7 @@ canonical set shows in review as rows added or removed.
 | Capability | State | Where |
 |---|---|---|
 | What Beads adds to working an Issue (the loop itself is `work-issue`): prime and gate check at session start, and Branch Issues in `bdw ready` | shipped | `skills/use-bd/SKILL.md` |
-| The sub-agent rule (an agent sharing its session's Actor reads, files, and appends, never claims, closes, or rewrites) and claims ending with their session | shipped | `skills/use-bd/SKILL.md` |
+| The sub-agent rule (an agent sharing its session's Actor reads, files, and appends, never claims, closes, or rewrites) | shipped | `skills/use-bd/SKILL.md` |
 | Branch and Leaf Issues, and working a Branch Issue in passes, practiced by hand | shipped | `skills/use-bd/SKILL.md` |
 | What Beads adds to filing (the discipline itself is `create-issue`): label inheritance, acceptance criteria in the description file, closing a duplicate. Two rules kept until their own Skills take them: one-session Leaf Issues, context linked by metadata key | shipped | `skills/use-bd/SKILL.md` |
 | Free text through bd's existing file forms, switching to a file form when inline text is refused; the Beads spellings of description as state and notes and comments as log (the rule is `work-issue`'s) | shipped | `skills/use-bd/SKILL.md` |
@@ -63,3 +63,6 @@ canonical set shows in review as rows added or removed.
   environment distinguishes it from its parent (`agent-tooling-jk2`).
 - A title has no file form in bd 1.3.0, so a title that names the VCS is
   refused inline (`agent-tooling-aio.6`).
+- The canonical rule set allows `bdw reopen` in the same tier as
+  `bdw close`, though reopening is meant to need a higher permission tier
+  than closing (`agent-tooling-2e4x`).
