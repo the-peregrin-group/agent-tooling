@@ -4,19 +4,17 @@ description: >
   Work an Issue, or change one, on any Issue Tracker (Beads, GitHub Issues,
   Forgejo issues): find ready work in the states you work; claim it before
   touching it, at any stage; append what you learn to the Issue it belongs
-  to; keep its description as its current state, with the pick-up note;
-  edit, comment on, move, close or reopen an Issue, whether or not you hold
-  it, judging every move against the repo's Issue State Diagram and giving
-  every close and reopen its reason; close or release everything you hold
-  before the session ends; name the Issue in commits and PRs with the
+  to; edit, comment on, move, close or reopen an Issue, whether or not you
+  hold it, judging every move against the repo's Issue State Diagram and
+  giving every close and reopen its reason; close or release everything you
+  hold before the session ends; name the Issue in commits and PRs with the
   `Lands:` and `Advances:` trailers. Load before picking up or claiming
   work, before you edit, comment on, move, close or reopen an Issue, and
   before writing a commit message or PR body for work an Issue tracks.
-  Triggers: "what's ready", "pick this up", "claim this issue", "comment on
-  the issue", "move this issue to", "close the issue", "reopen the issue",
-  "land the plane", "Lands or Advances". EXCLUDE: filing an Issue
-  (create-issue); breaking down a Branch Issue (the platform's skill:
-  use-bd); a triage pass over the whole tracker (triage-issues); setting a
+  Triggers: "what's ready", "pick this up", "claim this issue", "move this
+  issue to", "close the issue", "reopen the issue", "land the plane".
+  EXCLUDE: filing an Issue (create-issue); breaking down a Branch Issue
+  (use-bd); a triage pass over the whole tracker (triage-issues); setting a
   tracker up.
 ---
 
@@ -25,7 +23,7 @@ description: >
 Two moments, on any Issue Tracker: doing the work an Issue tracks, and
 changing an Issue itself. The discipline is the same everywhere and only the
 commands differ, so this skill is written against no platform: where a step
-needs a command, run your wrapper's help for this Verb. Until each wrapper's
+needs a command, run your wrapper's help for the Verb. Until each wrapper's
 help carries its own usage, the last section lists today's spellings.
 
 The procedure says what must be done, not who may do it. What you may do
@@ -40,7 +38,7 @@ the text to get past it.
 
 Choose work explicitly. The ready queue is defined by the agent: unclaimed,
 unblocked Issues in the Issue States it works. A blocking dependency blocks
-in every state, and a Branch Issue is ready exactly when it has no open
+in every state. A Branch Issue is ready exactly when it has no open
 children.
 
 A fresh session can resume any Issue from the tracker alone: the Issue
@@ -58,7 +56,8 @@ Issue at a time.
 - On a forge, a claim leaves a comment carrying the Actor ID, and that
   comment is the lease: an Issue is held when its latest claim or release is
   a claim. The assignee is routing, meaning whose work the Issue is expected
-  to be, and holds nothing by itself.
+  to be, and holds nothing by itself; a claim assigns the Forge identity it
+  runs under only when nobody is assigned.
 - Whether a claim also moves the Issue State is the Issue State Diagram's
   call.
 - An agent sharing its session's Actor ID (a sub-agent, a workflow agent)
@@ -107,9 +106,8 @@ forge it is a comment too.
 ## Changing an Issue
 
 These apply whether or not you hold the Issue. Changing or destroying
-existing data requires more delegation than purely additive change, so
-expect a comment to be routine and an edit, a move, a close, or a reopen to
-be granted under a stricter rule.
+existing data requires more delegation than purely additive change. Closing
+one's own finished work is the routine case.
 
 - **Comment.** What you learn about any Issue is appended to it, regardless
   of who filed it or who has claimed it. Comments are an append-only log:
@@ -120,6 +118,9 @@ be granted under a stricter rule.
   description as state. Rewriting an Issue's scope on your own inference is
   the high-judgement case: attended, ask first; unattended, propose it in
   the report.
+- **Link.** Record every relationship with its type explicit; blocking is
+  never the default, because a wrong blocking link silently hides work.
+  `create-issue` has the other relationship rules and the spellings.
 - **Move.** Judge every move against the repo's Issue State Diagram: an
   Issue Transition is taken only when its condition holds, judged by whoever
   moves the Issue. A wrong state puts later work on an earlier gap.
@@ -145,14 +146,20 @@ A commit or PR names the Issue it serves in a git trailer, `Lands: <Issue
 ID> (a few words)` when it finishes the Issue and `Advances: <Issue ID> (a
 few words)` when it only moves it, and never names the tracker.
 
-- **`Lands:`** when, with this change in, the Issue's criteria hold.
-- **`Advances:`** when more work remains under the same Issue. A commit
-  that is one of several toward an Issue advances it.
+- **`Lands:`** when it finishes the Issue: with this change in, the Issue's
+  criteria hold.
+- **`Advances:`** when it only moves it: more work remains under the same
+  Issue.
 - The few words say what the Issue is, for a person reading the log.
+- Each trailer is one line, never wrapped, and the trailers are the last
+  paragraph of the commit message or PR body, with nothing else in that
+  paragraph: git reads no trailer from a paragraph that holds any other
+  line.
 - Where a project uses more than one forge, a forge Issue ID is written
   qualified (`owner/repo#42`), since a bare number would be ambiguous.
 - A platform's own closing mechanics (GitHub's `Closes #N`) are added only
-  where the Issue lives on that platform and auto-close is wanted.
+  where the Issue lives on that platform and auto-close is wanted. They go
+  in the text above the trailers, never among them.
 - Neither trailer closes anything: the close is still its own act, with its
   reason.
 
@@ -181,9 +188,8 @@ bd's own statuses, which `bdw statuses` lists.
 - Waiting on a person: a gate and the `human` label; `use-bd` has the steps.
 - Release: `bdw unclaim <id>`.
 - Close: `bdw close <id> --reason-file=<path>`.
-- Reopen: `bdw reopen <id> --reason="<why>"`. bd has no file form for this
-  reason: if the inline text is refused, reopen without it and put the
-  reason in a note.
+- Reopen: the reason in a note (`bdw note <id> --file=<path>`), then
+  `bdw reopen <id>`. bd has no file form for a reopen reason.
 
 **GitHub Issues** (`ghw-*`). Help: each Verb's `--help`. `use-github` holds
 the arguments until that help does. The states today are the options of the
@@ -192,7 +198,8 @@ meanings and conditions in `triage-issues`; a repo with no board has no
 state beyond open and closed.
 
 - Ready work: there is no queue mechanism on a forge, only the query:
-  `gh issue list --repo <owner/repo> --state open`.
+  `gh issue list --repo <owner/repo> --state open`. To read an issue and
+  its comments: `gh issue view <issue#> --repo <owner/repo> --comments`.
 - Claim and release: `ghw` has no Verb for either yet. Until it does, leave
   the comment yourself with `ghw-issue-comment`, naming your session, since
   nothing adds the Actor ID for you.
@@ -202,7 +209,9 @@ state beyond open and closed.
   comment.
 - Waiting on a person: the forges have no standard mechanism yet; say who
   the Issue waits on in a comment.
-- Close: `ghw-issue-close`, whose comment file is the reason.
+- Close: `ghw-issue-close`, whose comment file is the reason. Where the
+  repo has a board, then set its Status field to the closed option that
+  matches the reason (`ghw-board-set`).
 - Reopen: `ghw` has no Verb for it yet.
 
 **Forgejo issues.** `fjw` has no issue Verbs yet.
