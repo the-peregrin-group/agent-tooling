@@ -342,9 +342,9 @@ terminal-state set. The planned rebase is
 - **use-github** is wrapper-first end to end: orientation through
   `ghw-orient`, the invocation form and literal staging paths, and the
   guidance no Verb can absorb (the search command for `create-issue`'s
-  search-first step; `Closes #N`, added beside a PR body's `Lands:` or
-  `Advances:` trailer only where auto-close is wanted; the `TODO(#N)`
-  rule). The discipline of working and changing an issue is `work-issue`.
+  search-first step; `Closes #N`, added in the text above a PR body's
+  `Lands:` or `Advances:` trailer only where auto-close is wanted; the
+  `TODO(#N)` rule). The discipline of working and changing an issue is `work-issue`.
 - **setup-github-issues** bootstraps labels with `ghw-label-sync` (its JSON
   schema file declaring the `area:` and scope families) and the board with
   `ghw-board-sync <repo> new`, so the full canonical schema, `Size`
