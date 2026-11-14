@@ -6,7 +6,8 @@
 family: generic Skills split by the moment an agent needs them, a Knowledge
 Skill for the fundamentals, platform Skills that only point at their
 Wrapper, and Wrappers whose issue Verbs document themselves and share one
-top-level grammar. None of it is built yet. Today's issue guidance is the
+top-level grammar. It is being built in slices, and the Status table below
+says which have shipped. Today's issue guidance is the
 `setup-github-issues`, `use-github`, and `triage-issues` Skills (documented
 under [ghw](../ghw/index.md)), `use-bd` ([use-bd](../use-bd/index.md)), and
 `use-forgejo` ([fjw](../fjw/index.md)), and they stay in force until the
@@ -24,7 +25,8 @@ is tracked in `agent-tooling-84n3` (bdw), `agent-tooling-fyxo` (ghw),
 | Capability | State | Where |
 |---|---|---|
 | The default Tracker Schema, with its Issue State Diagram, and `know-issues` | planned | [proposal](2026-11-13-proposal.md), slice 1; `agent-tooling-u9n`, `agent-tooling-vb2v` |
-| `create-issue` and `work-issue`, generic, against today's Verbs | planned | [proposal](2026-11-13-proposal.md), slice 2; `agent-tooling-u9n` |
+| `create-issue`, generic, against today's Verbs | shipped | `skills/create-issue/SKILL.md` |
+| `work-issue`, generic, against today's Verbs | planned | [proposal](2026-11-13-proposal.md), slice 2; `agent-tooling-u9n.6` |
 | `breakdown-issue`, and `triage-issues` read against the Issue State Diagram | planned | [proposal](2026-11-13-proposal.md), slice 3; `agent-tooling-u9n` |
 | bdw rebuilt with its own issue Verbs and per-Verb help; `use-bd` as a failsafe pointer | planned | [proposal](2026-11-13-proposal.md), slice 4; `agent-tooling-84n3` |
 | ghw issue Verbs on the shared grammar, with Forge identity | planned | [proposal](2026-11-13-proposal.md), slice 5; `agent-tooling-fyxo` |

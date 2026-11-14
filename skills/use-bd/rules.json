@@ -304,7 +304,7 @@
       ]
     },
     {
-      "why": "Reversible, visible record-keeping: when to use them is a filing discipline (use-bd), not a permission.",
+      "why": "Reversible, visible record-keeping: when to use them is a filing discipline (create-issue, use-bd), not a permission.",
       "verbs": [
         "duplicate",
         "supersede",

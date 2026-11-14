@@ -13,8 +13,10 @@ and board contracts in code, and resolve GitHub's name-to-ID mappings
 internally, so agents never handle node IDs.
 
 Three Skills sit on top. `use-github` teaches day-to-day issue and PR work
-through the Verbs. `setup-github-issues` bootstraps a repo's label schema and
-board. `triage-issues` runs repeatable backlog triage, with six `triage-*`
+through the Verbs; filing discipline is the generic `create-issue` Skill
+([use-issues](../use-issues/index.md)), and `use-github` keeps GitHub's
+mechanics for it. `setup-github-issues` bootstraps a repo's label schema
+and board. `triage-issues` runs repeatable backlog triage, with six `triage-*`
 reference wrappers as the only write path an unattended pass has.
 
 How and why it works: [design.md](design.md).

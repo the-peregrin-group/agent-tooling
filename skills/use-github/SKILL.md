@@ -2,7 +2,8 @@
 name: use-github
 description: >
   Day-to-day conventions for working with GitHub in a repo whose tracking was
-  bootstrapped by the setup-github-issues skill: filing and labeling issues,
+  bootstrapped by the setup-github-issues skill: the GitHub mechanics of
+  filing and labeling issues (the filing discipline is create-issue),
   setting priority and status on the project board, the `TODO(#N)` source-code
   rule, and the PR workflow. All GitHub writes run through the installed
   `ghw-*` wrapper scripts on PATH. Load this before filing, labeling, or
@@ -106,14 +107,14 @@ note at the end.
 
 ## Step 2: Before Filing — Search
 
-Duplicate issues are the main failure mode. Search before you file:
+Load `create-issue` before filing an issue. It holds the filing discipline
+(search first and what each finding means, the filing bar, kind, priority,
+and labels, relationships, where the issue came from, refining what you
+filed); Steps 2 to 4 here are only GitHub's mechanics for it. The search:
 
 ```bash
 gh issue list --repo <owner/repo> --search "<keywords>" --state all --limit 20
 ```
-
-If something close already exists, comment on it instead of filing a
-near-twin.
 
 ## Step 3: File the Issue
 
@@ -133,11 +134,7 @@ one).
 | `debt` | Code quality, refactoring, documentation |
 | `meta` | Design documents, planning artifacts, and non-code project work |
 
-Write the title as an imperative statement of the outcome ("Cache label
-lookups per session"), not a symptom fragment. The body should say what's
-wrong or wanted, why it matters, and what "done" looks like — enough that
-someone who isn't in this conversation can pick it up. Write it to a staging
-file (see The Wrapper Layer), then:
+Write the body to a staging file (see The Wrapper Layer), then:
 
 ```bash
 ghw-issue-create <owner/repo> <type-label> "<title>" <body-file> [label ...]
@@ -187,12 +184,12 @@ ghw-board-set acme/rocket-sled Priority P2 41
 ghw-board-set acme/rocket-sled Status "Needs Triage" 41
 ```
 
-Be liberal with Priority; be conservative with Status. New issues start at
-`Needs Triage` — setting that on a freshly filed issue is safe **provided the
-board actually has the option**: check the board's `conformance` verdict from
-Step 1, since a board with `gaps` may lack canonical states and the wrapper
-will refuse an option the field doesn't have. Status *transitions* belong to
-the `triage-issues` skill; don't invent them here.
+New issues start at `Needs Triage` — setting that on a freshly filed issue
+is safe **provided the board actually has the option**: check the board's
+`conformance` verdict from Step 1, since a board with `gaps` may lack
+canonical states and the wrapper will refuse an option the field doesn't
+have. Status *transitions* belong to the `triage-issues` skill; don't invent
+them here.
 
 ## Working an Issue (any time after filing)
 

@@ -4,10 +4,10 @@ description: >
   The operating manual for Beads (`bd`) as a repo's Issue Tracker, run
   through the `bdw` wrapper: the session loop (prime, ready, claim, file,
   close, land the plane), who may claim and close, Branch and Leaf Issues
-  and working a Branch Issue in passes, filing discipline (breakdown, the
-  four relationships, labels), free text through files, work waiting on a
-  human, and friction reporting. Load at the start of any session in a repo
-  with a `.beads/` directory, before the first `bdw` or `bd` call, and
+  and working a Branch Issue in passes, what Beads adds to filing (the
+  filing discipline is create-issue), free text through files, work waiting
+  on a human, and friction reporting. Load at the start of any session in a
+  repo with a `.beads/` directory, before the first `bdw` or `bd` call, and
   whenever `bd prime` or a `bdw` message says to. Triggers: "bdw ready",
   "what's ready", "claim this issue", "file a bead", "close the bead",
   "land the plane", "break this epic down", "Beads". EXCLUDE: GitHub Issues
@@ -86,7 +86,7 @@ repo's rules have drifted from it.
    children are all closed, which are ready for their verifying pass.
 3. `bdw update <id> --claim` before touching anything.
 4. File what you find along the way as new Issues linked back:
-   `--deps=discovered-from:<id>` (see Filing).
+   `--deps=discovered-from:<id>` (load `create-issue`; see Filing).
 5. Append progress to the Issue as you go (see Free text).
 6. `bdw close <id> --reason-file=<path>` when its acceptance criteria hold.
 7. **Land the plane.** Before the session ends, close or release
@@ -138,34 +138,24 @@ Branch Issue that has open children.
 
 ## Filing
 
-- **Search first:** `bdw search <words>` (titles and IDs) and
-  `bdw list --desc-contains=<words> --all`. Afterwards,
-  `bdw find-duplicates` sweeps for near-duplicates (its default method
-  stays on the machine).
+Load `create-issue` before filing an Issue. It holds the filing discipline
+(search first and what each finding means, the filing bar, kind, priority,
+and labels, relationships, where the Issue came from, refining what you
+filed) and today's `bdw` spellings for each step. What Beads adds, and two
+rules (sizing, context outside the tracker) that stay here until their own
+skills take them:
+
 - **One Issue, one session's work.** Anything bigger is an epic, broken
   down in its own pass.
-- **Kind goes in the type field** (`--type=task|bug|feature|chore|epic|...`,
-  `bdw types` lists them), never in a label.
-- **Labels:** every Issue has at least one area label and may carry
-  others; use the ones already in use (`bdw label list-all`) unless the
-  repo's `PRIME.md` says otherwise. Children inherit their parent's labels
-  unless filed with `--no-inherit-labels`.
-- **Description:** what and why, then a `## Acceptance Criteria` section.
-  bd's `--acceptance` flag takes inline text only, so the criteria live in
-  the description file.
-- **The four relationships.** At filing, look for each:
-
-  | Relationship | In Beads | When on your own |
-  |---|---|---|
-  | dependency | `bdw dep add <blocked> <blocker> --type=blocks` | always |
-  | duplication | `bdw duplicate <id> --of=<canonical>` (closes it) | only when very confident |
-  | composition | `--parent=<id>` at filing | only when very confident |
-  | contradiction | `bdw dep add <a> <b> --type=relates-to`, plus a label naming it | only when very confident |
-
-  Otherwise raise it with the user (unattended: report it). Always pass
-  `--type` to `dep add`: bare, it creates a blocking edge, and a wrong
-  blocking edge silently removes work from `bdw ready`. `discovered-from`
-  records provenance and does not block.
+- **Labels:** children inherit their parent's labels unless filed with
+  `--no-inherit-labels`.
+- **Acceptance criteria** go in the description file, under a
+  `## Acceptance Criteria` section: bd's `--acceptance` flag takes inline
+  text only.
+- **Two existing Issues that duplicate each other:**
+  `bdw duplicate <id> --of=<canonical>` closes the duplicate. On your own,
+  only when very confident; otherwise raise it with the user (unattended:
+  report it).
 - **Context outside the tracker.** Material that belongs in a standard
   document (requirements, design, UX, an ADR, a lexicon entry) goes there,
   and the Issue links it through a metadata key per document type:
