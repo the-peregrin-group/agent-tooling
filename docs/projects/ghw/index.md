@@ -59,7 +59,12 @@ How and why it works: [design.md](design.md).
 - Triage does not read a PR body's `Lands:` and `Advances:` trailers as
   linkage to an issue; it still looks for the contributing keywords
   (`furthers`, `part of`, `towards`) that `use-github` no longer teaches
-  (`agent-tooling-m1sl`).
+  (`agent-tooling-m1sl`). A PR that carries only `Lands:` and no closing
+  keyword is not seen as a closing PR either, which is what gates
+  `In review`.
+- Triage reads an assignee or a linked PR as the sign that an issue is
+  being worked, not a claim comment, so it proposes regressing an issue
+  that is held only by a claim (`agent-tooling-wtxg`).
 - The `triage-*` Status row describes scripts bundled under
   `skills/triage-issues/reference/` and invoked by path, not `cli/` Wrappers
   on PATH (`agent-tooling-buqr`).
