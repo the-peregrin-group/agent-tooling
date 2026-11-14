@@ -2,8 +2,8 @@
 name: use-bd
 description: >
   The operating manual for Beads (`bd`) as a repo's Issue Tracker, run
-  through the `bdw` wrapper: the session loop (prime, ready, claim, file,
-  close, land the plane), who may claim and close, Branch and Leaf Issues
+  through the `bdw` wrapper: what Beads adds to working an Issue (the loop
+  is work-issue), who may claim and close, Branch and Leaf Issues
   and working a Branch Issue in passes, what Beads adds to filing (the
   filing discipline is create-issue), free text through files, work waiting
   on a human, and friction reporting. Load at the start of any session in a
@@ -72,27 +72,26 @@ The repo's own conventions are in `.beads/PRIME.md`, which `bdw prime`
 prints. Read this skill's `quirks.md` when bd surprises you, and
 `onboarding.md` only when setting Beads up in a new repo. `rules.json`
 beside it is the canonical Permission rule set for Beads: every command
-this skill teaches as a call (not the ones it tells you never to make) is
-allowed by it, so a taught command that prompts or is denied means the
+this skill, `create-issue`, and `work-issue` teach as a call (not the ones
+they tell you never to make) is allowed by it, so a taught command that prompts or is denied means the
 repo's rules have drifted from it.
 
-## The loop
+## Working an Issue
 
-1. `bdw prime` at session start, then `bdw gate check` to resolve gates
-   whose condition now holds (see Work waiting on a human).
-2. `bdw ready` to find work, `bdw show <id>` to read it. `bdw ready` also
-   lists Branch Issues (below) that still have open children; skip those
-   by hand. `bdw epic status --eligible-only` lists the epics whose
-   children are all closed, which are ready for their verifying pass.
-3. `bdw update <id> --claim` before touching anything.
-4. File what you find along the way as new Issues linked back:
-   `--deps=discovered-from:<id>` (load `create-issue`; see Filing).
-5. Append progress to the Issue as you go (see Free text).
-6. `bdw close <id> --reason-file=<path>` when its acceptance criteria hold.
-7. **Land the plane.** Before the session ends, close or release
-   (`bdw unclaim <id>`) every Issue you claimed. A claim never outlives
-   its session: continuity lives in the Issue's pick-up section and
-   metadata, never in a claim.
+Load `work-issue` before picking up, claiming, changing, or closing an
+Issue. It holds the loop (ready work, claim, append what you learn, close
+or release everything you hold before the session ends), the rules for
+changing an Issue, how commits and PRs name it, and today's `bdw`
+spellings for each step. What Beads adds:
+
+- **Session start.** `bdw prime`, then `bdw gate check` to resolve gates
+  whose condition now holds (see Work waiting on a human).
+- **Ready work.** `bdw ready` also lists Branch Issues (below) that still
+  have open children; skip those by hand.
+  `bdw epic status --eligible-only` lists the epics whose children are
+  all closed, which are ready for their verifying pass.
+- **Continuity.** Beside the pick-up note, Beads keeps the Issue's branch
+  and PR as metadata (see Work waiting on a human).
 
 ## Who may claim, close, and rewrite
 
@@ -182,7 +181,7 @@ to the file form; never reword the text to get past the refusal.**
 
 bd 1.3.0 has no file form for the title, acceptance criteria, replacing
 notes (`--notes` overwrites them; append with `note --file`), or the
-reasons on `unclaim` and `gate`. Leave those reasons off and put the why
+reasons on `unclaim`, `reopen`, and `gate`. Leave those reasons off and put the why
 in a note. A title is the one place where keeping the word out is
 sanctioned until `bdw` adds a file form; log a friction entry when it
 happens.
@@ -190,16 +189,15 @@ happens.
 Write the files in the temporary directory your harness designates
 (never in the repo), with unique names.
 
-**State versus log.** An Issue's description is its state: rewrite it in
-place (`--body-file`) so it always reads as the current picture,
-including a `## Pick-up` section that tells the next session where the
-work stands. Notes and comments are its log: append, never rewrite.
+**State versus log** is `work-issue`'s rule. In Beads the description is
+rewritten with `--body-file` and its pick-up note is a `## Pick-up`
+section; notes and comments are both the log: append, never rewrite.
 
 ## Work waiting on a human
 
-When an Issue cannot move until a person acts (a PR in review, a
-decision), release it and block it with a gate, so it leaves ready work
-without a custom status:
+An Issue that waits on a person is released (`work-issue`). In Beads,
+also block it with a gate, so it leaves ready work without a custom
+status:
 
 - A PR on GitHub: `bdw gate create --blocks=<id> --type=gh:pr
   --await-id=<number>`. `bdw gate check` resolves it once the PR has

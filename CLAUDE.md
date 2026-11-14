@@ -68,8 +68,10 @@ parsed-command deny hook lands.
 
 Pull requests are unaffected. **Load the `use-github` skill before opening a
 PR**; its issue-filing and board conventions do not apply while Beads is the
-Issue Tracker, and a PR body names the Issue it lands
-(`Lands agent-tooling-xyz`) instead of `Closes #N`.
+Issue Tracker, and a commit or PR names the Issue it serves in a trailer
+(`Lands: agent-tooling-xyz (a few words)` when it finishes the Issue,
+`Advances: agent-tooling-xyz (a few words)` when it only moves it), never
+with `Closes #N`.
 
 ## Agent integration branches
 

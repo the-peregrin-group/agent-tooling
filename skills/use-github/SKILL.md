@@ -3,7 +3,8 @@ name: use-github
 description: >
   Day-to-day conventions for working with GitHub in a repo whose tracking was
   bootstrapped by the setup-github-issues skill: the GitHub mechanics of
-  filing and labeling issues (the filing discipline is create-issue),
+  filing and labeling issues (the filing discipline is create-issue), of
+  commenting on, editing, and closing them (the discipline is work-issue),
   setting priority and status on the project board, the `TODO(#N)` source-code
   rule, and the PR workflow. All GitHub writes run through the installed
   `ghw-*` wrapper scripts on PATH. Load this before filing, labeling, or
@@ -188,10 +189,17 @@ New issues start at `Needs Triage` — setting that on a freshly filed issue
 is safe **provided the board actually has the option**: check the board's
 `conformance` verdict from Step 1, since a board with `gaps` may lack
 canonical states and the wrapper will refuse an option the field doesn't
-have. Status *transitions* belong to the `triage-issues` skill; don't invent
-them here.
+have. A later Status move is `work-issue`'s: it is judged against the
+repo's Issue State Diagram, and until the repo has one, against the states
+and conditions `triage-issues` documents.
 
 ## Working an Issue (any time after filing)
+
+Load `work-issue` before picking up, claiming, changing, or closing an
+issue. It holds the discipline (ready work, claim, append what you learn,
+judging every move against the repo's Issue State Diagram, a reason on
+every close and reopen, close or release everything you hold before the
+session ends); this section is only GitHub's mechanics for it.
 
 - **Comment:** `ghw-issue-comment <owner/repo> <issue#> <body-file>`
 - **Edit:** `ghw-issue-edit <owner/repo> <add-label|remove-label|retitle|set-body> <issue#> <value>`
@@ -254,10 +262,15 @@ first (Steps 2–4) and use its number. When an issue closes, grep for
   refuse — opening a PR for a branch you're not on is legitimate. PRs are
   **non-draft by default** and should stay that way unless the user asks for
   a draft.
-- **Link the issue in the PR body.** `Closes #42` (or `Fixes`/`Resolves`)
-  auto-closes the issue on merge. For work that advances an issue without
-  finishing it, use contributing language instead — `furthers #42`,
-  `part of #42`, `towards #42` — which links without auto-closing.
+- **Name the issue in the PR body** with a trailer: `Lands: <Issue ID> (a
+  few words)` when the PR finishes the issue and `Advances: <Issue ID> (a
+  few words)` when it only moves it (`work-issue` says when each applies).
+  Each trailer is one line, never wrapped, and the trailers are the body's
+  last paragraph with nothing else in it, so that git still reads them
+  where a merge commit takes the PR body as its message. GitHub's
+  `Closes #42` (or `Fixes`/`Resolves`), which auto-closes the issue on
+  merge, is added only where the issue lives on GitHub and auto-close is
+  wanted, in the text above the trailers.
 - **Disclose unattended conflict resolutions.** If an unattended rebase
   hit conflicts you resolved, the body (or, for an existing PR, a
   comment) says so and names every file (see `use-git`).
