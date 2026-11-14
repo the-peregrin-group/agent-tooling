@@ -253,7 +253,7 @@ class SkillTeachesOnlyAllowedCommandsTest(unittest.TestCase):
             "bdw update X --status=X",
             "bdw unclaim X",
             "bdw close X --reason-file=X",
-            'bdw reopen X --reason="X"',
+            "bdw reopen X",
         ):
             self.assertIn("work-issue/SKILL.md", self.commands.get(command, ()))
 
