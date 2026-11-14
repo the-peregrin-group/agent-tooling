@@ -18,7 +18,9 @@ Each fact lives in exactly one place in this file:
 The file is the repo owner's to change. It is a tracked file, changed
 through the repo's normal review. It was copied from a shipped default, and
 every edit to it is this repo's customization. It is data that grants
-nothing, since what an agent may do is decided by Permission rules alone.
+nothing, since what an agent may do is decided by Permission rules alone
+(a Permission rule is a declared rule that decides whether an agent may take
+an action on its own, only with a human's approval, or never).
 
 ## What tooling reads
 
@@ -87,7 +89,7 @@ nothing, since what an agent may do is decided by Permission rules alone.
     "labels": [
       {
         "name": "human",
-        "meaning": "Waiting on a person; everything waiting on the human sits in this one queue they can see"
+        "meaning": "Waiting on a person"
       }
     ]
   },
@@ -157,8 +159,8 @@ this file outside the markers.
   `stale_after_days`. Priority answers "what do I work on next?". Every
   Issue has one from filing on, set as best the filer can and adjusted
   later. Staleness is judged from exact timestamps compared with the
-  current time: an open Issue whose latest activity is older than its
-  priority's threshold, in days, is stale.
+  current time, against the threshold each priority level declares, in
+  days.
 - `issue_label_schema`: the allowed Issue Labels, their meanings, and the
   axes they classify along. `axes` lists each axis with its `name`, the
   `prefix` every label on it begins with, its `meaning`, whether every
@@ -167,7 +169,8 @@ this file outside the markers.
   the labels that belong to no axis. An unknown label is a mistake to fix,
   not a new label. The labels on the area axis are the repo's own, since
   the parts of a project are that project's: the shipped default lists
-  none, and the repo owner fills them in.
+  none, and the repo owner fills them in. Until then no Issue's labels can
+  conform, so no Issue can leave Needs Triage.
 - `issue_states`: the Issue States, each with its `name` and its `open`
   flag, `true` for an open state and `false` for a closed one. That flag is
   the only structure a state has. Every Issue is in exactly one state, and
@@ -181,12 +184,15 @@ An Issue State says what kind of expert attention the Issue needs next. The
 ready queue is defined by the agent: unclaimed, unblocked Issues in the
 Issue States it works.
 
-Three terms used below. A Branch Issue is an Issue that holds other Issues
-as its children: a project, rather than a unit of work one session
-finishes. A Leaf Issue is an Issue that is not a Branch Issue: a unit of
-work meant to be claimed and finished in one session. A claim makes it
-visible that someone is working on an Issue, since one person or agent
-advances an Issue at a time; a release gives the claim up.
+Terms used below. A Branch Issue is an Issue that holds other Issues as its
+children: a project, rather than a unit of work one session finishes. An
+Issue is a Branch Issue if it has any children, open or closed, or if it is
+of a kind designated to hold children (e.g., an epic), even before it has
+any. A Leaf Issue is an Issue that is not a Branch Issue: a unit of work
+meant to be claimed and finished in one session. A pass is one session's
+work on a Branch Issue. A claim makes it visible that someone is working on
+an Issue, since one person or agent advances an Issue at a time; a release
+gives the claim up.
 
 ### What each state means
 
@@ -210,8 +216,8 @@ implementer would otherwise have to stop and ask about.
 
 #### Needs Impl
 
-The decisions are made and it needs an implementer. Nobody is working on it
-yet.
+The decisions are made and it needs an implementer. Nobody is working on
+it.
 
 #### In progress
 
@@ -234,15 +240,15 @@ are closed plus a reason.
 A transition is taken only when its condition holds, judged by whoever
 moves the Issue. A wrong state puts later work on an earlier gap, so when
 unsure whether a condition holds, leave the state as it is. An Issue moves
-forward one state at a time, but when the next condition already holds too,
-take that transition in the same sitting: an Issue that needs no engineering
-design passes straight through Needs Eng Design.
+forward through the open states one at a time, but when the next condition
+already holds too, take that transition in the same sitting: an Issue that
+needs no engineering design passes straight through Needs Eng Design.
 
 #### Out of Needs Triage
 
 To Needs Scope, when all of these hold:
 
-- The filing bar is met: a title that states the outcome; a body that says
+- The universal bar is met: a title that states the outcome; a body that says
   what is known and what is not, with no placeholder text; and an Issue
   Kind, an Issue Priority, and the entry Issue State, each set as best the
   filer can.
@@ -272,27 +278,27 @@ input.
 
 #### Out of Needs Impl
 
-To In progress, when someone claims it. A claim moves Needs Impl to In
-progress and otherwise leaves the state as it is: claiming an Issue in any
-other state does not move it.
+To In progress, when someone claims it, or when whoever already holds a
+claim on it starts implementing. A claim moves Needs Impl to In progress and
+otherwise leaves the state as it is.
 
 #### Out of In progress
 
 To In review, when the work is ready for a reviewer. Whoever moves it
 releases the Issue and shows the wait, as the meaning of In review says.
 
-To Needs Impl, when the Issue is released with the work unfinished and
-nobody is working on it.
+To Needs Impl, when the Issue is released with the work unfinished. This is
+not a regression: no earlier bar failed. If an earlier bar did turn out not
+to be met, the regression below applies instead.
 
 #### Out of In review
 
-To Closed, as "Into Closed" says. If the review finds the work is not ready
-for a reviewer after all, that is a regression to In progress.
+To Closed, as "Into Closed" says.
 
 #### Into Closed, from any open state
 
 Every close carries its reason, which says done, rejected, duplicate, or
-superseded:
+superseded; forge auto-close on PR merge is the one exception:
 
 - Done: a Leaf Issue's acceptance criteria hold, or a Branch Issue's
   success criteria have been checked against the outcome by the pass that
@@ -306,18 +312,19 @@ superseded:
 
 #### Out of Closed
 
-To an open state, when the reason it was closed no longer holds: the work
-regressed, or it was closed unfinished. Every reopen carries its reason.
-The Issue returns to the earliest state whose conditions for moving on it
-does not meet.
+To an open state, when the reason it was closed no longer holds (the work
+regressed, say, or it was closed unfinished). Every reopen carries its
+reason. The Issue returns to the state the rule for a regression, below,
+gives.
 
-#### Back to an earlier state, from any state
+#### Back to an earlier state, from any open state
 
 A regression is a transition like any other, whose condition is that an
 earlier bar turned out not to be met. An Issue may regress to an earlier
 state at any time, and no later-stage work goes on top of an earlier
-stage's gap. It returns to the earliest state whose conditions for moving
-on it does not meet.
+stage's gap. It returns to the earliest state whose condition for moving on
+it does not meet; that is never later than Needs Impl unless someone holds a
+claim on it.
 
 ### What is not a state
 
