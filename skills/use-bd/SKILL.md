@@ -138,12 +138,10 @@ section holds only the Beads commands for a pass.
 Load `create-issue` before filing an Issue. It holds the filing discipline
 (search first and what each finding means, the filing bar, kind, priority,
 and labels, relationships, where the Issue came from, refining what you
-filed) and today's `bdw` spellings for each step. What Beads adds, and two
-rules (sizing, context outside the tracker) that stay here until their own
-skills take them:
+filed) and today's `bdw` spellings for each step. How big a Leaf Issue is
+is the `breakdown-issue` skill's. What Beads adds, and one rule (context
+outside the tracker) that stays here until its own skill takes it:
 
-- **One Issue, one session's work.** Anything bigger is an epic, broken
-  down in its own pass.
 - **Labels:** children inherit their parent's labels unless filed with
   `--no-inherit-labels`.
 - **Acceptance criteria** go in the description file, under a
