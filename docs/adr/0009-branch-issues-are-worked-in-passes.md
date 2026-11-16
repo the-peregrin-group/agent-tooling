@@ -1,6 +1,6 @@
 ---
 date: 2026-10-08
-status: current
+status: amended
 ---
 
 # Branch Issues are worked in passes, triggered by having no open children
@@ -38,3 +38,7 @@ status: current
 
 **Description:** Children stay out of ready work until the pass releases its claim, so a breakdown can be restructured privately.
 **Rejection rationale:** A session that dies mid-pass hides the whole subtree until its lease expires, whereas building the breakdown in one atomic batch gives the same privacy without a lock.
+
+## Amended by
+
+- [ADR-0024](0024-a-pass-reorganizes-a-branch-issues-children.md): a pass ends by reorganizing the Branch Issue's children (adding, removing, or redrawing their boundaries), not only by adding them, and drafts the whole reorganization first; a Branch Issue is still ready work exactly when it has no open children, which says when a pass is due unprompted, and a pass may also be started for cause while children are open; the verifying pass stands.
