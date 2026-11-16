@@ -65,3 +65,6 @@ canonical set shows in review as rows added or removed.
   environment distinguishes it from its parent (`agent-tooling-jk2`).
 - A title has no file form in bd 1.3.0, so a title that names the VCS is
   refused inline (`agent-tooling-aio.6`).
+- A pass may move, split, or merge a child, but use-bd teaches no command
+  for those, and reparenting has no Permission rule
+  (`agent-tooling-pyu5`).
