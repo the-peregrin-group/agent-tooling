@@ -28,7 +28,8 @@ is tracked in `agent-tooling-84n3` (bdw), `agent-tooling-fyxo` (ghw),
 
 | Capability | State | Where |
 |---|---|---|
-| The default Tracker Schema, with its Issue State Diagram, and `know-issues` | planned | [proposal](2026-11-13-proposal.md), slice 1; `agent-tooling-u9n`, `agent-tooling-vb2v` |
+| The default Tracker Schema, with its Issue State Diagram | planned | [proposal](2026-11-13-proposal.md), slice 1; `agent-tooling-u9n.2`, `agent-tooling-vb2v` |
+| `know-issues`, the Knowledge Skill for the issue fundamentals | shipped | `skills/know-issues/SKILL.md`; documented under [know](../know/index.md) |
 | `create-issue`, generic, against today's Verbs | shipped | `skills/create-issue/SKILL.md` |
 | `work-issue`, generic, against today's Verbs | planned | [proposal](2026-11-13-proposal.md), slice 2; `agent-tooling-u9n.6` |
 | `breakdown-issue`, for Branch Issue passes | shipped | `skills/breakdown-issue/SKILL.md` |
