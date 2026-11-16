@@ -78,8 +78,8 @@ The title states the outcome; the body says what and why, and what done
 looks like as far as it is known, so someone outside the conversation can
 pick it up.
 
-An Issue with a title and one honest sentence is correctly in the entry
-state. A more complete Issue is welcome, so long as it states what is known
+An Issue with a title and one honest sentence is correctly in the default
+entry state. A more complete Issue is welcome, so long as it states what is known
 rather than presuming what is not: technical design and implementation
 choices are not the filer's to settle at filing, least of all when filing
 into a project whose context the filer lacks. Everything beyond the minimum
@@ -100,9 +100,10 @@ declare.
   answer "what do I work on next?" Set it as best you can: where the tracker
   fills in a default, that default is the tool's guess, not the filer's. A
   wrong priority costs nothing, since the batch pass reconciles it.
-- **Entry state.** A new Issue goes in the entry Issue State the repo's
-  Issue State Diagram declares. Any later move is judged against that
-  diagram and is not part of filing.
+- **Entry state.** A new Issue goes in the default entry Issue State the
+  repo's Issue State Diagram declares when its right state is not known. A
+  filer who knows the Issue already meets every bar up to a later state
+  files it there, judging that against the diagram as for any move.
 - **Labels.** Labels are drawn from the Issue Label Schema; an unknown label
   is a mistake to fix, not a new label. Every Issue carries at least one
   Area Label.

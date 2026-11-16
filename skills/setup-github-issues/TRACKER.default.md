@@ -201,13 +201,23 @@ The states are listed in the order an Issue normally moves through them.
 
 #### Needs Triage
 
-The entry state: every Issue is filed here. It needs screening, someone to
-check that it is a real Issue, classified, with enough in it for scoping to
-start.
+The default entry state: an Issue is filed here when its right state is not
+known, and returned here when it is found not to meet the bar for the state
+it was in. It needs screening, someone to check that it is a real Issue,
+classified, with enough in it for scoping to start. A filer who knows the
+Issue already meets every bar up to a later state files it there: a small
+bug, diagnosed, with a clear fix and no trade-offs to weigh, goes straight
+to Needs Impl when its description carries the problem, the reproduction,
+the root cause, and the nature of the fix.
 
 #### Needs Scope
 
-It needs scoping, someone to define the problem, not the solution.
+It needs scoping: someone to define what is wanted and why, before anyone
+designs how to engineer it. That covers the problem and the requirements a
+solution must meet and, where the work has them, the product-level
+specification of behaviour and the design of the user experience. A repo
+whose work regularly needs product design or user experience design as
+steps of their own splits this state in its diagram.
 
 #### Needs Eng Design
 
@@ -239,10 +249,11 @@ are closed plus a reason.
 
 A transition is taken only when its condition holds, judged by whoever
 moves the Issue. A wrong state puts later work on an earlier gap, so when
-unsure whether a condition holds, leave the state as it is. An Issue moves
-forward through the open states one at a time, but when the next condition
-already holds too, take that transition in the same sitting: an Issue that
-needs no engineering design passes straight through Needs Eng Design.
+unsure whether a condition holds, leave the state as it is. An Issue enters
+at, or moves directly to, any state whose earlier conditions it already
+meets: an Issue that needs no engineering design passes straight through
+Needs Eng Design, and a filer who knows an Issue already meets every bar up
+to a later state files it there.
 
 #### Out of Needs Triage
 
@@ -260,8 +271,10 @@ To Needs Scope, when all of these hold:
 
 To Needs Eng Design, when all of these hold:
 
-- The problem is defined, not the solution: motivation, beneficiary,
-  criteria, out of scope, constraints, adjacencies.
+- What is wanted is defined, and how it will be engineered is not:
+  motivation, beneficiary, criteria, out of scope, constraints,
+  adjacencies, and, where the work calls for them, the product behaviour
+  and the user experience.
 - A Branch Issue states its success criteria and a Leaf Issue its
   acceptance criteria; either may carry the other as well.
 - For a bug, it says how to reproduce it, or for an intermittent one what
