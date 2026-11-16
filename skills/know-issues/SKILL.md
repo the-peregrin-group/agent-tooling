@@ -24,16 +24,17 @@ State Diagram, Permission rule, Actor ID, and the rest) are the lexicon's
 and the lexicon is authoritative for them.
 
 The principles below are approved requirements of the Issue Tracker skill
-family, in the maintainer's wording and under their original numbers.
+family, in the maintainer's wording. This skill carries the ones that are
+principles rather than procedures.
 [The proposal's appendix](https://github.com/the-peregrin-group/agent-tooling/blob/main/docs/projects/use-issues/2026-11-13-proposal.md#appendix-the-approved-requirements)
-has every requirement in full. This skill carries the ones that are
-principles rather than procedures, so the numbers have gaps: a missing
-number is a requirement not carried here. A bullet marked "(Shortened.)"
-stops before the requirement's last sentence, which is in the appendix.
+has every requirement in full, including a last sentence on platform
+mechanics or setup defaults that four of the principles here leave off
+(priority, work waiting on a person, choosing work, and the Issue as a
+living document).
 
 ## The family's shape
 
-- **R52.** The generic skills are split by moment of need (filing, working
+- The generic skills are split by moment of need (filing, working
   an Issue, breaking down a Branch Issue, triage, setup), one skill per
   moment, written against no platform. The fundamentals are a Knowledge
   Skill, `know-issues`, whose description carries the distillation. There
@@ -43,39 +44,39 @@ stops before the requirement's last sentence, which is in the appendix.
 
 ## Where Issues live
 
-- **R1.** Each Issue has exactly one writable home, chosen by who drives
+- Each Issue has exactly one writable home, chosen by who drives
   the work: in this ecosystem (ADR 0011), Beads for work agents swarm and
   forge issues for long-lived, low-churn, or human-driven work, and a
   project may use both.
-- **R3.** Any Issue text bound off the machine is held to the privacy
+- Any Issue text bound off the machine is held to the privacy
   rules (use-privacy) before it is written.
 
 ## What agents may do
 
-- **R4.** What an agent may do on a tracker is decided only by reviewed
+- What an agent may do on a tracker is decided only by reviewed
   Permission rules, granted per operation and per repo at the
   maintainer's choice. Per-repo conventions never grant anything, and an
   agent acts only on its own project's Issues unless expressly permitted.
-- **R5.** A denial, refusal, or permission prompt is the policy working:
+- A denial, refusal, or permission prompt is the policy working:
   fix the call or report the gap, and never look for another spelling or
   reword the text to get past it. Report friction with the tracker; offer
   upstream bug reports, but never file them on your own.
-- **R7.** The tracker schema (labels and other tracker structure) is the
+- The tracker schema (labels and other tracker structure) is the
   purview of the repo's owner: its design is their call, even when an
   agent helps set it up or change it. The owner is usually the human user,
   but Permission rules are the final arbiter of what an agent may do, so
   making a repo agent-owned means changing a grant, not rewriting skills
   or tools.
-- **R9.** Every state change has exactly one recorded owner. The identity
+- Every state change has exactly one recorded owner. The identity
   an agent acts under is one the Permission rules grant for that repo,
   named by the agent and resolved by the Wrapper, never supplied as a raw
   account. The Actor ID is recorded on every write, whatever identity it
   ran under; when an agent acts under a person's account, that record is
   what keeps its acts distinguishable from the person's.
-- **R10.** An agent sharing its session's Actor ID (a sub-agent, a workflow
+- An agent sharing its session's Actor ID (a sub-agent, a workflow
   agent) does not claim, close, or rewrite: a limitation to close, not a
   principle.
-- **R46.** Changing or destroying existing data requires more delegation
+- Changing or destroying existing data requires more delegation
   than purely additive change. Within that, less judgement is needed when
   the action merely executes an existing, already-authorized plan (forming
   Issues from a design document's scope, say), and more when the agent is
@@ -83,7 +84,7 @@ stops before the requirement's last sentence, which is in the appendix.
   overarching project and reparenting existing Issues under it). Dangerous
   operations whose policy must be foolproof are gated on the operation
   itself.
-- **R48.** Policy (who may do what) lives in Permission rules, and leaves
+- Policy (who may do what) lives in Permission rules, and leaves
   the skills wherever the system can express it as a grant: if the grant
   exists, the agent does the act; if not, the call is denied or asked, and
   that is the answer. Only where Permission rules cannot separate the
@@ -94,27 +95,27 @@ stops before the requirement's last sentence, which is in the appendix.
 
 ## Filing
 
-- **R12.** Capture is never blocked: file with what you know and say
+- Capture is never blocked: file with what you know and say
   honestly what is unknown, never with placeholder text. No Issue is
   empty.
-- **R13.** The title states the outcome; the body says what and why, and
+- The title states the outcome; the body says what and why, and
   what done looks like as far as it is known, so someone outside the
   conversation can pick it up.
-- **R14.** Proactively file Issues for needed work discovered in the course
+- Proactively file Issues for needed work discovered in the course
   of other work; do not leave it undocumented or deferred to "future
   sessions".
-- **R15.** Where permissions are graded, the right to file an Issue
+- Where permissions are graded, the right to file an Issue
   includes the right to edit Issues you filed, even without the right to
   edit Issues in general. Classifying and refining an Issue is part of
   filing it: a filer who cannot correct their own mistakes or record what
   they learn cannot meet the responsibility filing gives them. Like any
   grant, this can be limited or withdrawn.
-- **R16.** Every Issue has exactly one kind, recorded once in the tracker's
+- Every Issue has exactly one kind, recorded once in the tracker's
   own mechanism for kind, and is classified by the project's declared
   scheme.
-- **R18.** Priority lives in exactly one place per repo and exists to
-  answer "what do I work on next?" (Shortened.)
-- **R49.** The filing bar is the same on every tracker, and it is a
+- Priority lives in exactly one place per repo and exists to
+  answer "what do I work on next?"
+- The filing bar is the same on every tracker, and it is a
   minimum: a title that states the outcome; a body that says what is known
   and what is not, with no placeholder text; and an Issue Kind, an Issue
   Priority, and the entry Issue State, each set as best the filer can. A
@@ -127,7 +128,7 @@ stops before the requirement's last sentence, which is in the appendix.
 
 ## Breakdown
 
-- **R20.** A Leaf Issue is one focused task sized for one session, whether
+- A Leaf Issue is one focused task sized for one session, whether
   an agent or a human does it. Anything bigger is a project, not a task,
   and is tracked by a Branch Issue whose children are Leaf or Branch
   Issues; it is never shoehorned into a Leaf Issue. A Leaf Issue that
@@ -136,11 +137,11 @@ stops before the requirement's last sentence, which is in the appendix.
   best-effort guideline: a task that runs past one session simply carries
   into the next, with no extra Issues. Split off a sibling Issue only when
   the remainder cannot be done now, or is substantial.
-- **R21.** A Branch Issue's work is management: scoping, setting success
+- A Branch Issue's work is management: scoping, setting success
   criteria, breaking down, and verifying completion. It is worked in
   session-sized passes, is ready exactly when it has no open children, and
   is never closed merely because its children closed.
-- **R23.** An Issue goes under a parent only when its scope is part of the
+- An Issue goes under a parent only when its scope is part of the
   parent's scope: work bigger than a session is a Branch Issue, broken
   down into children. A dependency or a shared schedule is never by itself
   a reason to group; link it instead. Prefer vertical slices and do not
@@ -149,38 +150,36 @@ stops before the requirement's last sentence, which is in the appendix.
 
 ## Relationships
 
-- **R25.** Record every relationship with its type explicit; blocking is
+- Record every relationship with its type explicit; blocking is
   never the default, because a wrong blocking link silently hides work.
-- **R26.** A relationship lives in the tracker's native link, which is its
+- A relationship lives in the tracker's native link, which is its
   source of truth; prose about it in a body is narrative only.
-- **R28.** Work waiting on a person shows as waiting on that person, and
+- Work waiting on a person shows as waiting on that person, and
   everything waiting on the human sits in one queue they can see.
-  (Shortened.)
 
 ## Lifecycle
 
-- **R29.** Status answers "what kind of expert attention does this Issue
+- Status answers "what kind of expert attention does this Issue
   need next?"
-- **R30.** An Issue may regress to an earlier state at any time; no
+- An Issue may regress to an earlier state at any time; no
   later-stage work goes on top of an earlier stage's gap; open-or-closed
   always agrees with status.
-- **R32.** Choose work explicitly; before touching it, at any stage and not
+- Choose work explicitly; before touching it, at any stage and not
   only implementation, make it visible that you are working on it, since
   one person or agent advances an Issue at a time; as you go, append what
   you learn to the Issue it belongs to, regardless of who filed it or who
   has claimed it; close it when its criteria hold; before you stop, close
   or release everything you hold. Never take over someone else's work in
-  progress; ask. (Shortened.)
-- **R33.** An Issue is a living document: its description is its current
+  progress; ask.
+- An Issue is a living document: its description is its current
   state, rewritten in place, and its comments are an append-only log.
-  (Shortened.)
-- **R34.** A fresh session can resume any Issue from the tracker alone: the
+- A fresh session can resume any Issue from the tracker alone: the
   Issue points to context kept in the project's standard documents rather
   than holding it.
-- **R43.** Context whose proper document is unknown goes to the project's
+- Context whose proper document is unknown goes to the project's
   Docs Inbox, where an open Issue owns incorporating it. A project without
   a Docs Inbox keeps it in the Issue's description.
-- **R50.** Every repo has a Tracker Schema, bootstrapped from the shipped
+- Every repo has a Tracker Schema, bootstrapped from the shipped
   default and recording the revision it was copied from; every edit to it
   is that repo's customization. Its Issue State Diagram holds all state
   meanings and transition conditions, in natural language, with one
@@ -191,26 +190,26 @@ stops before the requirement's last sentence, which is in the appendix.
 
 ## Closing and linkage
 
-- **R35.** Every close and every reopen carries its reason; forge
+- Every close and every reopen carries its reason; forge
   auto-close on PR merge is the one exception; reopening needs more
   authority (a higher permission tier) than closing.
-- **R36.** An Issue is closed, not deleted; the closed Issue stays as the
+- An Issue is closed, not deleted; the closed Issue stays as the
   record. Deleting one is irreversible and is gated by permission like any
   other irreversible act: not-correctable is the floor, and the test is a
   judgement over harm, detection latency, and compounding, made when tiers
   are designed.
-- **R37a.** An Issue is done only when everything that describes it agrees
+- An Issue is done only when everything that describes it agrees
   with the change.
-- **R37b.** Every TODO comment cites a real Issue, filed first, and is
+- Every TODO comment cites a real Issue, filed first, and is
   cleaned up when that Issue closes.
-- **R38.** Every reference to an Issue includes its Issue ID, and in text
+- Every reference to an Issue includes its Issue ID, and in text
   meant for people, a few words of what the Issue is.
-- **R39.** A PR or commit says whether it finishes an Issue or only
+- A PR or commit says whether it finishes an Issue or only
   advances it.
 
 ## Triage
 
-- **R40.** Filing-time checks are best effort; a separate batch pass across
+- Filing-time checks are best effort; a separate batch pass across
   the whole tracker reconciles what they miss.
-- **R42.** Judge recency and staleness from exact timestamps compared with
+- Judge recency and staleness from exact timestamps compared with
   the current time, never from rendered dates.
