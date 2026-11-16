@@ -139,8 +139,8 @@ Load `create-issue` before filing an Issue. It holds the filing discipline
 (search first and what each finding means, the filing bar, kind, priority,
 and labels, relationships, where the Issue came from, refining what you
 filed) and today's `bdw` spellings for each step. How big a Leaf Issue is
-is the `breakdown-issue` skill's. What Beads adds, and one rule (context
-outside the tracker) that stays here until its own skill takes it:
+is the `breakdown-issue` skill's, and where context outside the tracker
+goes is the `work-issue` skill's. What Beads adds:
 
 - **Labels:** children inherit their parent's labels unless filed with
   `--no-inherit-labels`.
@@ -151,12 +151,10 @@ outside the tracker) that stays here until its own skill takes it:
   `bdw duplicate <id> --of=<canonical>` closes the duplicate. On your own,
   only when very confident; otherwise raise it with the user (unattended:
   report it).
-- **Context outside the tracker.** Material that belongs in a standard
-  document (requirements, design, UX, an ADR, a lexicon entry) goes there,
-  and the Issue links it through a metadata key per document type:
-  `bdw update <id> --set-metadata=design=<path>` (common keys:
-  `requirements`, `design`, `ux`, `adr`). If you do not know where it
-  belongs, keep it in the description.
+- **Context outside the tracker:** the Issue links a standard document
+  (requirements, design, UX, an ADR, a lexicon entry) through a metadata
+  key per document type: `bdw update <id> --set-metadata=design=<path>`
+  (common keys: `requirements`, `design`, `ux`, `adr`).
 
 ## Free text
 

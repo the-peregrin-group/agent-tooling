@@ -14,8 +14,8 @@ description: >
   Triggers: "what's ready", "pick this up", "claim this issue", "move this
   issue to", "close the issue", "reopen the issue", "land the plane".
   EXCLUDE: filing an Issue (create-issue); breaking down a Branch Issue
-  (use-bd); a triage pass over the whole tracker (triage-issues); setting a
-  tracker up.
+  (breakdown-issue); a triage pass over the tracker (triage-issues);
+  setting a tracker up.
 ---
 
 # Work Issue

@@ -43,7 +43,7 @@ canonical set shows in review as rows added or removed.
 | What Beads adds to working an Issue (the loop itself is `work-issue`): prime and gate check at session start, and Branch Issues in `bdw ready` | shipped | `skills/use-bd/SKILL.md` |
 | The sub-agent rule (an agent sharing its session's Actor reads, files, and appends, never claims, closes, or rewrites) | shipped | `skills/use-bd/SKILL.md` |
 | The Beads commands for a Branch Issue pass, practiced by hand (the pass rules are `breakdown-issue`'s) | shipped | `skills/use-bd/SKILL.md`; rules in `skills/breakdown-issue/SKILL.md` |
-| What Beads adds to filing (the discipline itself is `create-issue`): label inheritance, acceptance criteria in the description file, closing a duplicate. One rule kept until its own Skill takes it: context linked by metadata key (sizing a Leaf Issue is `breakdown-issue`'s) | shipped | `skills/use-bd/SKILL.md` |
+| What Beads adds to filing (the discipline itself is `create-issue`): label inheritance, acceptance criteria in the description file, closing a duplicate, context linked by metadata key (sizing a Leaf Issue is `breakdown-issue`'s; where context goes is `work-issue`'s) | shipped | `skills/use-bd/SKILL.md` |
 | Free text through bd's existing file forms, switching to a file form when inline text is refused; the Beads spellings of description as state and notes and comments as log (the rule is `work-issue`'s) | shipped | `skills/use-bd/SKILL.md` |
 | Work waiting on a human: gates, the `human` label, `branch` and `pr` metadata | shipped | `skills/use-bd/SKILL.md`; gate rules in `skills/use-bd/rules.json` |
 | Friction reporting, and offering (never filing) upstream bug reports | shipped | `skills/use-bd/SKILL.md` |
