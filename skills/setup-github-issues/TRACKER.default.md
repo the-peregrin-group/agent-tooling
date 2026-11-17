@@ -300,9 +300,8 @@ otherwise leaves the state as it is.
 To In review, when the work is ready for a reviewer. Whoever moves it
 releases the Issue and shows the wait, as the meaning of In review says.
 
-To Needs Impl, when the Issue is released with the work unfinished. This is
-not a regression: no earlier bar failed. If an earlier bar did turn out not
-to be met, the regression below applies instead.
+To Needs Impl, when the Issue is released with the work unfinished. No
+earlier bar failed, so this is not a regression.
 
 #### Out of In review
 
@@ -335,9 +334,9 @@ gives.
 A regression is a transition like any other, whose condition is that an
 earlier bar turned out not to be met. An Issue may regress to an earlier
 state at any time, and no later-stage work goes on top of an earlier
-stage's gap. It returns to the earliest state whose condition for moving on
-it does not meet; that is never later than Needs Impl unless someone holds a
-claim on it.
+stage's gap. It returns to the earliest state whose bar it does not meet. An
+Issue that meets every bar returns to Needs Impl, or to In progress if
+someone holds a claim on it.
 
 ### What is not a state
 
