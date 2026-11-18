@@ -503,6 +503,7 @@ schema is already in place. What recurring triage still needs is per-repo
 *policy* configuration, which belongs to the `triage-issues` skill: a
 `TRIAGE.md` profile at the repo root and a bootstrapped ledger issue. If the
 user wants the repo under recurring triage, point them at that skill's
-bootstrap section as the follow-on. The opaque IDs the profile needs all come
+"Standing up triage in a repo" section and the GitHub steps in its
+`reference/DEPLOYMENT.md` (section 6) as the follow-on. The opaque IDs the profile needs all come
 from `ghw-orient`: the board's `node_id`, plus each field's `id` and option
 IDs under `fields[<name>]`.

@@ -181,7 +181,11 @@ Skill. GitHub's are the six `triage-*` scripts, documented under
   passes. Because findings live on the Issues, the tracker is the pass's
   memory: the body is read back from the `human` queue each pass, and a
   finding is not repeated while it stands. That replaced the ledger's
-  finding identities, carry-forward, aging, and dismissal section.
+  finding identities, carry-forward, aging, and dismissal section. The
+  one exception today is an unattended GitHub pass, which can neither
+  write to the affected issue nor read bodies, comments, or its own
+  digest: it lists findings in the digest and derives them afresh each
+  pass (`agent-tooling-u9n.13`, `agent-tooling-u9n.14`).
   Rejected: the ledger as the queue (a person resolves a finding on the
   affected Issue, and a copy in the ledger goes stale with every change to
   that Issue).

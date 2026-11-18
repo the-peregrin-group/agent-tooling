@@ -37,7 +37,7 @@ How and why it works: [design.md](design.md).
 | PR create, comment, and gated merge | shipped | `ghw-pr-create`, `ghw-pr-comment`, `ghw-pr-merge` |
 | Day-to-day issue and PR conventions | shipped | `use-github` |
 | Repo tracking bootstrap: labels, board, backlog import | shipped | `setup-github-issues` |
-| Backlog triage and grooming, with autonomous writes through dedicated wrappers | shipped | `triage-issues`, `triage-*` |
+| GitHub mechanics of a triage pass: bulk reads and bounded unattended writes | shipped | `triage-*` scripts |
 | Scheduled unattended triage via a guard-script background job | shipped | [DEPLOYMENT.md](../../../skills/triage-issues/reference/DEPLOYMENT.md) |
 | Exit codes per the [Exit-code contract](../../index.md#exit-code-contract), with `gh` and API failures classified in one place | shipped | `lib/github/gh.py`, each Verb |
 | `triage-*` wrappers rebased onto the shared library | planned | [triage-library-rebase.md](triage-library-rebase.md); `agent-tooling-t7y` |
@@ -82,8 +82,12 @@ How and why it works: [design.md](design.md).
   reopened one to Needs Scope whatever the diagram says
   (`agent-tooling-u9n.12`).
 - No `triage-*` script comments on an issue or adds the `human` label, and
-  the shipped label schema has no `human` label, so an unattended pass
-  lists its findings in the ledger instead of putting each on the affected
-  issue (`agent-tooling-u9n.13`).
+  the labels `ghw-label-sync` provisions do not include `human`, so an
+  unattended pass lists its findings in the ledger instead of putting each
+  on the affected issue (`agent-tooling-u9n.13`).
+- No `triage-*` script returns an issue's body or comments, or the
+  ledger's current body, so an unattended pass cannot judge a bar that
+  depends on what an issue says, read an earlier finding or a person's
+  answer, or carry a finding forward (`agent-tooling-u9n.14`).
 - No triage pass has run end to end with real writes; the scripts were
   validated with live reads and dry-run writes (`agent-tooling-8y73`).

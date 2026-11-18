@@ -58,7 +58,7 @@ resolution) before the write itself.
    `allowed-tools` entry: such a grant is repo-unpinned for the length of the
    Skill invocation, the same exposure a user-level read rule would create.
 7. **Unattended triage writes only through the `triage-*` wrappers.** Those
-   six wrappers are the only autonomous write path; how the boundary is kept
+   six wrappers are the only writes an unattended pass is granted; how that is kept
    is in Unattended triage.
 8. **Command-string ask and deny rules do not reach a Verb's subprocesses.**
    Rules match the Bash command string; a Verb's internal `gh` calls never
@@ -138,8 +138,8 @@ resolution) before the write itself.
 - `ghw-issue-comment <repo> <issue#> <body-file>`.
 - `ghw-issue-edit <repo> <add-label|remove-label|retitle|set-body> <issue#>
   <value>`: the subverb at position 2 lets a grant include label edits while
-  withholding `set-body`, since an arbitrary body rewrite belongs to triage's
-  proposed-mutation class. `set-body` takes a staged file, never inline text.
+  withholding `set-body`, since an arbitrary body rewrite is a write a repo
+  may want to withhold. `set-body` takes a staged file, never inline text.
   `add-label` applies the attachment contract and refuses a second type
   label, naming the incumbent; reclassifying takes two visible calls. Each
   subverb converges to a no-op when already satisfied.
