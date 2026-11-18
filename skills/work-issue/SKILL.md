@@ -191,14 +191,10 @@ has no state beyond open and closed.
 - Ready work: there is no queue mechanism on a forge, only the query:
   `gh issue list --repo <owner/repo> --state open`. To read an issue and
   its comments: `gh issue view <issue#> --repo <owner/repo> --comments`.
-- Claim and release: on a forge each is a comment. A claim leaves a comment
-  carrying the Actor ID, and that comment is the lease: an Issue is held
-  when its latest claim or release is a claim. The assignee is routing,
-  meaning whose work the Issue is expected to be, and holds nothing by
-  itself; a claim assigns the Forge identity it runs under only when nobody
-  is assigned. `ghw` has no Verb for either yet. Until it does, leave the
-  comment yourself with `ghw-issue-comment`, naming your session, since
-  nothing adds the Actor ID for you.
+- Claim and release: `ghw` has no Verb for either yet. Until it does, read
+  the comments for someone else's claim before you start, leave a comment
+  (`ghw-issue-comment`) saying you are working on the Issue and naming your
+  session, and leave another when you stop.
 - Append: `ghw-issue-comment`.
 - Edit: `ghw-issue-edit` (`set-body` rewrites the description).
 - Move or regress: `ghw-board-set` on the Status field, with the why in a
