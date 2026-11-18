@@ -23,10 +23,10 @@ agent is allowed to invoke *these wrapper names only* — never raw `gh`.
 |---|---|---|
 | `triage-inventory` | read | — (read-only) |
 | `triage-timeline` | read | — (read-only) |
-| `triage-apply-sync` | autonomous write | **policy**: derives the one correction that makes open-or-closed and `Status` agree; cannot be told a target status |
-| `triage-fix-label` | autonomous write | **schema**: refuses any label not in the profile's label set |
-| `triage-bump-triaged` | autonomous write | **value**: writes only the Last Triaged date field |
-| `triage-update-ledger` | autonomous write | **target**: writes only to the profile's ledger issue; takes no issue number |
+| `triage-apply-sync` | unattended write | **policy**: derives the one correction that makes open-or-closed and `Status` agree; cannot be told a target status |
+| `triage-fix-label` | unattended write | **schema**: refuses any label not in the profile's label set |
+| `triage-bump-triaged` | unattended write | **value**: writes only the Last Triaged date field |
+| `triage-update-ledger` | unattended write | **target**: writes only to the profile's ledger issue; takes no issue number |
 
 Two consequences make the boundary hold by construction:
 
@@ -63,7 +63,7 @@ missing dependency. (`gh` must be installed and authenticated; see §4.)
 
 Add these to `permissions.allow`. They name the wrappers by their installed
 path, and permission rules match the command string as typed, so the agent must
-invoke them spelled exactly as the rule spells them (the skill instructs this).
+invoke them spelled exactly as the rule spells them (`README.md` says so).
 The rows below use the `~/` form of the installed skill path; if your deployment
 writes the path out in full instead, write the rules the same way. Headless
 invocations always pass at least `--profile`, so a trailing argument always
@@ -79,7 +79,7 @@ follows the wrapper name.
 ```
 
 **Do not** add `Bash(gh *)` or any broader `gh` rule to the unattended allowlist —
-that would give proposed mutations an allowlisted path and defeat the fail-safe.
+that would give ungranted writes an allowlisted path and defeat the fail-safe.
 
 Read wrappers are allowlisted too: reads are autonomous, and letting them run
 un-prompted is what makes an unattended pass possible at all.
@@ -91,16 +91,16 @@ un-prompted is what makes an unattended pass possible at all.
 A pass runs attended or unattended, over one ledger. The permission mode is what
 distinguishes them operationally:
 
-- **Interactive** (a human is present): normal session. Proposed mutations prompt;
+- **Interactive** (a human is present): normal session. Ungranted writes prompt;
   the human approves in-session. Any permission mode is fine.
 - **Unattended** (headless): must run **deny-by-default** — `--permission-mode
   dontAsk` — with the allowlist above. This is the
   enforcement, not a suggestion: it is the mechanism that turns "no wrapper for
-  proposed mutations" into "proposed mutations cannot happen."
+  other writes" into "other writes cannot happen."
 
 > **NEVER run the unattended pass under `bypassPermissions`.** Under bypass, raw
-> `gh` is auto-approved, so a stray proposed mutation would *execute* rather than
-> fail closed — collapsing the autonomy boundary to an instruction the model is
+> `gh` is auto-approved, so a stray ungranted write would *execute* rather than
+> fail closed, leaving the limit as an instruction the model is
 > merely asked to honor. If a scheduler offers only `bypassPermissions` (no
 > deny-by-default), it is **not** an acceptable host for the unattended pass; use
 > the guard-script background job (§4), which runs `--permission-mode dontAsk`, instead.
@@ -108,8 +108,8 @@ distinguishes them operationally:
 > ⚠️ **Caveat: project and local write rules.** An unattended pass launched in a
 > repo whose project settings (`.claude/settings.json`) or local settings
 > (`.claude/settings.local.json`) allowlist `ghw-*` write verbs gains a write path
-> outside the triage wrappers, so its permission boundary no longer equals its
-> autonomy boundary. Until that is resolved, do not host unattended triage in
+> outside the triage wrappers, so what the pass can do is no longer only what
+> the scripts can do. Until that is resolved, do not host unattended triage in
 > such a repo.
 
 ### Verification checklist before trusting an unattended host

@@ -41,7 +41,8 @@ Issue.
 
 A pass checks Issues; it does not work them. Scoping, designing,
 implementing, and breaking down are work on one Issue, done by whoever
-claims it.
+claims it. Asked to triage one Issue, run steps 2 to 5 for it, with the
+overlap search of step 3.
 
 ## Before the pass
 
@@ -50,9 +51,9 @@ claims it.
   thresholds, the Issue Label Schema, and the Issue State Diagram, and it
   is the only place those are defined. A repo with no Tracker Schema file
   yet declares its kinds, priorities, and labels wherever its tracker was
-  set up (Platform mechanics says where); for the Issue State Diagram read
-  the shipped default, `TRACKER.default.md` in the setup skill's
-  directory, and say in the digest that you did.
+  set up; for the staleness thresholds and the Issue State Diagram read
+  the shipped default Tracker Schema, and say in the digest that you did.
+  Platform mechanics says where each of these is.
 - Take the current time from the system clock. Judge recency and staleness
   from exact timestamps compared with the current time, never from
   rendered dates.
@@ -93,8 +94,8 @@ judged again.
   else's work in progress; ask.
 - **Staleness.** An Issue is stale when the time since its latest activity
   exceeds `stale_after_days` for its priority. Every open Issue is judged,
-  whatever its state. Stale is a question (is it still wanted, is its
-  priority right, who takes it), not a verdict.
+  whatever its state. Stale is a question (is it still wanted or already
+  done by other work, is its priority right, who takes it), not a verdict.
 - **Relationships.** A relationship lives in the tracker's native link,
   with its type explicit; one that exists only as prose in a body is
   missing. Look also for a blocking link that does not really block, and
@@ -126,10 +127,7 @@ work on an earlier gap.
 - Move an Issue to another state only when the diagram's condition plainly
   holds, and say why on the Issue. Every close and every reopen carries
   its reason.
-- Changing or destroying existing data requires more delegation than
-  purely additive change. So a pass comments rather than rewriting a
-  description, and expects closing, reopening, merging, and reparenting to
-  be denied or asked.
+- Prefer the additive act: comment rather than rewrite a description.
 - Whatever you are unsure of, and whatever is denied or would need a
   person's approval, is not attempted another way. It goes to a person
   (step 5).
@@ -151,7 +149,8 @@ kind of decision. What they settle there is acted on and not queued.
 ### 6. Record the pass
 
 - **Each Issue.** Record on each Issue you looked at that the pass looked
-  at it, and when. Make this the last write of the pass.
+  at it, and when. Make it the last write to that Issue, so the pass's own
+  changes fall before it.
 - **The digest.** The pass's digest is one Issue of kind `meta`, classified
   like any Issue and skipped by triage as work. Its body is the current
   report, rewritten in place each pass: everything that now waits on a
@@ -174,7 +173,9 @@ launched.
 
 These stand in for each wrapper's help until the wrappers carry triage
 Verbs of their own. Free text (a comment, the digest's body) always goes
-through a file.
+through a file. The shipped default Tracker Schema is
+`TRACKER.default.md` in the `setup-github-issues` skill's directory,
+whatever the platform, until the generic setup skill ships.
 
 ### Beads
 
@@ -211,11 +212,16 @@ How the steps above map onto the scripts:
 - Inventory is `triage-inventory`, anchored on the project board, which is
   where the Issue State is recorded (the `Status` field). It also reports
   open issues that are not on the board; those have no recorded state.
+  Attended, add them with `ghw-board-set`; otherwise each is a finding.
 - Latest activity is `triage-timeline`'s `mostRecentMeaningfulActivity`,
   an exact timestamp that already leaves out board automation and the bot
   accounts the profile lists. Compare it with the current time yourself.
+  It does not leave out the pass's own label fixes and `Status`
+  corrections, and it does not see Priority changes.
 - "When a pass last looked" is the board's `Last Triaged` date field,
-  written by `triage-bump-triaged`.
+  written by `triage-bump-triaged`. It is a calendar date with no time:
+  treat it as the start of that day, so activity later the same day is
+  looked at again.
 - The digest is written by `triage-update-ledger`.
 
 How GitHub evidence is read. None of it defines a state; it is evidence to
@@ -227,15 +233,16 @@ weigh against the diagram.
   evidence the work may be finished. A pull request that names the issue
   any other way is not reported.
 - An assignee is routing: whose work the issue is expected to be. It is
-  not a claim and holds nothing by itself. No script reads comments, so a
-  claim recorded as a comment is invisible to a pass that has only the
-  scripts.
+  not a claim and holds nothing by itself.
 
 What today's scripts assume, which the text above does not:
 
 - They read `TRIAGE.md`, never the Tracker Schema. `triage-fix-label`
-  accepts only the labels the profile lists. The staleness numbers in the
-  profile are not used; the thresholds are the Tracker Schema's.
+  accepts only the labels the profile lists. With no Tracker Schema, the
+  kinds and labels are the profile's `labels.type` and `labels.area`, and
+  the priorities are the board's `Priority` options. The staleness numbers
+  in the profile are not used; the thresholds are the Tracker Schema's,
+  or the shipped default's where the repo has none.
 - Boards carry eight `Status` options: Needs Triage, Needs Scope, Needs
   Eng Design, Needs Impl, In progress, In review, Done, and Rejected. The
   shipped default diagram has the first six and one closed state whose
@@ -247,10 +254,21 @@ What today's scripts assume, which the text above does not:
   writes Needs Scope, whatever the diagram would say; if the diagram puts
   the issue elsewhere, that is a further move for the pass or a person.
 - No script comments on an affected issue or adds the `human` label, and
-  the shipped label schema has no `human` label. Where the pass cannot do
-  either (an unattended pass granted only the six scripts cannot), each
-  finding goes in the digest's body with a link to its issue, and the
-  digest says the queue could not be written.
+  the labels `ghw-label-sync` provisions do not include `human`. Until the
+  scripts can (`agent-tooling-u9n.13` in the agent-tooling repo's
+  tracker), a pass that can do neither, as an unattended pass granted only
+  the six scripts cannot, puts each finding in the digest's body with a
+  link to its issue and says there that the queue could not be written.
+  This is a stopgap, and the one exception to "the digest is not the
+  queue".
+- No script returns an issue's body or comments, or the digest's current
+  body. A pass that has only the scripts can check classification,
+  open-or-closed against `Status`, staleness, and pull request evidence.
+  It cannot judge a bar that depends on what an issue says, cannot read an
+  earlier finding, a person's answer, or a claim recorded as a comment,
+  and cannot carry a finding forward. So it derives every finding afresh
+  each pass (the shortcut in step 1 for an Issue with no activity does not
+  apply to it) and says in the digest what it could not check.
 
 ### Forgejo
 
