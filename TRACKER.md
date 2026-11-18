@@ -55,7 +55,7 @@ an action on its own, only with a human's approval, or never).
     },
     {
       "name": "epic",
-      "meaning": "A project: an Issue that holds other Issues as its children"
+      "meaning": "The kind designated to hold children: a Branch Issue is filed as, or retyped to, an epic"
     }
   ],
   "issue_priorities": [
@@ -180,7 +180,9 @@ this file outside the markers.
 - `issue_kinds`: the Issue Kinds, each with its `name` and its `meaning`.
   Every Issue has exactly one, recorded once, in the tracker's own
   mechanism for kind. In this repo that is the Issue's type in Beads, and
-  the kinds listed are the Beads types this repo uses. A kind for design
+  the kinds listed are the Beads types this repo files Issues as. A gate
+  (type `gate`) is Beads' record of a wait, not an Issue, and has no kind.
+  A kind for design
   documents, planning artifacts, and non-code project work, `meta`, is
   wanted but is not a Beads type here yet (`agent-tooling-aio.7`, convert
   the imported type labels and add a custom meta type); until it is, such
@@ -411,14 +413,15 @@ label everywhere, and on Beads a gate as well.
 
 An Issue State is recorded once, in the tracker's own mechanism for status
 where it has one, otherwise in the one place this file designates. This
-repo's Issue Tracker is Beads, and the place is the Issue's status.
-
-Beads today holds only its own statuses, not the seven states above, so the
-status records only part of an Issue's state:
+repo's Issue Tracker is Beads, whose mechanism for status is the Issue's
+status. It cannot hold the seven states above yet, so today it records only
+part of an Issue's state:
 
 - `closed`: the Issue is Closed.
 - `in_progress`: the Issue is open and someone holds a claim on it. Claiming
   sets this status and releasing clears it, on any Issue in any open state.
+  So the status `in_progress` says only that the Issue is claimed, not that
+  it is in the state In progress.
 - `open`: the Issue is open and nobody holds a claim on it.
 
 Which of the six open states an Issue is in is not recorded anywhere yet.
