@@ -52,12 +52,9 @@ Before touching it, at any stage and not only implementation, make it
 visible that you are working on it, since one person or agent advances an
 Issue at a time.
 
-- Never take over someone else's work in progress; ask.
-- On a forge, a claim leaves a comment carrying the Actor ID, and that
-  comment is the lease: an Issue is held when its latest claim or release is
-  a claim. The assignee is routing, meaning whose work the Issue is expected
-  to be, and holds nothing by itself; a claim assigns the Forge identity it
-  runs under only when nobody is assigned.
+- Never take over someone else's work in progress; ask. Read the Issue for
+  someone else's claim before you start.
+- How a claim is made visible is the platform's; the last section has it.
 - Whether a claim also moves the Issue State is the Issue State Diagram's
   call.
 - An agent sharing its session's Actor ID (a sub-agent, a workflow agent)
@@ -85,21 +82,24 @@ load `create-issue`.
 
 ### 4. When the work waits on a person
 
-When an Issue cannot move until a person acts (a PR in review, a decision),
-release it. Work waiting on a person shows as waiting on that person, and
-everything waiting on the human sits in one queue they can see. The
-mechanism is per platform.
+When an Issue cannot move until a person acts (a decision, an approval),
+release it and show who it waits on, in the way the platform provides.
 
-### 5. Close it, or release it
+### 5. Close it, hand it to review, or release it
 
-Close it when its criteria hold: a Leaf Issue is closed when its acceptance
-criteria hold, and a Branch Issue is never closed merely because its
-children closed. An Issue is done only when everything that describes it
-agrees with the change. Closing is a change to the Issue, so the rules under
-Changing an Issue apply.
+When the work is finished as far as you can tell, judge against the repo's
+Issue State Diagram what comes next: the Issue closes, or it moves on to
+review by someone else. What review the work needs, and whether it needs
+any, is your judgement, and it depends on the work. An Issue that moves to
+review is released, and says what review it waits on.
 
-Otherwise release it. A release is left after the pick-up is written; on a
-forge it is a comment too.
+A Leaf Issue is closed when its acceptance criteria hold, and a Branch
+Issue is never closed merely because its children closed. An Issue is done
+only when everything that describes it agrees with the change. Closing is a
+change to the Issue, so the rules under Changing an Issue apply.
+
+When the work is not finished, release it, after the pick-up note is
+written.
 
 **Land the plane.** Before you stop, close or release everything you hold.
 
@@ -121,18 +121,12 @@ one's own finished work is the routine case.
 - **Link.** Record every relationship with its type explicit; blocking is
   never the default, because a wrong blocking link silently hides work.
   `create-issue` has the other relationship rules and the spellings.
-- **Move.** Judge every move against the repo's Issue State Diagram: an
-  Issue Transition is taken only when its condition holds, judged by whoever
-  moves the Issue. A wrong state puts later work on an earlier gap.
-- **Regress.** An Issue may regress to an earlier state at any time; no
-  later-stage work goes on top of an earlier stage's gap. A regression is a
-  transition like any other, whose condition is that an earlier bar turned
-  out not to be met. Say which bar, on the Issue.
+- **Move**, forward or back. Judge every move against the repo's Issue
+  State Diagram, which holds every state's meaning and every transition's
+  condition, and say why on the Issue.
 - **Close.** Every close and every reopen carries its reason; forge
   auto-close on PR merge is the one exception. An Issue is closed, not
-  deleted; the closed Issue stays as the record. Open-or-closed always
-  agrees with status. Every TODO comment that cites the Issue is cleaned up
-  when that Issue closes.
+  deleted; the closed Issue stays as the record.
 - **Reopen.** Reopening needs more authority (a higher permission tier) than
   closing. A closed Issue that matches new work (done, regressed, or closed
   unfinished) is reopened rather than filed again.
@@ -142,28 +136,22 @@ tracker was set up; the last section says where to look on each platform.
 
 ## Naming the Issue in commits and PRs
 
-A commit or PR names the Issue it serves in a git trailer, `Lands: <Issue
-ID> (a few words)` when it finishes the Issue and `Advances: <Issue ID> (a
-few words)` when it only moves it, and never names the tracker.
+Where the work lands as commits or PRs, each names the Issue it serves in a
+git trailer, `Lands: <Issue ID> (a few words)` or `Advances: <Issue ID> (a
+few words)`, and never names the tracker.
 
 - **`Lands:`** when it finishes the Issue: with this change in, the Issue's
   criteria hold.
 - **`Advances:`** when it only moves it: more work remains under the same
   Issue.
 - The few words say what the Issue is, for a person reading the log.
-- Each trailer is one line, never wrapped, and the trailers are the last
-  paragraph of the commit message or PR body, with nothing else in that
-  paragraph: git reads no trailer from a paragraph that holds any other
-  line.
 - Where a project uses more than one forge, a forge Issue ID is written
   qualified (`owner/repo#42`), since a bare number would be ambiguous.
-- A platform's own closing mechanics (GitHub's `Closes #N`) are added only
-  where the Issue lives on that platform and auto-close is wanted. They go
-  in the text above the trailers, never among them.
 - Neither trailer closes anything: the close is still its own act, with its
   reason.
 
-`use-git` has the trailer's place in a commit message.
+`use-git` has the trailer's form and place in a commit message, and
+`use-github` its place in a PR body beside GitHub's own `Closes #N`.
 
 ## Today's spellings
 
@@ -177,7 +165,8 @@ bd's own statuses, which `bdw statuses` lists.
 
 - Ready work: `bdw ready`, then `bdw show <id>` to read an Issue.
 - Claim: `bdw update <id> --claim`. bd's claim sets the status to
-  `in_progress` in every case.
+  `in_progress` in every case. That is bd's behaviour, not the diagram's: a
+  claim on a Branch Issue is not a move.
 - Append: `bdw note <id> --file=<path>` or
   `bdw comments add <id> -f <path>`. On Beads the notes field is a log, like
   comments.
@@ -200,15 +189,21 @@ state beyond open and closed.
 - Ready work: there is no queue mechanism on a forge, only the query:
   `gh issue list --repo <owner/repo> --state open`. To read an issue and
   its comments: `gh issue view <issue#> --repo <owner/repo> --comments`.
-- Claim and release: `ghw` has no Verb for either yet. Until it does, leave
-  the comment yourself with `ghw-issue-comment`, naming your session, since
+- Claim and release: on a forge each is a comment. A claim leaves a comment
+  carrying the Actor ID, and that comment is the lease: an Issue is held
+  when its latest claim or release is a claim. The assignee is routing,
+  meaning whose work the Issue is expected to be, and holds nothing by
+  itself; a claim assigns the Forge identity it runs under only when nobody
+  is assigned. `ghw` has no Verb for either yet. Until it does, leave the
+  comment yourself with `ghw-issue-comment`, naming your session, since
   nothing adds the Actor ID for you.
 - Append: `ghw-issue-comment`.
 - Edit: `ghw-issue-edit` (`set-body` rewrites the description).
 - Move or regress: `ghw-board-set` on the Status field, with the why in a
   comment.
-- Waiting on a person: the forges have no standard mechanism yet; say who
-  the Issue waits on in a comment.
+- Waiting on a person: add the `human` label where the repo's labels have
+  it (`ghw-issue-edit add-label`), and say who the Issue waits on in a
+  comment.
 - Close: `ghw-issue-close`, whose comment file is the reason. Where the
   repo has a board, then set its Status field to the closed option that
   matches the reason (`ghw-board-set`).
