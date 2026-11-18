@@ -47,8 +47,12 @@ have.
 
 In a repo, the Tracker Schema is `TRACKER.md` at the repo root, the same
 convention as `LEXICON.md` and `TRIAGE.md`, found with no configuration on
-any platform. Rejected: a dot-directory, a path under `docs/`, and the
-tracker's own directory such as `.beads/`. This answers `agent-tooling-wx5`
+any platform. Rejected: a dot-directory (hidden from people browsing the
+repo, and this file is meant to be read and edited); a path under `docs/`
+(repos lay out their docs differently, so finding it would need
+configuration); and the tracker's own directory such as `.beads/` (it ties
+the schema to one tracker, and GitHub and Forgejo have no such directory).
+This answers `agent-tooling-wx5`
 (one canonical per-repo config home) for the schema. Folding `TRIAGE.md`'s
 config block into this file's JSON block is left to `agent-tooling-u9n.8`
 (make triage-issues tool-agnostic).
@@ -62,8 +66,11 @@ change to the Install Manifest. That directory is
 shipped default Tracker Schema from setup-github-issues to
 setup-issue-tracker) tracks the move, which lands with `agent-tooling-u9n.9`
 (write setup-issue-tracker, the generic setup skill). Rejected:
-`skills/know-issues/`, `cli/lib/`, and a new top-level directory with its
-own Cohort.
+`skills/know-issues/` (setup is the only thing that copies the default, so
+it belongs with setup); `cli/lib/` (the default is a document agents read,
+not code, and that directory ships in a different Cohort); and a new
+top-level directory with its own Cohort (a change to the Install Manifest
+for one file).
 
 The default is written to read true both as the original and as a repo's
 copy, because setup copies it whole: it calls itself "this repo's Tracker
@@ -81,7 +88,9 @@ A repo's copy records, in the JSON block, the source repo, the full commit
 from the Installer's Receipt (`source_commit`), and the default's path at
 that commit, so "what has the default changed since" is a diff of that path
 between the recorded commit and the current one. Rejected: a hand-bumped
-revision number, and a content hash. In the shipped default the three
+revision number (someone has to remember to bump it, and a number cannot be
+diffed against), and a content hash (it shows that the default changed but
+not what changed). In the shipped default the three
 fields are `null`, since it is not a copy.
 
 When the Receipt's commit is `-dirty` or unknown, setup stops and says so
