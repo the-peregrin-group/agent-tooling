@@ -250,7 +250,6 @@ class SkillTeachesOnlyAllowedCommandsTest(unittest.TestCase):
             "bdw ready",
             "bdw update X --claim",
             "bdw note X --file=X",
-            "bdw update X --status=X",
             "bdw unclaim X",
             "bdw close X --reason-file=X",
             "bdw reopen X",

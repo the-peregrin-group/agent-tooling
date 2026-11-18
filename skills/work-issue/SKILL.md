@@ -172,8 +172,8 @@ bd's own statuses, which `bdw statuses` lists.
   comments.
 - Edit: `bdw update <id> --body-file=<path>` rewrites the description; the
   pick-up note is its `## Pick-up` section.
-- Move or regress: `bdw update <id> --status=<status>`, with the why in a
-  note. Never close this way: it carries no reason.
+- Move or regress: Beads holds only its own statuses today, so the only
+  moves are the ones a claim, a release, a close, and a reopen make.
 - Waiting on a person: a gate and the `human` label; `use-bd` has the steps.
 - Release: `bdw unclaim <id>`.
 - Close: `bdw close <id> --reason-file=<path>`.
