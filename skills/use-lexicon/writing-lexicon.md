@@ -37,11 +37,11 @@ context this repo addresses.
 ### Core identity
 
 An entry states the concept's core identity: the smallest set of traits that
-make it what it is. Test every trait the entry states, in the definition or
-its invariants: change it, and is it still the same concept? If it is, cut
-the trait. Treat the test as nearly absolute; content that fails belongs
-downstream. Length follows the concept: a single sentence that captures the
-core identity is a complete definition, and some concepts need a paragraph.
+make it what it is. Test every trait the definition states: change it, and is
+it still the same concept? If it is, cut the trait. Treat the test as nearly
+absolute; content that fails belongs downstream. Length follows the concept:
+a single sentence that captures the core identity is a complete definition,
+and some concepts need a paragraph.
 
 Every trait of the current implementation must pass the test to appear, not
 just its technical details (addresses, vendors, schemas, topology) but also
@@ -54,25 +54,34 @@ media" (in the worked example) passes: it says content type does not change
 what a Post is, and its examples only illustrate "mixed media". What fails is
 a trait that narrows the concept to today's instance.
 
-By itself, absence in the current implementation does not imply a rule. An
-"only", "never", or "always" claim is an invariant and takes the same test:
-would a version that did the excluded thing still be this concept? Code shows
-what is, not what must be. An invariant needs a reason in the concept itself,
-or the user's word.
-
 Example: in a project whose only door is a shed's exterior door, a Door is "a
 movable panel in a wall that opens and closes to let people pass through."
 Its fiberglass, its hardware, and its place in an exterior wall all fail the
 test: a glazed interior door that opens outward is still a Door. "Never has
-windows" and "always opens inward" fail too. The shed's door having no window
-says nothing about Doors.
+windows" and "always opens inward" fail the invariant test (below): a glazed
+door that opens outward needs no redesign of what a Door is.
 
 Example: a "Home Screen" entry says what that screen is, what it is for, and
 what it means to users. Today's visual design, its Tailwind styling, and its
 asynchronous loading do not belong.
 
-Example invariants for Permissions Grant (defined in the worked example
-below):
+### Invariants
+
+An invariant is a rule every valid implementation must uphold. Like a
+definition, it records the project's design, not a fact about the world.
+Breaking it without a redesign is a defect, and a fundamental redesign changes
+the lexicon along with it. Test each one: would changing it take a
+fundamental redesign of the concept, or only a different implementation? Only
+the first is an invariant. That the current implementation always upholds a
+rule does not show that the design requires it. An invariant needs a reason
+in the concept itself, or the user's word.
+
+By itself, absence in the current implementation does not imply a rule. An
+"only", "never", or "always" claim is an invariant and takes the same test.
+
+Example: for Twitter in 2008, "a Tweet fits in one SMS message" passes. It
+shaped the product, its UX, and everything downstream, and lifting it later
+was a redesign. For Permissions Grant (defined in the worked example below):
 
 - Pass: "never outlives the Account that holds it"; "held by exactly one
   Account". Each survives any change of storage or topology.
