@@ -232,7 +232,7 @@ it.
 #### In progress
 
 Someone has claimed it and is implementing it. It needs that implementer to
-finish.
+finish. A Branch Issue is the one exception, described below.
 
 #### In review
 
@@ -244,6 +244,25 @@ state says what is needed and the wait says who.
 
 It needs no attention. "Done" and "Rejected" are not attention states; they
 are closed plus a reason.
+
+#### A Branch Issue in these states
+
+A Branch Issue's state describes the Branch Issue itself, never the states
+of its children. It moves through the same states, read this way:
+
+- Needs Triage, Needs Scope, and Closed mean what they mean for any Issue.
+- Needs Eng Design: the decisions that span its children are not yet made.
+- Needs Impl: it is scoped and designed, and it needs a pass to break it
+  down.
+- In progress: its open children cover all the work that remains, as far as
+  anyone knows, and that work is being carried out. No claim is needed: a
+  claim on a Branch Issue marks a pass in flight and never changes its
+  state.
+
+A Branch Issue may have children in flight in any open state. Having
+children, or children being worked, moves nothing: a Branch Issue whose
+first children exist to find out what the rest of the work is stays in
+Needs Scope while they are worked.
 
 ### When an Issue moves
 
@@ -287,21 +306,29 @@ state; a repo that works that way adds one to its diagram.
 #### Out of Needs Eng Design
 
 To Needs Impl, when an implementer could proceed without further design
-input.
+input. For a Branch Issue, when the rest of the work could be broken down
+without further design input.
 
 #### Out of Needs Impl
 
-To In progress, when someone claims it, or when whoever already holds a
-claim on it starts implementing. A claim moves Needs Impl to In progress and
-otherwise leaves the state as it is.
+A Leaf Issue moves to In progress when someone claims it, or when whoever
+already holds a claim on it starts implementing. A claim moves a Leaf Issue
+from Needs Impl to In progress and otherwise leaves the state as it is.
+
+A Branch Issue moves to In progress when its scope and design bars are met
+and its open children cover all the work that remains, as far as anyone
+knows. The test: if every open child closed today, would the pass that
+verifies it expect to close it? If more work would still need charting, it
+belongs in the earliest state whose bar it does not meet.
 
 #### Out of In progress
 
 To In review, when the work is ready for a reviewer. Whoever moves it
 releases the Issue and shows the wait, as the meaning of In review says.
 
-To Needs Impl, when the Issue is released with the work unfinished. No
-earlier bar failed, so this is not a regression.
+To Needs Impl, when a Leaf Issue is released with the work unfinished. No
+earlier bar failed, so this is not a regression. A Branch Issue released at
+the end of a pass stays in the state it is in.
 
 #### Out of In review
 
@@ -334,9 +361,10 @@ gives.
 A regression is a transition like any other, whose condition is that an
 earlier bar turned out not to be met. An Issue may regress to an earlier
 state at any time, and no later-stage work goes on top of an earlier
-stage's gap. It returns to the earliest state whose bar it does not meet. An
-Issue that meets every bar returns to Needs Impl, or to In progress if
-someone holds a claim on it.
+stage's gap. It returns to the earliest state whose bar it does not meet. A
+Leaf Issue that meets every bar returns to Needs Impl, or to In progress if
+someone holds a claim on it. A Branch Issue that meets every bar returns to
+In progress.
 
 ### What is not a state
 
