@@ -152,7 +152,9 @@ fixtures under `/tmp/claude/` (the staging root the wrappers accept). They
 create it if it is missing, so `/tmp/claude/` must be creatable and writable
 by you; the rest use a temporary directory.
 
-`LEXICON.md` is the vocabulary. `docs/adr/` holds the design decisions.
+`LEXICON.md` is the vocabulary. `TRACKER.md` is the Tracker Schema, this
+repo's declared structure for its Issue Tracker. `docs/adr/` holds the
+design decisions.
 `docs/index.md` is the documentation front door: per-project docs under
 `docs/projects/`, the exit-code contract every wrapper shares, and the rest.
 

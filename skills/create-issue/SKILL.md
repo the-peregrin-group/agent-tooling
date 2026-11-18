@@ -144,8 +144,8 @@ These stand in for each wrapper's help until the wrapper is rebuilt to
 document its own Verbs; each list goes when its wrapper's help replaces it.
 Free text (a body, a note, a comment) always goes through a file.
 
-**Beads** (`bdw`). Help: `bdw help <verb>`. The repo's scheme today is in
-`.beads/PRIME.md`, which `bdw prime` prints.
+**Beads** (`bdw`). Help: `bdw help <verb>`. A repo with no Tracker Schema
+file yet states its scheme in `.beads/PRIME.md`, which `bdw prime` prints.
 
 - Search: `bdw search <words>` (titles and IDs, closed Issues included) and
   `bdw list --desc-contains=<words> --all`. After filing,
