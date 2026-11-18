@@ -44,15 +44,16 @@ How and why it works: [design.md](design.md).
 
 ### Known gaps
 
-- The triage Skill still closes approved issues with raw `gh issue close`,
-  which posts no comment (`agent-tooling-0fm`).
+- `ghw-issue-close` cannot carry GitHub's close reason (completed or not
+  planned), which `triage-apply-sync` reads to choose Done or Rejected
+  (`agent-tooling-0fm`).
 - Unattended triage cannot run in a repo whose project or local settings
   grant ghw write Verbs; no mechanism isolates the pass from those grants
   (`agent-tooling-ys3`).
-- The triage bootstrap (R-CAD-6 and `DEPLOYMENT.md` §6) creates the ledger
-  issue with raw `gh issue create` instead of a Verb; needs a decision first
-  on whether the triage-excluded ledger issue takes the type and `area:`
-  labels `ghw-issue-create` requires (`agent-tooling-5kf`).
+- The triage bootstrap (`DEPLOYMENT.md` §6) creates the ledger issue with
+  raw `gh issue create` instead of a Verb. The ledger is a `meta` issue
+  classified like any other; which `area:` label it takes is not decided
+  (`agent-tooling-5kf`).
 - `ghw-board-sync`'s write path, including `new`, has never run against the
   live GitHub API; it is verified by schema introspection and unit tests only
   (`agent-tooling-2ul`).
@@ -74,3 +75,15 @@ How and why it works: [design.md](design.md).
   six-code Exit-code contract (`agent-tooling-cjvo.2`).
 - The six `triage-*` reference scripts exit `0`, `1`, and `2` only, not
   the six-code Exit-code contract (`agent-tooling-cjvo.7`).
+- The six `triage-*` scripts read the `TRIAGE.md` profile, not the repo's
+  Tracker Schema, and work to eight board `Status` options where the
+  default Issue State Diagram has six open states and one closed one:
+  `triage-apply-sync` writes Done or Rejected to a closed issue and sends a
+  reopened one to Needs Scope whatever the diagram says
+  (`agent-tooling-u9n.12`).
+- No `triage-*` script comments on an issue or adds the `human` label, and
+  the shipped label schema has no `human` label, so an unattended pass
+  lists its findings in the ledger instead of putting each on the affected
+  issue (`agent-tooling-u9n.13`).
+- No triage pass has run end to end with real writes; the scripts were
+  validated with live reads and dry-run writes (`agent-tooling-8y73`).

@@ -211,15 +211,7 @@ session ends); this section is only GitHub's mechanics for it.
       issue is deliberately two calls: `remove-label` the old type, then
       `add-label` the new one.
     - `set-body` takes a body **file** path (staging rule applies), never
-      inline text. Before rewriting a body wholesale, preserve any
-      triage-owned structure already in it: the scoped-issue template
-      sections (Problem / motivation, Goal, Acceptance criteria,
-      User experience, Out of scope, Links), a `## Design decisions` section,
-      a `**Blocked on:**` marker near the top, and a parent tracker's
-      scope-locked checkbox (default phrasing
-      `- [ ] All children created (scope locked)`; the repo's `TRIAGE.md` may
-      override it). The wrapper doesn't parse these; stomping them breaks
-      triage.
+      inline text.
 - **Close:** `ghw-issue-close <owner/repo> <issue#> <comment-file>` — the comment
   file is required: the close carries its reason in one call, and a missing
   or blank comment is exit 2. The forge's auto-close on PR merge is the
@@ -298,12 +290,14 @@ This skill is for acting on a single issue as normal work happens — file it,
 label it, prioritize it, work it, close it — through the `ghw-*` wrappers,
 interactively.
 
-`triage-issues` is a different mode: a repeatable, mostly-autonomous pass over
-the *whole* backlog that screens issues, enforces label compliance, moves them
-through the status model, and records findings in a durable ledger issue. It's
-driven by a `TRIAGE.md` profile and routes its autonomous writes through its
-own `triage-*` wrappers — deliberately the only write path an unattended run
-has. Use it for "run triage" or a grooming pass — not for filing one issue.
+`triage-issues` is a different mode: a repeatable batch pass over the *whole*
+tracker, on any platform, that checks every issue against the repo's Tracker
+Schema, puts what needs a person on the affected issue, and keeps a digest
+issue. On GitHub its bulk reads and unattended writes go through six
+`triage-*` scripts bound by a `TRIAGE.md` profile, which are the only write
+path an unattended run is granted; an attended pass uses the `ghw-*` Verbs
+as this skill teaches them. Use it for "run triage" or a grooming pass, not
+for filing one issue.
 
 `setup-github-issues` is the one-time bootstrap that created the label schema
 and board this skill assumes.

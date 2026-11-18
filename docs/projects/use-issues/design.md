@@ -1,9 +1,9 @@
 # use-issues design
 
 How the shipped parts of the Issue Tracker skill family work and why. What
-is shipped is in [index.md](index.md). The Tracker Schema file and
-`work-issue` are described here so far; the design of everything not yet built is in the
-dated [proposal](2026-11-13-proposal.md), and each slice carries its part
+is shipped is in [index.md](index.md). The Tracker Schema file,
+`work-issue`, and `triage-issues` are described here so far; the design of
+everything not yet built is in the dated [proposal](2026-11-13-proposal.md), and each slice carries its part
 into this document when it lands.
 
 ## The Tracker Schema file
@@ -53,9 +53,10 @@ repo, and this file is meant to be read and edited); a path under `docs/`
 configuration); and the tracker's own directory such as `.beads/` (it ties
 the schema to one tracker, and GitHub and Forgejo have no such directory).
 This answers `agent-tooling-wx5`
-(one canonical per-repo config home) for the schema. Folding `TRIAGE.md`'s
-config block into this file's JSON block is left to `agent-tooling-u9n.8`
-(make triage-issues tool-agnostic).
+(one canonical per-repo config home) for the schema. `TRIAGE.md`'s config
+block is not folded into this file's JSON block: it holds one board's
+opaque GitHub IDs, which only the GitHub triage scripts read, and that
+Issue stays open for what becomes of it.
 
 ### The shipped default
 
@@ -150,3 +151,53 @@ keyword is GitHub's documented form.
   until `ghw` has the Verb (`agent-tooling-fyxo`, ghw issue Verbs on the
   shared grammar). The lease, the Actor ID, and the assignee's role are
   designed with that Verb, not ahead of it.
+
+## triage-issues
+
+`triage-issues` is the batch pass over the whole tracker. Its generic text
+names no platform and no state; a pass is read against the repo's Tracker
+Schema, and each platform's mechanics are one section at the end of the
+Skill. GitHub's are the six `triage-*` scripts, documented under
+[ghw](../ghw/design.md#triage-on-github).
+
+- **No state model of its own.** The Skill's eight-state table, transition
+  list, and per-state playbooks are gone
+  ([ADR 0019](../../adr/0019-issue-lifecycle-semantics-live-in-the-issue-state-diagram.md),
+  lifecycle semantics live in the Issue State Diagram). The pass checks
+  each recorded state against the diagram in both directions and says
+  nothing more about states, so a repo that changes its diagram changes
+  what triage does without touching the Skill.
+- **No autonomy boundary of its own.** What a pass may do on its own is the
+  Permission rules it runs under. The Skill carries discipline only: be
+  liberal with priority and conservative with state, comment rather than
+  rewrite, say why on the Issue, and never try another path to a denied
+  act.
+- **A pass checks; it does not work.** Scoping and engineering design used
+  to be interactive steps of a triage pass. They are work on one Issue,
+  done by whoever claims it, so they left triage.
+- **The human queue is on the Issues.** What needs a person is a comment on
+  the affected Issue with the `human` label. The digest is a kind-`meta`
+  Issue whose body is the current report and whose comments are the log of
+  passes. Because findings live on the Issues, the tracker is the pass's
+  memory: the body is read back from the `human` queue each pass, and a
+  finding is not repeated while it stands. That replaced the ledger's
+  finding identities, carry-forward, aging, and dismissal section.
+  Rejected: the ledger as the queue (a person resolves a finding on the
+  affected Issue, and a copy in the ledger goes stale with every change to
+  that Issue).
+- **Staleness has no exempt state.** Every open Issue is judged against its
+  priority's `stale_after_days`. The earlier Skill exempted its entry
+  state, because every pass screened every Issue there. An Issue that
+  lingers in the default entry state past its threshold is one screening
+  could not move and nobody has fixed, which is what staleness is for, and
+  the rule needs no state name.
+- **Judgement over enumeration.** The earlier Skill enumerated cases (split
+  and group gates, consequence rubrics, linkage keyword lists, report entry
+  formats, distribution thresholds). The Skill is used in repos that are
+  not code, and the enumerations kept disagreeing with the diagram, so it
+  now states each rule once, plainly, and leans on the agent's judgement.
+
+A repo with no Tracker Schema file yet is read against the shipped
+default's diagram, and the digest says so. What the GitHub scripts still
+assume, and what a pass on Beads lacks, are Known gaps in
+[index.md](index.md) and [ghw's index](../ghw/index.md#known-gaps).

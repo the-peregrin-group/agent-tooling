@@ -246,9 +246,10 @@ writes to this repo, and the flag only narrows which board is touched.
 
 - `triage-inventory` and `triage-timeline`: triage-shaped bulk reads, already
   read-only and separately granted; bulk reads stay there.
-- Triage's proposed-mutation set (status, priority, and size transitions,
-  scope-body rewrites, closes, reparenting) has no autonomous path by design
-  (see Unattended triage).
+- A triage write path beyond the six `triage-*` scripts (moves between open
+  states, priority changes, body rewrites, comments, closes, reparenting):
+  an unattended pass is granted only the scripts, and an attended one uses
+  the Verbs above (see Triage on GitHub).
 - Anything git: that is gitw and `use-git`.
 
 ## Shared conventions
@@ -302,12 +303,6 @@ writes to this repo, and the flag only narrows which board is touched.
 - **Usage errors that self-correct:** rigid positional signatures make
   mistakes fail at the Verb, so the message must let an agent fix the call in
   one round trip.
-- **Triage-owned body structures are load-bearing:** the scoped-issue
-  template (Problem / Goal / Acceptance criteria / User experience / Out of
-  scope / Links), `## Design decisions` sections, the `**Blocked on:**`
-  marker, and the parent tracker's `- [ ] All children created (scope
-  locked)` checkbox. The Verbs do not parse them; the Skill texts warn
-  `set-body` callers not to stomp them.
 
 ## Shared library
 
@@ -353,11 +348,15 @@ terminal-state set. The planned rebase is
   canonical GitHub layer, and to `triage-issues` for the optional `TRIAGE.md`
   and ledger-issue bootstrap, which is per-repo policy rather than board
   schema.
-- **triage-issues** points to `use-github` as the canonical layer and keeps
-  its own `triage-*` wrappers for autonomous writes. They live in
+- **triage-issues** is generic: its text names no platform and no state,
+  and a pass is read against the repo's Tracker Schema
+  ([use-issues design](../use-issues/design.md#triage-issues)). GitHub is
+  one section of it, "Platform mechanics", which points to `use-github` for
+  attended writes and to the six `triage-*` scripts for bulk reads and
+  unattended writes. The scripts live in
   `skills/triage-issues/reference/`, install with the Skills, and are the one
   exception to bare-name invocation: they run as `python3 <path>` (see
-  Permission rules).
+  Permission rules). What they do and assume is in Triage on GitHub.
 
 ## Permission rules
 
@@ -389,13 +388,58 @@ rule is needed (see Evidence).
   which rules exist, not by Wrapper configuration. There are no side-channel
   policy files; all policy is visible in settings.
 
+## Triage on GitHub
+
+The `triage-issues` Skill carries the discipline of a pass and is written
+against no platform. These are the GitHub mechanics behind it, and the
+reasons for them.
+
+- **The project board is the inventory anchor,** not the repo's issue
+  list. The board is where the Issue State is recorded (the `Status`
+  field), it yields the project item ID every field write needs, and
+  iterating its items catches closed issues whose `Status` still says open.
+  `triage-inventory` then lists the open issues missing from the board.
+- **Latest activity is computed from a server-side allowlist of timeline
+  events** (`triage-timeline`): comments, title changes, label, assignee,
+  and milestone changes, close and reopen, linked and unlinked pull
+  requests, duplicate marks, transfers, board adds, removes, and `Status`
+  changes, and sub-issue, parent, and blocked-by changes. Cross-references,
+  mentions, subscriptions, pins, and locks are never fetched. The latest of
+  those is compared with the body's `lastEditedAt`, because body and title
+  edits emit no timeline event. Dropped after the fetch: anything by a bot
+  account the profile lists, and `Status` changes made by GitHub's built-in
+  board automation or on another project.
+- **Two accepted limits of that computation.** Priority and Size changes
+  are board field changes that emit no timeline event, so they do not count
+  as activity. And a pass runs under the operator's own GitHub account, so
+  its own label fixes and `Status` corrections cannot be told from a
+  person's; `Last Triaged` writes emit no event, which is why the pass
+  writes that field last.
+- **Pull request evidence is GitHub's own closing linkage**
+  (`closedByPullRequestsReferences`, closed pull requests included). A pull
+  request that names an issue any other way is not reported;
+  `triage-timeline` declares a list of contributing keywords and uses it
+  nowhere (`agent-tooling-m1sl`, teach triage to read the Lands and
+  Advances trailers). The Skill treats this as evidence to weigh against
+  the Issue State Diagram and never as the definition of a state.
+- **`triage-apply-sync` cannot be told a target.** It re-reads the issue
+  and derives the one correction that makes open-or-closed and `Status`
+  agree, so a granted call cannot be turned into an arbitrary state move.
+  The same idea bounds the other three write scripts: a label from the
+  profile's lists, a date, or free text confined to the one ledger issue.
+
+The scripts predate the Tracker Schema and still work to the `TRIAGE.md`
+profile and eight board `Status` options; the Skill's GitHub section says
+exactly what they assume, and [index.md](index.md)'s Known gaps name what
+is not yet true.
+
 ## Unattended triage
 
 An unattended triage pass runs deny-by-default (`--permission-mode dontAsk`)
 with only the six `triage-*` wrappers granted, so any other write (raw `gh`,
-a status transition) is denied rather than executed: the permission boundary
-equals the autonomy boundary. Never `bypassPermissions`, which would approve
-a stray proposed mutation.
+a `ghw-*` Verb) is denied rather than executed. What the pass may do on its
+own is exactly those Permission rules; the Skill says nothing about it.
+Never `bypassPermissions`, which would approve a stray write.
 
 The launch form this design endorses is a background job dispatched by a
 guard script
