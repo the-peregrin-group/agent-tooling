@@ -70,8 +70,8 @@ Pull requests are unaffected. **Load the `use-github` skill before opening a
 PR**; its issue-filing and board conventions do not apply while Beads is the
 Issue Tracker, and a commit or PR names the Issue it serves in a trailer
 (`Lands: agent-tooling-xyz (a few words)` when it finishes the Issue,
-`Advances: agent-tooling-xyz (a few words)` when it only moves it), never
-with `Closes #N`.
+`Advances: agent-tooling-xyz (a few words)` when it only moves it), instead
+of `Closes #N`.
 
 ## Agent integration branches
 
