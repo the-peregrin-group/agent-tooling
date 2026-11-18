@@ -191,8 +191,9 @@ is safe **provided the board actually has the option**: check the board's
 `conformance` verdict from Step 1, since a board with `gaps` may lack
 canonical states and the wrapper will refuse an option the field doesn't
 have. A later Status move is `work-issue`'s: it is judged against the
-repo's Issue State Diagram, and until the repo has one, against the states
-and conditions `triage-issues` documents.
+repo's Issue State Diagram. Until the repo has one, make only the moves
+your own work causes (claimed, released, finished) and leave every other
+move to a triage pass.
 
 ## Working an Issue (any time after filing)
 

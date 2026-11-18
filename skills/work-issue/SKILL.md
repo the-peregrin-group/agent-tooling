@@ -182,9 +182,11 @@ bd's own statuses, which `bdw statuses` lists.
 
 **GitHub Issues** (`ghw-*`). Help: each Verb's `--help`. `use-github` holds
 the arguments until that help does. The states today are the options of the
-board's Status field, which `ghw-orient <owner/repo>` reports, with their
-meanings and conditions in `triage-issues`; a repo with no board has no
-state beyond open and closed.
+board's Status field, which `ghw-orient <owner/repo>` reports; today they
+are the ones `triage-issues` documents. Until the repo has a Tracker
+Schema, make only the moves your own work causes (claimed, released,
+finished) and leave every other move to a triage pass. A repo with no board
+has no state beyond open and closed.
 
 - Ready work: there is no queue mechanism on a forge, only the query:
   `gh issue list --repo <owner/repo> --state open`. To read an issue and
