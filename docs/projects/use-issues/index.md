@@ -32,6 +32,7 @@ is tracked in `agent-tooling-84n3` (bdw), `agent-tooling-fyxo` (ghw),
 | Capability | State | Where |
 |---|---|---|
 | The default Tracker Schema, with its Issue State Diagram | shipped | `skills/setup-github-issues/TRACKER.default.md`; [design](design.md) |
+| This repo's own Tracker Schema, copied from the default and customized | shipped | `TRACKER.md` |
 | `know-issues`, the Knowledge Skill for the issue fundamentals | shipped | `skills/know-issues/SKILL.md`; documented under [know](../know/index.md) |
 | `create-issue`, generic, against today's Verbs | shipped | `skills/create-issue/SKILL.md` |
 | `work-issue`, generic, against today's Verbs | shipped | `skills/work-issue/SKILL.md` |
@@ -47,8 +48,13 @@ is tracked in `agent-tooling-84n3` (bdw), `agent-tooling-fyxo` (ghw),
 
 - Nothing reads the default Tracker Schema's JSON block yet, and no test
   checks that the shipped default is well formed (`agent-tooling-rtag`).
-- No setup copies the default into a repo, and no repo has a `TRACKER.md`
-  yet (`agent-tooling-u9n.9`, `agent-tooling-u9n.3`).
+- No setup copies the default into a repo yet; this repo's copy was made
+  by hand (`agent-tooling-u9n.9`).
+- The default does not drop in cleanly for a repo on Beads
+  (`agent-tooling-u9n.11`).
+- This repo's `TRACKER.md` declares no `meta` kind, because it is not a
+  registered Beads type, and some imported Issues still carry GitHub type
+  labels the schema does not declare (`agent-tooling-aio.7`).
 - The default leaves open where an Issue State is recorded on a forge with
   no status mechanism (`agent-tooling-vb2v`), and neither Beads statuses
   nor a GitHub board field holds the default's states today
