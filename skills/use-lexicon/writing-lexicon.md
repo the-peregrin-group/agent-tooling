@@ -10,9 +10,9 @@ context this repo addresses.
 ### What belongs
 
 - The canonical term names of this project's domain.
-- For each: a conceptual definition that bridges business purpose and applied
-  solution.
-- Invariants that any valid implementation must uphold.
+- For each: a conceptual definition: the concept's core identity (below).
+- Invariants that any valid implementation must uphold, not ones today's
+  implementation merely happens to uphold.
 - Relationships between terms: hierarchy, cardinality, sibling distinctions.
 - Retired terms, in their fixed forms.
 
@@ -34,20 +34,54 @@ context this repo addresses.
   proposal (procedure C).
 - A standalone invariants section, or example dialogue.
 
-### Litmus test
+### Core identity
 
-> If the concrete implementation changed tomorrow (renumbering, hardware swap,
-> vendor change, topology revamp), would this still read true?
+An entry states the concept's core identity: the smallest set of traits that
+make it what it is. Test every trait the definition states: change it, and is
+it still the same concept? If it is, cut the trait. Treat the test as nearly
+absolute; content that fails belongs downstream. Length follows the concept:
+a single sentence that captures the core identity is a complete definition,
+and some concepts need a paragraph.
 
-Every definition sentence and every invariant must pass. Treat the test as
-nearly absolute; a failure means the content belongs downstream.
+Every trait of the current implementation must pass the test to appear, not
+just its technical details (addresses, vendors, schemas, topology) but also
+today's behaviors, policies, materials, and layout. That every instance you
+have seen shares a trait does not make the trait core. What counts as
+implementation depends on the concept, not on how technical a word sounds.
+Naming other concepts can be the minimal concept-level view, even when a
+whole subsystem implements each one. Post's "can contain plain text or mixed
+media" (in the worked example) passes: it says content type does not change
+what a Post is, and its examples only illustrate "mixed media". What fails is
+a trait that narrows the concept to today's instance.
+
+Example: in a project whose only door is a shed's exterior door, a Door is "a
+movable panel in a wall that opens and closes to let people pass through."
+Its fiberglass, its hardware, and its place in an exterior wall all fail the
+test: a glazed interior door that opens outward is still a Door. "Never has
+windows" and "always opens inward" fail the invariant test (below): a glazed
+door that opens outward needs no redesign of what a Door is.
 
 Example: a "Home Screen" entry says what that screen is, what it is for, and
 what it means to users. Today's visual design, its Tailwind styling, and its
 asynchronous loading do not belong.
 
-Example invariants for Permissions Grant (defined in the worked example
-below):
+### Invariants
+
+An invariant is a rule every valid implementation must uphold. Like a
+definition, it records the project's design, not a fact about the world.
+Breaking it without a redesign is a defect, and a fundamental redesign changes
+the lexicon along with it. Test each one: would changing it take a
+fundamental redesign of the concept, or only a different implementation? Only
+the first is an invariant. That the current implementation always upholds a
+rule does not show that the design requires it. An invariant needs a reason
+in the concept itself, or the user's word.
+
+By itself, absence in the current implementation does not imply a rule. An
+"only", "never", or "always" claim is an invariant and takes the same test.
+
+Example: for Twitter in 2008, "a Tweet fits in one SMS message" passes. It
+shaped the product, its UX, and everything downstream, and lifting it later
+was a redesign. For Permissions Grant (defined in the worked example below):
 
 - Pass: "never outlives the Account that holds it"; "held by exactly one
   Account". Each survives any change of storage or topology.
@@ -98,10 +132,19 @@ Allowlist), but the entry's term name keeps it.
 
 ### Avoid lists
 
-An Avoid list is optional and need not be exhaustive. It steers readers away
-from common synonyms and easily confused concepts. Add a word when you observe
-it misused; do not guess ahead. A retired name goes in Retired terms only,
-never in an Avoid list.
+An Avoid list names words a reader is likely to reach for, unprompted, when
+they mean this concept: common, intuitive near-synonyms (Invoice: avoid
+"bill") and the everyday names of easily confused concepts. Each word must
+pass one test: would a human or agent plausibly use it for this concept? A
+word seen misused passes. Otherwise, include it only if it is a common word
+with a meaning close enough to be mistaken for this one. An absent or short
+list is normal; never pad one to fill the field.
+
+A candidate rejected in a naming discussion does not go in on that account.
+Most rejected candidates were coined for the discussion and are not in use,
+so nobody will reach for them. One earns a place only if it passes the same
+test as any other word. A retired name goes in Retired terms only, never in
+an Avoid list.
 
 ### Authority
 
@@ -134,8 +177,8 @@ does not own (e.g., another Account's Posts).
 
 - The term in bold, then a colon, then the definition sentences.
 - `_Invariants_` is optional: clauses separated by semicolons.
-  List every invariant here even when the definition already states or
-  implies it, so agents can find constraints without parsing prose.
+  Restate here any invariant the definition states or implies, so agents
+  can find constraints without parsing prose.
 - `_Avoid_` is optional: words separated by commas.
 - Put a blank line between entries.
 - Refer to another entry by its term name, capitalized as defined (plural:
@@ -227,7 +270,9 @@ Steps:
 3. Next turn: present your answers to naming questions 3 and 4: the
    candidates, your recommendation, and the collision check.
 4. Push back with specific concerns wherever you have them. The user decides.
-5. Draft the entry in the format above. When the user ratifies it, write it to
+5. Draft the entry in the format above. The definition states the agreed core
+   identity and nothing more; any further trait needs its own agreement.
+   When the user ratifies it, write it to
    `LEXICON.md` at once, with any new relationships. If the user says "park
    it", write a proposal (procedure C, steps 1-2) instead.
 
@@ -241,8 +286,9 @@ so that some Accounts can moderate other Accounts' Posts.
   The user agrees. Nothing is named yet.
 - Next turn: "Candidates: Permissions Grant (recommended: 'grant' says the
   authority is conferred, not inherent), Access Grant, Authority Grant.
-  Collisions: none with an entry, an Avoid word, or a retired term. Since you
-  said 'role' and 'permission' for it, both go in its Avoid list." The user
+  Collisions: none with an entry, an Avoid word, or a retired term. You said
+  'role' and 'permission' for it; both are everyday words a reader would
+  reach for, so both go in its Avoid list." The user
   picks Permissions Grant. Draft the entry (as in the worked example); when
   the user ratifies it, write it and its relationship at once.
 
