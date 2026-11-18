@@ -206,8 +206,8 @@ The states are listed in the order an Issue normally moves through them.
 #### Needs Triage
 
 The default entry state: an Issue is filed here when its right state is not
-known, and returned here when it is found not to meet the bar for the state
-it was in. It needs screening, someone to check that it is a real Issue,
+known, and returned here when it is found lacking and where it belongs is
+not known. It needs screening, someone to check that it is a real Issue,
 classified, with enough in it for scoping to start. A filer who knows the
 Issue already meets every bar up to a later state files it there: a small
 bug, diagnosed, with a clear fix and no trade-offs to weigh, goes straight
@@ -387,8 +387,6 @@ where it has one, otherwise in the one place this file designates:
 - Beads: the Issue's status.
 - GitHub with a project board: the board's status field.
 - A forge with no status mechanism beyond open and closed (Forgejo, and
-  GitHub without a project board): not designated yet. The shipped default
-  leaves this open until its source repo decides it (tracked there as
-  `agent-tooling-vb2v`, where an Issue State is recorded on forges with no
-  status mechanism). A repo on such a forge designates its own place here,
-  as a customization; a label axis for status is one workable choice.
+  GitHub without a project board): not designated in the shipped default.
+  A repo on such a forge designates its own place here, as a customization;
+  a label axis for status is one workable choice.
