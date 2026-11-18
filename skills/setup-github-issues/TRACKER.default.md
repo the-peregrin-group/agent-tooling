@@ -236,9 +236,11 @@ finish. A Branch Issue is the one exception, described below.
 
 #### In review
 
-It needs a reviewer. While an Issue is here it is released and shown as
-waiting on its PR's reviewer, by whatever the platform uses for that, so the
-state says what is needed and the wait says who.
+The work is finished as far as whoever did it can tell, and it needs
+review: someone else confirming it was done well. What review a piece of
+work needs, and whether it needs any, is a judgement that depends on the
+work. While an Issue is here it is released, and it says what review it is
+waiting on.
 
 #### Closed
 
@@ -323,8 +325,8 @@ belongs in the earliest state whose bar it does not meet.
 
 #### Out of In progress
 
-To In review, when the work is ready for a reviewer. Whoever moves it
-releases the Issue and shows the wait, as the meaning of In review says.
+To In review, when the work is finished and needs review. Whoever moves it
+releases the Issue and says what review it needs.
 
 To Needs Impl, when a Leaf Issue is released with the work unfinished. No
 earlier bar failed, so this is not a regression. A Branch Issue released at
