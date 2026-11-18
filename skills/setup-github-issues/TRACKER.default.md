@@ -173,7 +173,8 @@ this file outside the markers.
   label. The labels on the area axis are the repo's own, since
   the parts of a project are that project's: the shipped default lists
   none, and the repo owner fills them in. Until then no Issue's labels can
-  conform, so no Issue can leave Needs Triage.
+  conform, so no Issue can be in a
+  state later than Needs Triage.
 - `issue_states`: the Issue States, each with its `name` and its `open`
   flag, `true` for an open state and `false` for a closed one. That flag is
   the only structure a state has. Every Issue is in exactly one state, and
@@ -255,12 +256,13 @@ are closed plus a reason.
 A Branch Issue's state describes the Branch Issue itself, never the states
 of its children. It moves through the same states, read this way:
 
-- Needs Triage, Needs Scope, and Closed mean what they mean for any Issue.
+- Needs Triage, Needs Scope, In review, and Closed mean what they mean for
+  any Issue.
 - Needs Eng Design: the decisions that span its children are not yet made.
 - Needs Impl: it is scoped and designed, and it needs a pass to break it
   down.
 - In progress: its open children cover all the work that remains, as far as
-  anyone knows, and that work is being carried out. No claim is needed: a
+  anyone knows. No claim is needed: a
   claim on a Branch Issue marks a pass in flight and never changes its
   state.
 

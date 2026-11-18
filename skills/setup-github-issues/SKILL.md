@@ -388,7 +388,7 @@ ghw-board-set <owner/repo> Priority <P0-P3> <issue#>
 ghw-board-set <owner/repo> Status "Needs Triage" <issue#>
 ```
 
-Set Status as well as Priority: `Needs Triage` is the canonical entry state,
+Set Status as well as Priority: `Needs Triage` is the canonical default entry state,
 and an unset Status leaves the issue invisible in the board's grouped views.
 (Historical/closed issues instead get `Status` `Done` if you add them to the
 board at all.)
@@ -483,7 +483,7 @@ the end:
 - **Every issue gets exactly one type label + one or more area labels**
 - **Priority (P0-P3) is tracked as a GitHub Project field**, not as an issue label
 - New issues should be added to the project (or auto-added via workflow)
-- **Status starts at `Needs Triage`**, set at filing time — an unset Status
+- **Status starts at `Needs Triage` by default**, set at filing time — an unset Status
   is invisible in the board's grouped views
 
 **Always:**
