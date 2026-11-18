@@ -167,7 +167,10 @@ this file outside the markers.
   Issue carries at least one label from it, and its `labels`, each written
   in full, as it appears on an Issue, with its `meaning`. `labels` lists
   the labels that belong to no axis. An unknown label is a mistake to fix,
-  not a new label. The labels on the area axis are the repo's own, since
+  not a new label. Where the tracker has no field for an Issue's kind,
+  priority, or state, a label named for it carries it; that label is
+  declared by the kind, priority, or state it names and is not an unknown
+  label. The labels on the area axis are the repo's own, since
   the parts of a project are that project's: the shipped default lists
   none, and the repo owner fills them in. Until then no Issue's labels can
   conform, so no Issue can leave Needs Triage.
