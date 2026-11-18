@@ -78,8 +78,8 @@ The title states the outcome; the body says what and why, and what done
 looks like as far as it is known, so someone outside the conversation can
 pick it up.
 
-An Issue with a title and one honest sentence is correctly in the entry
-state. A more complete Issue is welcome, so long as it states what is known
+An Issue with a title and one honest sentence is correctly in the default
+entry state. A more complete Issue is welcome, so long as it states what is known
 rather than presuming what is not: technical design and implementation
 choices are not the filer's to settle at filing, least of all when filing
 into a project whose context the filer lacks. Everything beyond the minimum
@@ -100,9 +100,10 @@ declare.
   answer "what do I work on next?" Set it as best you can: where the tracker
   fills in a default, that default is the tool's guess, not the filer's. A
   wrong priority costs nothing, since the batch pass reconciles it.
-- **Entry state.** A new Issue goes in the entry Issue State the repo's
-  Issue State Diagram declares. Any later move is judged against that
-  diagram and is not part of filing.
+- **Entry state.** A new Issue goes in the default entry Issue State the
+  repo's Issue State Diagram declares when its right state is not known. A
+  filer who knows the Issue already meets every bar up to a later state
+  files it there, judging that against the diagram as for any move.
 - **Labels.** Labels are drawn from the Issue Label Schema; an unknown label
   is a mistake to fix, not a new label. Every Issue carries at least one
   Area Label.
@@ -154,7 +155,7 @@ Free text (a body, a note, a comment) always goes through a file.
   --labels=<labels> --body-file=<path>`.
 - Kind is the type field (`--type`; `bdw types` lists the kinds), never a
   label. bd defaults the priority and the status on every Issue, so the
-  entry state needs no call and the priority still needs yours.
+  default entry state needs no call and the priority still needs yours.
 - Labels: `bdw label list-all` lists the ones in use.
 - A dependency: `bdw dep add <blocked> <blocker> --type=blocks`. Always pass
   `--type` to `dep add`: bare, it creates a blocking edge. Any other link is
@@ -175,7 +176,7 @@ does; the repo's scheme today is what `ghw-orient <owner/repo>` reports.
 - Search: `gh issue list --repo <owner/repo> --search "<keywords>" --state
   all --limit 20`.
 - File: `ghw-issue-create`. Kind is its type label, a Kind Label.
-- Priority and the entry state: `ghw-board-set`, where priority is a board
+- Priority and the state filed in: `ghw-board-set`, where priority is a board
   field; otherwise the priority is a label attached at filing.
 - A dependency or a parent: `ghw-issue-link` (`add-blocked-by`, `add-sub`).
 - Context for an existing Issue: `ghw-issue-comment`.

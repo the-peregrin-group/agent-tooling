@@ -175,9 +175,9 @@ redeclares a canonical label.
 | Label | Color | Description |
 |-------|-------|-------------|
 | `feature` | `#a2eeef` | New feature, system, or capability |
-| `improvement` | `#0075ca` | Enhancement or refinement of existing functionality |
+| `improvement` | `#0075ca` | Enhancement or refinement of what exists, including its quality, structure, and docs |
 | `bug` | `#d73a4a` | Something is broken or performs incorrectly |
-| `debt` | `#fbca04` | Code quality, refactoring, documentation |
+| `debt` | `#fbca04` | Work skipped or done poorly earlier: stale docs, test gaps, expedient hacks, dead code |
 | `meta` | `#7057ff` | Design documents, planning artifacts, and non-code project work |
 
 **Priority labels** — only if NOT using a GitHub Project for priority
@@ -388,7 +388,7 @@ ghw-board-set <owner/repo> Priority <P0-P3> <issue#>
 ghw-board-set <owner/repo> Status "Needs Triage" <issue#>
 ```
 
-Set Status as well as Priority: `Needs Triage` is the canonical entry state,
+Set Status as well as Priority: `Needs Triage` is the canonical default entry state,
 and an unset Status leaves the issue invisible in the board's grouped views.
 (Historical/closed issues instead get `Status` `Done` if you add them to the
 board at all.)
@@ -483,7 +483,7 @@ the end:
 - **Every issue gets exactly one type label + one or more area labels**
 - **Priority (P0-P3) is tracked as a GitHub Project field**, not as an issue label
 - New issues should be added to the project (or auto-added via workflow)
-- **Status starts at `Needs Triage`**, set at filing time — an unset Status
+- **Status starts at `Needs Triage` by default**, set at filing time — an unset Status
   is invisible in the board's grouped views
 
 **Always:**

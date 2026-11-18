@@ -48,7 +48,8 @@ projects, which lives under `docs/audits/`.
   knowledge rather than direct a procedure, under the `know-` prefix.
 - [use-issues](projects/use-issues/index.md): the Issue Tracker skill
   family, shipping in slices: generic skills split by moment of need over
-  self-documenting wrappers.
+  self-documenting wrappers; its [design](projects/use-issues/design.md)
+  covers what has shipped, and the dated proposal the rest.
 
 ## Cross-cutting audits
 

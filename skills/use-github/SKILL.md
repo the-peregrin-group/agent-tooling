@@ -129,9 +129,9 @@ one).
 | Type | Use for |
 |------|---------|
 | `feature` | New feature, system, or capability |
-| `improvement` | Enhancement or refinement of existing functionality |
+| `improvement` | Enhancement or refinement of what exists, including its quality, structure, and docs |
 | `bug` | Something is broken or performs incorrectly |
-| `debt` | Code quality, refactoring, documentation |
+| `debt` | Work skipped or done poorly earlier: stale docs, test gaps, expedient hacks, dead code |
 | `meta` | Design documents, planning artifacts, and non-code project work |
 
 Write the body to a staging file (see The Wrapper Layer), then:
@@ -184,7 +184,8 @@ ghw-board-set acme/rocket-sled Priority P2 41
 ghw-board-set acme/rocket-sled Status "Needs Triage" 41
 ```
 
-New issues start at `Needs Triage` — setting that on a freshly filed issue
+New issues start at `Needs Triage` by default (`create-issue` says when one
+may be filed at a later state) — setting that on a freshly filed issue
 is safe **provided the board actually has the option**: check the board's
 `conformance` verdict from Step 1, since a board with `gaps` may lack
 canonical states and the wrapper will refuse an option the field doesn't
