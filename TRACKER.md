@@ -34,24 +34,28 @@ an action on its own, only with a human's approval, or never).
   },
   "issue_kinds": [
     {
-      "name": "feature",
-      "meaning": "New feature, system, or capability"
-    },
-    {
-      "name": "improvement",
-      "meaning": "Enhancement or refinement of what exists, including its quality, structure, and docs"
+      "name": "task",
+      "meaning": "A unit of work that fits no other kind"
     },
     {
       "name": "bug",
       "meaning": "Something is broken or performs incorrectly"
     },
     {
-      "name": "debt",
-      "meaning": "Work skipped or done poorly earlier: stale docs, test gaps, expedient hacks, dead code"
+      "name": "feature",
+      "meaning": "New feature, system, or capability, or an enhancement or refinement of what exists"
     },
     {
-      "name": "meta",
-      "meaning": "Design documents, planning artifacts, and non-code project work"
+      "name": "chore",
+      "meaning": "Maintenance and housekeeping, including work skipped or done poorly earlier: stale docs, test gaps, expedient hacks, dead code"
+    },
+    {
+      "name": "decision",
+      "meaning": "A decision to make and record"
+    },
+    {
+      "name": "epic",
+      "meaning": "A project: an Issue that holds other Issues as its children"
     }
   ],
   "issue_priorities": [
@@ -74,6 +78,11 @@ an action on its own, only with a human's approval, or never).
       "name": "P3",
       "meaning": "Opportunistic",
       "stale_after_days": 28
+    },
+    {
+      "name": "P4",
+      "meaning": "Not planned, kept so it is not lost",
+      "stale_after_days": 56
     }
   ],
   "issue_label_schema": {
@@ -83,7 +92,24 @@ an action on its own, only with a human's approval, or never).
         "prefix": "area:",
         "meaning": "The part of the project an Issue concerns",
         "every_issue_carries_at_least_one": true,
-        "labels": []
+        "labels": [
+          {
+            "name": "area:dev-x",
+            "meaning": "Repo-internal developer experience: conventions, licensing, test support, tooling"
+          },
+          {
+            "name": "area:installer",
+            "meaning": "The Installer (tooling-install) and the Install Manifest (install.json)"
+          },
+          {
+            "name": "area:skills",
+            "meaning": "Shipped skill and agent text"
+          },
+          {
+            "name": "area:wrappers",
+            "meaning": "The Wrappers and their shared library"
+          }
+        ]
       }
     ],
     "labels": [
@@ -153,7 +179,12 @@ this file outside the markers.
   provenance.
 - `issue_kinds`: the Issue Kinds, each with its `name` and its `meaning`.
   Every Issue has exactly one, recorded once, in the tracker's own
-  mechanism for kind.
+  mechanism for kind. In this repo that is the Issue's type in Beads, and
+  the kinds listed are the Beads types this repo uses. A kind for design
+  documents, planning artifacts, and non-code project work, `meta`, is
+  wanted but is not a Beads type here yet (`agent-tooling-aio.7`, convert
+  the imported type labels and add a custom meta type); until it is, such
+  work takes the listed kind that fits it best.
 - `issue_priorities`: the Issue Priorities, listed from highest to lowest,
   each with its `name`, its `meaning`, and its staleness threshold,
   `stale_after_days`. Priority answers "what do I work on next?". Every
@@ -171,10 +202,7 @@ this file outside the markers.
   priority, or state, a label named for it carries it; that label is
   declared by the kind, priority, or state it names and is not an unknown
   label. The labels on the area axis are the repo's own, since
-  the parts of a project are that project's: the shipped default lists
-  none, and the repo owner fills them in. Until then no Issue's labels can
-  conform, so no Issue can be in a
-  state later than Needs Triage.
+  the parts of a project are that project's.
 - `issue_states`: the Issue States, each with its `name` and its `open`
   flag, `true` for an open state and `false` for a closed one. That flag is
   the only structure a state has. Every Issue is in exactly one state, and
@@ -382,11 +410,19 @@ label everywhere, and on Beads a gate as well.
 ### Where an Issue State is recorded
 
 An Issue State is recorded once, in the tracker's own mechanism for status
-where it has one, otherwise in the one place this file designates:
+where it has one, otherwise in the one place this file designates. This
+repo's Issue Tracker is Beads, and the place is the Issue's status.
 
-- Beads: the Issue's status.
-- GitHub with a project board: the board's status field.
-- A forge with no status mechanism beyond open and closed (Forgejo, and
-  GitHub without a project board): not designated in the shipped default.
-  A repo on such a forge designates its own place here, as a customization;
-  a label axis for status is one workable choice.
+Beads today holds only its own statuses, not the seven states above, so the
+status records only part of an Issue's state:
+
+- `closed`: the Issue is Closed.
+- `in_progress`: the Issue is open and someone holds a claim on it. Claiming
+  sets this status and releasing clears it, on any Issue in any open state.
+- `open`: the Issue is open and nobody holds a claim on it.
+
+Which of the six open states an Issue is in is not recorded anywhere yet.
+Read it from the Issue itself, judged against the meanings and conditions
+above, and do not record it anywhere else, a label included. This lasts
+until Beads can hold these states (`agent-tooling-c86`, status-gated Issue
+lifecycle on Beads). This repo uses no other Beads status.
