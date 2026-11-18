@@ -98,10 +98,19 @@ Allowlist), but the entry's term name keeps it.
 
 ### Avoid lists
 
-An Avoid list is optional and need not be exhaustive. It steers readers away
-from common synonyms and easily confused concepts. Add a word when you observe
-it misused; do not guess ahead. A retired name goes in Retired terms only,
-never in an Avoid list.
+An Avoid list names words a reader is likely to reach for, unprompted, when
+they mean this concept: common, intuitive near-synonyms (Invoice: avoid
+"bill") and the everyday names of easily confused concepts. Each word must
+pass one test: would a human or agent plausibly use it for this concept? A
+word seen misused passes. Otherwise, include it only if it is a common word
+with a meaning close enough to be mistaken for this one. An absent or short
+list is normal; never pad one to fill the field.
+
+A candidate rejected in a naming discussion does not go in on that account.
+Most rejected candidates were coined for the discussion and are not in use,
+so nobody will reach for them. One earns a place only if it passes the same
+test as any other word. A retired name goes in Retired terms only, never in
+an Avoid list.
 
 ### Authority
 
@@ -241,8 +250,9 @@ so that some Accounts can moderate other Accounts' Posts.
   The user agrees. Nothing is named yet.
 - Next turn: "Candidates: Permissions Grant (recommended: 'grant' says the
   authority is conferred, not inherent), Access Grant, Authority Grant.
-  Collisions: none with an entry, an Avoid word, or a retired term. Since you
-  said 'role' and 'permission' for it, both go in its Avoid list." The user
+  Collisions: none with an entry, an Avoid word, or a retired term. You said
+  'role' and 'permission' for it; both are everyday words a reader would
+  reach for, so both go in its Avoid list." The user
   picks Permissions Grant. Draft the entry (as in the worked example); when
   the user ratifies it, write it and its relationship at once.
 
