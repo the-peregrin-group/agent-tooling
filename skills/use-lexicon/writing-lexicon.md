@@ -10,9 +10,9 @@ context this repo addresses.
 ### What belongs
 
 - The canonical term names of this project's domain.
-- For each: a conceptual definition that bridges business purpose and applied
-  solution.
-- Invariants that any valid implementation must uphold.
+- For each: a conceptual definition: the concept's core identity (below).
+- Invariants that any valid implementation must uphold, not ones today's
+  implementation merely happens to uphold.
 - Relationships between terms: hierarchy, cardinality, sibling distinctions.
 - Retired terms, in their fixed forms.
 
@@ -34,13 +34,38 @@ context this repo addresses.
   proposal (procedure C).
 - A standalone invariants section, or example dialogue.
 
-### Litmus test
+### Core identity
 
-> If the concrete implementation changed tomorrow (renumbering, hardware swap,
-> vendor change, topology revamp), would this still read true?
+An entry states the concept's core identity: the smallest set of traits that
+make it what it is. Test every trait the entry states, in the definition or
+its invariants: change it, and is it still the same concept? If it is, cut
+the trait. Treat the test as nearly absolute; content that fails belongs
+downstream. Length follows the concept: a single sentence that captures the
+core identity is a complete definition, and some concepts need a paragraph.
 
-Every definition sentence and every invariant must pass. Treat the test as
-nearly absolute; a failure means the content belongs downstream.
+Every trait of the current implementation must pass the test to appear, not
+just its technical details (addresses, vendors, schemas, topology) but also
+today's behaviors, policies, materials, and layout. That every instance you
+have seen shares a trait does not make the trait core. What counts as
+implementation depends on the concept, not on how technical a word sounds.
+Naming other concepts can be the minimal concept-level view, even when a
+whole subsystem implements each one. Post's "can contain plain text or mixed
+media" (in the worked example) passes: it says content type does not change
+what a Post is, and its examples only illustrate "mixed media". What fails is
+a trait that narrows the concept to today's instance.
+
+By itself, absence in the current implementation does not imply a rule. An
+"only", "never", or "always" claim is an invariant and takes the same test:
+would a version that did the excluded thing still be this concept? Code shows
+what is, not what must be. An invariant needs a reason in the concept itself,
+or the user's word.
+
+Example: in a project whose only door is a shed's exterior door, a Door is "a
+movable panel in a wall that opens and closes to let people pass through."
+Its fiberglass, its hardware, and its place in an exterior wall all fail the
+test: a glazed interior door that opens outward is still a Door. "Never has
+windows" and "always opens inward" fail too. The shed's door having no window
+says nothing about Doors.
 
 Example: a "Home Screen" entry says what that screen is, what it is for, and
 what it means to users. Today's visual design, its Tailwind styling, and its
@@ -143,8 +168,8 @@ does not own (e.g., another Account's Posts).
 
 - The term in bold, then a colon, then the definition sentences.
 - `_Invariants_` is optional: clauses separated by semicolons.
-  List every invariant here even when the definition already states or
-  implies it, so agents can find constraints without parsing prose.
+  Restate here any invariant the definition states or implies, so agents
+  can find constraints without parsing prose.
 - `_Avoid_` is optional: words separated by commas.
 - Put a blank line between entries.
 - Refer to another entry by its term name, capitalized as defined (plural:
@@ -236,7 +261,9 @@ Steps:
 3. Next turn: present your answers to naming questions 3 and 4: the
    candidates, your recommendation, and the collision check.
 4. Push back with specific concerns wherever you have them. The user decides.
-5. Draft the entry in the format above. When the user ratifies it, write it to
+5. Draft the entry in the format above. The definition states the agreed core
+   identity and nothing more; any further trait needs its own agreement.
+   When the user ratifies it, write it to
    `LEXICON.md` at once, with any new relationships. If the user says "park
    it", write a proposal (procedure C, steps 1-2) instead.
 
