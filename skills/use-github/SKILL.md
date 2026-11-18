@@ -129,9 +129,9 @@ one).
 | Type | Use for |
 |------|---------|
 | `feature` | New feature, system, or capability |
-| `improvement` | Enhancement or refinement of existing functionality |
+| `improvement` | Enhancement or refinement of what exists, including its quality, structure, and docs |
 | `bug` | Something is broken or performs incorrectly |
-| `debt` | Code quality, refactoring, documentation |
+| `debt` | Work skipped or done poorly earlier: stale docs, test gaps, expedient hacks, dead code |
 | `meta` | Design documents, planning artifacts, and non-code project work |
 
 Write the body to a staging file (see The Wrapper Layer), then:

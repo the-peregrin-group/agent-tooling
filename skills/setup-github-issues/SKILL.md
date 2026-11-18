@@ -175,9 +175,9 @@ redeclares a canonical label.
 | Label | Color | Description |
 |-------|-------|-------------|
 | `feature` | `#a2eeef` | New feature, system, or capability |
-| `improvement` | `#0075ca` | Enhancement or refinement of existing functionality |
+| `improvement` | `#0075ca` | Enhancement or refinement of what exists, including its quality, structure, and docs |
 | `bug` | `#d73a4a` | Something is broken or performs incorrectly |
-| `debt` | `#fbca04` | Code quality, refactoring, documentation |
+| `debt` | `#fbca04` | Work skipped or done poorly earlier: stale docs, test gaps, expedient hacks, dead code |
 | `meta` | `#7057ff` | Design documents, planning artifacts, and non-code project work |
 
 **Priority labels** — only if NOT using a GitHub Project for priority

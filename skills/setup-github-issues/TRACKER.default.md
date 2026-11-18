@@ -39,7 +39,7 @@ an action on its own, only with a human's approval, or never).
     },
     {
       "name": "improvement",
-      "meaning": "Enhancement or refinement of existing functionality"
+      "meaning": "Enhancement or refinement of what exists, including its quality, structure, and docs"
     },
     {
       "name": "bug",
@@ -47,7 +47,7 @@ an action on its own, only with a human's approval, or never).
     },
     {
       "name": "debt",
-      "meaning": "Code quality, refactoring, documentation"
+      "meaning": "Work skipped or done poorly earlier: stale docs, test gaps, expedient hacks, dead code"
     },
     {
       "name": "meta",

@@ -17,7 +17,7 @@ TYPE_LABELS: dict[str, dict[str, str]] = {
     },
     "improvement": {
         "color": "0075ca",
-        "description": "Enhancement or refinement of existing functionality",
+        "description": "Enhancement or refinement of what exists, including its quality, structure, and docs",
     },
     "bug": {
         "color": "d73a4a",
@@ -25,7 +25,7 @@ TYPE_LABELS: dict[str, dict[str, str]] = {
     },
     "debt": {
         "color": "fbca04",
-        "description": "Code quality, refactoring, documentation",
+        "description": "Work skipped or done poorly earlier: stale docs, test gaps, expedient hacks, dead code",
     },
     "meta": {
         "color": "7057ff",
