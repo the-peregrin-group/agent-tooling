@@ -45,7 +45,7 @@ PRIORITY_LABELS: dict[str, dict[str, str]] = {
 AREA_LABEL_PREFIX = "area:"
 AREA_LABEL_COLOR = "bfdadc"
 
-# The unprefixed scope-label family setup-github-issues defines for repos
+# The unprefixed scope-label family setup-issue-tracker defines for repos
 # spanning several sites, environments, or deployment targets. Members are
 # repo-specific (they come from ghw-label-sync's schema file); only the family
 # default color is shared.

@@ -13,7 +13,7 @@ Shared tooling for Claude Code agents:
   writes on bd versions it has not been verified against. See
   [bdw](docs/projects/bdw/index.md).
 - **Eighteen skills** (`skills/`): `use-git`, `use-github`, `use-forgejo`,
-  `use-bd`, `setup-github-issues`, `create-issue`, `work-issue`,
+  `use-bd`, `setup-issue-tracker`, `create-issue`, `work-issue`,
   `breakdown-issue`, `triage-issues`, `know-issues`, `know-unattended`,
   `refine-state-doc`, `use-lexicon`, `use-adrs`, `home-in`, `handoff`,
   `whatd-i-miss`, `own-the-outcome`.

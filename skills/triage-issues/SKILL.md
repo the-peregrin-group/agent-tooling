@@ -170,8 +170,8 @@ launched.
 These stand in for each wrapper's help until the wrappers carry triage
 Verbs of their own. Free text (a comment, the digest's body) always goes
 through a file. The shipped default Tracker Schema is
-`TRACKER.default.md` in the `setup-github-issues` skill's directory,
-whatever the platform, until the generic setup skill ships.
+`TRACKER.default.md` in the `setup-issue-tracker` skill's directory,
+whatever the platform.
 
 ### Beads
 
