@@ -2,12 +2,15 @@
 
 Scheduling is a per-deployment concern, not skill policy (the skill behaves
 identically however it is invoked). This document covers how to run triage
-*repeatedly and unattended* safely. Read `../SKILL.md` (`## Cadence & autonomous
-operation`) first for the policy this operationalizes.
+*repeatedly and unattended* safely, on GitHub. Read `../SKILL.md` first for what
+a pass does. The skill says nothing about what a pass may do on its own: that is
+decided by the Permission rules the pass runs under, and this document describes
+the one rule set this deployment uses.
 
-The load-bearing safety property is **fail-closed autonomy**: the permission
-boundary and the autonomy boundary are the *same line*. Everything below exists to
-preserve that line.
+The load-bearing safety property is **fail-closed autonomy**: an unattended pass
+is granted the six scripts in this directory and nothing else, so what it can do
+on its own is exactly what those scripts can do. Everything below exists to
+preserve that.
 
 ---
 
@@ -20,22 +23,26 @@ agent is allowed to invoke *these wrapper names only* — never raw `gh`.
 |---|---|---|
 | `triage-inventory` | read | — (read-only) |
 | `triage-timeline` | read | — (read-only) |
-| `triage-apply-sync` | autonomous write | **policy**: derives the R-SYNC-1/2 correction itself; cannot be told a target status |
-| `triage-fix-label` | autonomous write | **schema**: refuses any label not in the profile's label set |
-| `triage-bump-triaged` | autonomous write | **value**: writes only the Last Triaged date field |
-| `triage-update-ledger` | autonomous write | **target**: writes only to the profile's ledger issue; takes no issue number |
+| `triage-apply-sync` | unattended write | **policy**: derives the one correction that makes open-or-closed and `Status` agree; cannot be told a target status |
+| `triage-fix-label` | unattended write | **schema**: refuses any label not in the profile's label set |
+| `triage-bump-triaged` | unattended write | **value**: writes only the Last Triaged date field |
+| `triage-update-ledger` | unattended write | **target**: writes only to the profile's ledger issue; takes no issue number |
 
 Two consequences make the boundary hold by construction:
 
 1. **Every autonomous wrapper emits only bounded output** — an enumerable option
    id, a schema label, a date, or free text confined to the one ledger issue.
    None can write free text to an arbitrary issue.
-2. **Proposed mutations have no wrapper.** Status/priority/size *transitions*,
-   scope-body rewrites, closes, and reparenting are not implemented as wrappers.
-   The only path to them is raw `gh`, which is not allowlisted — so under a
-   deny-by-default permission mode they *fail closed* (deny, not hang, not
-   execute). A denied call is terminal for the pass: the agent records the intended
-   action as a pending ledger finding and moves on (R-CAD-3).
+2. **Everything else has no wrapper.** Moves between open states, priority
+   changes, body rewrites, comments on an issue, closes, and reparenting are not
+   implemented as wrappers. The only path to them is raw `gh` or a `ghw-*` Verb,
+   neither of which is allowlisted here, so under a deny-by-default permission
+   mode they *fail closed* (deny, not hang, not execute). A denied call is
+   terminal for the pass: the agent records the finding in the ledger body, with
+   a link to the issue, and moves on. It does not look for another path. Since
+   no wrapper comments on an issue or adds the `human` label, an unattended pass
+   under this rule set cannot put a finding on the affected issue, which is where
+   the skill says it belongs.
 
 Because the wrappers are the sole readers of every opaque per-project id (field /
 option / project-node ids + ledger issue number, all in `TRIAGE.md`), no id ever
@@ -56,7 +63,7 @@ missing dependency. (`gh` must be installed and authenticated; see §4.)
 
 Add these to `permissions.allow`. They name the wrappers by their installed
 path, and permission rules match the command string as typed, so the agent must
-invoke them spelled exactly as the rule spells them (the skill instructs this).
+invoke them spelled exactly as the rule spells them (`README.md` says so).
 The rows below use the `~/` form of the installed skill path; if your deployment
 writes the path out in full instead, write the rules the same way. Headless
 invocations always pass at least `--profile`, so a trailing argument always
@@ -72,7 +79,7 @@ follows the wrapper name.
 ```
 
 **Do not** add `Bash(gh *)` or any broader `gh` rule to the unattended allowlist —
-that would give proposed mutations an allowlisted path and defeat the fail-safe.
+that would give ungranted writes an allowlisted path and defeat the fail-safe.
 
 Read wrappers are allowlisted too: reads are autonomous, and letting them run
 un-prompted is what makes an unattended pass possible at all.
@@ -81,19 +88,19 @@ un-prompted is what makes an unattended pass possible at all.
 
 ## 3. Run modes and the permission-mode requirement
 
-The skill runs in two modes over one ledger (R-CAD-1). The permission mode is what
+A pass runs attended or unattended, over one ledger. The permission mode is what
 distinguishes them operationally:
 
-- **Interactive** (a human is present): normal session. Proposed mutations prompt;
+- **Interactive** (a human is present): normal session. Ungranted writes prompt;
   the human approves in-session. Any permission mode is fine.
 - **Unattended** (headless): must run **deny-by-default** — `--permission-mode
   dontAsk` — with the allowlist above. This is the
   enforcement, not a suggestion: it is the mechanism that turns "no wrapper for
-  proposed mutations" into "proposed mutations cannot happen."
+  other writes" into "other writes cannot happen."
 
 > **NEVER run the unattended pass under `bypassPermissions`.** Under bypass, raw
-> `gh` is auto-approved, so a stray proposed mutation would *execute* rather than
-> fail closed — collapsing the autonomy boundary to an instruction the model is
+> `gh` is auto-approved, so a stray ungranted write would *execute* rather than
+> fail closed, leaving the limit as an instruction the model is
 > merely asked to honor. If a scheduler offers only `bypassPermissions` (no
 > deny-by-default), it is **not** an acceptable host for the unattended pass; use
 > the guard-script background job (§4), which runs `--permission-mode dontAsk`, instead.
@@ -101,8 +108,8 @@ distinguishes them operationally:
 > ⚠️ **Caveat: project and local write rules.** An unattended pass launched in a
 > repo whose project settings (`.claude/settings.json`) or local settings
 > (`.claude/settings.local.json`) allowlist `ghw-*` write verbs gains a write path
-> outside the triage wrappers, so its permission boundary no longer equals its
-> autonomy boundary. Until that is resolved, do not host unattended triage in
+> outside the triage wrappers, so what the pass can do is no longer only what
+> the scripts can do. Until that is resolved, do not host unattended triage in
 > such a repo.
 
 ### Verification checklist before trusting an unattended host
@@ -111,8 +118,8 @@ distinguishes them operationally:
 2. Confirm it runs deny-by-default (a non-allowlisted command is *denied*, not
    auto-approved and not indefinitely prompting).
 3. Smoke test: run one unattended pass and confirm the ledger body updated and no
-   proposed mutation was applied (diff the board before/after; only R-SYNC /
-   R-LABEL / Last Triaged should have moved).
+   ungranted write was applied (diff the board before/after; only open-or-closed
+   corrections to `Status`, label fixes, and `Last Triaged` should have moved).
 
 ---
 
@@ -186,15 +193,16 @@ is billed as programmatic API usage and is ruled out (§4). Beyond that:
 - **Leave Console *usage credits* disabled** — an exhausted run then *stops* rather
   than overflowing to paid API.
 - **Run the unattended pass on a cost-efficient model** — it is mechanical
-  (R-SYNC / R-LABEL / Last Triaged / ledger reconcile). Reserve Opus for
-  interactive scope / eng-design. The profile's `cadence.unattended_model` may bind
+  (`Status` corrections, label fixes, `Last Triaged`, the ledger). Reserve a
+  stronger model for attended passes. The profile's `cadence.unattended_model` may bind
   this.
 
 ---
 
 ## 6. One-time bootstrap per project (interactive)
 
-Standing up triage in a repo is interactive, never autonomous (R-CAD-6):
+Standing up triage in a repo is a human procedure: the agent confirms the
+target, drafts the whole plan, and waits for approval. On GitHub the plan is:
 
 1. Ensure `TRIAGE.md` exists at the repo root with a valid `<!-- BEGIN triage-config
    -->` block (all field / option / project-node ids filled in). Verify it parses:
@@ -203,4 +211,4 @@ Standing up triage in a repo is interactive, never autonomous (R-CAD-6):
    --body "Managed by the triage-issues skill."` (optionally `gh issue pin`).
 3. Write its number into the profile config block as `ledger_issue` and commit.
 4. From here, steady state only ever *reads* that pointer and *edits* the existing
-   ledger — both within the autonomous set.
+   ledger, both of which the six wrappers can do.

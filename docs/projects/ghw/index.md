@@ -17,8 +17,9 @@ through the Verbs; the discipline of filing is the generic `create-issue`
 Skill and that of working and changing an issue is `work-issue`
 ([use-issues](../use-issues/index.md)), and `use-github` keeps GitHub's
 mechanics for them. `setup-github-issues` bootstraps a repo's label schema
-and board. `triage-issues` runs repeatable backlog triage, with six `triage-*`
-reference wrappers as the only write path an unattended pass has.
+and board. The generic `triage-issues` Skill
+([use-issues](../use-issues/index.md)) has its GitHub mechanics here: six
+`triage-*` scripts, the only writes an unattended pass is granted.
 
 How and why it works: [design.md](design.md).
 
@@ -37,34 +38,31 @@ How and why it works: [design.md](design.md).
 | PR create, comment, and gated merge | shipped | `ghw-pr-create`, `ghw-pr-comment`, `ghw-pr-merge` |
 | Day-to-day issue and PR conventions | shipped | `use-github` |
 | Repo tracking bootstrap: labels, board, backlog import | shipped | `setup-github-issues` |
-| Backlog triage and grooming, with autonomous writes through dedicated wrappers | shipped | `triage-issues`, `triage-*` |
+| GitHub mechanics of a triage pass: bulk reads and bounded unattended writes | shipped | `triage-*` scripts |
 | Scheduled unattended triage via a guard-script background job | shipped | [DEPLOYMENT.md](../../../skills/triage-issues/reference/DEPLOYMENT.md) |
 | Exit codes per the [Exit-code contract](../../index.md#exit-code-contract), with `gh` and API failures classified in one place | shipped | `lib/github/gh.py`, each Verb |
 | `triage-*` wrappers rebased onto the shared library | planned | [triage-library-rebase.md](triage-library-rebase.md); `agent-tooling-t7y` |
 
 ### Known gaps
 
-- The triage Skill still closes approved issues with raw `gh issue close`,
-  which posts no comment (`agent-tooling-0fm`).
+- `ghw-issue-close` cannot carry GitHub's close reason (completed or not
+  planned), which `triage-apply-sync` reads to choose Done or Rejected
+  (`agent-tooling-0fm`).
 - Unattended triage cannot run in a repo whose project or local settings
   grant ghw write Verbs; no mechanism isolates the pass from those grants
   (`agent-tooling-ys3`).
-- The triage bootstrap (R-CAD-6 and `DEPLOYMENT.md` §6) creates the ledger
-  issue with raw `gh issue create` instead of a Verb; needs a decision first
-  on whether the triage-excluded ledger issue takes the type and `area:`
-  labels `ghw-issue-create` requires (`agent-tooling-5kf`).
+- The triage bootstrap (`DEPLOYMENT.md` §6) creates the ledger issue with
+  raw `gh issue create` instead of a Verb. The ledger is a `meta` issue
+  classified like any other; which `area:` label it takes is not decided
+  (`agent-tooling-5kf`).
 - `ghw-board-sync`'s write path, including `new`, has never run against the
   live GitHub API; it is verified by schema introspection and unit tests only
   (`agent-tooling-2ul`).
-- Triage does not read a PR body's `Lands:` and `Advances:` trailers as
-  linkage to an issue; it still looks for the contributing keywords
-  (`furthers`, `part of`, `towards`) that `use-github` no longer teaches
-  (`agent-tooling-m1sl`). A PR that carries only `Lands:` and no closing
-  keyword is not seen as a closing PR either, which is what gates
-  `In review`.
-- Triage reads an assignee or a linked PR as the sign that an issue is
-  being worked, not a claim comment, so it proposes regressing an issue
-  that is held only by a claim (`agent-tooling-wtxg`).
+- `triage-timeline` reports only the pull requests GitHub links as closing
+  an issue; a PR that names it only by a `Lands:` or `Advances:` trailer is
+  not reported (`agent-tooling-m1sl`).
+- No triage script reads comments, so a claim recorded as a comment is
+  invisible to a pass that has only the scripts (`agent-tooling-wtxg`).
 - The `triage-*` Status row describes scripts bundled under
   `skills/triage-issues/reference/` and invoked by path, not `cli/` Wrappers
   on PATH (`agent-tooling-buqr`).
@@ -74,3 +72,22 @@ How and why it works: [design.md](design.md).
   six-code Exit-code contract (`agent-tooling-cjvo.2`).
 - The six `triage-*` reference scripts exit `0`, `1`, and `2` only, not
   the six-code Exit-code contract (`agent-tooling-cjvo.7`).
+- The six `triage-*` scripts read the `TRIAGE.md` profile, not the repo's
+  Tracker Schema, and work to eight board `Status` options where the
+  default Issue State Diagram has six open states and one closed one:
+  `triage-apply-sync` writes Done or Rejected to a closed issue and sends a
+  reopened one to Needs Scope whatever the diagram says
+  (`agent-tooling-u9n.12`).
+- No `triage-*` script comments on an issue or adds the `human` label, and
+  the labels `ghw-label-sync` provisions do not include `human`, so an
+  unattended pass lists its findings in the ledger instead of putting each
+  on the affected issue (`agent-tooling-u9n.13`).
+- No `triage-*` script returns an issue's body or comments, or the
+  ledger's current body, so an unattended pass cannot judge a bar that
+  depends on what an issue says, read an earlier finding or a person's
+  answer, or carry a finding forward (`agent-tooling-u9n.14`).
+- No triage pass has run end to end with real writes; the scripts were
+  validated with live reads and dry-run writes (`agent-tooling-8y73`).
+- `triage-timeline` reads only the first 100 timeline events of an issue, so
+  without `--since` a busy issue reports activity that is not its latest
+  (`agent-tooling-oj8w`).
