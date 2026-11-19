@@ -13,7 +13,7 @@ Shared tooling for Claude Code agents:
   writes on bd versions it has not been verified against. See
   [bdw](docs/projects/bdw/index.md).
 - **Ten skills** (`skills/`): `use-git`, `use-github`, `use-forgejo`,
-  `setup-github-issues`, `triage-issues`, `refine-state-doc`, `use-lexicon`,
+  `setup-issue-tracker`, `triage-issues`, `refine-state-doc`, `use-lexicon`,
   `use-adrs`, `home-in`, `handoff`.
 - **One agent** (`agents/`): `code-reviewer`.
 - **The installer** (`cli/tooling-install`), which ships all of the above.

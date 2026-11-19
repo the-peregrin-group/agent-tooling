@@ -3,7 +3,7 @@
 The canonical type labels (and, for repos in the P0-P3 label regime, the
 priority labels) come from lib.schema and are never redeclared in a schema
 file. The file supplies only the two repo-specific families
-setup-github-issues defines: the prefixed `area:` family and the unprefixed
+setup-issue-tracker defines: the prefixed `area:` family and the unprefixed
 multi-site scope family.
 
 File shape (JSON, never YAML -- the wrappers are stdlib-only):

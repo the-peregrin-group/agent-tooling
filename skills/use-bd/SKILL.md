@@ -12,7 +12,7 @@ description: >
   "what's ready", "claim this issue", "file a bead", "close the bead",
   "land the plane", "Beads". EXCLUDE: GitHub Issues (use-github), the rules
   for working a Branch Issue in passes (breakdown-issue), and setting Beads
-  up in a new repo (this skill's onboarding.md).
+  up in a new repo (setup-issue-tracker, with this skill's onboarding.md).
 ---
 
 # Use Beads

@@ -15,7 +15,7 @@ description: >
   issue to", "close the issue", "reopen the issue", "land the plane".
   EXCLUDE: filing an Issue (create-issue); breaking down a Branch Issue
   (breakdown-issue); a triage pass over the tracker (triage-issues);
-  setting a tracker up.
+  setting a tracker up (setup-issue-tracker).
 ---
 
 # Work Issue
