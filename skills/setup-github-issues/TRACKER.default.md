@@ -192,9 +192,9 @@ children: a project, rather than a unit of work one session finishes. An
 Issue is a Branch Issue if it has any children, open or closed, or if it is
 meant to hold children, even before it has any. A Leaf Issue is an Issue
 that is not a Branch Issue: a unit of work meant to be claimed and finished
-in one session. A pass is one session's work on a Branch Issue. A claim makes it visible that someone is working on
-an Issue, since one person or agent advances an Issue at a time; a release
-gives the claim up.
+in one session. A pass is one session's work on a Branch Issue. A claim
+makes it visible that someone is working on an Issue, since one person or
+agent advances an Issue at a time; a release gives the claim up.
 
 ### What each state means
 
