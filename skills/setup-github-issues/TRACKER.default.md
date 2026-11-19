@@ -171,10 +171,9 @@ this file outside the markers.
   priority, or state, a label named for it carries it; that label is
   declared by the kind, priority, or state it names and is not an unknown
   label. The labels on the area axis are the repo's own, since
-  the parts of a project are that project's: the shipped default lists
-  none, and the repo owner fills them in. Until then no Issue's labels can
-  conform, so no Issue can be in a
-  state later than Needs Triage.
+  the parts of a project are that project's, and the repo owner fills them
+  in. While the axis lists none, no Issue's labels can conform, so no Issue
+  can be in a state later than Needs Triage.
 - `issue_states`: the Issue States, each with its `name` and its `open`
   flag, `true` for an open state and `false` for a closed one. That flag is
   the only structure a state has. Every Issue is in exactly one state, and
@@ -382,9 +381,13 @@ label everywhere, and on Beads a gate as well.
 ### Where an Issue State is recorded
 
 An Issue State is recorded once, in the tracker's own mechanism for status
-where it has one, otherwise in the one place this file designates:
+where it has one, otherwise in the one place this file designates. Only the
+line for this repo's Issue Tracker applies:
 
-- Beads: the Issue's status.
+- Beads: the Issue's status, once the repo's Beads holds these states as
+  statuses. Until then its status does not say which open state an Issue
+  is in: read that from the Issue itself, and record it nowhere else, a
+  label included.
 - GitHub with a project board: the board's status field.
 - A forge with no status mechanism beyond open and closed (Forgejo, and
   GitHub without a project board): not designated in the shipped default.
