@@ -23,5 +23,7 @@ which access it proposes and why.
 
 Forgejo has no status field beyond open and closed, and the shipped
 default does not designate where the Issue State is recorded on such a
-forge. The repo's `TRACKER.md` has to designate it as a customization
-(a label axis for status is one workable choice), and priority with it.
+forge. The owner designates it in the repo's `TRACKER.md`, as a
+customization (a label axis for status is the default's suggestion). Kind
+and priority are labels named for them, as the Tracker Schema says; with no
+label Verb yet, the owner creates the labels by hand.

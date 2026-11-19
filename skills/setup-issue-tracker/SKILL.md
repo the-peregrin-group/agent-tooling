@@ -1,13 +1,13 @@
 ---
 name: setup-issue-tracker
 description: >
-  Set a repo's Issue Tracker up, on any platform (Beads, GitHub Issues,
+  Set up a repo's Issue Tracker on any platform (Beads, GitHub Issues,
   Forgejo issues): confirm the target, draft the whole plan, and wait for
   the owner's approval before changing anything; copy the shipped default
   Tracker Schema in as the repo's TRACKER.md and customize it with the
-  owner; register the repo's Forge identities; convert an existing backlog
-  into one reviewed plan that one filer files; retire each backlog source
-  through its owner. Load when a repo needs a tracker, a Tracker Schema,
+  owner; settle the Forge identities its agents act under; convert an
+  existing backlog into one reviewed plan that one filer files; retire each
+  backlog source through its owner. Load when a repo needs a tracker, a Tracker Schema,
   labels, or a board, and when scattered TODOs or notes should become
   Issues. Triggers: "set up issues", "set up tracking", "set up Beads here",
   "create issues from TODOs", "bootstrap the backlog", "add a TRACKER.md".
@@ -52,8 +52,9 @@ for outside this machine: an Issue, a label description, a commit message.
 Say which repo and which tracker, and confirm both with the owner. Find out
 what is already there: a tracker in use, a `TRACKER.md` at the repo root, a
 backlog kept elsewhere. A repo that already has a Tracker Schema is not set
-up again from the default; offer to show the owner what the default has
-changed since the copy's provenance, and take only what they accept.
+up again from the default; where the source repo is at hand, offer to show
+the owner what the default has changed since the copy's provenance, and
+take only what they accept.
 
 ## 2. Draft the whole plan
 
@@ -71,21 +72,23 @@ approves the whole of it at once.
   (`install-receipt.json` beside the installed skills). If that commit is
   marked dirty or cannot be found, stop and say so rather than record a
   revision nobody can diff against.
-- Tailor the copy to the platform: keep only the repo's own platform where
-  the copy says where an Issue State is recorded; where the tracker has its
-  own built-in kinds or more priority levels, propose those instead; fill
-  in the Area Labels with the parts of this project, enough to label
-  meaningfully and few enough to apply consistently.
+- Tailor the copy to the platform, as its platform file says: where the
+  default leaves something for the repo to designate, have the owner
+  designate it; where the tracker has built-in kinds or priority levels,
+  the copy's become the tracker's own; fill in the Area Labels with the
+  parts of this project, enough to label meaningfully and few enough to
+  apply consistently. Lines meant for other platforms may be trimmed or
+  left.
 - The default's kinds and priority levels are proposals, not mandates. The
   owner keeps, changes, or replaces them, unless the platform materially
   prevents it. Every change is the repo's customization of its copy.
 
 ### Forge identities
 
-On a forge, every operation names a Forge identity, and which identities a
-repo grants is decided by its Permission rules. Setup registers the repo's
-identities and gives the machine account the access it needs on the forge.
-Registration is a Wrapper's Verb or the owner's own edit to their Machine
+On a forge, every operation is to name a Forge identity, and which
+identities a repo grants is decided by its Permission rules. Setup
+registers the repo's identities and gives the machine account the access
+it needs on the forge. Registration is a Wrapper's Verb or the owner's own edit to their Machine
 Config, never an agent's improvised one. Where the Wrapper cannot register
 an identity yet, the platform file says what exists today; the plan says
 what the owner has to do and what has to wait.
