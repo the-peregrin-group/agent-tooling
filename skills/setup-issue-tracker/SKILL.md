@@ -9,11 +9,11 @@ description: >
   existing backlog into one reviewed plan that one filer files; retire each
   backlog source through its owner. Load when a repo needs a tracker, a
   Tracker Schema, labels, or a board, and when scattered TODOs or notes
-  should become Issues. Triggers: "set up issues", "set up tracking", "set up Beads here",
-  "create issues from TODOs", "bootstrap the backlog", "add a TRACKER.md".
-  EXCLUDE: filing one Issue (create-issue); a triage pass, or standing
-  triage up in a repo that already has a tracker (triage-issues); daily
-  tracker operations (use-bd, use-github, use-forgejo).
+  should become Issues. Triggers: "set up issues", "set up tracking", "set
+  up Beads here", "create issues from TODOs", "bootstrap the backlog", "add
+  a TRACKER.md". EXCLUDE: filing one Issue (create-issue); a triage pass, or
+  standing triage up in a repo that already has a tracker (triage-issues);
+  daily tracker operations (use-bd, use-github, use-forgejo).
 ---
 
 # Setup Issue Tracker
@@ -88,10 +88,10 @@ approves the whole of it at once.
 On a forge, every operation is to name a Forge identity, and which
 identities a repo grants is decided by its Permission rules. Setup
 registers the repo's identities and gives the machine account the access
-it needs on the forge. Registration is a Wrapper's Verb or the owner's own edit to their Machine
-Config, never an agent's improvised one. Where the Wrapper cannot register
-an identity yet, the platform file says what exists today; the plan says
-what the owner has to do and what has to wait.
+it needs on the forge. Registration is a Wrapper's Verb or the owner's own
+edit to their Machine Config, never an agent's improvised one. Where the
+Wrapper cannot register an identity yet, the platform file says what exists
+today; the plan says what the owner has to do and what has to wait.
 
 ### The tracker's own structure
 
