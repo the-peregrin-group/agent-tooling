@@ -1,8 +1,8 @@
 # Documentation
 
 The front door to this repo's documentation. `README.md` is the bootstrap
-and the install model; `LEXICON.md` is the vocabulary; `docs/adr/` holds the
-decisions. Everything else lives under `docs/projects/`, one directory per
+and the install model; `LEXICON.md` is the vocabulary; `TRACKER.md` is the Tracker
+Schema; `docs/adr/` holds the decisions. Everything else lives under `docs/projects/`, one directory per
 project, in the shape `CLAUDE.md` ("Documentation") prescribes: a living
 `index.md` with an Overview and a Status table, an optional living
 `design.md`, and dated targeted docs. The one exception is a dated audit that spans several

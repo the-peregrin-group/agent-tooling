@@ -56,8 +56,10 @@ tracks agent-swarmed work; long-lived work belongs in forge issues) has the
 reasons, and `docs/projects/beads-trial/` the setup.
 
 **Load the `use-bd` skill at session start**: it is the operating manual for
-Beads through `bdw`. This repo's Beads conventions (labels, the friction
-log, `TODO` citations) are in `.beads/PRIME.md`, which `bdw prime` prints.
+Beads through `bdw`. This repo's Issue Kinds, Issue Priorities, Issue
+Labels, and Issue State Diagram are in its Tracker Schema, `TRACKER.md` at
+the repo root. Its other Beads conventions (the friction log, `TODO`
+citations) are in `.beads/PRIME.md`, which `bdw prime` prints.
 
 The Beads Permission rules in `.claude/settings.json` are generated from
 use-bd's canonical rule set (`skills/use-bd/rules.json`) plus this repo's
@@ -88,7 +90,8 @@ only PRs to `main` are the ones a human asked for.
 
 - `README.md` is the front door and the fresh-machine bootstrap;
   `docs/index.md` is the documentation front door. `LEXICON.md` is the
-  vocabulary (`use-lexicon`); `docs/adr/` holds the decisions (`use-adrs`).
+  vocabulary (`use-lexicon`); `TRACKER.md` is the Tracker Schema;
+  `docs/adr/` holds the decisions (`use-adrs`).
 - Every project (a Wrapper, a Skill or Skill family, the Installer) documents
   itself under `docs/projects/<project>/`, a State doc set with no overlap:
   - `index.md`, the project's living dictionary entry: what it is and where

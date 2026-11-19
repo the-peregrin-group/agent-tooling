@@ -96,6 +96,18 @@ fields are `null`, since it is not a copy.
 When the Receipt's commit is `-dirty` or unknown, setup stops and says so
 rather than recording a revision that cannot be diffed against.
 
+### This repo's own copy
+
+This repo's Tracker Schema is [`TRACKER.md`](../../../TRACKER.md), the
+first copy of the default. It was copied by hand, since no setup does the
+copy yet, and this repo is itself the source repo: its `source_commit` is
+the commit on `main` that last changed the default, not a Receipt's commit.
+What it changes from the default is a diff of the two files. Its Issue
+State Diagram is the default's, and its last section says how much of an
+Issue State the Beads status records today, which is open or closed and
+whether a claim is held; holding the states themselves on Beads is
+`agent-tooling-c86` (status-gated Issue lifecycle on Beads).
+
 ## work-issue
 
 `work-issue` covers two moments in one Skill: doing the work an Issue
