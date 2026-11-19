@@ -132,7 +132,7 @@ resolution) before the write itself.
   requires exactly one canonical type label (`feature`, `improvement`, `bug`,
   `debt`, `meta`) and at least one `area:` label; otherwise accepts any label
   in the repo's live registry that is not a second type label (which admits
-  `setup-github-issues`' unprefixed scope labels for multi-site repos). The
+  the unprefixed scope labels setup defines for multi-site repos). The
   registry is the attachment authority, and `ghw-label-sync` is the only way
   labels get created. `TRIAGE.md` plays no part in label validation.
 - `ghw-issue-comment <repo> <issue#> <body-file>`.
@@ -217,8 +217,8 @@ resolution) before the write itself.
   provisions the schema. The one Status edit it ever makes is replacing the
   stock options on that freshly created board. If provisioning fails midway,
   the error names the half-built project and says not to re-run `new`.
-  Creating boards is `setup-github-issues`' job by convention, so every
-  bootstrapped repo is triage-ready from birth.
+  Creating boards is setup's job by convention (`setup-issue-tracker`'s
+  GitHub steps), so every bootstrapped repo is triage-ready from birth.
 
 ### Board disambiguation
 
@@ -341,14 +341,16 @@ terminal-state set. The planned rebase is
   search-first step; `Closes #N`, added in the text above a PR body's
   `Lands:` or `Advances:` trailer only where auto-close is wanted; the
   `TODO(#N)` rule). The discipline of working and changing an issue is `work-issue`.
-- **setup-github-issues** bootstraps labels with `ghw-label-sync` (its JSON
-  schema file declaring the `area:` and scope families) and the board with
-  `ghw-board-sync <repo> new`, so the full canonical schema, `Size`
-  included, exists from day one; boards that predate `Size` are tolerated by
-  board-sync's report-only behavior. It points to `use-github` as the
-  canonical GitHub layer, and to `triage-issues` for the optional `TRIAGE.md`
-  and ledger-issue bootstrap, which is per-repo policy rather than board
-  schema.
+- **setup-issue-tracker** is generic
+  ([use-issues](../use-issues/design.md#setup-issue-tracker)); its GitHub
+  steps are the bundled `github.md`, read on demand. They bootstrap labels
+  with `ghw-label-sync` (its JSON schema file declaring the `area:` and
+  scope families) and the board with `ghw-board-sync <repo> new`, so the
+  full canonical schema, `Size` included, exists from day one; boards that
+  predate `Size` are tolerated by board-sync's report-only behavior. They
+  point to `use-github` as the canonical GitHub layer, and to
+  `triage-issues` for the optional `TRIAGE.md` and ledger-issue bootstrap,
+  which is per-repo policy rather than board schema.
 - **triage-issues** is generic: its text names no platform and no state,
   and a pass is read against the repo's Tracker Schema
   ([use-issues design](../use-issues/design.md#triage-issues)). GitHub is
@@ -370,7 +372,7 @@ rule is needed (see Evidence).
 
 - **User level:** no ghw rules (invariant 6). The cost is one prompt when
   orienting in a repo with no project grants yet, which is the attended
-  `setup-github-issues` bootstrap case. `ghw-label-sync` gets no user-level
+  `setup-issue-tracker` bootstrap case. `ghw-label-sync` gets no user-level
   rule either: `plan` lists open issues' numbers, titles, and URLs for every
   deletion candidate, more exposure than orient. The six `triage-*` wrappers
   are granted at user level, in the exact `python3 <path>` form they are

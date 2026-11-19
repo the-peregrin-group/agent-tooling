@@ -16,8 +16,9 @@ Three Skills sit on top. `use-github` teaches day-to-day issue and PR work
 through the Verbs; the discipline of filing is the generic `create-issue`
 Skill and that of working and changing an issue is `work-issue`
 ([use-issues](../use-issues/index.md)), and `use-github` keeps GitHub's
-mechanics for them. `setup-github-issues` bootstraps a repo's label schema
-and board. The generic `triage-issues` Skill
+mechanics for them. The generic `setup-issue-tracker` Skill
+([use-issues](../use-issues/index.md)) bootstraps a repo's label schema and
+board through its bundled GitHub steps. The generic `triage-issues` Skill
 ([use-issues](../use-issues/index.md)) has its GitHub mechanics here: six
 `triage-*` scripts, the only writes an unattended pass is granted.
 
@@ -37,7 +38,7 @@ How and why it works: [design.md](design.md).
 | Board schema sync and new-board creation | shipped | `ghw-board-sync` |
 | PR create, comment, and gated merge | shipped | `ghw-pr-create`, `ghw-pr-comment`, `ghw-pr-merge` |
 | Day-to-day issue and PR conventions | shipped | `use-github` |
-| Repo tracking bootstrap: labels, board, backlog import | shipped | `setup-github-issues` |
+| Repo tracking bootstrap: labels, board, backlog import | shipped | `skills/setup-issue-tracker/github.md` |
 | GitHub mechanics of a triage pass: bulk reads and bounded unattended writes | shipped | `triage-*` scripts |
 | Scheduled unattended triage via a guard-script background job | shipped | [DEPLOYMENT.md](../../../skills/triage-issues/reference/DEPLOYMENT.md) |
 | Exit codes per the [Exit-code contract](../../index.md#exit-code-contract), with `gh` and API failures classified in one place | shipped | `lib/github/gh.py`, each Verb |
@@ -91,3 +92,6 @@ How and why it works: [design.md](design.md).
 - `triage-timeline` reads only the first 100 timeline events of an issue, so
   without `--since` a busy issue reports activity that is not its latest
   (`agent-tooling-oj8w`).
+- A repo's Issue Kinds cannot follow its Tracker Schema on GitHub: the five
+  kind labels are ghw constants that `ghw-label-sync` will not redeclare
+  and `ghw-issue-create` requires (`agent-tooling-xgzm`).

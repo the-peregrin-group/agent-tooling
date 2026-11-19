@@ -2,9 +2,10 @@
 
 How the shipped parts of the Issue Tracker skill family work and why. What
 is shipped is in [index.md](index.md). The Tracker Schema file,
-`work-issue`, and `triage-issues` are described here so far; the design of
-everything not yet built is in the dated [proposal](2026-11-13-proposal.md), and each slice carries its part
-into this document when it lands.
+`work-issue`, `triage-issues`, and `setup-issue-tracker` are described here
+so far; the design of everything not yet built is in the dated
+[proposal](2026-11-13-proposal.md), and each slice carries its part into
+this document when it lands.
 
 ## The Tracker Schema file
 
@@ -60,13 +61,10 @@ Issue stays open for what becomes of it.
 
 ### The shipped default
 
-The default is [`TRACKER.default.md`](../../../skills/setup-github-issues/TRACKER.default.md)
+The default is [`TRACKER.default.md`](../../../skills/setup-issue-tracker/TRACKER.default.md)
 in the setup skill's directory, so it ships in the skills Cohort with no
-change to the Install Manifest. That directory is
-`skills/setup-github-issues/` today; `agent-tooling-u9n.10` (move the
-shipped default Tracker Schema from setup-github-issues to
-setup-issue-tracker) tracks the move, which lands with `agent-tooling-u9n.9`
-(write setup-issue-tracker, the generic setup skill). Rejected:
+change to the Install Manifest. It started in `skills/setup-github-issues/`
+and moved when `setup-issue-tracker` replaced that skill. Rejected:
 `skills/know-issues/` (setup is the only thing that copies the default, so
 it belongs with setup); `cli/lib/` (the default is a document agents read,
 not code, and that directory ships in a different Cohort); and a new
@@ -106,11 +104,14 @@ an Issue State is recorded on forges with no status mechanism) decides it.
 A repo's copy records, in the JSON block, the source repo, the full commit
 from the Installer's Receipt (`source_commit`), and the default's path at
 that commit, so "what has the default changed since" is a diff of that path
-between the recorded commit and the current one. Rejected: a hand-bumped
-revision number (someone has to remember to bump it, and a number cannot be
-diffed against), and a content hash (it shows that the default changed but
-not what changed). In the shipped default the three
-fields are `null`, since it is not a copy.
+at the recorded commit against the default as it is now. The path is
+recorded, not assumed, because the default can move: a copy made before it
+moved to `skills/setup-issue-tracker/` records its old path in
+`skills/setup-github-issues/`, which still resolves at the recorded commit.
+Rejected: a hand-bumped revision number (someone has to remember to bump
+it, and a number cannot be diffed against), and a content hash (it shows
+that the default changed but not what changed). In the shipped default the
+three fields are `null`, since it is not a copy.
 
 When the Receipt's commit is `-dirty` or unknown, setup stops and says so
 rather than recording a revision that cannot be diffed against.
@@ -118,13 +119,15 @@ rather than recording a revision that cannot be diffed against.
 ### This repo's own copy
 
 This repo's Tracker Schema is [`TRACKER.md`](../../../TRACKER.md), the
-first copy of the default. It was copied by hand, since no setup does the
-copy yet, and this repo is itself the source repo: its `source_commit` is
-the commit on `main` whose default it was copied from, not a Receipt's
-commit. What it changes from the default is a diff of the two files. Its
-Issue State Diagram is the default's as of that commit except its last
-section, which says how much of an Issue State the Beads status records
-today, which is open or closed and whether a claim is held; holding the states themselves on Beads is
+first copy of the default. It was copied by hand, before any setup skill
+did the copy, and this repo is itself the source repo: its `source_commit`
+is the commit on `main` whose default it was copied from, not a Receipt's
+commit, and its `default_path` is the default's old path under
+`skills/setup-github-issues/`. What it changes from the default is a diff
+of the two files. Its Issue State Diagram is the default's as of that
+commit except its last section, which says how much of an Issue State the
+Beads status records today, which is open or closed and whether a claim is
+held; holding the states themselves on Beads is
 `agent-tooling-c86` (status-gated Issue lifecycle on Beads).
 
 ## work-issue
@@ -224,3 +227,63 @@ A repo with no Tracker Schema file yet is read against the shipped
 default's diagram, and the digest says so. What the GitHub scripts still
 assume, and what a pass on Beads lacks, are Known gaps in
 [index.md](index.md) and [ghw's index](../ghw/index.md#known-gaps).
+
+## setup-issue-tracker
+
+`setup-issue-tracker` sets a repo's Issue Tracker up on any platform. Its
+text names no platform; each platform's mechanics are a file read on
+demand: `github.md` and `forgejo.md` beside the Skill, and `use-bd`'s
+`onboarding.md` for Beads. It replaced `setup-github-issues`, whose
+still-true GitHub steps became `github.md`.
+
+- **The owner approves the whole plan first.** Setup is a human
+  procedure: confirm the target, draft one plan covering the Tracker
+  Schema, Forge identities, the tracker's structure, the backlog, the
+  retirement of each source, and the pointer in the repo's agent
+  instructions, and change nothing until the owner approves it. The
+  schema is the owner's design even when an agent drafts it. Whether an
+  agent may act as an owner is a Permission rule, not the Skill's reading.
+- **A whole copy of the default, tailored.** Setup copies the shipped
+  default whole and records its provenance
+  ([ADR 0020](../../adr/0020-every-repo-carries-its-own-copy-of-the-tracker-schema.md)),
+  then tailors the copy to the platform: only the repo's own platform where
+  the copy says where a state is recorded, the tracker's own kinds or
+  priority levels proposed where it has them, and the Area Labels filled
+  in. The default's kinds and priorities are proposals, not mandates.
+  Rejected: per-platform variants of the default (each would drift from
+  the others, and the default is written to read true on any platform).
+- **Forge identities: what exists today, and what waits.** Setup registers
+  a repo's Forge identities and gives the machine account access
+  ([ADR 0018](../../adr/0018-every-forge-operation-names-its-forge-identity.md)).
+  No Wrapper registers identities yet, so the platform files say what
+  exists (ghw acts as `gh`'s account; fjw has one machine account in its
+  Machine Config, given access by the owner in the forge's settings), and
+  the plan says what has to wait. Registration is a Verb or the owner's
+  own edit to Machine Config, never an agent's improvised one.
+- **One verdict per item, one plan, one filer.** A backlog is converted by
+  giving every item one verdict and keeping its source, then writing one
+  deduplicated plan the owner reviews, which one filer files serially.
+  Rejected: filing while auditing (nothing is reviewed and duplicates
+  across sources survive), and several filers at once (relationships
+  cannot be recorded in order, and duplicates race).
+- **Each source is retired by its owner.** A source the repo owns may be
+  removed or replaced with a pointer once every item has a verdict; a
+  source owned elsewhere changes only through its owner's channel.
+  Rejected: setup editing a notes vault the repo does not own, which
+  `setup-github-issues` did. The plan says what to tell that owner
+  instead.
+- **Judgement over recipes.** `setup-github-issues` carried fixed recipes:
+  a grep for TODO comments, an optional code review to find more work,
+  plan tables with set columns, a priority count, and a list of
+  conventions to recite. They are gone. The backlog's sources and the
+  plan's shape depend on the repo, which may not be code, and the
+  conventions belong to the platform Skill that enforces them.
+
+Where the platform steps live. Rejected: `use-github/setup.md`, the
+interim home the [proposal](2026-11-13-proposal.md) named for slice 5,
+since `use-github` is shrinking to a failsafe pointer and its directory
+should not carry a procedure only setup reads; and one setup Skill per
+platform, which repeats the procedure and lets the copies disagree.
+`use-bd`'s `onboarding.md` stays where it is because the canonical Beads
+Permission rules it installs live beside it, and the rules test reads it
+there for the commands it teaches.
