@@ -163,8 +163,8 @@ kept but taking no work; `CLAUDE.md` has the rules and ADR 0011 the
 reasons. You need `bd` to contribute, not to use the tooling. A fresh clone
 gets the `.beads/` config but no issue data: the database is local to the
 maintainer's machine, and nothing in it syncs to this repository. To set up Beads in
-another repo, follow the onboarding checklist in
-`skills/use-bd/onboarding.md`.
+another repo, use the `setup-issue-tracker` skill; its Beads steps are the
+checklist in `skills/use-bd/onboarding.md`.
 
 ## Provenance
 

@@ -63,8 +63,7 @@ Issue stays open for what becomes of it.
 
 The default is [`TRACKER.default.md`](../../../skills/setup-issue-tracker/TRACKER.default.md)
 in the setup skill's directory, so it ships in the skills Cohort with no
-change to the Install Manifest. It started in `skills/setup-github-issues/`
-and moved when `setup-issue-tracker` replaced that skill. Rejected:
+change to the Install Manifest. Rejected:
 `skills/know-issues/` (setup is the only thing that copies the default, so
 it belongs with setup); `cli/lib/` (the default is a document agents read,
 not code, and that directory ships in a different Cohort); and a new
@@ -215,8 +214,7 @@ assume, and what a pass on Beads lacks, are Known gaps in
 `setup-issue-tracker` sets a repo's Issue Tracker up on any platform. Its
 text names no platform; each platform's mechanics are a file read on
 demand: `github.md` and `forgejo.md` beside the Skill, and `use-bd`'s
-`onboarding.md` for Beads. It replaced `setup-github-issues`, whose
-still-true GitHub steps became `github.md`.
+`onboarding.md` for Beads.
 
 - **The owner approves the whole plan first.** Setup is a human
   procedure: confirm the target, draft one plan covering the Tracker
@@ -228,12 +226,14 @@ still-true GitHub steps became `github.md`.
 - **A whole copy of the default, tailored.** Setup copies the shipped
   default whole and records its provenance
   ([ADR 0020](../../adr/0020-every-repo-carries-its-own-copy-of-the-tracker-schema.md)),
-  then tailors the copy to the platform: only the repo's own platform where
-  the copy says where a state is recorded, the tracker's own kinds or
-  priority levels proposed where it has them, and the Area Labels filled
-  in. The default's kinds and priorities are proposals, not mandates.
-  Rejected: per-platform variants of the default (each would drift from
-  the others, and the default is written to read true on any platform).
+  then tailors the copy to the platform, as the platform file says: the
+  owner designates what the default leaves open, the kinds and priority
+  levels become the tracker's own where it has built-in ones, and the Area
+  Labels are filled in. Trimming the lines for other platforms is
+  optional. The default's kinds and
+  priorities are proposals, not mandates. Rejected: per-platform variants
+  of the default (each would drift from the others, and the default is
+  written to read true on any platform).
 - **Forge identities: what exists today, and what waits.** Setup registers
   a repo's Forge identities and gives the machine account access
   ([ADR 0018](../../adr/0018-every-forge-operation-names-its-forge-identity.md)).
@@ -251,21 +251,20 @@ still-true GitHub steps became `github.md`.
 - **Each source is retired by its owner.** A source the repo owns may be
   removed or replaced with a pointer once every item has a verdict; a
   source owned elsewhere changes only through its owner's channel.
-  Rejected: setup editing a notes vault the repo does not own, which
-  `setup-github-issues` did. The plan says what to tell that owner
-  instead.
-- **Judgement over recipes.** `setup-github-issues` carried fixed recipes:
-  a grep for TODO comments, an optional code review to find more work,
-  plan tables with set columns, a priority count, and a list of
-  conventions to recite. They are gone. The backlog's sources and the
-  plan's shape depend on the repo, which may not be code, and the
-  conventions belong to the platform Skill that enforces them.
+  Rejected: setup editing a notes vault the repo does not own. The plan
+  says what to tell that owner instead.
+- **Judgement over recipes.** The backlog's sources and the plan's shape
+  depend on the repo, which may not be code, and the day-to-day
+  conventions belong to the platform Skill that enforces them. Rejected:
+  fixed recipes in the setup text (a grep for TODO comments, an optional
+  code review to find more work, plan tables with set columns, a recited
+  list of conventions).
 
-Where the platform steps live. Rejected: `use-github/setup.md`, the
-interim home the [proposal](2026-11-13-proposal.md) named for slice 5,
-since `use-github` is shrinking to a failsafe pointer and its directory
-should not carry a procedure only setup reads; and one setup Skill per
-platform, which repeats the procedure and lets the copies disagree.
+Where the platform steps live. Rejected: `use-github/setup.md`, which the
+[proposal](2026-11-13-proposal.md) named for slice 5 as a waypoint until
+this Skill existed; with the Skill shipped, the steps go straight to their
+home beside it. Also rejected: one setup Skill per platform, which repeats
+the procedure and lets the copies disagree.
 `use-bd`'s `onboarding.md` stays where it is because the canonical Beads
 Permission rules it installs live beside it, and the rules test reads it
 there for the commands it teaches.
