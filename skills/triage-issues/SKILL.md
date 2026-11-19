@@ -11,7 +11,8 @@ description: >
   this issue", and for a recurring unattended pass. EXCLUDE: filing one
   Issue (create-issue); breaking down or verifying a Branch Issue
   (breakdown-issue); scoping, designing, or implementing an Issue, which is
-  working it; setting a tracker up; TODO lists kept in files.
+  working it; setting a tracker up (setup-issue-tracker); TODO lists kept
+  in files.
 ---
 
 # Triage Issues
@@ -179,8 +180,8 @@ launched.
 These stand in for each wrapper's help until the wrappers carry triage
 Verbs of their own. Free text (a comment, the digest's body) always goes
 through a file. The shipped default Tracker Schema is
-`TRACKER.default.md` in the `setup-github-issues` skill's directory,
-whatever the platform, until the generic setup skill ships.
+`TRACKER.default.md` in the `setup-issue-tracker` skill's directory,
+whatever the platform.
 
 ### Beads
 

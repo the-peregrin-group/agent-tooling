@@ -13,7 +13,7 @@ Shared tooling for Claude Code agents:
   writes on bd versions it has not been verified against. See
   [bdw](docs/projects/bdw/index.md).
 - **Ten skills** (`skills/`): `use-git`, `use-github`, `use-forgejo`,
-  `setup-github-issues`, `triage-issues`, `refine-state-doc`, `use-lexicon`,
+  `setup-issue-tracker`, `triage-issues`, `refine-state-doc`, `use-lexicon`,
   `use-adrs`, `home-in`, `handoff`.
 - **One agent** (`agents/`): `code-reviewer`.
 - **The installer** (`cli/tooling-install`), which ships all of the above.
@@ -163,8 +163,8 @@ kept but taking no work; `CLAUDE.md` has the rules and ADR 0011 the
 reasons. You need `bd` to contribute, not to use the tooling. A fresh clone
 gets the `.beads/` config but no issue data: the database is local to the
 maintainer's machine, and nothing in it syncs to this repository. To set up Beads in
-another repo, follow the onboarding checklist in
-`skills/use-bd/onboarding.md`.
+another repo, use the `setup-issue-tracker` skill; its Beads steps are the
+checklist in `skills/use-bd/onboarding.md`.
 
 ## Provenance
 

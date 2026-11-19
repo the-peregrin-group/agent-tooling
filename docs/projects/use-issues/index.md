@@ -8,10 +8,9 @@ Skill for the fundamentals, platform Skills that only point at their
 Wrapper, and Wrappers whose issue Verbs document themselves and share one
 top-level grammar. It is being built in slices, and the Status table below
 says which have shipped. The rest of today's issue guidance is the
-`setup-github-issues` and `use-github` Skills (documented under
-[ghw](../ghw/index.md)), `use-bd` ([use-bd](../use-bd/index.md)), and
-`use-forgejo` ([fjw](../fjw/index.md)), and they stay in force until the
-slice that replaces each one lands.
+`use-github` Skill (documented under [ghw](../ghw/index.md)), `use-bd`
+([use-bd](../use-bd/index.md)), and `use-forgejo` ([fjw](../fjw/index.md)),
+and they stay in force until the slice that replaces each one lands.
 
 The design of what has shipped is in [design.md](design.md). The design of
 the rest, its alternatives, the plan, and the approved requirements are
@@ -31,16 +30,17 @@ is tracked in `agent-tooling-84n3` (bdw), `agent-tooling-fyxo` (ghw),
 
 | Capability | State | Where |
 |---|---|---|
-| The default Tracker Schema, with its Issue State Diagram | shipped | `skills/setup-github-issues/TRACKER.default.md`; [design](design.md) |
+| The default Tracker Schema, with its Issue State Diagram | shipped | `skills/setup-issue-tracker/TRACKER.default.md`; [design](design.md) |
 | This repo's own Tracker Schema, copied from the default and customized | shipped | `TRACKER.md` |
 | `know-issues`, the Knowledge Skill for the issue fundamentals | shipped | `skills/know-issues/SKILL.md`; documented under [know](../know/index.md) |
 | `create-issue`, generic, against today's Verbs | shipped | `skills/create-issue/SKILL.md` |
 | `work-issue`, generic, against today's Verbs | shipped | `skills/work-issue/SKILL.md` |
 | `breakdown-issue`, for Branch Issue passes | shipped | `skills/breakdown-issue/SKILL.md` |
 | `triage-issues` read against the Issue State Diagram | shipped | `skills/triage-issues/SKILL.md`; [design](design.md#triage-issues) |
+| `setup-issue-tracker`, generic, with each platform's setup steps read on demand | shipped | `skills/setup-issue-tracker/SKILL.md`; [design](design.md#setup-issue-tracker) |
 | bdw rebuilt with its own issue Verbs and per-Verb help; `use-bd` as a failsafe pointer | planned | [proposal](2026-11-13-proposal.md), slice 4; `agent-tooling-84n3` |
 | ghw issue Verbs on the shared grammar, with Forge identity | planned | [proposal](2026-11-13-proposal.md), slice 5; `agent-tooling-fyxo` |
-| fjw issue Verbs on the shared grammar, `setup-issue-tracker`, and the triage scripts as Wrappers | planned | [proposal](2026-11-13-proposal.md), slice 6; `agent-tooling-1vr`, `agent-tooling-u9n.9`, `agent-tooling-2340` |
+| fjw issue Verbs on the shared grammar, and the triage scripts as Wrappers | planned | [proposal](2026-11-13-proposal.md), slice 6; `agent-tooling-1vr`, `agent-tooling-2340` |
 | Stage-aware blocking | planned | [proposal](2026-11-13-proposal.md), R27; `agent-tooling-aas0` |
 | Source-taking forms of high-judgement Verbs | proposed | [proposal](2026-11-13-proposal.md), R46's note; `agent-tooling-zkox` |
 
@@ -48,8 +48,12 @@ is tracked in `agent-tooling-84n3` (bdw), `agent-tooling-fyxo` (ghw),
 
 - Nothing reads the default Tracker Schema's JSON block yet, and no test
   checks that the shipped default is well formed (`agent-tooling-rtag`).
-- No setup copies the default into a repo yet; this repo's copy was made
-  by hand (`agent-tooling-u9n.9`).
+- `setup-issue-tracker` cannot register a repo's Forge identities: ghw has
+  none yet and acts as whoever `gh` is authenticated as, and fjw has only
+  its one machine account (`agent-tooling-fyxo`, `agent-tooling-1vr`).
+- On GitHub, a repo's Issue Kinds and Issue Priorities cannot follow its
+  Tracker Schema, since ghw fixes the five kind labels and the four
+  priority levels (`agent-tooling-xgzm`).
 - The default does not drop in cleanly for a repo on Beads
   (`agent-tooling-u9n.11`).
 - This repo's `TRACKER.md` declares no `meta` kind, because it is not a

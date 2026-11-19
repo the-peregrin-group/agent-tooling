@@ -13,7 +13,8 @@ description: >
   there an issue for this", "track this", "what kind or priority is this".
   EXCLUDE: claiming, working, changing, or closing an Issue (work-issue);
   breaking down a Branch Issue (breakdown-issue); a triage
-  pass over the whole tracker (triage-issues); setting a tracker up.
+  pass over the whole tracker (triage-issues); setting a tracker up
+  (setup-issue-tracker).
 ---
 
 # Create Issue
