@@ -18,7 +18,7 @@ and each prints its arguments with `--help`.
 | Script | Kind | Bound by | Output |
 |---|---|---|---|
 | `triage-inventory` | read | (read-only) | board-anchored inventory, and the open issues missing from the board (JSON) |
-| `triage-timeline <issue#>… [--since <time>]` | read | (read-only) | per issue: latest meaningful activity, closing pull requests, linkage events (JSON) |
+| `triage-timeline <issue#>… [--since <time>]` | read | (read-only) | per issue: latest meaningful activity, closing pull requests, linkage events (JSON). Pass `--since`: it reads only the first 100 events from that time, so without it a busy issue reports activity that is not its latest (`timelineTotalCount` shows when the list was cut short) |
 | `triage-apply-sync <issue#>` | write | **policy**: derives the correction itself; cannot be told a target | the correction derived or applied |
 | `triage-fix-label <issue#> --add <label> --remove <label>` | write | **schema**: refuses labels outside the profile's lists | the label change |
 | `triage-bump-triaged <issue#>` | write | **value**: writes only the `Last Triaged` date | the date written |

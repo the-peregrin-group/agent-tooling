@@ -88,3 +88,6 @@ How and why it works: [design.md](design.md).
   answer, or carry a finding forward (`agent-tooling-u9n.14`).
 - No triage pass has run end to end with real writes; the scripts were
   validated with live reads and dry-run writes (`agent-tooling-8y73`).
+- `triage-timeline` reads only the first 100 timeline events of an issue, so
+  without `--since` a busy issue reports activity that is not its latest
+  (`agent-tooling-oj8w`).

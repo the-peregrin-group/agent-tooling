@@ -117,6 +117,11 @@ judged again.
 
 ### 4. Act on what you found
 
+Change an Issue yourself only when you are confident the change is right,
+above all in an unattended pass, where nobody sees the change as it is
+made. When you are not, leave the Issue as it is and put the question to a
+person (step 5).
+
 Be liberal with priority and conservative with state: a wrong priority
 costs little and the next pass corrects it, while a wrong state puts later
 work on an earlier gap.
@@ -255,8 +260,7 @@ What today's scripts assume, which the text above does not:
   the issue elsewhere, that is a further move for the pass or a person.
 - No script comments on an affected issue or adds the `human` label, and
   the labels `ghw-label-sync` provisions do not include `human`. Until the
-  scripts can (`agent-tooling-u9n.13` in the agent-tooling repo's
-  tracker), a pass that can do neither, as an unattended pass granted only
+  scripts can, a pass that can do neither, as an unattended pass granted only
   the six scripts cannot, puts each finding in the digest's body with a
   link to its issue and says there that the queue could not be written.
   This is a stopgap, and the one exception to "the digest is not the
