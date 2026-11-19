@@ -7,9 +7,9 @@ description: >
   Tracker Schema in as the repo's TRACKER.md and customize it with the
   owner; settle the Forge identities its agents act under; convert an
   existing backlog into one reviewed plan that one filer files; retire each
-  backlog source through its owner. Load when a repo needs a tracker, a Tracker Schema,
-  labels, or a board, and when scattered TODOs or notes should become
-  Issues. Triggers: "set up issues", "set up tracking", "set up Beads here",
+  backlog source through its owner. Load when a repo needs a tracker, a
+  Tracker Schema, labels, or a board, and when scattered TODOs or notes
+  should become Issues. Triggers: "set up issues", "set up tracking", "set up Beads here",
   "create issues from TODOs", "bootstrap the backlog", "add a TRACKER.md".
   EXCLUDE: filing one Issue (create-issue); a triage pass, or standing
   triage up in a repo that already has a tracker (triage-issues); daily
