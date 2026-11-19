@@ -51,8 +51,9 @@ is tracked in `agent-tooling-84n3` (bdw), `agent-tooling-fyxo` (ghw),
 - `setup-issue-tracker` cannot register a repo's Forge identities: ghw has
   none yet and acts as whoever `gh` is authenticated as, and fjw has only
   its one machine account (`agent-tooling-fyxo`, `agent-tooling-1vr`).
-- On GitHub, a repo's Issue Kinds cannot follow its Tracker Schema, since
-  ghw fixes the five kind labels (`agent-tooling-xgzm`).
+- On GitHub, a repo's Issue Kinds and Issue Priorities cannot follow its
+  Tracker Schema, since ghw fixes the five kind labels and the four
+  priority levels (`agent-tooling-xgzm`).
 - This repo's `TRACKER.md` declares no `meta` kind, because it is not a
   registered Beads type, and some imported Issues still carry GitHub type
   labels the schema does not declare (`agent-tooling-aio.7`).
