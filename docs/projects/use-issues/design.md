@@ -79,6 +79,32 @@ Schema" and names no path of its own. Its content (the default Issue Kinds,
 Issue Priorities, Issue Label Schema, and Issue State Diagram) is in the
 file and is not repeated here.
 
+The default is one platform-neutral file, not a variant per Issue Tracker,
+and it names no Issue ID or requirement number, since a copy's readers
+cannot look up this repo's. What only differs by platform is written so
+that an untouched copy still reads true on any tracker:
+
+- Where an Issue State is recorded is a list with one line per platform,
+  introduced as "only the line for this repo's Issue Tracker applies". The
+  Beads line says the status records the state once the repo's Beads holds
+  the states as statuses, and until then that the open state is read from
+  the Issue itself and recorded nowhere else, a label included.
+- The area axis ships empty, and the file says what follows while it lists
+  no labels rather than that the default lists none, so the sentence stays
+  true once the owner fills the axis in.
+- The Issue Kinds and Issue Priorities are a proposal like the rest of the
+  file: GitHub's label set and P0 to P3. No sentence calls them a proposal,
+  since in a copy that has adopted them that would be false; the file
+  already says every edit to the copy is the repo's customization.
+- A Branch Issue is one with children or one meant to hold children, not
+  one of a designated kind, so the JSON block has no key marking which
+  kind holds children.
+
+What can only be done per platform at copy time, keeping just the repo's
+own platform line and swapping in the tracker's built-in kinds and
+priority levels, is the setup skill's tailoring step
+(`agent-tooling-u9n.9`, write setup-issue-tracker).
+
 Where an Issue State is recorded on a forge with no status mechanism is
 left open in the default, per platform, until `agent-tooling-vb2v` (where
 an Issue State is recorded on forges with no status mechanism) decides it.
