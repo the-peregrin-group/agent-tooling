@@ -7,9 +7,9 @@ family: generic Skills split by the moment an agent needs them, a Knowledge
 Skill for the fundamentals, platform Skills that only point at their
 Wrapper, and Wrappers whose issue Verbs document themselves and share one
 top-level grammar. It is being built in slices, and the Status table below
-says which have shipped. Today's issue guidance is the
-`setup-github-issues`, `use-github`, and `triage-issues` Skills (documented
-under [ghw](../ghw/index.md)), `use-bd` ([use-bd](../use-bd/index.md)), and
+says which have shipped. The rest of today's issue guidance is the
+`setup-github-issues` and `use-github` Skills (documented under
+[ghw](../ghw/index.md)), `use-bd` ([use-bd](../use-bd/index.md)), and
 `use-forgejo` ([fjw](../fjw/index.md)), and they stay in force until the
 slice that replaces each one lands.
 
@@ -57,8 +57,8 @@ is tracked in `agent-tooling-84n3` (bdw), `agent-tooling-fyxo` (ghw),
   labels the schema does not declare (`agent-tooling-aio.7`).
 - The default leaves open where an Issue State is recorded on a forge with
   no status mechanism (`agent-tooling-vb2v`), and neither Beads statuses
-  nor a GitHub board field holds the default's states today
-  (`agent-tooling-c86`).
+  (`agent-tooling-c86`) nor a GitHub board field (`agent-tooling-u9n.12`)
+  holds the default's states today.
 - The `triage-issues` Skill is generic, but its GitHub scripts still read
   the `TRIAGE.md` profile and work to eight board `Status` options, not the
   repo's Tracker Schema (`agent-tooling-u9n.12`).

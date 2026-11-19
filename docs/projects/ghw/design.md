@@ -163,8 +163,9 @@ resolution) before the write itself.
   Priority without Status. Adds the issue to the board if missing, then sets
   the field; refuses fields that are not single-select; reports
   `changed: false` when already set. `use-github` keeps Status writes
-  conservative: `Needs Triage` on filing, and only on a conforming board;
-  transitions belong to triage.
+  conservative: `Needs Triage` by default on filing, and only on a
+  conforming board; a later move is judged against the repo's Issue State
+  Diagram (`work-issue`).
 - `ghw-pr-create <repo> <base-branch> <head-branch> <title> <body-file>
   [--draft]`: the head branch is explicit, never inferred from the working
   directory, so an agent in the wrong worktree cannot open a PR nobody meant

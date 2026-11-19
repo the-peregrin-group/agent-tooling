@@ -139,8 +139,9 @@ keyword is GitHub's documented form.
 - **Status moves on GitHub.** Until a repo has a Tracker Schema, a session
   makes only the moves its own work causes (claimed, released, finished)
   and leaves every other move to a triage pass. Rejected: judging moves
-  against the conditions `triage-issues` documents, which would make its
-  older eight-state model the working diagram for every GitHub repo.
+  against the conditions `triage-issues` documented at the time, which
+  would have made its older eight-state model the working diagram for
+  every GitHub repo.
 - **A free status change on Beads.** Beads holds only its own statuses
   until `agent-tooling-c86` (status-gated lifecycle on Beads) lands, so
   there is no diagram to judge `bdw update --status` against, and the flag

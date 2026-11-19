@@ -41,7 +41,7 @@ Issue.
 
 A pass checks Issues; it does not work them. Scoping, designing,
 implementing, and breaking down are work on one Issue, done by whoever
-claims it. Asked to triage one Issue, run steps 2 to 5 for it, with the
+claims it (`work-issue`, `breakdown-issue`). Asked to triage one Issue, run steps 2 to 5 for it, with the
 overlap search of step 3.
 
 ## Before the pass
