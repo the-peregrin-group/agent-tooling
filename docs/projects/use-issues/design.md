@@ -1,8 +1,8 @@
 # use-issues design
 
 How the shipped parts of the Issue Tracker skill family work and why. What
-is shipped is in [index.md](index.md). Only the Tracker Schema file is
-described here so far; the design of everything not yet built is in the
+is shipped is in [index.md](index.md). The Tracker Schema file and
+`work-issue` are described here so far; the design of everything not yet built is in the
 dated [proposal](2026-11-13-proposal.md), and each slice carries its part
 into this document when it lands.
 
@@ -95,3 +95,46 @@ fields are `null`, since it is not a copy.
 
 When the Receipt's commit is `-dirty` or unknown, setup stops and says so
 rather than recording a revision that cannot be diffed against.
+
+## work-issue
+
+`work-issue` covers two moments in one Skill: doing the work an Issue
+tracks, and changing an Issue. It carries no state semantics. Every move
+is judged against the repo's Issue State Diagram, so the Skill and the
+diagram cannot disagree. Finished work has three outcomes (close, hand to
+review, release), and what review a piece of work needs, if any, is left to
+the judgement of whoever did it.
+
+### The Lands and Advances trailers
+
+A commit or PR names the Issue it serves in a git trailer: `Lands:` when,
+with that change in, the Issue's criteria hold, and `Advances:` when more
+remains. Each commit and each PR is judged on its own. Rejected: only the
+PR lands and every commit advances (it binds the trailer to PRs, which some
+repos do not have, and GitHub's default merge message drops the PR body, so
+git history would carry no `Lands:` at all). The cost accepted is that a
+fix-up after a `Lands:` commit says `Lands:` again, which is harmless
+because neither trailer closes anything.
+
+On GitHub, `Closes #N` goes in the text above the trailers, because git
+reads no trailer from a paragraph that holds any other line. The colon form
+`Closes: #N` among the trailers also parses and was not chosen; the bare
+keyword is GitHub's documented form.
+
+### What the Skill leaves out until the tooling exists
+
+- **Status moves on GitHub.** Until a repo has a Tracker Schema, a session
+  makes only the moves its own work causes (claimed, released, finished)
+  and leaves every other move to a triage pass. Rejected: judging moves
+  against the conditions `triage-issues` documents, which would make its
+  older eight-state model the working diagram for every GitHub repo.
+- **A free status change on Beads.** Beads holds only its own statuses
+  until `agent-tooling-c86` (status-gated lifecycle on Beads) lands, so
+  there is no diagram to judge `bdw update --status` against, and the flag
+  can set in progress without a claim and blocked in place of a gate. The
+  Skill teaches only the moves a claim, a release, a close, and a reopen
+  make.
+- **The claim protocol on a forge.** A claim on GitHub is a plain comment
+  until `ghw` has the Verb (`agent-tooling-fyxo`, ghw issue Verbs on the
+  shared grammar). The lease, the Actor ID, and the assignee's role are
+  designed with that Verb, not ahead of it.

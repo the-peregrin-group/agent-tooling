@@ -8,9 +8,10 @@ from base; when cwd's checked-out branch differs from <head-branch> the
 wrapper warns -- it does not refuse, since opening a PR for a branch you are
 not standing on is legitimate. Non-draft by default; the trailing --draft is
 the one sanctioned trailing flag here (strictly a de-escalation). The body
-comes from a staged file, never inline text. Linkage keywords are skill-text
-guidance: `Closes #N` auto-closes; furthers/part of/towards deliberately
-don't.
+comes from a staged file, never inline text. How the body names its Issue is
+skill-text guidance: a `Lands:` or `Advances:` trailer as the last
+paragraph, with `Closes #N` in the text above it only where auto-close is
+wanted.
 
 Exit codes: 0 success, 1 unclassified gh/API failure, 2 usage error (including
 head equal to base), 3 not found, 4 refused: the head or base branch does not

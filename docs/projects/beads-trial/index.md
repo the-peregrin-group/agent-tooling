@@ -41,10 +41,12 @@ that lets agents cooperate on it: the [use-bd](../use-bd/index.md) Skill,
   generates the expected rules from use-bd's canonical rule set
   (`skills/use-bd/rules.json`) plus a local layer, and requires the JSON to
   equal them.
-- **The loop** and everything else about working Beads is taught by the
-  [use-bd](../use-bd/index.md) Skill; this repo's conventions (labels, the
-  friction log, `TODO` citations) are in `.beads/PRIME.md`, and a PR body
-  names the Issue it lands (`Lands agent-tooling-xyz`).
+- **The loop** is taught by the generic `work-issue` Skill
+  ([use-issues](../use-issues/index.md)) and everything Beads adds to it
+  by the [use-bd](../use-bd/index.md) Skill; this repo's conventions
+  (labels, the friction log, `TODO` citations) are in `.beads/PRIME.md`,
+  and a commit or PR names the Issue it serves in a `Lands:` or
+  `Advances:` trailer.
 - **Another repo** can repeat the setup with use-bd's onboarding
   checklist, `skills/use-bd/onboarding.md`.
 

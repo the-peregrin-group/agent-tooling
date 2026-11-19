@@ -13,9 +13,10 @@ and board contracts in code, and resolve GitHub's name-to-ID mappings
 internally, so agents never handle node IDs.
 
 Three Skills sit on top. `use-github` teaches day-to-day issue and PR work
-through the Verbs; filing discipline is the generic `create-issue` Skill
+through the Verbs; the discipline of filing is the generic `create-issue`
+Skill and that of working and changing an issue is `work-issue`
 ([use-issues](../use-issues/index.md)), and `use-github` keeps GitHub's
-mechanics for it. `setup-github-issues` bootstraps a repo's label schema
+mechanics for them. `setup-github-issues` bootstraps a repo's label schema
 and board. `triage-issues` runs repeatable backlog triage, with six `triage-*`
 reference wrappers as the only write path an unattended pass has.
 
@@ -55,6 +56,15 @@ How and why it works: [design.md](design.md).
 - `ghw-board-sync`'s write path, including `new`, has never run against the
   live GitHub API; it is verified by schema introspection and unit tests only
   (`agent-tooling-2ul`).
+- Triage does not read a PR body's `Lands:` and `Advances:` trailers as
+  linkage to an issue; it still looks for the contributing keywords
+  (`furthers`, `part of`, `towards`) that `use-github` no longer teaches
+  (`agent-tooling-m1sl`). A PR that carries only `Lands:` and no closing
+  keyword is not seen as a closing PR either, which is what gates
+  `In review`.
+- Triage reads an assignee or a linked PR as the sign that an issue is
+  being worked, not a claim comment, so it proposes regressing an issue
+  that is held only by a claim (`agent-tooling-wtxg`).
 - The `triage-*` Status row describes scripts bundled under
   `skills/triage-issues/reference/` and invoked by path, not `cli/` Wrappers
   on PATH (`agent-tooling-buqr`).
