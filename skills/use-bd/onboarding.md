@@ -178,6 +178,22 @@ backlog) is the `setup-issue-tracker` skill's.
 - [ ] Point the repo's `CLAUDE.md` at this skill rather than restating
   Beads procedure: "Issues are tracked in Beads; load `/use-bd`."
 
+## Tailoring the Tracker Schema to Beads
+
+When `setup-issue-tracker` copies the default Tracker Schema into the
+repo:
+
+- [ ] Kind is bd's type, so each kind in the copy is a type bd accepts
+  (`bdw types` lists them): `task`, which bd gives an Issue filed without a
+  type, and `epic`, while `use-bd` says only an epic takes children,
+  included. A default kind that is not a bd type is replaced by one or
+  registered as a custom type. A bd type the repo does not use is said not
+  to be a kind.
+- [ ] bd has a fifth priority level, P4: declare it with a meaning and a
+  staleness threshold, or say in the copy that it is not used.
+- [ ] Until the repo's Beads holds the diagram's states as statuses, an
+  Issue's state is recorded nowhere: no state labels.
+
 ## The committed footprint
 
 Under `.beads/`: `.gitignore`, `config.yaml`, `metadata.json`, and

@@ -29,7 +29,9 @@ register nothing.
 Ask the owner whether to link a project board. With a board, the Issue
 Priority and the Issue State are board fields (`Priority` and `Status`).
 Without one, priority is a label, one of `P0` to `P3` per Issue, and the
-state is wherever the repo's `TRACKER.md` designates it.
+default leaves open where the state is recorded: the owner designates it
+in the copy (a label axis for status is the default's suggestion), and the
+plan creates whatever labels that takes.
 
 **No board yet.** Create and provision one in a single call:
 
@@ -48,16 +50,18 @@ already has a linked open board.
 ghw-board-sync <owner/repo> <project-number>
 ```
 
-On an existing board it creates only the missing fields and reports drift
+It checks that the board is linked to this repo and refuses if not. On an
+existing board it creates only the missing fields and reports drift
 on existing ones rather than editing them, since replacing a live
 single-select's options can orphan values already set; that stays the
 owner's call. A missing `Size` is reported, not created.
 
 `Status` carries eight options, with this exact casing: `Needs Triage`,
 `Needs Scope`, `Needs Eng Design`, `Needs Impl`, `In progress`,
-`In review`, `Done`, `Rejected`. The default Issue State Diagram has the
-first six and one closed state; on a board, Done and Rejected read as
-closed with that reason. Missing options reported under
+`In review`, `Done`, `Rejected`. Match the open options to the open
+states of the repo's Issue State Diagram; the default's are the first six.
+Done and Rejected stay, because ghw and the triage scripts work to them,
+and read as the closed state with that reason. Missing options reported under
 `conformance.gaps` are added by the owner by hand, in the board's Project
 settings. Options under `conformance.extra_options` are the owner's own;
 leave them.
@@ -75,9 +79,11 @@ Then, either way:
 `ghw-label-sync` manages labels declaratively. The five kind labels
 (`feature`, `improvement`, `bug`, `debt`, `meta`) and the four priority
 labels are the Wrapper's own constants, never redeclared: it refuses a
-schema file that redeclares one. So on GitHub the kinds are those five
-until the Wrapper changes, and a Tracker Schema that proposes other kinds
-cannot be applied here yet; say so in the plan.
+schema file that redeclares one, and a board's `Priority` options are the
+same `P0` to `P3`. So on GitHub the kinds are those five and the priority
+levels those four until the Wrapper changes. Do not swap in GitHub's issue
+types; a Tracker Schema that proposes other kinds or levels cannot be
+applied here yet, so say so in the plan.
 
 A schema file supplies only the repo's own families. Write it to
 `/tmp/claude/` with a unique name; the Wrapper accepts only staging paths:
@@ -101,7 +107,8 @@ A schema file supplies only the repo's own families. Write it to
   family's color.
 - `description` is required on every label; `color` is optional.
 - `scope` labels are unprefixed, for a project that spans sites,
-  environments, or deployment targets. Omit the key if there are none.
+  environments, or deployment targets, and only where the distinction is
+  clear and meaningful. Omit the key if there are none.
 
 Preview, show the owner, and on approval apply:
 
@@ -119,8 +126,10 @@ labels later, rebuild the whole file from `ghw-orient`'s live `labels`
 plus the change: a partial file makes every omitted label a deletion
 candidate.
 
-`ghw-label-sync` does not provision the `human` label the default Tracker
-Schema declares; say so in the plan.
+The schema file has no family of its own for the `human` label the
+default Tracker Schema declares. Declare it in `scope`, the one family that
+takes an unprefixed name; a label the file does not declare is deleted by
+the next `apply-delete`.
 
 ## Filing the backlog
 
@@ -131,12 +140,14 @@ labels just synced; without a board, the priority label goes with them.
 Relationships go in with `ghw-issue-link` once both ends exist.
 
 Work the backlog plan marks as already done, if the owner wants it as
-history, is filed first and closed at once with `ghw-issue-close`, which
+history, is filed first, oldest first so it takes the lowest numbers, and
+closed at once with `ghw-issue-close`, which
 needs a comment file; one staged comment ("Imported as already-resolved
 history") serves every such close.
 
-With a board, set both fields on each filed Issue; an unset `Status`
-hides an issue from the board's grouped views:
+With a board, set both fields on each filed Issue; `ghw-board-set` adds
+the issue to the board if it is not there yet, and an unset `Status` hides
+an issue from the board's grouped views:
 
 ```bash
 ghw-board-set <owner/repo> Priority <P0-P3> <issue#>
@@ -183,7 +194,9 @@ gh project item-list <number> --owner <owner> --limit 200
 ```
 
 `ghw-orient` shows the labels, the linked board, and its conformance in
-one read. The last line applies only with a board.
+one read. The last line applies only with a board. If TODO comments were
+converted, search the tree for any left without an issue number. Report
+the counts: labels, open and closed issues filed, and board items.
 
 ## Recurring triage
 
