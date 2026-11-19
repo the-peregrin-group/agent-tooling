@@ -32,9 +32,8 @@ unprompted. A pass may also be started for cause while children are open: a
 child that does not belong under it, or one whose boundary was drawn wrong.
 
 An Issue is a Branch Issue if it has any children, open or closed, or if it
-is of a kind designated to hold children (e.g., an epic), even before it
-has any. A new Branch Issue is ready work at once, and its first pass
-breaks it down.
+is meant to hold children, even before it has any. A new Branch Issue is
+ready work at once, and its first pass breaks it down.
 
 A Branch Issue states success criteria, which its verifying pass checks
 against the outcome. A Leaf Issue states acceptance criteria and is closed

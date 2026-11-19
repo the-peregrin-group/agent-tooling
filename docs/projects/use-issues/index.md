@@ -48,10 +48,9 @@ is tracked in `agent-tooling-84n3` (bdw), `agent-tooling-fyxo` (ghw),
 
 - Nothing reads the default Tracker Schema's JSON block yet, and no test
   checks that the shipped default is well formed (`agent-tooling-rtag`).
-- No setup copies the default into a repo yet; this repo's copy was made
-  by hand (`agent-tooling-u9n.9`).
-- The default does not drop in cleanly for a repo on Beads
-  (`agent-tooling-u9n.11`).
+- No setup copies the default into a repo yet, or tailors the copy to the
+  repo's Issue Tracker (its platform line, kinds, and priority levels);
+  this repo's copy was made by hand (`agent-tooling-u9n.9`).
 - This repo's `TRACKER.md` declares no `meta` kind, because it is not a
   registered Beads type, and some imported Issues still carry GitHub type
   labels the schema does not declare (`agent-tooling-aio.7`).
