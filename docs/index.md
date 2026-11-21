@@ -52,7 +52,7 @@ projects, which lives under `docs/audits/`.
   covers what has shipped, and the dated proposal the rest.
 - [own-the-outcome](projects/own-the-outcome/index.md): the Skill that
   runs a multi-agent job with the lead session as its directly responsible
-  individual, and the four `dri-*` Agent definitions for its lieutenant
+  individual, and the four Agent definitions for its lieutenant
   roles; its [design](projects/own-the-outcome/design.md).
 
 ## Cross-cutting audits

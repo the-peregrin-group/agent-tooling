@@ -73,9 +73,9 @@ in a default install).
 | Worker (author, reviewer, researcher) | dispatcher | one deliverable and its result file | lands a change; touches the shared resource; waits on another agent |
 | Auditor | lead | an independent check of a sample of landed changes and of claims made in result files | fixes what it finds |
 
-- **Spawn each lieutenant from its Agent definition:** `dri-dispatcher`,
-  `dri-steward`, `dri-worker`, `dri-auditor`. Each pins the strong tier's
-  model and preloads this Skill. Name a lieutenant by role and ordinal
+- **Spawn each lieutenant from its Agent definition:** `dispatcher`,
+  `steward`, `worker`, `auditor`. Each pins the strong tier's model and
+  preloads this Skill. Name a lieutenant by role and ordinal
   (`dispatcher1`, `steward2`), so a successor's name says whom it
   replaced, and a worker for its task.
 - **The lead has no Agent definition.** It is whichever session the user
@@ -192,7 +192,7 @@ answer comes back as a ruling in the ledger.
 Tiers are named by the judgement a role needs: the top tier, the strong
 tier, and the fast tier. Today those are `fable`, `opus`, and `sonnet`
 (`haiku` for the simplest mechanical steps); this line is where the
-binding is kept, and the `dri-*` Agent definitions pin the strong tier's
+binding is kept, and the four Agent definitions pin the strong tier's
 model.
 
 - **Every spawn names its model,** through an Agent definition or the

@@ -1,5 +1,5 @@
 ---
-name: dri-worker
+name: worker
 description: "Worker on a team run under the own-the-outcome Skill: an author, reviewer, or researcher with one deliverable and one result file, who never lands a change and never touches the team's shared resource. Spawned by the team's dispatcher with a brief file; pinned to the strong tier's model, so pass the fast tier's model for mechanical work, surveys, and documentation."
 model: opus
 skills:

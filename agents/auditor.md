@@ -1,5 +1,5 @@
 ---
-name: dri-auditor
+name: auditor
 description: "Auditor on a team run under the own-the-outcome Skill: independently checks a sample of landed changes, and of claims made in result files, against the evidence and against what the ruling asked for, and reports findings without fixing them. Spawned only by the lead of such a team, by name (auditor1, auditor2, ...)."
 model: opus
 skills:

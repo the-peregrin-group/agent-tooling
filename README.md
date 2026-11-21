@@ -18,8 +18,8 @@ Shared tooling for Claude Code agents:
   `refine-state-doc`, `use-lexicon`, `use-adrs`, `home-in`, `handoff`,
   `whatd-i-miss`, `own-the-outcome`.
 - **Five Agent definitions** (`agents/`): `code-reviewer`, and the four
-  lieutenant roles of `own-the-outcome` (`dri-dispatcher`, `dri-steward`,
-  `dri-worker`, `dri-auditor`).
+  lieutenant roles of `own-the-outcome` (`dispatcher`, `steward`,
+  `worker`, `auditor`).
 - **The installer** (`cli/tooling-install`), which ships all of the above.
 
 ## The install model

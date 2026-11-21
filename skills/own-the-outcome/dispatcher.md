@@ -25,7 +25,7 @@ job is and anything costly to get wrong.
   alive.
 - **Put context shared by a batch of briefs in one file**
   (`brief_<batch>_common.md`) and point to it.
-- **Spawn workers from the `dri-worker` Agent definition,** each named for
+- **Spawn workers from the `worker` Agent definition,** each named for
   its task. Pass the fast tier's model for a worker whose task is
   mechanical, a survey, or documentation. Use the top tier only where the
   charter records it.
@@ -40,7 +40,7 @@ job is and anything costly to get wrong.
 ## The review gate
 
 - **Every deliverable is reviewed before its order is written.** Spawn a
-  reviewer (a `dri-worker` whose deliverable is `review_<task>.md`) who
+  reviewer (a `worker` whose deliverable is `review_<task>.md`) who
   did not author the change.
 - **Deliverables that will land as one commit are reviewed as that one
   change.** One review may cover them all, so long as it reads the

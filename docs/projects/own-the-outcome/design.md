@@ -1,6 +1,6 @@
 # own-the-outcome: design
 
-The living design of the `own-the-outcome` Skill and the `dri-*` Agent
+The living design of the `own-the-outcome` Skill and its four Agent
 definitions. What ships and where is in the [index](index.md).
 
 ## The problem it solves
@@ -22,8 +22,8 @@ and most of its rules answer a failure seen in that trial.
   role's own rules sit in a support file beside it (`lead.md`,
   `dispatcher.md`, `steward.md`, `worker.md`, `auditor.md`), and
   `templates.md` holds the shape of every team file.
-- **Four thin Agent definitions** (`dri-dispatcher`, `dri-steward`,
-  `dri-worker`, `dri-auditor`) carry what only a definition can: the
+- **Four thin Agent definitions** (`dispatcher`, `steward`, `worker`,
+  `auditor`) carry what only a definition can: the
   role's model, and the Skill preloaded through `skills:`. Their bodies
   name the role, point to its support file, and repeat only the few rules
   the role must never miss.
@@ -92,7 +92,7 @@ on reasoning alone:
   default system prompt, can only be chosen at launch, and covers one role
   of five, leaving the shared protocol without a home. Its strengths (the
   rules survive compaction whole, the spawn list can be restricted) may
-  justify adding a `dri-lead` definition later, as a thin wrapper over the
+  justify adding a `lead` definition later, as a thin wrapper over the
   Skill, once use shows the Skill alone does not hold the lead to its
   role.
 - **A Skill alone, with no Agent definitions.** Passing a model on every
@@ -102,9 +102,14 @@ on reasoning alone:
   protocol drift apart. The definitions preload the Skill and point to it.
 - **Naming the Skill for the jargon** (`dri-team` and kin). "DRI" is
   opaque to a reader who has not met it, and "DRI team" reads as a
-  contradiction. The name says what the lead does; the Skill defines DRI
-  once, and the Agent definitions keep it as a prefix because it groups
-  them and collides with nothing.
+  contradiction. The name says what the lead does, and the Skill defines
+  DRI once.
+- **A `dri-` prefix on the Agent definitions.** The DRI is the lead, so a
+  subordinate role that carries the lead's title in its name misleads.
+  The definitions are named for their roles alone. The cost is that bare
+  names share one namespace with every other Agent definition: a project
+  that defines its own `worker` or `auditor` shadows these, and such a
+  project has to rename its own or accept that the team uses it.
 - **Shipping the context hook inside this change.** The hook depends on an
   undocumented transcript layout and needs its own source, tests, and
   install path; it is tracked separately (see the index's Known gaps).

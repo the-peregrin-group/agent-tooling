@@ -38,9 +38,9 @@ report, and nothing that needs the user's approval lands.
 
 ## Spawning
 
-- **Spawn each lieutenant from its Agent definition, by name:**
-  `dri-dispatcher` as `dispatcher1`, `dri-steward` as `steward1`,
-  `dri-auditor` as `auditor1`.
+- **Spawn each lieutenant from its Agent definition, by name:** the
+  `dispatcher` definition as `dispatcher1`, `steward` as `steward1`,
+  `auditor` as `auditor1`.
 - **A lieutenant's brief is short:** the charter's path, its role, and its
   predecessor's result file when it has one. A steward's brief names the
   order file to follow and never says "GO".
