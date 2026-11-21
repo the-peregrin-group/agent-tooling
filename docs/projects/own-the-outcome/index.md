@@ -46,3 +46,7 @@ alternatives.
 - A cold read of the installed copy is still unsure in several places,
   among them what the rules mean for agents that run as teammates and how
   a fix reaches the steward after a gate stop (agent-tooling-lt23).
+- The Skill names no durable place for agents' scratch and no cleanup the
+  Permission rules can allow safely, so the steward's raw logs and
+  workers' copies end up in a temporary directory or in the team folder
+  by hand (agent-tooling-4dgh).
