@@ -43,3 +43,6 @@ alternatives.
   brief and order (agent-tooling-saey).
 - The Skill asks the lead to report each role's share of a run's cost but
   ships no script that measures it (agent-tooling-2at3).
+- A cold read of the installed copy is still unsure in several places,
+  among them what the rules mean for agents that run as teammates and how
+  a fix reaches the steward after a gate stop (agent-tooling-lt23).

@@ -18,14 +18,15 @@ may be an author, a reviewer, or a researcher; the brief says which.
   spawner, and stop.
 - **Wait in slices of under a minute,** and re-read your messages before
   you declare the job done.
-- **Finish with a reply of a few lines and your result file's path.** Say
-  what you did, what you did not do, and what you did not check. Report
-  only what you saw yourself; what you believe about other agents is not
-  evidence. Set your result file's State line to done first, and message
-  the same pointer to your spawner by name: you cannot see where your
-  final reply goes.
-- **If the list of running agents shows your spawner has gone,** your
-  result file still stands: message its path to the lead and stop. Do not
+- **Finish in this order:** set your result file's State line to done;
+  message a few lines and the file's path to your spawner by name,
+  because you cannot see where your final reply goes; then reply with the
+  same. Say what you did, what you did not do, and what you did not
+  check. Report only what you saw yourself; what you believe about other
+  agents is not evidence.
+- **Look at the list of running agents before you message your
+  spawner.** If it shows your spawner has gone, your result file still
+  stands: message its path to the lead and stop. Do not
   guess that it has gone, and do not ask anyone to land your change.
 
 ## Staging a change
