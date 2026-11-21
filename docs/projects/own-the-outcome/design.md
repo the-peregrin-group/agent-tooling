@@ -24,8 +24,9 @@ and most of its rules answer a failure seen in that trial.
   `templates.md` holds the shape of every team file.
 - **Four thin Agent definitions** (`dispatcher`, `steward`, `worker`,
   `auditor`) carry what only a definition can: the
-  role's model, and the Skill preloaded through `skills:`. Their bodies
-  name the role, point to its support file, and repeat only the few rules
+  role's model, and the Skill listed under `skills:`. Their bodies
+  name the role, tell the agent to load the Skill if it arrived without
+  it, point to its support file, and repeat only the few rules
   the role must never miss.
 - **Project specifics live in the charter.** The Skill names no
   version-control tool, build system, or shared resource.
@@ -66,6 +67,17 @@ from an Agent definition resolves to the definition's model before the
 parent's. A project that wants a limit enforced adds its own Permission
 rules.
 
+The Skill's presence in a lieutenant's context is discipline too. A
+definition's `skills:` list puts the Skill's text into an ordinary
+sub-agent's context at start. A spawn given a name, which is how the
+Skill has every lieutenant spawned, runs as a teammate where the harness
+has agent teams enabled, and Claude Code does not apply a definition's
+`skills:` to a teammate
+([agent teams](https://code.claude.com/docs/en/agent-teams)): it starts
+with only the Skill's description. So each definition's body tells its
+agent to load the Skill when the text is missing, and the `skills:` list
+stays for the spawns that honour it.
+
 The definitions restrict no tools, on purpose. Removing the spawning tool
 from workers, stewards, and auditors would enforce "only the dispatcher
 spawns workers", but it would also stop a steward or a worker from handing
@@ -99,7 +111,8 @@ on reasoning alone:
   spawn would stay a matter of memory, and the cost of forgetting is a
   team of agents on the lead's tier.
 - **Rules restated in each Agent definition's body.** Five copies of one
-  protocol drift apart. The definitions preload the Skill and point to it.
+  protocol drift apart. The definitions bring the Skill in and point to
+  it.
 - **Naming the Skill for the jargon** (`dri-team` and kin). "DRI" is
   opaque to a reader who has not met it, and "DRI team" reads as a
   contradiction. The name says what the lead does, and the Skill defines

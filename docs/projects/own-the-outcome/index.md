@@ -17,9 +17,9 @@ lead-owned rulings ledger that is the only authority to act, briefs, result
 files, reviews, decision memos, numbered order files, and a steward log.
 
 Four Agent definitions (`dispatcher`, `steward`, `worker`, `auditor`)
-ship with the Skill. Each pins the strong tier's model and
-preloads the Skill, so a spawn from one cannot inherit the lead's model by
-accident. Project specifics (version-control commands, the gate's
+ship with the Skill. Each pins the strong tier's model, so a spawn from
+one cannot inherit the lead's model by accident, and has its agent load
+the Skill. Project specifics (version-control commands, the gate's
 steps, the shared resources) live in each team's charter, not in the
 Skill. The [design](design.md) has the reasons and the rejected
 alternatives.
@@ -34,7 +34,7 @@ alternatives.
 | The release steward's part: acting on order files only, the steward log, the gate, landing as one verified commit, holding the shared resource | shipped | `skills/own-the-outcome/steward.md` |
 | The worker's and the auditor's parts | shipped | `skills/own-the-outcome/worker.md`, `skills/own-the-outcome/auditor.md` |
 | Templates for the charter (with the project's specifics), a ruling, a brief, a result file, a review, a research file, a memo, an order, the status file, and the steward log | shipped | `skills/own-the-outcome/templates.md` |
-| Four Agent definitions, one per lieutenant role, that pin the strong tier's model and preload the Skill | shipped | `agents/dispatcher.md`, `agents/steward.md`, `agents/worker.md`, `agents/auditor.md` |
+| Four Agent definitions, one per lieutenant role, that pin the strong tier's model and have the agent load the Skill | shipped | `agents/dispatcher.md`, `agents/steward.md`, `agents/worker.md`, `agents/auditor.md` |
 
 ### Known gaps
 
@@ -43,3 +43,7 @@ alternatives.
   brief and order (agent-tooling-saey).
 - The Skill asks the lead to report each role's share of a run's cost but
   ships no script that measures it (agent-tooling-2at3).
+- A fresh agent reading the installed copy had to guess in a few places:
+  which way parallel workers hand over their changes, where the team
+  folder goes by default, and whether a one-commit job needs an auditor,
+  among others (agent-tooling-zkci).
