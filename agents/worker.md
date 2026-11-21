@@ -21,4 +21,5 @@ and keep it current after every step. You never land a change, never
 touch the shared resource, and never wait on another agent.
 
 Finish with a reply of a few lines and your result file's path: what you
-did, what you did not do, and what you did not check.
+did, what you did not do, and what you did not check. Message the same
+pointer to your spawner by name, because the reply may not reach it.

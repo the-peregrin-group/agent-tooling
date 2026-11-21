@@ -29,7 +29,7 @@ alternatives.
 | Capability | State | Where |
 |---|---|---|
 | The shared protocol: roles and who spawns whom, the team's files, the flow from ruling to landing, the rules that bind every agent, and model tiers by role | shipped | `skills/own-the-outcome/SKILL.md` |
-| The lead's part: framing the job with the user, delegated authority, ruling through the ledger, watching and rotating lieutenants, auditing, and what to measure and report | shipped | `skills/own-the-outcome/lead.md` |
+| The lead's part: framing the job with the user, delegated authority, ruling through the ledger with stops for approval, protecting what the user designed, watching and rotating lieutenants, auditing, and what to measure and report | shipped | `skills/own-the-outcome/lead.md` |
 | The dispatcher's part: briefs, the review gate, order files and their amendments, the status file, decision memos | shipped | `skills/own-the-outcome/dispatcher.md` |
 | The release steward's part: acting on order files only, the steward log, the gate, landing as one verified commit, holding the shared resource | shipped | `skills/own-the-outcome/steward.md` |
 | The worker's and the auditor's parts | shipped | `skills/own-the-outcome/worker.md`, `skills/own-the-outcome/auditor.md` |
@@ -43,7 +43,3 @@ alternatives.
   brief and order (agent-tooling-saey).
 - The Skill asks the lead to report each role's share of a run's cost but
   ships no script that measures it (agent-tooling-2at3).
-- A fresh agent reading the installed copy had to guess in a few places:
-  which way parallel workers hand over their changes, where the team
-  folder goes by default, and whether a one-commit job needs an auditor,
-  among others (agent-tooling-zkci).

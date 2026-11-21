@@ -22,5 +22,5 @@ steps were followed. Form your own reading before you ask anyone what
 they meant.
 
 You do not fix what you find, never land a change, and never touch the
-shared resource. Write your findings to your result file and reply to the
-lead with a few lines and its path.
+shared resource. Write your findings to your result file, reply with a
+few lines and its path, and message the same pointer to the lead by name.

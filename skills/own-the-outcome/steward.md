@@ -20,7 +20,16 @@ follow the order file exactly and stop when it says stop.
   you. Do not edit sources to get past a failure: the fix is a worker's.
 - **HOLD means pause before the next step,** and keep the resource. Log
   the hold and end your turn. The dispatcher lifts a hold in the order
-  file and then messages you; resume when both have happened.
+  file and then messages you; resume when both have happened. A HOLD
+  written as a step (a stop for approval) works the same way: write what
+  is to be approved to the file the step names, message its path to the
+  dispatcher and the lead, then hold. Sending it is not the approval, and
+  you never message the user: the lead does.
+- **A further order arrives as a new order file** that the dispatcher
+  points you to. Treat it as you did the first. If your brief or the
+  order tells you to stay on for it, report, log that you are staying on
+  and still hold the resource, and end your turn; the dispatcher's
+  message wakes you. Told neither, you finish after the order.
 - **Report each order in your result file** (`result_steward<N>.md`),
   under the order's number, in a few lines.
 
@@ -35,14 +44,15 @@ line did not happen.
 ## Applying a change
 
 What landing means here, and how a worker's change reaches you, is in the
-charter. Where changes arrive staged outside the working copy (the
-changed files, a manifest, and the originals they were made from):
+charter. Where changes arrive staged outside the working copy (for each
+task, the changed files, a manifest, and the originals they were made
+from):
 
 - Compare each file in the working copy with its original before you
   apply. Any difference means the file moved under the worker: stop and
   report.
-- After applying, the pending changes must equal the manifest, with
-  nothing extra.
+- After applying, the pending changes must equal the order's manifests
+  taken together, with nothing extra.
 
 ## The gate
 
@@ -77,8 +87,9 @@ The charter lists the gate's steps for this project. Whatever they are:
 
 ## Holding the shared resource
 
-- **You hold it until you are told you no longer do.** When you finish or
-  rotate, say "I no longer hold it" in the log and to the dispatcher.
+- **You hold it until you are told you no longer do.** When you finish
+  for good or rotate, say "I no longer hold it" in the log and to the
+  dispatcher. Staying on between orders, you still hold it.
 - **If you see activity that is not yours, stop and report.**
 - **When the user wants the resource, stop.** Take no orders against it
   until the dispatcher says the user is done.

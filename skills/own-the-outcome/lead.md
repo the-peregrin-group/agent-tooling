@@ -45,8 +45,13 @@ report, and nothing that needs the user's approval lands.
   predecessor's result file when it has one. A steward's brief names the
   order file to follow and never says "GO".
 - **Spawn a steward when the dispatcher reports an order ready,** and do
-  not keep one idle between gates. If the line of work does not exist
-  yet, creating it is the steward's first order.
+  not keep one idle between gates. A steward may stay on for the next
+  order when that order is already written or minutes away, which takes
+  you off the path of every order in a busy batch (provisional). Its
+  brief says so, or the dispatcher writes it into the order; a steward
+  told neither finishes after its order. If the
+  line of work does not exist yet, the first order's first step creates
+  it.
 - **Record every top-tier agent and why** in the charter.
 
 ## Ruling
@@ -54,9 +59,22 @@ report, and nothing that needs the user's approval lands.
 - **Write the ruling into the ledger, then send a pointer to it.** A
   dispatcher that receives none of your messages can still act correctly
   from the ledger; one that receives only messages cannot.
-- **A ruling states** its date and time, its topic, whose decision it is
-  (the user's or yours), the exact scope, what is out of scope, and what
-  done means.
+- **A ruling states** its date and time (from the clock as you write it,
+  never estimated), its topic, whose decision it is (the user's or
+  yours), the exact scope, what is out of scope, what done means, and
+  every stop for approval.
+- **Write every approval point as a stop.** Where you or the user must
+  see or approve something before work goes on, the ruling says before
+  which step, what is to be approved and by whom, and that work holds
+  there until a later ruling lifts it. What is to be approved reaches you
+  as a file's path; you show the user, since only you message them. "Show me X before Y" written any other way is
+  read as a notification, and Y happens first. A user's request to see
+  something before a step is a stop unless they say otherwise.
+- **Protect what the user designed.** Before you propose changing
+  something the user designed, find its purpose in the user's plan, later
+  phases included, and cite it. When a check flags the user's design, ask
+  first whether the check's rule is too broad, and propose narrowing the
+  rule before changing the design to pass it.
 - **A change to a ruling that has started to land is a new ruling.** An
   addendum appended inside an old ruling races with the landing and can go
   unseen. If you must amend, get an explicit acknowledgement (provisional).
@@ -78,12 +96,20 @@ report, and nothing that needs the user's approval lands.
   wait for the review gate. Landing ahead of the review ships what the
   review would have caught.
 - **A reply that reaches you by mistake** is forwarded to the current
-  dispatcher as a path. You do not answer the worker that sent it.
+  dispatcher as a path, at once and before you act on it. Checking the
+  result yourself does not forward it. You do not answer the worker that
+  sent it.
+- **After a landing, check that the next step started.** A landing you
+  verified and nobody passed on leaves the dispatcher idle.
 
 ## Watching the team
 
-- **Check on lieutenants with a timer,** not by waiting for their next
-  turn. Keep a watchdog as the backstop for any long background job.
+- **You end your turn with work in flight,** because the user must be
+  able to reach you. A lieutenant's message wakes you. Against the
+  message that never comes, **check on lieutenants with a timer** set in
+  minutes: do not poll in slices, which re-reads your whole context each
+  time, and do not wait for their next turn. Keep a watchdog as the
+  backstop for any long background job.
 - **Diagnose a stall from the agent's transcript, not by asking the
   agent.** Print sizes, tool names, and times only, never content: a
   transcript can hold a secret.
@@ -105,9 +131,12 @@ successors from the start.
   threshold to wrap up and at a hard threshold to stop at once. For a
   large context window, set the soft threshold near 150k tokens and the
   hard one near 200k (provisional).
-- **Without one,** put the limit in the brief or the order: "if your
+- **Without one,** put the limit in the brief or the order, and set it
+  lower, because nothing stops an agent that overshoots it: "if your
   context is above 110k tokens, bring your Handoff section current, reply
   'over', and stop."
+- **An agent that has said it is near its limit gets no new
+  instruction.** Put it in the file its successor reads.
 - **On a rotation:** the outgoing lieutenant brings its result file's
   Handoff section current. You spawn the successor under the next ordinal,
   with a brief that points to that file (and, for a steward, the steward
@@ -125,6 +154,9 @@ auditor is how they survive.
   at least once per batch of landings, before you report the batch to the
   user. Give it the sample: which landed changes, and which claims in
   result files.
+- **On a run of one or two landings with nothing risky in them, you may
+  make that check yourself** in place of an auditor: read what landed
+  against its ruling (provisional).
 - **Sample the auditor yourself,** cheaply: one finding followed to its
   evidence.
 - **A finding becomes a ruling** for the dispatcher's queue. The auditor

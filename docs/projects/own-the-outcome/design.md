@@ -45,6 +45,22 @@ and most of its rules answer a failure seen in that trial.
   is a gate-free landing that a charter lets the dispatcher make. Nobody
   lands on another agent's word: a reply's claim that the dispatcher has
   gone is hearsay, and landing on it skips the review.
+- **An approval is a stop, and is written as one.** A point where the
+  user or the lead must approve before work goes on is recorded in the
+  ruling as a stop, and reaches the steward as a HOLD step that only a
+  later ruling lifts. "Show me before you land" written any other way
+  reads as a notification, and the landing it guarded happens first.
+- **No rule depends on a reply arriving.** A finished sub-agent's final
+  reply goes where the harness routes it, which can be the lead and not
+  the agent that spawned it. So a finishing agent also messages its
+  pointer to its spawner by name, its result file carries a State line
+  the spawner can watch, the lead forwards what reaches it by mistake,
+  and nobody reports another agent as stopped without the list of
+  running agents to show it.
+- **The outcome is the user's intent, not a passing check.** Before
+  anyone proposes changing what the user designed, they find its purpose
+  in the user's plan. A check that flags the design is first suspected of
+  being too broad.
 - **Verification is a role, not something delegation removes.** Hands-on
   checks catch real errors, so when the lead stops making them the auditor
   makes them, and the lead samples the auditor.
@@ -95,7 +111,15 @@ on reasoning alone:
 - the context thresholds for rotating lieutenants;
 - the strong tier being enough for the lead;
 - a worker's commits on its own branch counting as staging, with the
-  steward integrating them, which is reasoning and not experience.
+  steward integrating them, which is reasoning and not experience;
+- the lead making the audit check itself on a run of one or two
+  landings, so that a small job does not pay for an auditor;
+- an ignored folder in the main checkout as the default team folder,
+  chosen because one absolute path then serves every agent and nothing
+  wipes it during the run;
+- a steward staying on for consecutive orders in a busy batch, which
+  takes the lead off the path of every order at the cost of a steward's
+  context growing between gates.
 
 ## Rejected alternatives
 
@@ -126,3 +150,10 @@ on reasoning alone:
 - **Shipping the context hook inside this change.** The hook depends on an
   undocumented transcript layout and needs its own source, tests, and
   install path; it is tracked separately (see the index's Known gaps).
+- **Waiting only in short slices for an agent you spawned.** An idle
+  agent that polls re-reads its whole context on every slice. A watcher
+  on the result file's State line wakes it once, so the Skill offers the
+  watcher first and slices as the fallback.
+- **Stating how long a lieutenant lasts before it is rotated.** One run's
+  figure would be read as a rule. The Skill gives context thresholds and
+  leaves the clock to the lead.

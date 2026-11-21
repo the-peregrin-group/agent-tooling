@@ -25,14 +25,20 @@ job is and anything costly to get wrong.
   alive.
 - **Put context shared by a batch of briefs in one file**
   (`brief_<batch>_common.md`) and point to it.
-- **Spawn workers from the `worker` Agent definition,** each named for
-  its task. Pass the fast tier's model for a worker whose task is
-  mechanical, a survey, or documentation. Use the top tier only where the
-  charter records it.
+- **Spawn workers from the `worker` Agent definition,** each named by
+  what it does and its task (`author-<task>`, `review-<task>`,
+  `research-<topic>`). Pass the fast tier's model for a worker whose
+  task is mechanical, a survey, or documentation. Use the top tier only
+  where the charter records it.
 - **Never let one worker wait on another.** Sequence dependent work
   yourself: the second brief is written after the first result is in.
 - **Do not reply to a finished worker.** Read its result file; the reply
   is only a pointer, and it may reach the lead instead of you.
+- **Do not depend on a worker's reply arriving.** A worker in flight is a
+  job you own: do not end your turn counting on its reply to wake you.
+  Arm a watcher on the State line of its result file, or wait in slices
+  and check that file and the list of running agents. Watch an order in
+  flight the same way, through the steward log.
 - **A trivial edit you may make yourself,** without briefing a worker: one
   or two lines with no effect on the build. It is reviewed and lands like
   any other change.
@@ -57,15 +63,30 @@ job is and anything costly to get wrong.
   steward should find before it starts, and numbered steps, each with its
   stop condition. The last step is the landing, with the commit message
   and the check that follows it.
-- **When an order is ready and no steward is running, tell the lead,**
-  and show the waiting order in the status file, which the lead reads
-  even when your message is late. The lead spawns stewards; you never do.
+- **A stop for approval in the ruling becomes a HOLD step in the order,**
+  at the point the ruling names. The step has the steward write what is
+  to be approved to a file and message its path to you and the lead, and
+  you lift it only by writing into the order the later ruling that
+  approves. Where a ruling's wording could mean either notify or approve,
+  treat it as approve and ask the lead. A steward in such a hold keeps
+  the resource, and the orders behind it wait: where the approval could
+  take long, cut the work so that what is to be approved is produced
+  before the order starts, or by an order of its own that ends clean.
+- **When an order is ready and no steward is running, message the
+  lead,** and show the waiting order in the status file, which the lead
+  reads even when your message is late. The lead spawns stewards; you
+  never do. When a steward has stayed on after its last order (the
+  steward log says so, and the list of running agents shows it), message
+  it the new order's path yourself.
 - **If the line of work does not exist yet,** the first order's first
-  step creates it, with the command the charter gives.
+  step creates it, with the command the charter gives. Workers do not
+  wait for it: they work from the working copy as it stands, and no
+  worker creates or switches a branch there.
 - **Amend inside the order file,** under a timed heading; the steward
   re-reads the file at every step. An amendment to an order already in
-  motion needs the steward's acknowledgement in the steward log. Without
-  it, write a new order (provisional).
+  motion needs the steward's acknowledgement in the steward log. If the
+  steward logs its next step without it, write the change as a new order
+  that says which order it replaces, and from which step (provisional).
 - **To pause the steward, write HOLD into the order file** and wait for
   its acknowledgement in the steward log before any worker touches the
   working copy. A hold sent only as a message can arrive after the edit
@@ -94,5 +115,7 @@ blinds the lead, and it is the first thing to slip under load.
 A question you may not decide goes to the lead as `memo_<topic>.md`, kept
 under about 60 lines: the question, the options, the evidence with file
 and line, and your recommendation. The lead will not re-derive it, so the
-evidence must stand on its own. List the memo in the status file, and
+evidence must stand on its own. Where an option changes something the
+user designed, say what that thing is for in the user's plan, later
+phases included, and where the plan says so. List the memo in the status file, and
 carry on with work the question does not block.
