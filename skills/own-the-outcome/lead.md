@@ -46,7 +46,7 @@ report, and nothing that needs the user's approval lands.
   order file to follow and never says "GO".
 - **Spawn a steward when the dispatcher reports an order ready,** and do
   not keep one idle between gates. If the line of work does not exist
-  yet, creating it is the steward's first order.
+  yet, the first order's first step creates it.
 - **Record every top-tier agent and why** in the charter.
 
 ## Ruling
@@ -125,6 +125,9 @@ auditor is how they survive.
   at least once per batch of landings, before you report the batch to the
   user. Give it the sample: which landed changes, and which claims in
   result files.
+- **On a run of one or two landings with nothing risky in them, you may
+  make that check yourself** in place of an auditor: read what landed
+  against its ruling (provisional).
 - **Sample the auditor yourself,** cheaply: one finding followed to its
   evidence.
 - **A finding becomes a ruling** for the dispatcher's queue. The auditor

@@ -43,7 +43,3 @@ alternatives.
   brief and order (agent-tooling-saey).
 - The Skill asks the lead to report each role's share of a run's cost but
   ships no script that measures it (agent-tooling-2at3).
-- A fresh agent reading the installed copy had to guess in a few places:
-  which way parallel workers hand over their changes, where the team
-  folder goes by default, and whether a one-commit job needs an auditor,
-  among others (agent-tooling-zkci).

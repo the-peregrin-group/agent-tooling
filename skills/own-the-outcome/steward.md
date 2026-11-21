@@ -35,14 +35,15 @@ line did not happen.
 ## Applying a change
 
 What landing means here, and how a worker's change reaches you, is in the
-charter. Where changes arrive staged outside the working copy (the
-changed files, a manifest, and the originals they were made from):
+charter. Where changes arrive staged outside the working copy (for each
+task, the changed files, a manifest, and the originals they were made
+from):
 
 - Compare each file in the working copy with its original before you
   apply. Any difference means the file moved under the worker: stop and
   report.
-- After applying, the pending changes must equal the manifest, with
-  nothing extra.
+- After applying, the pending changes must equal the order's manifests
+  taken together, with nothing extra.
 
 ## The gate
 

@@ -10,8 +10,9 @@ may be an author, a reviewer, or a researcher; the brief says which.
   If you are stopped early, the file is all that survives you.
 - **Stay inside your deliverable.** Work you notice outside it goes in
   your result file, not into your change.
-- **Never land a change and never touch the shared resource.** Leave your
-  change where the charter says.
+- **Never land a change and never touch a shared resource.** Leave your
+  change where the charter says. That is the working copy itself only
+  where the charter has workers edit it directly, one at a time.
 - **Never wait on another agent.** If you need something another agent
   has not produced, write what you need in your result file, tell your
   spawner, and stop.

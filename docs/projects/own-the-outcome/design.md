@@ -95,7 +95,12 @@ on reasoning alone:
 - the context thresholds for rotating lieutenants;
 - the strong tier being enough for the lead;
 - a worker's commits on its own branch counting as staging, with the
-  steward integrating them, which is reasoning and not experience.
+  steward integrating them, which is reasoning and not experience;
+- the lead making the audit check itself on a run of one or two
+  landings, so that a small job does not pay for an auditor;
+- an ignored folder in the main checkout as the default team folder,
+  chosen because one absolute path then serves every agent and nothing
+  wipes it during the run.
 
 ## Rejected alternatives
 

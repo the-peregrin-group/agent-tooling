@@ -25,10 +25,11 @@ job is and anything costly to get wrong.
   alive.
 - **Put context shared by a batch of briefs in one file**
   (`brief_<batch>_common.md`) and point to it.
-- **Spawn workers from the `worker` Agent definition,** each named for
-  its task. Pass the fast tier's model for a worker whose task is
-  mechanical, a survey, or documentation. Use the top tier only where the
-  charter records it.
+- **Spawn workers from the `worker` Agent definition,** each named by
+  what it does and its task (`author-<task>`, `review-<task>`,
+  `research-<topic>`). Pass the fast tier's model for a worker whose
+  task is mechanical, a survey, or documentation. Use the top tier only
+  where the charter records it.
 - **Never let one worker wait on another.** Sequence dependent work
   yourself: the second brief is written after the first result is in.
 - **Do not reply to a finished worker.** Read its result file; the reply
@@ -57,11 +58,14 @@ job is and anything costly to get wrong.
   steward should find before it starts, and numbered steps, each with its
   stop condition. The last step is the landing, with the commit message
   and the check that follows it.
-- **When an order is ready and no steward is running, tell the lead,**
-  and show the waiting order in the status file, which the lead reads
-  even when your message is late. The lead spawns stewards; you never do.
+- **When an order is ready and no steward is running, message the
+  lead,** and show the waiting order in the status file, which the lead
+  reads even when your message is late. The lead spawns stewards; you
+  never do.
 - **If the line of work does not exist yet,** the first order's first
-  step creates it, with the command the charter gives.
+  step creates it, with the command the charter gives. Workers do not
+  wait for it: they work from the working copy as it stands, and no
+  worker creates or switches a branch there.
 - **Amend inside the order file,** under a timed heading; the steward
   re-reads the file at every step. An amendment to an order already in
   motion needs the steward's acknowledgement in the steward log. Without

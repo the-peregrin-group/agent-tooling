@@ -30,8 +30,14 @@ truth for scope.>
 
 ## Team folder
 `<path>`: rulings.md, status.md, briefs, results, reviews, memos, orders,
-steward_log.md. <Keep it outside the working copy, or ignored by version
-control, so that it never shows as a pending change.>
+steward_log.md. <Give the absolute path, so every agent reaches the same
+folder from wherever it works. Keep it outside the working copy, or
+ignored by version control, so that it never shows as a pending change.
+Unless the project has a place for it, use a folder in the project's
+primary checkout (not in a worktree of it), `<checkout>/.team/<job>/`,
+ignored through a local exclude rule and not through a tracked ignore
+file, which would itself be a change to land (provisional). Avoid a
+temporary directory that may be wiped during the run.>
 
 ## This project
 - Line of work: `<branch>` <and, if it does not exist yet, the command
@@ -42,9 +48,12 @@ control, so that it never shows as a pending change.>
 - Landings the dispatcher may make itself: <none | which, e.g.
   documentation only>.
 - How a worker's change reaches the steward: <in the working copy, one
-  worker at a time | staged under `<path>/staged/` with the manifest
-  `<path>/manifest.txt` and originals under `<path>/orig/` | on the
-  worker's own branch, which the steward integrates (provisional)>.
+  worker at a time | staged per task under `<path>/staged/<task>/`, with
+  that task's manifest `<path>/staged/<task>/manifest.txt` and its
+  originals under `<path>/orig/<task>/` | on the worker's own branch,
+  which the steward integrates (provisional)>. <One way for the whole
+  job. Choose the first only where no two workers ever run at the same
+  time.>
 - Shared resources with one holder at a time: <resource: holder>.
 - The gate, in order: <step: command, and where its authoritative result
   is read | none beyond the review, for a project with nothing to build
@@ -170,8 +179,8 @@ B. <option>: <...>.
 # ORDER <N> for <steward> (<dispatcher>, <time>): <topic>. GO.
 
 Ruling: rulings.md "<heading>". Author: <result path>. Review: <review
-path>. Change: <paths, or staged at `<path>` with manifest `<path>` and
-originals `<path>`>.
+path>. Change: <paths, or for each staged task: staged at `<path>` with
+manifest `<path>` and originals `<path>`>.
 
 0. Before you start: the latest commit is <commit>, nothing is pending,
    <resource state>. Otherwise STOP and report. <If the line of work does

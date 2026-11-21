@@ -77,7 +77,8 @@ in a default install).
   `steward`, `worker`, `auditor`. Each pins the strong tier's model and
   has its agent load this Skill. Name a lieutenant by role and ordinal
   (`dispatcher1`, `steward2`), so a successor's name says whom it
-  replaced, and a worker for its task.
+  replaced, and a worker by what it does and its task (`author-<task>`,
+  `review-<task>`, `research-<topic>`).
 - **The lead has no Agent definition.** It is whichever session the user
   put in charge.
 - **The lead spawns every lieutenant and every successor.** The dispatcher
@@ -110,25 +111,27 @@ All team state lives in one team folder, named in the charter.
 
 ## The flow
 
-1. The lead writes the charter and spawns `dispatcher1`, with a brief that
-   points to the charter.
-2. The lead rules: it writes the ruling into the ledger (scope, what is out
-   of scope, what done means), then sends the dispatcher a pointer to it.
+1. The lead writes the charter and rules: it writes the first ruling into
+   the ledger (scope, what is out of scope, what done means).
+2. The lead spawns `dispatcher1`, with a brief that points to the charter,
+   so the dispatcher starts with work to do. Each later ruling goes into
+   the ledger first, then to the dispatcher as a pointer.
 3. The dispatcher writes a brief and spawns a worker on it.
 4. The worker does its one deliverable, keeps its result file current,
    replies with a few lines and the file's path, and finishes.
 5. The dispatcher has a reviewer review the deliverable. A must-fix goes
    back to a worker. Nothing lands ahead of its review.
 6. The dispatcher writes an order file that cites the ruling and the
-   review, marks it GO, notes it in the status file, and tells the lead
-   an order is ready. The lead spawns a steward if none is running.
+   review, marks it GO, notes it in the status file, and messages the
+   lead that an order is ready. The lead spawns a steward if none is
+   running.
 7. The steward runs the gate step by step, logging each step, and stops
    and reports at any stop condition.
 8. The steward lands the change: one commit from an explicit path list,
    verified afterwards.
 9. The steward logs the landing and the dispatcher updates the status
-   file. The lead reads the status file, has the auditor sample what
-   landed, and reports to the user.
+   file. The lead reads the status file, has what landed audited
+   (`lead.md` says when), and reports to the user.
 
 A question the dispatcher may not decide goes to the lead as a memo; the
 answer comes back as a ruling in the ledger.
@@ -168,7 +171,12 @@ answer comes back as a ruling in the ledger.
   you. Run it in the foreground. A job longer than the foreground limit
   runs in the background with a watcher armed on its output.
 - **One holder per shared resource.** A working copy that several agents
-  would edit at once is a shared resource too. Before a new holder is
+  would edit at once is a shared resource too. The charter picks one way
+  for workers' changes to reach the steward: where any two workers may
+  run at the same time, each stages its change outside the working copy
+  or works on a branch of its own; where workers edit the working copy
+  directly, the dispatcher runs them one at a time and the one running
+  holds it. Before a new holder is
   named, the old one is told "you no longer hold it" and anything queued
   to it is withdrawn. A holder that sees activity not its own stops and
   reports. While the user is hands-on with the resource, no agent drives
@@ -196,12 +204,15 @@ binding is kept, and the four Agent definitions pin the strong tier's
 model.
 
 - **Every spawn names its model,** through an Agent definition or the
-  spawn's model parameter. A spawn with neither inherits the lead's model,
+  spawn's model parameter. A model passed on the spawn overrides the one
+  the definition pins. A spawn with neither inherits the lead's model,
   and a team spawned that way by a top-tier lead can spend a whole usage
   limit unnoticed.
 - **The strong tier is the default** for dispatchers, stewards, auditors,
   and workers who author or review. Pass the fast tier's model when
-  spawning a worker for mechanical work, a survey, or documentation.
+  spawning a worker for mechanical work, a survey, or documentation:
+  `sonnet` as a rule, and `haiku` only for a step that needs no judgement
+  and whose output something else checks.
 - **The top tier is an escalation,** for work the strong tier has fallen
   short on or plainly would: work where precision or polish is the point,
   very complex design or code, and review of sensitive systems (security,
