@@ -22,12 +22,17 @@ may be an author, a reviewer, or a researcher; the brief says which.
   if your spawner is not the lead, message a few lines and the file's
   path to it by name, because your final reply reaches the lead; then
   reply with the same. Say what you did, what you did not do, and what
-  you did not check, in a few lines: the detail is in the file. Report only what you saw yourself; what you believe about other
-  agents is not evidence.
+  you did not check, in a few lines: the detail is in the file. Report
+  only what you saw yourself; what you believe about other agents is not
+  evidence.
 - **Look at the list of running agents before you message your
   spawner.** If it shows your spawner has gone, your result file still
-  stands: message its path to the lead and stop. Do not
-  guess that it has gone, and do not ask anyone to land your change.
+  stands: message its path to the lead and stop. Do not guess that it
+  has gone, and do not ask anyone to land your change. An error saying
+  your spawner is no longer running, when your final reply fails, is
+  not that list: it has been seen while the spawner was running and
+  took messages. You already messaged it by name, so message the lead
+  only if the list shows it gone.
 
 ## Staging a change
 
