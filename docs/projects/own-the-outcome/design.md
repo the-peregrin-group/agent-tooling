@@ -140,7 +140,10 @@ on reasoning alone:
   wipes it during the run;
 - a steward staying on for consecutive orders in a busy batch, which
   takes the lead off the path of every order at the cost of a steward's
-  context growing between gates.
+  context growing between gates;
+- a lieutenant waiting for its own jobs inside its turn instead of
+  trusting a watcher, which rests on one run's missed wake-ups whose
+  cause is not diagnosed.
 
 ## Rejected alternatives
 
