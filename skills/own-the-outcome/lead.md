@@ -189,6 +189,10 @@ only, never transcript content. Without one, report what the team's files
 show (turns, landings and their times, rotations, defects) and say that
 cost shares were not measured.
 
+Then clear the team folder's `scratch/`: tell the user its size, ask, and
+delete it in one act once they agree. No other agent deletes files, so
+this is the only cleanup scratch gets.
+
 Keep the known risks in view, and tell the user when one bites: you answer
 for work you have not seen; each relay layer loses detail and adds delay;
 and the structure can cost more than it saves.

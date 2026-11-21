@@ -30,7 +30,7 @@ truth for scope.>
 
 ## Team folder
 `<path>`: rulings.md, status.md, briefs, results, reviews, memos, orders,
-steward_log.md. <Give the absolute path, so every agent reaches the same
+steward_log.md, and each agent's scratch under scratch/<name>/. <Give the absolute path, so every agent reaches the same
 folder from wherever it works. Keep it outside the working copy, or
 ignored by version control, so that it never shows as a pending change.
 Unless the project has a place for it, use a folder in the project's

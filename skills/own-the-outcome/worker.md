@@ -13,6 +13,9 @@ may be an author, a reviewer, or a researcher; the brief says which.
 - **Never land a change and never touch a shared resource.** Leave your
   change where the charter says. That is the working copy itself only
   where the charter has workers edit it directly, one at a time.
+- **Keep scratch in your own `scratch/<your name>/`** in the team folder,
+  not in the working copy or a temporary directory, and never delete it:
+  the lead clears it at the end of the run.
 - **Never wait on another agent.** If you need something another agent
   has not produced, write what you need in your result file, tell your
   spawner, and stop.

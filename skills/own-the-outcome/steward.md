@@ -117,8 +117,9 @@ The charter lists the gate's steps for this project. Whatever they are:
   trusting a watcher to wake you: one did not, and the resource sat idle
   for over an hour (provisional).
 - **Logs fill your context.** Search them for the verdict, failures, and
-  summary lines; never read one whole. Keep raw logs outside the team
-  folder, and small evidence inside it.
+  summary lines; never read one whole. Keep raw logs in your
+  `scratch/<your name>/`, and copy only small evidence into the team
+  folder's files.
 - **At a context notice, finish the step you are on if it is short,** log
   it, bring your result file's Handoff section current, tell the
   dispatcher and the lead, and stop. Your successor resumes from the log.

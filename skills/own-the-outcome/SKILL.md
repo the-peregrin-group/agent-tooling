@@ -112,6 +112,7 @@ All team state lives in one team folder, named in the charter.
 | `memo_<topic>.md` | dispatcher | A decision memo for the lead: question, options, evidence, recommendation. |
 | `order<N>_<topic>.md` | dispatcher | A numbered order to the steward: the ruling it rests on, the change, and numbered steps, each with its stop condition. Amendments are written into it. |
 | `steward_log.md` | steward | One timed line per step started and finished, so a successor can take over mid-order. |
+| `scratch/<name>/` | each agent | That agent's scratch: copies, probes, raw logs. Never a temporary directory, which can be wiped while a paused agent still needs it. Nobody deletes scratch during the run; the lead clears it at the end. |
 
 ## The flow
 

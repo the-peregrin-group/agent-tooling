@@ -92,6 +92,13 @@ and most of its rules answer a failure seen in that trial.
 - **Tiers are named by judgement, not by model.** Model names change, so
   one line in `SKILL.md` binds the three tiers to today's models, and the
   Agent definitions pin the strong tier's.
+- **Scratch is durable, each agent's own, and cleared once.** Each agent
+  keeps scratch in `scratch/<name>/` in the team folder, which every
+  agent reaches by one absolute path and which never shows as a pending
+  change. A temporary directory can be wiped while a paused agent still
+  needs what it holds. Agents get no grant to delete files, so in a live
+  run scratch piled up until the user cleared it by hand; now the lead
+  clears `scratch/` once at the end of the run, with the user's say-so.
 
 ## What is enforced and what is discipline
 
@@ -138,6 +145,8 @@ on reasoning alone:
 - an ignored folder in the main checkout as the default team folder,
   chosen because one absolute path then serves every agent and nothing
   wipes it during the run;
+- clearing scratch only once, at the end of the run, which assumes no run
+  produces enough scratch to need clearing sooner;
 - a steward staying on for consecutive orders in a busy batch, which
   takes the lead off the path of every order at the cost of a steward's
   context growing between gates.
@@ -184,6 +193,14 @@ on reasoning alone:
   that also ends when an instruction file changes reads them just as
   promptly. A short slice only re-reads the agent's context and grows it
   when nothing has changed.
+- **Scratch in a per-agent temporary directory.** It needs no cleanup
+  rule, but a pause can outlast the directory, and a resumed agent then
+  finds its scratch gone.
+- **A Wrapper Verb that deletes only inside a fenced scratch root.** It
+  could be allowlisted, letting agents clear scratch mid-run without a
+  prompt, at the cost of a new Wrapper and its tests. One cleanup at the
+  end of the run needs neither, so the Verb waits until a run needs
+  scratch cleared sooner.
 - **Stating how long a lieutenant lasts before it is rotated.** One run's
   figure would be read as a rule. The Skill gives context thresholds and
   leaves the clock to the lead.
