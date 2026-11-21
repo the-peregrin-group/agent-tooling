@@ -46,3 +46,5 @@ alternatives.
 - A cold read of the installed copy is still unsure in several places,
   among them what the rules mean for agents that run as teammates and how
   a fix reaches the steward after a gate stop (agent-tooling-lt23).
+- The Skill names no durable place for agents' scratch copies and no way
+  to clean them up that the Permission rules allow (agent-tooling-ppji).
