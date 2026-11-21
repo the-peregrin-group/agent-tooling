@@ -57,11 +57,12 @@ disappear when the lead stops doing it: it becomes a role, the auditor.
 A harness in which a session can spawn named sub-agents from Agent
 definitions, sub-agents can spawn their own, agents can message each other
 by name and list which are running, a command has a foreground time limit
-and can instead run in the background with a watcher on its output, and
+and can instead run in the background with its output in a file, and
 each agent's transcript is kept as a file. Claude Code is one. It does
 not assume that a finished sub-agent's final reply reaches the agent that
-spawned it: the reply may reach the lead instead, and the rules below are
-written for that. The role
+spawned it: the reply may reach the lead instead. Nor does it assume that
+a background job's notice wakes a sub-agent that has ended its turn. The
+rules below are written for both. The role
 files and `templates.md` sit beside this file, in the directory the
 harness names when it loads this Skill (`~/.claude/skills/own-the-outcome/`
 in a default install).
@@ -157,10 +158,12 @@ answer comes back as a ruling in the ledger.
   A reply of your own that goes unanswered proves nothing either: never
   report that an agent has stopped unless the list of running agents
   shows it.
-- **Results travel in files.** A reply is a few lines and a path. Your
-  final reply goes where the harness routes it, which may not be your
-  spawner; a message goes to the agent you name. So when you finish,
-  also message the path to your spawner by name. The file is the truth.
+- **Results travel in files.** A hand-back is a few lines and a path,
+  never the report itself. Your final reply goes where the harness routes
+  it, which has been the lead even when another agent spawned you; a
+  message goes to the agent you name. So when you finish, message the
+  path to your spawner by name only if it is not the lead; otherwise
+  the lead reads it twice. The file is the truth.
   If someone else's reply reaches you, forward its path to its owner at
   once, before you act on it.
 - **Never wait on a peer's edits.** Two agents that each poll for the
@@ -181,15 +184,18 @@ answer comes back as a ruling in the ledger.
 - **An amendment to an order already in motion needs an explicit
   acknowledgement.** Without one, the dispatcher withdraws the order in
   its file and replaces it, as `dispatcher.md` says (provisional).
-- **Never end your turn while a job you own is running, unless something
-  is armed to wake you.** Run the job in the foreground. One longer than
-  the foreground limit runs in the background with a watcher armed on its
-  output; the watcher wakes you, so then you may end your turn. An agent
-  you spawned whose result you need is such a job, and its reply may
-  never reach you: arm a watcher on the State line of its result file,
-  with a time limit because an agent that dies never changes it, or wait
-  in slices and check that file and the list of running agents. The lead
-  waits as `lead.md` says.
+- **Never end your turn while a job you own is running** (provisional).
+  End it only when nothing you own is running, or at a hold, a STOP, or
+  a context hand-off. Run the job in the foreground. One longer than the
+  foreground limit runs in the background with its output in a file, and
+  you wait for it inside your turn, in slices as above: each slice is a
+  foreground command that returns when the output shows the job ended or
+  the slice is up. A background watcher is no reason to end your turn:
+  one failed to wake a steward, and the resource sat idle over an hour.
+  An agent you spawned whose result you need is such a job: wait the
+  same way on the State line of its result file, and check the list of
+  running agents too, because an agent that dies never changes it. The
+  lead, which the user must be able to reach, waits as `lead.md` says.
 - **One holder per shared resource.** A working copy that several agents
   would edit at once is a shared resource too. The charter picks one way
   for workers' changes to reach the steward: where any two workers may

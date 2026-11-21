@@ -110,10 +110,12 @@ The charter lists the gate's steps for this project. Whatever they are:
 ## Staying alive through a gate
 
 - **Run each job in the foreground.** If you end your turn while a job
-  runs, nothing wakes you.
+  runs, nothing may wake you.
 - **A job longer than the foreground limit** runs in the background with
-  its output in a file, and you arm a watcher on that file before doing
-  anything else. Do not idle without one.
+  its output in a file, and you wait for it inside your turn, in slices
+  (`SKILL.md`), until the output shows it ended. Do not end your turn
+  trusting a watcher to wake you: one did not, and the resource sat idle
+  for over an hour (provisional).
 - **Logs fill your context.** Search them for the verdict, failures, and
   summary lines; never read one whole. Keep raw logs outside the team
   folder, and small evidence inside it.
