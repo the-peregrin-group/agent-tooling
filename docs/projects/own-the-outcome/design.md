@@ -70,7 +70,9 @@ and most of its rules answer a failure seen in that trial.
   about an hour and a half until the lead noticed. Stewards that waited
   in their turn had no misses. So a lieutenant ends its turn only when
   nothing it owns is running, or at a hold, a STOP, or a context
-  hand-off, and waits in foreground slices otherwise. A watcher that
+  hand-off, and waits in foreground slices otherwise. A slice returns as
+  soon as what it waits for or a file carrying the agent's instructions
+  changes, and otherwise runs to the foreground limit. A watcher that
   runs in the background, whatever the tool, is the mechanism that
   failed, so it is no substitute. The cause is not diagnosed, which is
   why the rule is provisional. The lead is the exception: the user must
@@ -176,6 +178,12 @@ on reasoning alone:
   showed the watcher missing a wake-up while the shared resource sat
   idle, and an idle resource costs more than the slices do (see the
   in-turn wait above).
+- **Short fixed slices, under a minute.** They were meant to let a
+  waiting agent read its messages promptly. But every order and
+  amendment is in a file and a message only points to it, so a slice
+  that also ends when an instruction file changes reads them just as
+  promptly. A short slice only re-reads the agent's context and grows it
+  when nothing has changed.
 - **Stating how long a lieutenant lasts before it is rotated.** One run's
   figure would be read as a rule. The Skill gives context thresholds and
   leaves the clock to the lead.

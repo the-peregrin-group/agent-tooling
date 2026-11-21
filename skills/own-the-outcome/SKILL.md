@@ -172,9 +172,13 @@ answer comes back as a ruling in the ledger.
   an agent you spawned is different: that is a job you own (below).
 - **Messages arrive late.** An agent reads messages only between tool
   rounds, so one in a long loop or mid-gate may read yours many minutes
-  later. When you wait without ending your turn, wait in slices of under
-  a minute and read your messages between them. Put orders and amendments
-  in the file the recipient re-reads.
+  later. Put orders and amendments in the file the recipient re-reads.
+  When you wait without ending your turn, wait in slices and read your
+  messages between them. A slice is one foreground command that returns
+  as soon as what you wait for changes or a file that carries your
+  instructions changes, and otherwise runs as long as the foreground
+  limit allows. A message only points to a file, so a long slice misses
+  nothing; short ones only re-read your context for no news.
   Re-read your messages before you declare a job done or hand over, and
   name in every report the newest ruling or amendment you had read, so a
   reader can tell when a message crossed yours.
@@ -188,9 +192,8 @@ answer comes back as a ruling in the ledger.
   End it only when nothing you own is running, or at a hold, a STOP, or
   a context hand-off. Run the job in the foreground. One longer than the
   foreground limit runs in the background with its output in a file, and
-  you wait for it inside your turn, in slices as above: each slice is a
-  foreground command that returns when the output shows the job ended or
-  the slice is up. A background watcher is no reason to end your turn:
+  you wait for it inside your turn, in slices as above, until its output
+  shows it ended. A background watcher is no reason to end your turn:
   one failed to wake a steward, and the resource sat idle over an hour.
   An agent you spawned whose result you need is such a job: wait the
   same way on the State line of its result file, and check the list of
