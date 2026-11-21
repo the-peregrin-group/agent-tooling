@@ -58,7 +58,10 @@ A harness in which a session can spawn named sub-agents from Agent
 definitions, sub-agents can spawn their own, agents can message each other
 by name and list which are running, a command has a foreground time limit
 and can instead run in the background with a watcher on its output, and
-each agent's transcript is kept as a file. Claude Code is one. The role
+each agent's transcript is kept as a file. Claude Code is one. It does
+not assume that a finished sub-agent's final reply reaches the agent that
+spawned it: the reply may reach the lead instead, and the rules below are
+written for that. The role
 files and `templates.md` sit beside this file, in the directory the
 harness names when it loads this Skill (`~/.claude/skills/own-the-outcome/`
 in a default install).
@@ -82,9 +85,9 @@ in a default install).
 - **The lead has no Agent definition.** It is whichever session the user
   put in charge.
 - **The lead spawns every lieutenant and every successor.** The dispatcher
-  spawns workers only. If nested spawning fails badly (replies lost,
-  workers orphaned), fall back to the lead spawning everyone, and say so
-  in the ledger (provisional).
+  spawns workers only. If nested spawning still stalls the work under the
+  rules below (workers orphaned, results nobody collects), fall back to
+  the lead spawning everyone, and say so in the ledger (provisional).
 - **One voice to the steward.** The lead rules to the dispatcher, and only
   the dispatcher's order file moves the steward. Two voices contradict
   each other, and two GOs can land one change twice.
@@ -122,9 +125,9 @@ All team state lives in one team folder, named in the charter.
 5. The dispatcher has a reviewer review the deliverable. A must-fix goes
    back to a worker. Nothing lands ahead of its review.
 6. The dispatcher writes an order file that cites the ruling and the
-   review, marks it GO, notes it in the status file, and messages the
-   lead that an order is ready. The lead spawns a steward if none is
-   running.
+   review, marks it GO, and notes it in the status file. It points a
+   steward that stayed on to the order itself; otherwise it messages the
+   lead, who spawns one.
 7. The steward runs the gate step by step, logging each step, and stops
    and reports at any stop condition.
 8. The steward lands the change: one commit from an explicit path list,
@@ -151,25 +154,39 @@ answer comes back as a ruling in the ledger.
   even when the fix looks like text only.
 - **What a reply says about another agent is hearsay.** Check before you
   act on it: is that agent still running, and what does its file say?
-- **Results travel in files.** A reply is a few lines and a path. Replies
-  from nested agents get misrouted and duplicated; the file is the truth.
-  If someone else's reply reaches you, forward its path to its owner.
-- **Never wait on another agent's edits.** Two agents that each poll for
-  the other's change deadlock. If you are blocked, write what you need in
-  your result file, tell your spawner, and stop.
+  A reply of your own that goes unanswered proves nothing either: never
+  report that an agent has stopped unless the list of running agents
+  shows it.
+- **Results travel in files.** A reply is a few lines and a path. Your
+  final reply goes where the harness routes it, which may not be your
+  spawner; a message goes to the agent you name. So when you finish,
+  also message the path to your spawner by name. The file is the truth.
+  If someone else's reply reaches you, forward its path to its owner at
+  once, before you act on it.
+- **Never wait on a peer's edits.** Two agents that each poll for the
+  other's change deadlock. If you are blocked, write what you need in
+  your result file, tell your spawner, and stop. Collecting the result of
+  an agent you spawned is different: that is a job you own (below).
 - **Messages arrive late.** An agent reads messages only between tool
   rounds, so one in a long loop or mid-gate may read yours many minutes
-  later. Keep every wait under a minute. Put orders and amendments in the
-  file the recipient re-reads. Re-read your messages before you declare a
-  job done.
+  later. When you wait without ending your turn, wait in slices of under
+  a minute and read your messages between them. Put orders and amendments
+  in the file the recipient re-reads.
+  Re-read your messages before you declare a job done or hand over, and
+  name in every report the newest ruling or amendment you had read, so a
+  reader can tell when a message crossed yours.
 - **The file carries the instruction; the message is the wake-up.** An
   agent that has ended its turn is not woken by a change to a file, so
   after writing an instruction for one, message it a pointer.
 - **An amendment to an order already in motion needs an explicit
   acknowledgement.** Without one, send it as a new order (provisional).
-- **Never end your turn while a job you own is running:** nothing wakes
-  you. Run it in the foreground. A job longer than the foreground limit
-  runs in the background with a watcher armed on its output.
+- **Never end your turn while a job you own is running, unless something
+  is armed to wake you.** Run the job in the foreground. One longer than
+  the foreground limit runs in the background with a watcher armed on its
+  output; the watcher wakes you, so then you may end your turn. An agent
+  you spawned whose result you need is such a job, and its reply may
+  never reach you: arm a watcher on the State line of its result file, or
+  wait in slices and check that file and the list of running agents.
 - **One holder per shared resource.** A working copy that several agents
   would edit at once is a shared resource too. The charter picks one way
   for workers' changes to reach the steward: where any two workers may
@@ -182,12 +199,16 @@ answer comes back as a ruling in the ledger.
   reports. While the user is hands-on with the resource, no agent drives
   it or edits the working copy; read-only work may continue.
 - **State only premises you checked,** with file and line. Mark an
-  unchecked premise as unchecked.
-- **Protect your context.** Search logs and large documents for the lines
-  you need; never read them whole.
+  unchecked premise as unchecked. Take every time you write from the
+  clock, never from memory.
+- **Protect your context.** Search logs, transcripts, and other long
+  documents for the lines you need instead of reading them whole. A short
+  file, a memo for one, you read in full.
 - **Rotate when told.** At a context notice (from a hook, or a limit your
-  brief states), bring your result file's Handoff section current, tell
-  your spawner, and stop. Every brief names a result file for this reason.
+  brief states), re-read your messages, the ledger, and any order you
+  follow; bring your result file's Handoff section current, listing every
+  instruction you have not acted on; tell your spawner, and stop. Every
+  brief names a result file for this reason.
 - **Lessons go in your result file.** Only the lead edits shared memory
   and standing instructions.
 - **The team works on its line of work,** the branch the charter names,

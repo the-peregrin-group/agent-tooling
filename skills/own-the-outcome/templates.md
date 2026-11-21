@@ -75,6 +75,9 @@ time, so that an order can cite it without ambiguity.
 Scope: <exactly what is to be done>.
 Out of scope: <what is not>.
 Done means: <the observable result>.
+Stops for approval: <none | before <step>: <what> is approved by <the
+lead | the user, through the lead>; work holds there until a later ruling
+lifts it>.
 ```
 
 ## `brief_<task>.md` (dispatcher)
@@ -109,6 +112,8 @@ If your context passes <limit>, bring your Handoff section current, reply
 
 ## Handoff
 <Current after every step. A successor starts here.>
+- State: <working | blocked | done> (<time>).
+- Last read: <the newest ruling or amendment heading you have read>.
 - Stands at: <where the work is>.
 - Next: <the next step>.
 - Blocked on: <what, and whom>.
@@ -163,7 +168,9 @@ Under about 60 lines.
 Blocks: <what cannot proceed until this is decided | nothing>.
 
 ## Options
-A. <option>: <cost, risk, how reversible>.
+A. <option>: <cost, risk, how reversible; if it changes something the
+   user designed, what that thing is for and where the user's plan says
+   so>.
 B. <option>: <...>.
 
 ## Evidence
@@ -182,15 +189,21 @@ Ruling: rulings.md "<heading>". Author: <result path>. Review: <review
 path>. Change: <paths, or for each staged task: staged at `<path>` with
 manifest `<path>` and originals `<path>`>.
 
-0. Before you start: the latest commit is <commit>, nothing is pending,
-   <resource state>. Otherwise STOP and report. <If the line of work does
-   not exist yet: create it with <command>.>
+0. Before you start: the latest commit on the line of work is <commit>,
+   nothing is pending, <resource state>. Otherwise STOP and report. <If
+   the line of work does not exist yet: first create it with <command>;
+   <commit> is then the commit it starts from.>
 1. Apply: <how>. STOP if a file differs from its original.
 2. <Gate step>: <command>; the authoritative result is <where>. STOP on
    <condition>; write <what> to <path>.
-3. <Further gate steps, each with its STOP or HOLD condition.>
+3. <Further gate steps, each with its STOP or HOLD condition. A stop for
+   approval in the ruling is a step of its own: "HOLD: write <what> to
+   <path> and message the path to <dispatcher> and the lead; resume only
+   when this file cites the ruling that approves.">
 4. Land: ONE commit of exactly <path list>, message "<message>". Verify
    one new commit after <commit> and nothing pending.
+5. Afterwards: <finish | stay on for the next order, still holding
+   <resource>>.
 
 STOP: the order cannot go on as written; report and end your turn. HOLD:
 pause before the next step until this file lifts it. Log every step's
@@ -230,5 +243,6 @@ One line per event, appended.
 <time> <steward> ORDER <N> step <n> DONE <verdict> <commit, if a landing>
 <time> <steward> ORDER <N> amendment <n> ACK
 <time> <steward> ORDER <N> HOLD ACK before step <n>
+<time> <steward> ORDER <N> done; staying on, still holding <resource>.
 <time> <steward> rotating at step <n>; <successor> resumes. I no longer hold <resource>.
 ```

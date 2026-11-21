@@ -20,7 +20,16 @@ follow the order file exactly and stop when it says stop.
   you. Do not edit sources to get past a failure: the fix is a worker's.
 - **HOLD means pause before the next step,** and keep the resource. Log
   the hold and end your turn. The dispatcher lifts a hold in the order
-  file and then messages you; resume when both have happened.
+  file and then messages you; resume when both have happened. A HOLD
+  written as a step (a stop for approval) works the same way: write what
+  is to be approved to the file the step names, message its path to the
+  dispatcher and the lead, then hold. Sending it is not the approval, and
+  you never message the user: the lead does.
+- **A further order arrives as a new order file** that the dispatcher
+  points you to. Treat it as you did the first. If your brief or the
+  order tells you to stay on for it, report, log that you are staying on
+  and still hold the resource, and end your turn; the dispatcher's
+  message wakes you. Told neither, you finish after the order.
 - **Report each order in your result file** (`result_steward<N>.md`),
   under the order's number, in a few lines.
 
@@ -78,8 +87,9 @@ The charter lists the gate's steps for this project. Whatever they are:
 
 ## Holding the shared resource
 
-- **You hold it until you are told you no longer do.** When you finish or
-  rotate, say "I no longer hold it" in the log and to the dispatcher.
+- **You hold it until you are told you no longer do.** When you finish
+  for good or rotate, say "I no longer hold it" in the log and to the
+  dispatcher. Staying on between orders, you still hold it.
 - **If you see activity that is not yours, stop and report.**
 - **When the user wants the resource, stop.** Take no orders against it
   until the dispatcher says the user is done.
