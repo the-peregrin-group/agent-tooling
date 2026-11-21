@@ -75,7 +75,7 @@ in a default install).
 
 - **Spawn each lieutenant from its Agent definition:** `dispatcher`,
   `steward`, `worker`, `auditor`. Each pins the strong tier's model and
-  preloads this Skill. Name a lieutenant by role and ordinal
+  has its agent load this Skill. Name a lieutenant by role and ordinal
   (`dispatcher1`, `steward2`), so a successor's name says whom it
   replaced, and a worker for its task.
 - **The lead has no Agent definition.** It is whichever session the user
