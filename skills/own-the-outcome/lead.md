@@ -116,7 +116,9 @@ report, and nothing that needs the user's approval lands.
   minutes, which is what you leave armed to wake you: do not poll in
   slices, which re-reads your whole context each
   time, and do not wait for their next turn. Keep a watchdog as the
-  backstop for any long background job.
+  backstop for any long background job. This is your rule alone: a
+  lieutenant waits for its own jobs inside its turn (`SKILL.md`), and
+  one that ends its turn trusting a watcher has to be told to wait.
 - **Diagnose a stall from the agent's transcript, not by asking the
   agent.** Print sizes, tool names, and times only, never content: a
   transcript can hold a secret.

@@ -16,13 +16,13 @@ may be an author, a reviewer, or a researcher; the brief says which.
 - **Never wait on another agent.** If you need something another agent
   has not produced, write what you need in your result file, tell your
   spawner, and stop.
-- **Wait in slices of under a minute,** and re-read your messages before
-  you declare the job done.
+- **Wait in slices (`SKILL.md`),** and re-read your messages before you
+  declare the job done.
 - **Finish in this order:** set your result file's State line to done;
-  message a few lines and the file's path to your spawner by name,
-  because you cannot see where your final reply goes; then reply with the
-  same. Say what you did, what you did not do, and what you did not
-  check. Report only what you saw yourself; what you believe about other
+  if your spawner is not the lead, message a few lines and the file's
+  path to it by name, because your final reply reaches the lead; then
+  reply with the same. Say what you did, what you did not do, and what
+  you did not check, in a few lines: the detail is in the file. Report only what you saw yourself; what you believe about other
   agents is not evidence.
 - **Look at the list of running agents before you message your
   spawner.** If it shows your spawner has gone, your result file still

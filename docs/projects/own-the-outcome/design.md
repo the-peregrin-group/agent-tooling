@@ -56,11 +56,28 @@ and most of its rules answer a failure seen in that trial.
   having shown them.
 - **No rule depends on a reply arriving.** A finished sub-agent's final
   reply goes where the harness routes it, which can be the lead and not
-  the agent that spawned it. So a finishing agent also messages its
-  pointer to its spawner by name, its result file carries a State line
-  the spawner can watch, the lead forwards what reaches it by mistake,
-  and nobody reports another agent as stopped without the list of
-  running agents to show it.
+  the agent that spawned it. So a finishing agent whose spawner is not
+  the lead also messages its pointer to its spawner by name, its result
+  file carries a State line the spawner can watch, the lead forwards
+  what reaches it by mistake, and nobody reports another agent as
+  stopped without the list of running agents to show it. An agent the
+  lead spawned does not message it as well: the reply already reaches
+  the lead, and a second copy of every hand-back only costs its context.
+- **A lieutenant waits for its own jobs inside its turn** (provisional).
+  A background job's notice, or a watcher's, has failed to wake a
+  sub-agent that had ended its turn: in a live team run a steward was not
+  woken when its smoke test ended, and the shared resource sat idle for
+  about an hour and a half until the lead noticed. Stewards that waited
+  in their turn had no misses. So a lieutenant ends its turn only when
+  nothing it owns is running, or at a hold, a STOP, or a context
+  hand-off, and waits in foreground slices otherwise. A slice returns as
+  soon as what it waits for or a file carrying the agent's instructions
+  changes, and otherwise runs to the foreground limit. A watcher that
+  runs in the background, whatever the tool, is the mechanism that
+  failed, so it is no substitute. The cause is not diagnosed, which is
+  why the rule is provisional. The lead is the exception: the user must
+  be able to reach it, so it ends its turn with work in flight and sets
+  timers, and the lead has not been seen to miss a wake-up.
 - **The outcome is the user's intent, not a passing check.** Before
   anyone proposes changing what the user designed, they find its purpose
   in the user's plan. A check that flags the design is first suspected of
@@ -154,10 +171,19 @@ on reasoning alone:
 - **Shipping the context hook inside this change.** The hook depends on an
   undocumented transcript layout and needs its own source, tests, and
   install path; it is tracked separately (see the index's Known gaps).
-- **Waiting only in short slices for an agent you spawned.** An idle
-  agent that polls re-reads its whole context on every slice. A watcher
-  on the result file's State line wakes it once, so the Skill offers the
-  watcher first and slices as the fallback.
+- **Letting a lieutenant end its turn once a watcher is armed.** A
+  watcher wakes an idle agent once, where waiting in slices re-reads the
+  agent's context on every slice and adds a little to it, so the Skill
+  first offered the watcher and kept slices as the fallback. A live run
+  showed the watcher missing a wake-up while the shared resource sat
+  idle, and an idle resource costs more than the slices do (see the
+  in-turn wait above).
+- **Short fixed slices, under a minute.** They were meant to let a
+  waiting agent read its messages promptly. But every order and
+  amendment is in a file and a message only points to it, so a slice
+  that also ends when an instruction file changes reads them just as
+  promptly. A short slice only re-reads the agent's context and grows it
+  when nothing has changed.
 - **Stating how long a lieutenant lasts before it is rotated.** One run's
   figure would be read as a rule. The Skill gives context thresholds and
   leaves the clock to the lead.

@@ -18,5 +18,5 @@ team's independent check, and you report to the lead, not the dispatcher.
   what you checked, how, and the verdict; then findings sorted into
   must-fix and should-fix, each with file and line. Say plainly what you
   did not check.
-- **Finish with a reply of a few lines and the file's path,** and message
-  the same pointer to the lead by name.
+- **Finish with a reply of a few lines and the file's path.** The lead
+  spawned you, so the reply reaches it; do not message it the same.

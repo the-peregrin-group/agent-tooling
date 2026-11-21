@@ -35,13 +35,11 @@ job is and anything costly to get wrong.
 - **Do not reply to a finished worker.** Read its result file; the reply
   is only a pointer, and it may reach the lead instead of you.
 - **Do not depend on a worker's reply arriving.** A worker in flight is a
-  job you own: do not end your turn counting on its reply to wake you.
-  Arm a watcher on the State line of its result file, with a time limit
-  because a worker that dies never changes it, or wait in slices and
-  check that file and the list of running agents. When the limit runs
-  out, check both; a worker that has gone is briefed again from what its
-  file holds. Watch an order in
-  flight the same way, through the steward log.
+  job you own, so do not end your turn while it runs (`SKILL.md`). Wait
+  in slices on the State line of its result file, and check the list of
+  running agents too, because a worker that dies never changes it; a
+  worker that has gone is briefed again from what its file holds. Watch
+  an order in flight the same way, through the steward log.
 - **A trivial edit you may make yourself,** without briefing a worker: one
   or two lines with no effect on the build. It is reviewed and lands like
   any other change.
