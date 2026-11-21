@@ -179,14 +179,17 @@ answer comes back as a ruling in the ledger.
   agent that has ended its turn is not woken by a change to a file, so
   after writing an instruction for one, message it a pointer.
 - **An amendment to an order already in motion needs an explicit
-  acknowledgement.** Without one, send it as a new order (provisional).
+  acknowledgement.** Without one, the dispatcher withdraws the order in
+  its file and replaces it, as `dispatcher.md` says (provisional).
 - **Never end your turn while a job you own is running, unless something
   is armed to wake you.** Run the job in the foreground. One longer than
   the foreground limit runs in the background with a watcher armed on its
   output; the watcher wakes you, so then you may end your turn. An agent
   you spawned whose result you need is such a job, and its reply may
-  never reach you: arm a watcher on the State line of its result file, or
-  wait in slices and check that file and the list of running agents.
+  never reach you: arm a watcher on the State line of its result file,
+  with a time limit because an agent that dies never changes it, or wait
+  in slices and check that file and the list of running agents. The lead
+  waits as `lead.md` says.
 - **One holder per shared resource.** A working copy that several agents
   would edit at once is a shared resource too. The charter picks one way
   for workers' changes to reach the steward: where any two workers may

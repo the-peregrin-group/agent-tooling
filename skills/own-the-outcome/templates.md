@@ -136,6 +136,7 @@ If your context passes <limit>, bring your Handoff section current, reply
 # Review: <task> (<reviewer>, <time>)
 
 Reviewed against: brief <path>, ruling "<heading>".
+State: <working | done> (<time>).
 
 ## Must-fix
 1. <file>:<line>: <finding, and why it must be fixed>.
@@ -150,6 +151,8 @@ Verdict: <ready to order | not until the must-fixes land>.
 
 ```markdown
 # Research: <the question> (<researcher>, <time>)
+
+State: <working | done> (<time>).
 
 ## Found
 - <fact> (<file>:<line>).
@@ -199,23 +202,35 @@ manifest `<path>` and originals `<path>`>.
 3. <Further gate steps, each with its STOP or HOLD condition. A stop for
    approval in the ruling is a step of its own: "HOLD: write <what> to
    <path> and message the path to <dispatcher> and the lead; resume only
-   when this file cites the ruling that approves.">
+   when a LIFT below cites the ruling that approves.">
 4. Land: ONE commit of exactly <path list>, message "<message>". Verify
    one new commit after <commit> and nothing pending.
 5. Afterwards: <finish | stay on for the next order, still holding
    <resource>>.
 
 STOP: the order cannot go on as written; report and end your turn. HOLD:
-pause before the next step until this file lifts it. Log every step's
+pause before the next step until this file lifts it. WITHDRAWN: this
+order is dead and another replaces it. Log every step's
 start and end in steward_log.md. Report in `result_<steward>.md` under
 "ORDER <N>", and message <dispatcher> at each STOP and at the end.
 
 ## Amendment 1 (<dispatcher>, <time>): <what changes>
-<The change, and the step to resume from. Acknowledge in steward_log.md.>
+<The change, the ruling behind it if it carries out a new one, and the
+step to resume from. Acknowledge in steward_log.md before that step.>
 
 ## HOLD (<dispatcher>, <time>): <why>
-<Acknowledge in steward_log.md. Lifted: <time>, resume at step <n>; the
-dispatcher messages the steward when it writes the lift.>
+<Acknowledge in steward_log.md.>
+
+## LIFT (<dispatcher>, <time>): resume at step <n>
+<Lifts a HOLD section or a HOLD step. For a HOLD step, <n> is the step
+after it, and the lift cites the ruling that approves: rulings.md
+"<heading>". The dispatcher messages the
+steward when it writes the lift, and the steward logs it as it resumes.>
+
+## WITHDRAWN (<dispatcher>, <time>)
+<Stop before the next step, or at your last re-read if none is left, and
+log what has landed and what is pending.
+The order that replaces this one is written after that log line.>
 ```
 
 ## `status.md` (dispatcher)
@@ -232,6 +247,7 @@ Updated <time> by <dispatcher>. Latest commit: <commit>.
 ## Blockers
 ## Waiting on the lead
 - <memo path>: <the question in a few words>
+- HOLD for approval, order <N> step <n>: <path of what is to be approved>
 ```
 
 ## `steward_log.md` (steward)
@@ -242,7 +258,11 @@ One line per event, appended.
 <time> <steward> ORDER <N> step <n> START
 <time> <steward> ORDER <N> step <n> DONE <verdict> <commit, if a landing>
 <time> <steward> ORDER <N> amendment <n> ACK
+<time> <steward> ORDER <N> amendment <n> TOO LATE; step <n> is done
 <time> <steward> ORDER <N> HOLD ACK before step <n>
+<time> <steward> ORDER <N> step <n> HOLD for approval; sent <path>
+<time> <steward> ORDER <N> LIFT seen; resuming at step <n>
+<time> <steward> ORDER <N> WITHDRAWN ACK before step <n>; landed: <commit | nothing>; pending: <what>
 <time> <steward> ORDER <N> done; staying on, still holding <resource>.
 <time> <steward> rotating at step <n>; <successor> resumes. I no longer hold <resource>.
 ```

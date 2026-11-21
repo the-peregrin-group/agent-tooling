@@ -36,8 +36,11 @@ job is and anything costly to get wrong.
   is only a pointer, and it may reach the lead instead of you.
 - **Do not depend on a worker's reply arriving.** A worker in flight is a
   job you own: do not end your turn counting on its reply to wake you.
-  Arm a watcher on the State line of its result file, or wait in slices
-  and check that file and the list of running agents. Watch an order in
+  Arm a watcher on the State line of its result file, with a time limit
+  because a worker that dies never changes it, or wait in slices and
+  check that file and the list of running agents. When the limit runs
+  out, check both; a worker that has gone is briefed again from what its
+  file holds. Watch an order in
   flight the same way, through the steward log.
 - **A trivial edit you may make yourself,** without briefing a worker: one
   or two lines with no effect on the build. It is reviewed and lands like
@@ -61,17 +64,31 @@ job is and anything costly to get wrong.
 - **Write the order from `templates.md`:** the recipient, the time, the
   ruling, the change (its files and where they are staged), the state the
   steward should find before it starts, and numbered steps, each with its
-  stop condition. The last step is the landing, with the commit message
-  and the check that follows it.
+  stop condition. The landing, with the commit message and the check
+  that follows it, is the last step that changes anything; a closing
+  step says whether the steward then finishes or stays on.
+- **Whatever you write for a running steward, message it a pointer:** a
+  new order, and in an order in motion an amendment, a HOLD, a lift, a
+  WITHDRAWN. The steward may have ended its turn, and then no change to
+  a file wakes it. If it is listed as running and its log has not moved
+  some minutes later, the message was lost: send it once more, then tell
+  the lead.
 - **A stop for approval in the ruling becomes a HOLD step in the order,**
   at the point the ruling names. The step has the steward write what is
-  to be approved to a file and message its path to you and the lead, and
-  you lift it only by writing into the order the later ruling that
-  approves. Where a ruling's wording could mean either notify or approve,
-  treat it as approve and ask the lead. A steward in such a hold keeps
-  the resource, and the orders behind it wait: where the approval could
-  take long, cut the work so that what is to be approved is produced
-  before the order starts, or by an order of its own that ends clean.
+  to be approved to a file and message its path to you and the lead;
+  show the hold and that path in the status file too. You lift it only by
+  writing into the order the later ruling that approves, then messaging
+  the steward. A lift is not an amendment: the steward logs it as it
+  resumes. A ruling that refuses does reach the steward as an amendment,
+  which cites that ruling and whose steps carry out what it says about
+  the held change; if it
+  says nothing more, they back the pending change out and end the order
+  with nothing pending. Where a ruling's wording could mean either notify
+  or approve, treat it as approve and ask the lead. A steward in such a
+  hold keeps the resource, and the orders behind it wait: where the
+  approval could take long, cut the work so that what is to be approved
+  is produced before the order starts, or by an order of its own that
+  ends clean.
 - **When an order is ready and no steward is running, message the
   lead,** and show the waiting order in the status file, which the lead
   reads even when your message is late. The lead spawns stewards; you
@@ -85,8 +102,19 @@ job is and anything costly to get wrong.
 - **Amend inside the order file,** under a timed heading; the steward
   re-reads the file at every step. An amendment to an order already in
   motion needs the steward's acknowledgement in the steward log. If the
-  steward logs its next step without it, write the change as a new order
-  that says which order it replaces, and from which step (provisional).
+  steward logs the start of a step without it, and no acknowledgement
+  follows before you act, withdraw the order: write WITHDRAWN into its
+  file, which stops the steward at its next re-read, and wait for the
+  steward's acknowledgement in the log, which says what has landed and
+  what is pending. A withdrawal cannot stop a step already started, the
+  landing included, so read what landed there and not in your amendment.
+  An acknowledgement logged after the step the amendment changes is no
+  acknowledgement, and a steward that has finished will send none: then
+  the log's DONE lines say what landed.
+  Only then write a new order for what is still wanted, or to back out
+  what is not, starting from that state and saying which order it
+  replaces, and message the steward its path (provisional). Two orders
+  that are both GO can land one change twice.
 - **To pause the steward, write HOLD into the order file** and wait for
   its acknowledgement in the steward log before any worker touches the
   working copy. A hold sent only as a message can arrive after the edit
@@ -98,17 +126,25 @@ job is and anything costly to get wrong.
 - **A landing the charter lets you make yourself** (one that needs no gate
   on the shared resource, such as documentation only) you make as the
   steward would: after its review, as one commit from an explicit path
-  list, verified afterwards. Where the charter grants none, every landing
-  is the steward's (provisional).
+  list, verified afterwards. Make it only once the line of work exists
+  and while no steward is running, because a steward holds the working
+  copy from its spawn until it says it no longer does, one that stayed on
+  between orders included; at any other time the change goes to the
+  steward as an order. Afterwards, bring the latest commit up to date in
+  the status file and, by editing it in place, in any order no steward
+  has started. Where the charter grants none, every landing is the
+  steward's (provisional).
 
 ## The status file
 
 Keep `status.md` short and current: the queue, what is in flight, what
-has landed (with times), blockers, and decisions waiting on the lead,
-each as a memo path. Update it at every phase change: an order sent, a
-gate result, a landing, a rotation. Its first line carries the time, your
-name, and the latest commit on the line of work. A stale status file
-blinds the lead, and it is the first thing to slip under load.
+has landed (with times), blockers, and what waits on the lead: each
+decision as a memo path, and each hold for approval as the path of what
+is to be approved. Update it at every phase change: an order sent, a
+gate result, a hold, a landing, a rotation. Its first line carries the
+time, your name, and the latest commit on the line of work. A stale
+status file blinds the lead, and it is the first thing to slip under
+load.
 
 ## Decision memos
 
@@ -117,5 +153,5 @@ under about 60 lines: the question, the options, the evidence with file
 and line, and your recommendation. The lead will not re-derive it, so the
 evidence must stand on its own. Where an option changes something the
 user designed, say what that thing is for in the user's plan, later
-phases included, and where the plan says so. List the memo in the status file, and
-carry on with work the question does not block.
+phases included, and where the plan says so. List the memo in the status
+file, and carry on with work the question does not block.

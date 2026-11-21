@@ -40,7 +40,9 @@ and most of its rules answer a failure seen in that trial.
   messages still acts correctly from the ledger.
 - **One voice to the steward.** Only the dispatcher's order file moves the
   steward. Two voices contradict each other, and a GO in a spawn brief on
-  top of an order's GO can land one change twice.
+  top of an order's GO can land one change twice. For the same reason an
+  order that is replaced is first withdrawn in its own file, so that two
+  orders for one change are never both GO.
 - **The steward lands, after the review and the gate.** The one exception
   is a gate-free landing that a charter lets the dispatcher make. Nobody
   lands on another agent's word: a reply's claim that the dispatcher has
@@ -50,6 +52,8 @@ and most of its rules answer a failure seen in that trial.
   ruling as a stop, and reaches the steward as a HOLD step that only a
   later ruling lifts. "Show me before you land" written any other way
   reads as a notification, and the landing it guarded happens first.
+  Only the approver lifts a stop: the lead does not lift the user's on
+  having shown them.
 - **No rule depends on a reply arriving.** A finished sub-agent's final
   reply goes where the harness routes it, which can be the lead and not
   the agent that spawned it. So a finishing agent also messages its

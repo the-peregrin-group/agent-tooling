@@ -12,19 +12,32 @@ follow the order file exactly and stop when it says stop.
   back to the dispatcher.
 - **Check the ruling the order cites is in the ledger** before step one.
   If it is not, stop and tell the dispatcher.
-- **Re-read the order file before every step.** Amendments are written
-  into it, and you acknowledge each one in the steward log.
+- **Re-read the order file before every step, and once more before you
+  finish or stay on.** Amendments are written into it, and you
+  acknowledge each one in the steward log. A message from the dispatcher
+  that wakes you is a reason to re-read it too. An amendment that changes
+  a step you have already done came too late: do not acknowledge it, log
+  it as too late, tell the dispatcher, and stop.
 - **STOP means the order cannot go on as written.** Write what you saw
   (file, line, message) where the order says, tell the dispatcher, and end
   your turn; you resume when the dispatcher amends the order and messages
   you. Do not edit sources to get past a failure: the fix is a worker's.
 - **HOLD means pause before the next step,** and keep the resource. Log
   the hold and end your turn. The dispatcher lifts a hold in the order
-  file and then messages you; resume when both have happened. A HOLD
-  written as a step (a stop for approval) works the same way: write what
-  is to be approved to the file the step names, message its path to the
-  dispatcher and the lead, then hold. Sending it is not the approval, and
-  you never message the user: the lead does.
+  file and then messages you; resume when both have happened, and log the
+  lift as you do. A HOLD written as a step (a stop for approval) works
+  the same way: write what is to be approved to the file the step names,
+  message its path to the dispatcher and the lead, then hold. Sending it
+  is not the approval, and you never message the user: the lead does. Its
+  lift cites the ruling that approves; check that ruling is in the ledger
+  before you resume. A refusal arrives as an amendment that cites its
+  ruling instead: check the ruling, acknowledge the amendment, and follow
+  its steps.
+- **WITHDRAWN means the order is dead.** Stop before the next step, or
+  at your last re-read if no step is left, log it with what has landed
+  and what is pending, tell the dispatcher, and end your turn. You stay
+  on, still holding the resource, for the order that replaces it, which
+  the dispatcher points you to.
 - **A further order arrives as a new order file** that the dispatcher
   points you to. Treat it as you did the first. If your brief or the
   order tells you to stay on for it, report, log that you are staying on
