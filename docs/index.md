@@ -50,6 +50,10 @@ projects, which lives under `docs/audits/`.
   family, shipping in slices: generic skills split by moment of need over
   self-documenting wrappers; its [design](projects/use-issues/design.md)
   covers what has shipped, and the dated proposal the rest.
+- [own-the-outcome](projects/own-the-outcome/index.md): the Skill that
+  runs a multi-agent job with the lead session as its directly responsible
+  individual, and the four Agent definitions for its lieutenant
+  roles; its [design](projects/own-the-outcome/design.md).
 
 ## Cross-cutting audits
 

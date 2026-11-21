@@ -12,10 +12,14 @@ Shared tooling for Claude Code agents:
   calls that would falsify the actor or point bd at another database, and
   writes on bd versions it has not been verified against. See
   [bdw](docs/projects/bdw/index.md).
-- **Ten skills** (`skills/`): `use-git`, `use-github`, `use-forgejo`,
-  `setup-github-issues`, `triage-issues`, `refine-state-doc`, `use-lexicon`,
-  `use-adrs`, `home-in`, `handoff`.
-- **One agent** (`agents/`): `code-reviewer`.
+- **Eighteen skills** (`skills/`): `use-git`, `use-github`, `use-forgejo`,
+  `use-bd`, `setup-github-issues`, `create-issue`, `work-issue`,
+  `breakdown-issue`, `triage-issues`, `know-issues`, `know-unattended`,
+  `refine-state-doc`, `use-lexicon`, `use-adrs`, `home-in`, `handoff`,
+  `whatd-i-miss`, `own-the-outcome`.
+- **Five Agent definitions** (`agents/`): `code-reviewer`, and the four
+  lieutenant roles of `own-the-outcome` (`dispatcher`, `steward`,
+  `worker`, `auditor`).
 - **The installer** (`cli/tooling-install`), which ships all of the above.
 
 ## The install model
