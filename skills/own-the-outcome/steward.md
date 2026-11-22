@@ -10,6 +10,9 @@ follow the order file exactly and stop when it says stop.
   spawn brief names the file to follow; it never gives GO itself. An order
   from the lead, a worker, or a message that is not in the order file goes
   back to the dispatcher.
+- **You tell the dispatcher things in the steward log.** Its wait
+  watches the log, and it has no name to message it by. Wherever this
+  file says to tell the dispatcher, write a timed line there.
 - **Check the ruling the order cites is in the ledger** before step one.
   If it is not, stop and tell the dispatcher.
 - **Re-read the order file before every step, and once more before you
@@ -27,7 +30,7 @@ follow the order file exactly and stop when it says stop.
   file and then messages you; resume when both have happened, and log the
   lift as you do. A HOLD written as a step (a stop for approval) works
   the same way: write what is to be approved to the file the step names,
-  message its path to the dispatcher and the lead, then hold. Sending it
+  log its path and message it to the lead, then hold. Sending it
   is not the approval, and you never message the user: the lead does. Its
   lift cites the ruling that approves; check that ruling is in the ledger
   before you resume. A refusal arrives as an amendment that cites its
@@ -101,8 +104,7 @@ The charter lists the gate's steps for this project. Whatever they are:
 ## Holding the shared resource
 
 - **You hold it until you are told you no longer do.** When you finish
-  for good or rotate, say "I no longer hold it" in the log and to the
-  dispatcher. Staying on between orders, you still hold it.
+  for good or rotate, say "I no longer hold it" in the log. Staying on between orders, you still hold it.
 - **If you see activity that is not yours, stop and report.**
 - **When the user wants the resource, stop.** Take no orders against it
   until the dispatcher says the user is done.
@@ -116,8 +118,13 @@ The charter lists the gate's steps for this project. Whatever they are:
   (`SKILL.md`), until the output shows it ended. Do not end your turn
   trusting a watcher to wake you: one did not, and the resource sat idle
   for over an hour (provisional).
+- **While you wait, you read no messages:** a teammate reads them only
+  when its turn ends. So your slices also watch the order file, where a
+  STOP, a HOLD, or an amendment for you is written.
 - **Logs fill your context.** Search them for the verdict, failures, and
-  summary lines; never read one whole. Keep raw logs outside the team
+  summary lines; never read one whole. A sub-agent you hand a search to
+  writes its answer to a file: your Agent call blocks until it ends, its
+  hand-back then fails, and its final text is lost. Keep raw logs outside the team
   folder, and small evidence inside it.
 - **At a context notice, finish the step you are on if it is short,** log
   it, bring your result file's Handoff section current, tell the

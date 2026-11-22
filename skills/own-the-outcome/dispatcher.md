@@ -7,13 +7,31 @@ job is and anything costly to get wrong.
 
 ## Starting, and taking over
 
+- You were spawned without a name, in the background. Your brief gives
+  your label (`dispatcher<N>`), which names your files. The lead reaches
+  you by your agent id, and the steward through the steward log.
 - Read the charter, the ledger, and your predecessor's result file when
   you have one. Its Handoff section is your starting state.
 - Open your own result file (`result_dispatcher<N>.md`) at once, and keep
   its Handoff section current after every step, including every worker in
   flight and its result file's path. You will be rotated out with little
-  warning, and your successor finds those workers through your file: they
-  are not told that you changed.
+  warning, and your successor finds those workers through your file and
+  their State lines: a worker still in flight when your run ends hands
+  back to the lead, not to your successor.
+
+## Waiting, and ending your turn
+
+- **Wait in your turn, in slices** (`SKILL.md`), each ending early when
+  something you watch changes: the result files you await, the steward
+  log, the ledger, the charter. Hand-backs, task notifications, and
+  messages reach you at each slice boundary.
+- **Ending your turn ends your run.** You hand back to the lead, and any
+  worker that finishes after that hands back to the lead too. So end it
+  only to rotate, or when nothing is in flight and what remains waits on
+  the lead. An order held for approval is not in flight. If it ends by
+  accident, the lead resumes you by a message to your agent id.
+- **If you are resumed, read the charter's Team line first.** If it
+  names a later dispatcher, write nothing, hand back, and stop.
 
 ## Briefs and workers
 
@@ -25,21 +43,24 @@ job is and anything costly to get wrong.
   alive.
 - **Put context shared by a batch of briefs in one file**
   (`brief_<batch>_common.md`) and point to it.
-- **Spawn workers from the `worker` Agent definition,** each named by
-  what it does and its task (`author-<task>`, `review-<task>`,
-  `research-<topic>`). Pass the fast tier's model for a worker whose
-  task is mechanical, a survey, or documentation. Use the top tier only
-  where the charter records it.
+- **Spawn workers from the `worker` Agent definition, without a name.**
+  They run in the background. Label each in its brief by what it does
+  and its task (`author-<task>`, `review-<task>`, `research-<topic>`).
+  Pass the fast tier's model for a worker whose task is mechanical, a
+  survey, or documentation. Use the top tier only where the charter
+  records it.
 - **Never let one worker wait on another.** Sequence dependent work
   yourself: the second brief is written after the first result is in.
-- **Do not reply to a finished worker.** Read its result file; the reply
-  is only a pointer, and it may reach the lead instead of you.
-- **Do not depend on a worker's reply arriving.** A worker in flight is a
-  job you own, so do not end your turn while it runs (`SKILL.md`). Wait
-  in slices on the State line of its result file, and check the list of
-  running agents too, because a worker that dies never changes it; a
-  worker that has gone is briefed again from what its file holds. Watch
-  an order in flight the same way, through the steward log.
+- **Do not reply to a finished worker.** Read its result file; the
+  hand-back is only a pointer.
+- **Do not depend on a worker's hand-back arriving.** A worker in flight
+  is a job you own. Its State line is the test of done: a notice that it
+  completed can come while it waits on a job of its own, and nobody can
+  list your workers. A worker whose line has stopped moving well past
+  what its job should take is treated as gone, and is briefed again from
+  what its file holds. Watch an order in
+  flight the same way, through the steward log, where the steward writes
+  whatever it has for you.
 - **A trivial edit you may make yourself,** without briefing a worker: one
   or two lines with no effect on the build. It is reviewed and lands like
   any other change.
@@ -52,7 +73,8 @@ job is and anything costly to get wrong.
 - **Deliverables that will land as one commit are reviewed as that one
   change.** One review may cover them all, so long as it reads the
   combined change.
-- **A must-fix goes back to a worker,** and the fix is reviewed too.
+- **A must-fix goes back to a fresh worker,** briefed from the first
+  one's result file and the review, and the fix is reviewed too.
 - **Nothing lands ahead of its review,** whoever asks.
 
 ## Orders
@@ -68,12 +90,13 @@ job is and anything costly to get wrong.
 - **Whatever you write for a running steward, message it a pointer:** a
   new order, and in an order in motion an amendment, a HOLD, a lift, a
   WITHDRAWN. The steward may have ended its turn, and then no change to
-  a file wakes it. If it is listed as running and its log has not moved
-  some minutes later, the message was lost: send it once more, then tell
+  a file wakes it; a busy steward reads no message until its turn ends,
+  but its wait watches the order file. If its log shows nothing of what
+  you wrote some minutes later, send the message once more, then tell
   the lead.
 - **A stop for approval in the ruling becomes a HOLD step in the order,**
   at the point the ruling names. The step has the steward write what is
-  to be approved to a file and message its path to you and the lead;
+  to be approved to a file, log its path, and message it to the lead;
   show the hold and that path in the status file too. You lift it only by
   writing into the order the later ruling that approves, then messaging
   the steward. A lift is not an amendment: the steward logs it as it
@@ -91,8 +114,7 @@ job is and anything costly to get wrong.
   lead,** and show the waiting order in the status file, which the lead
   reads even when your message is late. The lead spawns stewards; you
   never do. When a steward has stayed on after its last order (the
-  steward log says so, and the list of running agents shows it), message
-  it the new order's path yourself.
+  steward log says so), message it the new order's path yourself.
 - **If the line of work does not exist yet,** the first order's first
   step creates it, with the command the charter gives. Workers do not
   wait for it: they work from the working copy as it stands, and no
@@ -140,7 +162,7 @@ has landed (with times), blockers, and what waits on the lead: each
 decision as a memo path, and each hold for approval as the path of what
 is to be approved. Update it at every phase change: an order sent, a
 gate result, a hold, a landing, a rotation. Its first line carries the
-time, your name, and the latest commit on the line of work. A stale
+time, your label, and the latest commit on the line of work. A stale
 status file blinds the lead, and it is the first thing to slip under
 load.
 

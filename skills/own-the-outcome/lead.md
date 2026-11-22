@@ -38,12 +38,18 @@ report, and nothing that needs the user's approval lands.
 
 ## Spawning
 
-- **Spawn each lieutenant from its Agent definition, by name:** the
-  `dispatcher` definition as `dispatcher1`, `steward` as `steward1`,
-  `auditor` as `auditor1`.
+- **Spawn each lieutenant from its Agent definition, in the background:**
+  `steward` by name as `steward1`, `auditor` by name as `auditor1`, and
+  `dispatcher` without a name. A dispatcher spawned without a name can
+  spawn its workers in the background and read their hand-backs and your
+  messages while it waits; a named one cannot (`SKILL.md`, "Roles").
+- **Keep the current dispatcher's agent id in the charter,** on its Team
+  line, written when you spawn it and at every rotation, before anything
+  else. It is how you message the dispatcher and forward to it.
 - **A lieutenant's brief is short:** the charter's path, its role, and its
-  predecessor's result file when it has one. A steward's brief names the
-  order file to follow and never says "GO".
+  predecessor's result file when it has one; a dispatcher's brief also
+  gives its label (`dispatcher1`). A steward's brief names the order file
+  to follow and never says "GO".
 - **Spawn a steward when the dispatcher reports an order ready,** and do
   not keep one idle between gates. A steward may stay on for the next
   order when that order is already written or minutes away, which takes
@@ -56,9 +62,11 @@ report, and nothing that needs the user's approval lands.
 
 ## Ruling
 
-- **Write the ruling into the ledger, then send a pointer to it.** A
-  dispatcher that receives none of your messages can still act correctly
-  from the ledger; one that receives only messages cannot.
+- **Write the ruling into the ledger, then send a pointer to it** to the
+  dispatcher's agent id. The dispatcher's wait watches the ledger, so it
+  sees the ruling even before it reads your message. A dispatcher that
+  receives none of your messages can still act correctly from the
+  ledger; one that receives only messages cannot.
 - **A ruling states** its date and time (from the clock as you write it,
   never estimated), its topic, whose decision it is (the user's or
   yours), the exact scope, what is out of scope, what done means, and
@@ -86,7 +94,7 @@ report, and nothing that needs the user's approval lands.
   unseen. If you must amend, get an explicit acknowledgement (provisional).
 - **Check the ledger and the time before you rule on an "ask".** The same
   report reaches you two or three times (a message, an idle notification,
-  a reply), late and out of order, and most asks are already answered. Act
+  a hand-back), late and out of order, and most asks are already answered. Act
   once.
 - **Never order the steward.** Rule to the dispatcher.
 
@@ -97,14 +105,15 @@ report, and nothing that needs the user's approval lands.
   back.
 - **Cheap spot checks are worth it:** opening an artifact before you show
   it to the user, reading the one line a claim rests on.
-- **Never land a change yourself on a worker's word.** A worker's reply
-  that its dispatcher has gone is hearsay: list the running agents, and
-  wait for the review gate. Landing ahead of the review ships what the
+- **Never land a change yourself on a worker's word.** A worker's claim
+  that its dispatcher has gone is hearsay: check for the dispatcher's
+  completion notice and its result file, and wait for the review gate. Landing ahead of the review ships what the
   review would have caught.
-- **A reply that reaches you by mistake** is forwarded to the current
-  dispatcher as a path, at once and before you act on it. Checking the
-  result yourself does not forward it. You do not answer the worker that
-  sent it.
+- **A worker's hand-back that reaches you** (it finished after its
+  dispatcher's run ended) is forwarded to the current dispatcher as a
+  path, by the agent id in the charter, at once and before you act on
+  it. Checking the result yourself does not forward it. You do not answer
+  the worker that sent it.
 - **After a landing, check that the next step started.** A landing you
   verified and nobody passed on leaves the dispatcher idle.
 
@@ -116,17 +125,23 @@ report, and nothing that needs the user's approval lands.
   minutes, which is what you leave armed to wake you: do not poll in
   slices, which re-reads your whole context each
   time, and do not wait for their next turn. Keep a watchdog as the
-  backstop for any long background job. This is your rule alone: a
-  lieutenant waits for its own jobs inside its turn (`SKILL.md`), and
-  one that ends its turn trusting a watcher has to be told to wait.
+  backstop for any long background job, and for a worker or a dispatcher
+  that dies without a word. This is your rule alone: a lieutenant waits
+  for its own jobs inside its turn (`SKILL.md`), and one that ends its
+  turn trusting a watcher has to be told to wait.
+- **A message to a busy teammate is deferred, not read,** until its turn
+  ends. An order for a busy steward goes in its order file, through the
+  dispatcher; the dispatcher reads your message at its next slice, within
+  about 4 minutes. If the dispatcher's run has ended, your message to its
+  agent id resumes it.
 - **Diagnose a stall from the agent's transcript, not by asking the
   agent.** Print sizes, tool names, and times only, never content: a
   transcript can hold a secret.
-- **If an agent has not acted on a message within about five minutes while
-  its files show activity, it is in a loop.** Put the instruction in the
-  file it re-reads, or have the step done another way. Do not resend.
+- **If an agent has not acted on a message while its files show
+  activity, it has not read it.** Put the instruction in the file it
+  watches, or have the step done another way. Do not resend.
 - **Do not reply to a finished worker.** A message to a finished or
-  rotated agent is lost, or wakes it for a wasted turn.
+  rotated agent resumes it for a wasted turn, or worse.
 - **Do not ask one agent for a large design with many interacting
   constraints in one request:** it can hang. Set the overall design
   yourself, and have a cheaper agent build it in small scripted steps.
@@ -142,17 +157,26 @@ successors from the start.
   hard one near 200k (provisional).
 - **Without one,** put the limit in the brief or the order, and set it
   lower, because nothing stops an agent that overshoots it: "if your
-  context is above 110k tokens, bring your Handoff section current, reply
-  'over', and stop."
+  context is above 110k tokens, bring your Handoff section current, hand
+  back 'over', and stop."
 - **An agent that has said it is near its limit gets no new
   instruction.** Put it in the file its successor reads.
 - **On a rotation:** the outgoing lieutenant brings its result file's
   Handoff section current. You spawn the successor under the next ordinal,
   with a brief that points to that file (and, for a steward, the steward
-  log). Tell every peer the new name before anything else.
-- **A lieutenant that is really gone** (not listed as running, and its
-  files have stopped changing) is replaced the same way, from whatever its
-  result file holds.
+  log). For a dispatcher, write the successor's agent id into the charter
+  first; for any other lieutenant, tell every peer the new name before
+  anything else.
+- **Rotate a dispatcher where no worker is in flight,** when you can. A
+  worker still in flight hands back to you, and you forward it as above;
+  the successor finds such workers by the State lines of their result
+  files.
+- **Never message a rotated dispatcher's id:** it resumes it, and the
+  steward then has two voices.
+- **A lieutenant that is really gone** (for a teammate, not listed as
+  running; for the dispatcher, its completion notice came; and in both
+  cases its files have stopped changing) is replaced the same way, from
+  whatever its result file holds.
 
 ## Auditing
 

@@ -20,7 +20,7 @@ You have one deliverable and one result file. Open the result file first
 and keep it current after every step. You never land a change, never
 touch the shared resource, and never wait on another agent.
 
-Finish with a reply of a few lines and your result file's path: what you
-did, what you did not do, and what you did not check. If your spawner is
-not the lead, message it the same pointer by name first, because the
-reply reaches the lead.
+Finish with a hand-back of a few lines and your result file's path: what
+you did, what you did not do, and what you did not check. It goes to
+your spawner, so send no copy by message. If it fails, the result file
+has already delivered it: do not retry.
