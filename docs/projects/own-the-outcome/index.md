@@ -53,7 +53,7 @@ alternatives.
 - The Skill does not say which wins when a brief and the charter disagree,
   so a brief can widen the charter or change its delivery mode with no
   ruling, and a worker has no rule for the conflict (agent-tooling-ctsq).
-- steward.md tells a successor steward to take over from the steward log
-  alone, and does not have the steward keep its gate state in its
-  result file's Handoff section, so each successor re-reads what its
-  predecessor read (agent-tooling-k7cb).
+- steward.md tells a successor steward to resume from the steward log
+  alone and does not say what gate state the Handoff section must hold,
+  so each successor re-reads what its predecessor read
+  (agent-tooling-k7cb).
