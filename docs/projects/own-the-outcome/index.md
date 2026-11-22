@@ -50,3 +50,10 @@ alternatives.
   Permission rules can allow safely, so the steward's raw logs and
   workers' copies end up in a temporary directory or in the team folder
   by hand (agent-tooling-4dgh).
+- The Skill does not say which wins when a brief and the charter disagree,
+  so a brief can widen the charter or change its delivery mode with no
+  ruling, and a worker has no rule for the conflict (agent-tooling-ctsq).
+- steward.md tells a successor steward to resume from the steward log
+  alone and does not say what gate state the Handoff section must hold,
+  so each successor re-reads what its predecessor read
+  (agent-tooling-k7cb).
