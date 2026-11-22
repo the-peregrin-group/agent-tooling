@@ -54,15 +54,16 @@ disappear when the lead stops doing it: it becomes a role, the auditor.
 
 ## What it assumes
 
-A harness in which a session can spawn named sub-agents from Agent
-definitions, sub-agents can spawn their own, agents can message each other
-by name and list which are running, a command has a foreground time limit
-and can instead run in the background with its output in a file, and
-each agent's transcript is kept as a file. Claude Code is one. It does
-not assume that a finished sub-agent's final reply reaches the agent that
-spawned it: the reply may reach the lead instead. Nor does it assume that
-a background job's notice wakes a sub-agent that has ended its turn. The
-rules below are written for both. The role
+A harness in which a session can spawn sub-agents from Agent
+definitions, with a name or without one, sub-agents can spawn their own,
+agents can message each other, the lead can list its named teammates
+and learns from a completion notice that an anonymous agent it spawned
+has ended, a command has a foreground time limit and can instead run
+in the background with its output in a file, and each agent's
+transcript is kept as a file. Claude Code is one. It does not assume
+that a finished agent's report arrives ("Results travel in files"), nor
+that a background job's notice wakes a sub-agent that has ended its
+turn. The role
 files and `templates.md` sit beside this file, in the directory the
 harness names when it loads this Skill (`~/.claude/skills/own-the-outcome/`
 in a default install).
@@ -72,23 +73,31 @@ in a default install).
 | Role | Spawned by | Owns | Never |
 |---|---|---|---|
 | Lead (the DRI) | the user's own session | goals and what done means; the team's shape; decisions that are costly or hard to undo; anything that needs the user; every message to the user; the rulings ledger; spot audits | lands a change; drives the shared resource; orders the steward directly |
-| Dispatcher | lead | the work queue; briefs; the review of every deliverable; decision memos; the status file; order files to the steward | spawns a steward; writes an order with no ruling behind it |
+| Dispatcher | lead, without a name | the work queue; briefs; the review of every deliverable; decision memos; the status file; order files to the steward | spawns a steward; writes an order with no ruling behind it |
 | Release steward | lead | landing changes; driving and scheduling the shared resource, alone; the steward log | edits sources to fix a failure; acts on anything but the dispatcher's order file |
-| Worker (author, reviewer, researcher) | dispatcher | one deliverable and its result file | lands a change; touches the shared resource; waits on another agent |
+| Worker (author, reviewer, researcher) | dispatcher, without a name | one deliverable and its result file | lands a change; touches the shared resource; waits on another agent |
 | Auditor | lead | an independent check of a sample of landed changes and of claims made in result files | fixes what it finds |
 
 - **Spawn each lieutenant from its Agent definition:** `dispatcher`,
   `steward`, `worker`, `auditor`. Each pins the strong tier's model and
-  has its agent load this Skill. Name a lieutenant by role and ordinal
-  (`dispatcher1`, `steward2`), so a successor's name says whom it
-  replaced, and a worker by what it does and its task (`author-<task>`,
+  has its agent load this Skill. The lead spawns each lieutenant in the
+  background; the dispatcher's spawns run there without being asked.
+- **The steward and the auditor are spawned by name,** by role and
+  ordinal (`steward2`), so a successor's name says whom it replaced.
+  They run as teammates.
+- **The dispatcher and the workers are spawned without a name,** as
+  anonymous sub-agents. The dispatcher's brief gives it a label by
+  ordinal (`dispatcher1`) for its files; the lead reaches it by its
+  agent id, which the lead keeps in the charter, and the steward
+  through the steward log. A worker's label, in its brief and
+  result file, says what it does and its task (`author-<task>`,
   `review-<task>`, `research-<topic>`).
 - **The lead has no Agent definition.** It is whichever session the user
   put in charge.
 - **The lead spawns every lieutenant and every successor.** The dispatcher
-  spawns workers only. If nested spawning still stalls the work under the
-  rules below (workers orphaned, results nobody collects), fall back to
-  the lead spawning everyone, and say so in the ledger (provisional).
+  spawns workers only. If its spawns do not run in the background, fall
+  back to the lead spawning workers at the dispatcher's request, and say
+  so in the ledger (provisional).
 - **One voice to the steward.** The lead rules to the dispatcher, and only
   the dispatcher's order file moves the steward. Two voices contradict
   each other, and two GOs can land one change twice.
@@ -117,12 +126,13 @@ All team state lives in one team folder, named in the charter.
 
 1. The lead writes the charter and rules: it writes the first ruling into
    the ledger (scope, what is out of scope, what done means).
-2. The lead spawns `dispatcher1`, with a brief that points to the charter,
-   so the dispatcher starts with work to do. Each later ruling goes into
-   the ledger first, then to the dispatcher as a pointer.
+2. The lead spawns the dispatcher (`dispatcher1`) with a brief that
+   points to the charter, so it starts with work to do, and records its
+   agent id in the charter. Each later ruling goes into the ledger
+   first, which the dispatcher watches, then to it as a pointer.
 3. The dispatcher writes a brief and spawns a worker on it.
 4. The worker does its one deliverable, keeps its result file current,
-   replies with a few lines and the file's path, and finishes.
+   hands back a few lines and the file's path, and finishes.
 5. The dispatcher has a reviewer review the deliverable. A must-fix goes
    back to a worker. Nothing lands ahead of its review.
 6. The dispatcher writes an order file that cites the ruling and the
@@ -154,31 +164,34 @@ answer comes back as a ruling in the ledger.
   included. After any fix made inside a gate, rebuild and re-run the gate,
   even when the fix looks like text only.
 - **What a reply says about another agent is hearsay.** Check before you
-  act on it: is that agent still running, and what does its file say?
-  A reply of your own that goes unanswered proves nothing either: never
-  report that an agent has stopped unless the list of running agents
-  shows it.
-- **Results travel in files.** A hand-back is a few lines and a path,
-  never the report itself. Your final reply goes where the harness routes
-  it, which has been the lead even when another agent spawned you; a
-  message goes to the agent you name. So when you finish, message the
-  path to your spawner by name only if it is not the lead; otherwise
-  the lead reads it twice. The file is the truth.
-  If someone else's reply reaches you, forward its path to its owner at
-  once, before you act on it.
+  act on it: what does that agent's file say? A message or hand-back of
+  your own that goes unanswered or fails proves nothing either. Only the
+  lead reports that a lieutenant has stopped: it lists its teammates,
+  and a notice tells it when the dispatcher has ended. Anyone else
+  reports what an agent's files show.
+- **Results travel in files.** A hand-back, or a teammate's closing
+  text, is a few lines and a path, never the report itself, and the file
+  is the truth. An anonymous sub-agent's hand-back goes only to the agent
+  that spawned it, or to the lead if that agent's run has ended, so send
+  no copy of it by message. If it fails, the file has already delivered
+  it: do not retry, even when the harness keeps asking you to. A
+  teammate has no hand-back; the text it ends its turn with goes to the
+  lead. If someone else's hand-back reaches you, forward its path to its
+  owner at once, before you act on it.
 - **Never wait on a peer's edits.** Two agents that each poll for the
   other's change deadlock. If you are blocked, write what you need in
   your result file, tell your spawner, and stop. Collecting the result of
   an agent you spawned is different: that is a job you own (below).
-- **Messages arrive late.** An agent reads messages only between tool
-  rounds, so one in a long loop or mid-gate may read yours many minutes
-  later. Put orders and amendments in the file the recipient re-reads.
-  When you wait without ending your turn, wait in slices and read your
-  messages between them. A slice is one foreground command that returns
-  as soon as what you wait for changes or a file that carries your
-  instructions changes, and otherwise runs as long as the foreground
-  limit allows. A message only points to a file, so a long slice misses
-  nothing; short ones only re-read your context for no news.
+- **Messages arrive late.** A teammate reads messages only when its turn
+  ends; an idle one is woken by a message within seconds. An anonymous sub-agent reads messages,
+  hand-backs, and task notifications at its next tool round, which
+  during a wait means the next slice boundary. So anything a busy agent
+  must act on goes in a file it watches, and a message only points to
+  it. When you wait without ending your turn, wait in slices. A slice is
+  one foreground command that returns as soon as what you wait for
+  changes or a file that carries your instructions changes, and
+  otherwise runs about 4 minutes, under the prompt cache's 5-minute
+  lifetime.
   Re-read your messages before you declare a job done or hand over, and
   name in every report the newest ruling or amendment you had read, so a
   reader can tell when a message crossed yours.
@@ -196,9 +209,10 @@ answer comes back as a ruling in the ledger.
   shows it ended. A background watcher is no reason to end your turn:
   one failed to wake a steward, and the resource sat idle over an hour.
   An agent you spawned whose result you need is such a job: wait the
-  same way on the State line of its result file, and check the list of
-  running agents too, because an agent that dies never changes it. The
-  lead, which the user must be able to reach, waits as `lead.md` says.
+  same way on the State line of its result file (`dispatcher.md`). A
+  dispatcher's run ends with its turn, so it waits as `dispatcher.md`
+  says. The lead, which the user must be able
+  to reach, waits as `lead.md` says.
 - **One holder per shared resource.** A working copy that several agents
   would edit at once is a shared resource too. The charter picks one way
   for workers' changes to reach the steward: where any two workers may
@@ -226,7 +240,7 @@ answer comes back as a ruling in the ledger.
 - **The team works on its line of work,** the branch the charter names,
   and never on the project's main line. A merge into the main line
   happens only on the user's word.
-- **Say what confused you,** in your result file and in your reply.
+- **Say what confused you,** in your result file and in your hand-back.
 
 ## Model tiers
 

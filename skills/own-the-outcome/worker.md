@@ -14,25 +14,23 @@ may be an author, a reviewer, or a researcher; the brief says which.
   change where the charter says. That is the working copy itself only
   where the charter has workers edit it directly, one at a time.
 - **Never wait on another agent.** If you need something another agent
-  has not produced, write what you need in your result file, tell your
-  spawner, and stop.
-- **Wait in slices (`SKILL.md`),** and re-read your messages before you
-  declare the job done.
-- **Finish in this order:** set your result file's State line to done;
-  if your spawner is not the lead, message a few lines and the file's
-  path to it by name, because your final reply reaches the lead; then
-  reply with the same. Say what you did, what you did not do, and what
-  you did not check, in a few lines: the detail is in the file. Report
-  only what you saw yourself; what you believe about other agents is not
-  evidence.
-- **Look at the list of running agents before you message your
-  spawner.** If it shows your spawner has gone, your result file still
-  stands: message its path to the lead and stop. Do not guess that it
-  has gone, and do not ask anyone to land your change. An error saying
-  your spawner is no longer running, when your final reply fails, is
-  not that list: it has been seen while the spawner was running and
-  took messages. You already messaged it by name, so message the lead
-  only if the list shows it gone.
+  has not produced, write what you need in your result file, set its
+  State line to blocked, hand back, and stop.
+- **Wait for your own long jobs in your turn, in slices (`SKILL.md`),**
+  and re-read your messages before you declare the job done.
+- **Finish in this order:** set your result file's State line to done,
+  then hand back a few lines and the file's path. Say what you did, what
+  you did not do, and what you did not check: the detail is in the file.
+  Report only what you saw yourself; what you believe about other agents
+  is not evidence.
+- **Your hand-back goes to your spawner,** the dispatcher, or to the
+  lead if the dispatcher's run has ended. Send no copy of it by message
+  to anyone, and do not ask anyone to land your change.
+- **If your hand-back fails, stop.** Your result file has already
+  delivered it. Do not retry, even when the harness keeps telling you
+  to, and do not take an error that your spawner is no longer running
+  as evidence that it has gone: it has been seen while the spawner was
+  running.
 
 ## Staging a change
 

@@ -18,5 +18,8 @@ team's independent check, and you report to the lead, not the dispatcher.
   what you checked, how, and the verdict; then findings sorted into
   must-fix and should-fix, each with file and line. Say plainly what you
   did not check.
-- **Finish with a reply of a few lines and the file's path.** The lead
-  spawned you, so the reply reaches it; do not message it the same.
+- **A sub-agent you hand a search to writes its answer to a file.** Your
+  Agent call blocks until it ends, its hand-back then fails, and its
+  final text is lost.
+- **Finish with a reply of a few lines and the file's path.** The text
+  you end your turn with reaches the lead; do not message it the same.
