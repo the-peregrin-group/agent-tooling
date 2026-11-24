@@ -8,7 +8,11 @@ family). Each is named `know-<topic>`, and its description gives a concise
 distillation of what it teaches, so the knowledge reaches every session from
 the Skill listing before anything is loaded; the body adds depth and how to
 apply it. Other Skills point at a Knowledge Skill rather than restating its
-knowledge, so the text lives in one place.
+knowledge, so the text lives in one place. That distillation is the one
+heavy description the rule for Skill descriptions allows
+([ADR 0026](../../adr/0026-skill-descriptions-are-sized-by-how-the-skill-loads.md));
+whether it is worth its cost in every session is still to be judged from
+the measurement on `agent-tooling-6zll`.
 
 ## Status
 
