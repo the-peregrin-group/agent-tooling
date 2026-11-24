@@ -1,17 +1,8 @@
 ---
 name: use-github
 description: >
-  Day-to-day conventions for working with GitHub in a repo whose tracking was
-  bootstrapped by the setup-github-issues skill: the GitHub mechanics of
-  filing and labeling issues (the filing discipline is create-issue), of
-  commenting on, editing, and closing them (the discipline is work-issue),
-  setting priority and status on the project board, the `TODO(#N)` source-code
-  rule, and the PR workflow. All GitHub writes run through the installed
-  `ghw-*` wrapper scripts on PATH. Load this before filing, labeling, or
-  prioritizing an issue, before writing a TODO comment, and before opening a
-  PR. Also relevant for "file an issue", "what label should this get", "is
-  there an issue for this", "open a PR". For first-time repo setup use
-  setup-github-issues; for a full triage or grooming pass use triage-issues.
+  GitHub through the `ghw-*` wrappers: issues, labels, the project board, and
+  PRs. Load before any GitHub operation.
 ---
 
 # Use GitHub

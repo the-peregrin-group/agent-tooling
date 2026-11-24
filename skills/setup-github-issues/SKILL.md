@@ -1,15 +1,8 @@
 ---
 name: setup-github-issues
 description: >
-  Set up GitHub Issues as the single source of truth for a repository's task
-  tracking. Creates a custom label schema (type, area), optionally links a
-  GitHub Project for priority tracking, converts scattered TODOs into
-  well-scoped issues, and cleans up legacy tracking.
-  Use this skill whenever the user wants to set up issues, create a label
-  system, bootstrap a backlog, or migrate from ad-hoc TODOs to GitHub Issues
-  for any repo. Also relevant when the user says things like "set up tracking",
-  "create issues from TODOs", "organize the backlog", or "set up project
-  management for this repo".
+  Set up GitHub Issues as a repo's task tracking: labels, project board,
+  backlog. Always load when setting up issue tracking on GitHub for a repo.
 ---
 
 # Setup GitHub Issues

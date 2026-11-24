@@ -1,19 +1,8 @@
 ---
 name: create-issue
 description: >
-  File an Issue on any Issue Tracker (Beads, GitHub Issues, Forgejo issues):
-  search open and closed Issues first and let what is found decide the next
-  step; meet the filing bar (a title that states the outcome, a body that
-  says what is known and what is not, and a kind, a priority, and the entry
-  state, each set as best you can); take kind, priority, and labels from the
-  repo's Tracker Schema; record every relationship with its type explicit;
-  say where the Issue came from; refine what you filed. Load before filing
-  an Issue, and when work in progress turns up other work that needs doing.
-  Triggers: "file an issue", "file a bead", "open an issue for this", "is
-  there an issue for this", "track this", "what kind or priority is this".
-  EXCLUDE: claiming, working, changing, or closing an Issue (work-issue);
-  breaking down a Branch Issue (breakdown-issue); a triage
-  pass over the whole tracker (triage-issues); setting a tracker up.
+  File an Issue. Always load before you create an issue of any kind in any
+  issue tracker (GitHub Issues, Forgejo issues, Beads, and so on).
 ---
 
 # Create Issue

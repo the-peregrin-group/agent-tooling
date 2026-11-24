@@ -1,16 +1,9 @@
 ---
 name: handoff
 description: >
-  Write a handoff: a self-contained brief that lets another agent (or a
-  human) take over or continue work without this conversation. By default,
-  writes a temporary file under /tmp/claude/ and prints a paste-ready kickoff
-  prompt, for starting a parallel or fresh session now. Trigger on "hand this
-  off", "handoff", "write a handoff", "brief another agent", "spin up another
-  agent on this", "continue this in a new session", "park this". Can be
-  offered when work is being set aside unfinished. EXCLUDE: saving the
-  transcript (save-log), logging accomplishments (update-snippet), filing
-  issues or beads (the tracker's own workflow, unless the invocation asks for
-  it).
+  Write a handoff: a self-contained brief that lets another agent or a human
+  continue the work without this conversation. Always load when asked to write
+  a handoff, and whenever you decide to hand work to another agent or session.
 argument-hint: "[to <recipient>] [focus or other guidance]"
 ---
 

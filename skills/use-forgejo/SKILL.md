@@ -1,16 +1,8 @@
 ---
 name: use-forgejo
 description: >
-  Day-to-day conventions for pull-request operations against a self-hosted
-  Forgejo forge. All Forgejo writes run through the installed `fjw-*` wrapper
-  scripts on PATH, acting as the deployment's machine account: create a PR,
-  list/view PRs, read PR comments and inline review comments, probe a head branch's open-PR state
-  (none/draft/mergeable/conflicted), close a PR with a mandatory comment,
-  comment on a PR within a pinned head-branch prefix. Load this before any
-  Forgejo PR operation, attended or unattended. Also relevant for "open a PR
-  on the forge", "is there an open PR for this branch", "close the stale
-  bot PR". Merge is deliberately not covered: it is a human-only act.
-  For GitHub repos use use-github instead.
+  Forgejo pull requests through the `fjw-*` wrappers. Load before any Forgejo
+  PR operation.
 ---
 
 # Use Forgejo

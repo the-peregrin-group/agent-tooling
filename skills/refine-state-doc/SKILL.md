@@ -1,9 +1,8 @@
 ---
 name: refine-state-doc
 description: >
-  Guidance for writing and refining effective "state docs" (vs. their counterpart, "stream docs").
-  Load proactively when working with a known "state doc" (vs. a "stream doc"), or when directed
-  explicitly by the user or another agent to refine a specific state doc.
+  Write and refine state docs (as opposed to stream docs). Load when writing
+  or editing a state doc.
 ---
 
 # Refine state doc
