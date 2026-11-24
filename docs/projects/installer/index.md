@@ -26,6 +26,7 @@ that agent tooling runs only from installed copies, is
 | Per-Install-Target Receipts recording owner, commit, and file hashes | shipped | `install-receipt.json` |
 | Several Source repos sharing one Install Target | shipped | Receipts keyed by Source repo |
 | Adoption of byte-identical content, and explicit takeover from a named Source repo | shipped | `tooling-install apply`, `tooling-install adopt` |
+| Summarize drift and installs concisely by default, naming everything an install would destroy; full report with `--json` | shipped | `tooling-install diff`/`apply`/`adopt` `[--json]` |
 
 ### Known gaps
 

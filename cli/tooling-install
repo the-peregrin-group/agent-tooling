@@ -49,7 +49,8 @@ visible in the command line before it is approved.
 `diff` classifies collisions as `adoptable` and `conflicting`, and counts
 either as drift, so a pending ownership transfer never reads as in sync.
 Because `adopt` has no preview of its own, `diff` is its dry run, and three
-of its per-cohort lists are what to read before approving one:
+of its per-cohort lists are what to read before approving one (the summary
+labels them CONFLICTING, WOULD DELETE unowned, and WOULD DELETE foreign):
 
     conflicting        what `adopt` takes over -- minus any entry owned by a
                        repo other than the one it names, which it refuses
@@ -69,6 +70,16 @@ named cohorts of the manifest; without it every cohort ships. A name the
 manifest does not declare is a usage error, never an empty run. Dirtiness is
 then judged only over the selected cohorts' source directories, so an edit
 in a tree this run does not ship cannot refuse it.
+
+Output: each command prints a short plain-text summary on stdout -- a
+header with the source repo and commit, then one line per cohort with its
+status and counts. Lists of what a run leaves alone (unowned or foreign
+files and units, carried-through files) appear as counts only; every other
+non-empty list is printed name by name, and what an install would remove,
+delete, or overwrite is labelled in capitals, so a `diff` read before
+approving an `apply` or `adopt` hides nothing it would destroy. `--json`,
+accepted by every command, prints the full report instead: the stable
+machine-readable form, with every list and the per-cohort target paths.
 
 Exit codes: diff -- 0 in sync, 1 drift or not installed, 2 usage/environment
 error, 4 refused. apply and adopt -- 0 applied, 1 failed, 2 usage/environment
@@ -92,13 +103,15 @@ from lib.install import (  # noqa: E402
     apply,
     diff,
 )
+from lib.install_summary import summarize  # noqa: E402
 from lib.plan import emit, emit_plan  # noqa: E402
 
 USAGE = (
-    "tooling-install {diff | apply} <source-checkout> [--cohort <name>]... "
-    "[--force]\n"
+    "tooling-install diff <source-checkout> [--cohort <name>]... [--json]\n"
+    "       tooling-install apply <source-checkout> [--cohort <name>]... "
+    "[--force] [--json]\n"
     "       tooling-install adopt <source-checkout> <superseded-source-repo> "
-    "[--cohort <name>]... [--force]"
+    "[--cohort <name>]... [--force] [--json]"
 )
 
 COMMANDS = ("diff", "apply", "adopt")
@@ -115,14 +128,18 @@ def _usage(message: str) -> int:
 
 
 def _parse_options(rest):
-    """Split the trailing options into (force, cohorts) or a usage message."""
+    """Split the trailing options into (force, cohorts, as_json) or a usage
+    message."""
     force = False
+    as_json = False
     cohorts = []
     index = 0
     while index < len(rest):
         argument = rest[index]
         if argument == "--force":
             force = True
+        elif argument == "--json":
+            as_json = True
         elif argument == "--cohort":
             index += 1
             if index >= len(rest):
@@ -136,7 +153,7 @@ def _parse_options(rest):
         else:
             return None, f"unexpected argument {argument!r}"
         index += 1
-    return (force, cohorts), None
+    return (force, cohorts, as_json), None
 
 
 def main(argv) -> int:
@@ -154,7 +171,7 @@ def main(argv) -> int:
     options, complaint = _parse_options(rest)
     if complaint is not None:
         return _usage(complaint)
-    force, cohorts = options
+    force, cohorts, as_json = options
     if force and command == "diff":
         return _usage("--force applies to apply and adopt, not diff")
 
@@ -167,12 +184,16 @@ def main(argv) -> int:
     try:
         if command == "diff":
             report = diff(source, cohorts=cohorts)
-            emit(report)
+            if as_json:
+                emit(report)
+            else:
+                print(summarize(report))
             return EXIT_OK if report["status"] == "in-sync" else EXIT_DRIFT
-        emit_plan(
-            "applied",
-            **apply(source, force=force, cohorts=cohorts, supersedes=supersedes),
-        )
+        result = apply(source, force=force, cohorts=cohorts, supersedes=supersedes)
+        if as_json:
+            emit_plan("applied", **result)
+        else:
+            print(summarize({"action": "applied", **result}))
         return EXIT_OK
     except InstallError as error:
         return _die(error)
