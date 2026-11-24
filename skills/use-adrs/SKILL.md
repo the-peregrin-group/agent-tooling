@@ -1,20 +1,8 @@
 ---
 name: use-adrs
 description: >
-  Read and write Architecture Decision Records (ADRs): where a project keeps
-  them, numbering and file naming, the three-part gate for what deserves one
-  (several real options, costly to reverse, surprising without context), the
-  Context/Decision/Rationale format, the optional Consequences and required
-  Alternatives Considered sections, and which edits a landed ADR takes. Load
-  before creating or editing anything under an ADR directory, when a design
-  or project decision is being made or revisited, when a proposed change
-  contradicts a recorded decision, and when the user asks why something was
-  decided. Triggers: "write an ADR", "record this decision", "should this be
-  an ADR", "why did we decide", "supersede ADR", "amend ADR", "true up this
-  ADR", "what did we decide about". Applies to non-code repos too (knowledge
-  vaults, business and project decisions). EXCLUDE: general documentation,
-  design docs, and plans (state docs, see refine-state-doc), vocabulary
-  (use-lexicon), and issue tracking.
+  Read and write Architecture Decision Records (ADRs). Load when a decision is
+  being made, revisited, or questioned, and before touching an ADR directory.
 ---
 
 # Use ADRs

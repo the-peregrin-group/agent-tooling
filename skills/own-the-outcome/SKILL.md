@@ -2,19 +2,9 @@
 name: own-the-outcome
 description: >
   Run a multi-agent job with the lead session as its directly responsible
-  individual (DRI): the lead owns the outcome, keeps the goals, the costly
-  decisions, and all talk with the user, and delegates everything else to
-  lieutenants (a dispatcher, a release steward, workers, an auditor) who
-  coordinate through files: a rulings ledger that is the only authority to
-  act, briefs, result files, order files, and a steward log. Covers who
-  spawns whom, the review and landing gates, model tiers by role, rotating
-  long-lived agents, and what to measure. Load when the user puts you in
-  charge of a job too big for one session, and when you are spawned as a
-  dispatcher, steward, worker, or auditor on such a team. Triggers: "own
-  the outcome", "you're in charge of this", "take the lead on this", "run
-  this as a DRI team", "DRI team model", "build a team for this". EXCLUDE:
-  a job of a handful of tool calls or one delegated lookup (do it, or spawn
-  one agent); writing one Handoff (handoff).
+  individual (DRI). Load when the user puts you in charge of a job too big for
+  one session, or when you are spawned as a dispatcher, steward, worker, or
+  auditor.
 ---
 
 # Own the outcome

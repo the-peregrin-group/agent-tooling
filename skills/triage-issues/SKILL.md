@@ -1,17 +1,8 @@
 ---
 name: triage-issues
 description: >
-  Run a triage pass: a batch pass over a repo's whole Issue Tracker, read
-  against the repo's Tracker Schema and its Issue State Diagram. It
-  reconciles what filing missed (classification, priorities, relationships,
-  each Issue's state, and staleness judged from exact timestamps against
-  the threshold each priority declares), puts what needs a person on the
-  affected Issue as a comment with the `human` label, and keeps a digest
-  Issue. Load for "run triage", "triage pass", "groom the backlog", "triage
-  this issue", and for a recurring unattended pass. EXCLUDE: filing one
-  Issue (create-issue); breaking down or verifying a Branch Issue
-  (breakdown-issue); scoping, designing, or implementing an Issue, which is
-  working it; setting a tracker up; TODO lists kept in files.
+  Run a triage pass over a repo's whole Issue Tracker. Load when asked to
+  triage, and for a scheduled triage run.
 ---
 
 # Triage Issues

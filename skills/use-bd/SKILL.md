@@ -1,18 +1,8 @@
 ---
 name: use-bd
 description: >
-  The operating manual for Beads (`bd`) as a repo's Issue Tracker, run
-  through the `bdw` wrapper: what Beads adds to working an Issue (the loop
-  is work-issue), who may claim and close, the Beads commands for a Branch
-  Issue pass (breakdown-issue), what Beads adds to filing (the
-  filing discipline is create-issue), free text through files, work waiting
-  on a human, and friction reporting. Load at the start of any session in a
-  repo with a `.beads/` directory, before the first `bdw` or `bd` call, and
-  whenever `bd prime` or a `bdw` message says to. Triggers: "bdw ready",
-  "what's ready", "claim this issue", "file a bead", "close the bead",
-  "land the plane", "Beads". EXCLUDE: GitHub Issues (use-github), the rules
-  for working a Branch Issue in passes (breakdown-issue), and setting Beads
-  up in a new repo (this skill's onboarding.md).
+  Beads (`bd`) through the `bdw` wrapper. Load at the start of any session in
+  a repo with a `.beads/` directory, before the first `bdw` call.
 ---
 
 # Use Beads

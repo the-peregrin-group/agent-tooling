@@ -1,17 +1,9 @@
 ---
 name: home-in
 description: >
-  Interrogate the user toward a defensible opinion on a problem, and capture
-  the result: an artifact the user chooses, lexicon entries through
-  use-lexicon, and ADRs through use-adrs. The agent reads and verifies
-  against what already exists, asks one question per turn across a tree of
-  Lines of Inquiry, and pressure-tests every proposition including its own.
-  Trigger only on the literal phrases "/home-in", "home in on", "hone in
-  on", or "zero in on" applied to a problem, decision, plan, or proposal.
-  Attended sessions only. EXCLUDE: ordinary help deciding something when no
-  interrogation was asked for; writing up decisions already made
-  (refine-state-doc); recording one decision (use-adrs); naming one concept
-  (use-lexicon); reviewing code (code-reviewer).
+  Interrogate the user toward a defensible opinion on a problem. Load only on
+  "/home-in", or when the user asks to "home in on", "hone in on", or "zero in
+  on" a problem; attended sessions only.
 argument-hint: "<the problem and the outcome you want, in your own words> [in <project>] | continue from <artifact>"
 ---
 

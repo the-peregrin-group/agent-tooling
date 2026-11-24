@@ -4,10 +4,9 @@ description: >
   A session is unattended only when its initial prompt includes the sentence
   "You are running an `unattended` session (see `/know-unattended`)";
   otherwise it is attended, and the user can be asked and is expected to
-  answer eventually, though without guarantee on latency. Load when deciding
-  whether to ask the user or act on your own judgment, when a prompt or brief
-  mentions "unattended", and before starting a session, subagent, or
-  workflow that the user will not answer.
+  answer eventually, though without guarantee on latency. Load whenever
+  deciding whether to ask the user, and before starting work the user will not
+  answer.
 ---
 
 # Know: unattended sessions

@@ -1,21 +1,9 @@
 ---
 name: work-issue
 description: >
-  Work an Issue, or change one, on any Issue Tracker (Beads, GitHub Issues,
-  Forgejo issues): find ready work in the states you work; claim it before
-  touching it, at any stage; append what you learn to the Issue it belongs
-  to; edit, comment on, move, close or reopen an Issue, whether or not you
-  hold it, judging every move against the repo's Issue State Diagram and
-  giving every close and reopen its reason; close or release everything you
-  hold before the session ends; name the Issue in commits and PRs with the
-  `Lands:` and `Advances:` trailers. Load before picking up or claiming
-  work, before you edit, comment on, move, close or reopen an Issue, and
-  before writing a commit message or PR body for work an Issue tracks.
-  Triggers: "what's ready", "pick this up", "claim this issue", "move this
-  issue to", "close the issue", "reopen the issue", "land the plane".
-  EXCLUDE: filing an Issue (create-issue); breaking down a Branch Issue
-  (breakdown-issue); a triage pass over the tracker (triage-issues);
-  setting a tracker up.
+  Work or change an existing Issue. Always load before you claim, edit,
+  comment on, move, close, or reopen an issue in any issue tracker, and before
+  writing a commit or PR for work an issue tracks.
 ---
 
 # Work Issue

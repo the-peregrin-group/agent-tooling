@@ -214,3 +214,28 @@ lock have yet to move into the Machine State Directory
 (`agent-tooling-fpkl.9`); and the README's deny rules cover neither the
 Machine Config Directory nor the Machine State Directory
 (`agent-tooling-fpkl.7`).
+
+## Skill descriptions
+
+Every Skill's description sits in the Skill listing, which every session and
+sub-agent pays for before it does anything, so a description carries only
+what its loading route needs. Why, and the alternatives rejected, is
+[ADR 0026 (a Skill's description is sized by how the Skill loads)](adr/0026-skill-descriptions-are-sized-by-how-the-skill-loads.md).
+
+| How the Skill loads | Front matter and description | Skills |
+|---|---|---|
+| Only the user invokes it, and no agent or automation ever needs to | `disable-model-invocation: true`; one line | `whatd-i-miss` |
+| Something else tells the agent to load it: a CLAUDE.md, a hook, an Agent definition, another Skill | what it is, and when, in a sentence or two | `use-git`, `use-github`, `use-forgejo`, `use-bd`, `own-the-outcome` |
+| A clear-cut condition, with no judgement left | what it is, and an absolute trigger ("Always load before ...") | `create-issue`, `work-issue`, `breakdown-issue`, `setup-github-issues`, `handoff` |
+| A judgement call, or model-invocable for convenience | what it is, and a terse trigger | `home-in`, `triage-issues`, `use-adrs`, `use-lexicon`, `refine-state-doc` |
+| A Knowledge Skill | the distillation of its knowledge, as tight as the content allows, and a terse trigger | `know-issues`, `know-unattended` |
+
+No description carries a list of trigger phrases or an EXCLUDE clause:
+telling neighbouring Skills apart is the bodies' job.
+
+Trigger text starts terse and grows only to fix an observed trigger miss: a
+Skill that did not load where the user expected it to, or loaded where it
+did not belong. Report a miss by filing an Issue labelled `area:skills` that
+names the Skill, what was said or happening, and what loaded instead. The
+change that broadens the description names that Issue in its `Lands:`
+trailer and adds only the words the miss shows are needed.

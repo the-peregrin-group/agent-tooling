@@ -1,9 +1,7 @@
 ---
 name: whatd-i-miss
 description: >
-  Fill the user in on where the session stands since the last user turn/message. Give high-level
-  explanations that explain the proverbial forest, not the texture of the knot on a branch of an
-  individual tree.
+  Catch the user up on where the session stands since their last message.
 argument-hint: "[anything in particular on which to focus filling you in?]"
 disable-model-invocation: true
 ---

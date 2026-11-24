@@ -1,14 +1,8 @@
 ---
 name: use-lexicon
 description: >
-  Maintain a project's LEXICON.md, the canonical definitions of its domain
-  terms, and hold all work to those terms. Load when a concept needs a name;
-  when a term is coined, renamed, retired, or disputed; when code and lexicon
-  disagree; when lexicon proposals await review; or when a project has no
-  LEXICON.md but needs one or has a glossary to convert. Triggers: "what do
-  we call...", "add to the lexicon", "is X the same as Y", "rename X",
-  "review lexicon proposals", "convert CONTEXT.md". EXCLUDE: generic
-  industry vocabulary, API or reference docs, implementation documentation.
+  Maintain a project's LEXICON.md and hold work to its terms. Load when a
+  concept needs a name, or a term is coined, renamed, or disputed.
 ---
 
 # Use Lexicon

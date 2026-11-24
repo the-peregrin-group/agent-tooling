@@ -1,17 +1,9 @@
 ---
 name: breakdown-issue
 description: >
-  Work a Branch Issue (an Issue that holds other Issues as its children, an
-  epic for instance) in a pass: check its scope against its children and
-  fix any mismatch, ending either by reorganizing its children (adding,
-  removing, or redrawing their boundaries), with the whole reorganization
-  drafted before any of it is filed, or by verifying it against its success
-  criteria. Load before claiming a Branch Issue, when an Issue proves
-  bigger than one session, and when deciding whether an Issue belongs under
-  a parent. Triggers: "break this down", "break this epic down", "split
-  this issue", "is this epic done", "verify the epic". EXCLUDE: filing one
-  Issue (create-issue) and a triage pass over the whole tracker
-  (triage-issues).
+  Break down or verify a Branch Issue (an Issue with children, such as an
+  epic). Always load before you claim a Branch Issue, split an Issue, or put
+  an Issue under a parent, in any issue tracker.
 ---
 
 # Break down an Issue

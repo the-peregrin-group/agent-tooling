@@ -1,17 +1,8 @@
 ---
 name: use-git
 description: >
-  The git discipline for working in any repo: hygiene (never act on
-  unverified-fresh state), concurrent-agent operating modes, history policy
-  (semi-linear with integration bubbles, no squash, rebase-before-integrate),
-  and the installed `gitw-*` wrapper verbs that carry every mutating git
-  operation — orient, branch-start, commit, rebase, push, integrate,
-  repo-register. Load this before any git operation in a repo, attended or
-  unattended. Also relevant for "start a branch", "commit this",
-  "rebase onto main", "push my branch", "integrate this branch", "is this
-  checkout fresh". Everything after the push — PRs, review flow, forge
-  merge — belongs to use-forgejo/use-github; worktree creation and removal
-  belong to the harness, not to git commands.
+  The git discipline and the `gitw-*` wrappers. Load before any git operation
+  in a repo.
 ---
 
 # Use Git
