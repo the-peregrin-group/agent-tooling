@@ -81,8 +81,8 @@ Then, either way:
 the four priority labels are the Wrapper's own constants, never declared
 in the schema file: it refuses a kind or priority label there and ignores
 a `scope` entry named `human` with a note. A board's `Priority` options
-are the same `P0` to `P3`. So on GitHub the kinds are those five and the priority
-levels those four until the Wrapper changes. Do not swap in GitHub's issue
+are the same `P0` to `P3`. So on GitHub the kinds are those five and the
+priority levels those four until the Wrapper changes. Do not swap in GitHub's issue
 types; a Tracker Schema that proposes other kinds or levels cannot be
 applied here yet, so say so in the plan.
 
