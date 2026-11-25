@@ -40,9 +40,40 @@ The block uses the same marker convention as `TRIAGE.md`'s config block:
 two HTML comment marker lines naming `tracker-schema`, with one fenced
 `json` block between them. The matching rule is stricter than that
 precedent's: a reader matches each marker as a whole line, so prose that
-mentions a marker cannot be mistaken for one. The file itself states the
-rule and what each key holds, since it is the only context a repo's agents
-have.
+mentions a marker cannot be mistaken for one, and the fence must be tagged
+`json`. Trailing whitespace and a CRLF line ending do not stop a line from
+matching, since neither can turn prose into a marker and both are easy to
+introduce unseen; indentation does, and makes the file malformed, since an
+indented line can be a code block or part of a list item in Markdown.
+Rejected: matching only an exact line (it refuses a file over an
+invisible trailing space that changes nothing), and stripping both ends
+(it would accept a marker inside an indented example). The file itself
+states the rule and what each key holds, since it is the only context a
+repo's agents have.
+
+### The reader
+
+`cli/lib/tracker_schema.py` is the one reader of the block, for every
+Wrapper that will follow a repo's Tracker Schema. It implements the rule
+the file states, checks the block against what the file says each key
+holds, and returns read-only, typed values; anything else is refused with
+an error that names the line or key at fault, never guessed at. A Wrapper
+maps that refusal to exit 2 under the
+[Exit-code contract](../../index.md#exit-code-contract), since the file is
+state the caller must change. It does not reuse the triage scripts'
+`lib_profile.py`, which matches its markers by substring and accepts an
+untagged fence. Rejected: a lenient reader that skips unknown keys (a
+misspelt key would read as absent, silently).
+
+The reader takes the file's text, or a path, and decides neither where a
+Wrapper finds a repo's Tracker Schema nor what happens when a repo has
+none; those are open (`agent-tooling-u9n.19`, how a Wrapper finds a repo's
+Tracker Schema). It reads none of the prose. Whether a file's prose and
+block agree (every state in the block has a meaning section and an "Out
+of" section, and the prose names no other state) is checked by a test over
+the shipped default and this repo's copy, not by the reader, because the
+prose's headings are written for people and agents and a repo may arrange
+its own copy's prose differently.
 
 ### Path
 
@@ -110,7 +141,8 @@ moved to `skills/setup-issue-tracker/` records its old path in
 Rejected: a hand-bumped revision number (someone has to remember to bump
 it, and a number cannot be diffed against), and a content hash (it shows
 that the default changed but not what changed). In the shipped default the
-three fields are `null`, since it is not a copy.
+three fields are `null`, since it is not a copy, and the reader's test
+holds it to that.
 
 When the Receipt's commit is `-dirty` or unknown, setup stops and says so
 rather than recording a revision that cannot be diffed against.

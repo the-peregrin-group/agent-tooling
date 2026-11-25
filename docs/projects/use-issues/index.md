@@ -32,6 +32,7 @@ is tracked in `agent-tooling-84n3` (bdw), `agent-tooling-fyxo` (ghw),
 |---|---|---|
 | The default Tracker Schema, with its Issue State Diagram | shipped | `skills/setup-issue-tracker/TRACKER.default.md`; [design](design.md) |
 | This repo's own Tracker Schema, copied from the default and customized | shipped | `TRACKER.md` |
+| A reader for the Tracker Schema's JSON block, and a test that the default and this repo's copy are well formed | shipped | `cli/lib/tracker_schema.py`; [design](design.md#the-reader) |
 | `know-issues`, the Knowledge Skill for the issue fundamentals | shipped | `skills/know-issues/SKILL.md`; documented under [know](../know/index.md) |
 | `create-issue`, generic, against today's Verbs | shipped | `skills/create-issue/SKILL.md` |
 | `work-issue`, generic, against today's Verbs | shipped | `skills/work-issue/SKILL.md` |
@@ -47,8 +48,14 @@ is tracked in `agent-tooling-84n3` (bdw), `agent-tooling-fyxo` (ghw),
 
 ### Known gaps
 
-- Nothing reads the default Tracker Schema's JSON block yet, and no test
-  checks that the shipped default is well formed (`agent-tooling-rtag`).
+- No Wrapper follows a repo's Tracker Schema yet: the reader exists, but no
+  Verb calls it. How a Verb finds a repo's schema, and what it does when
+  the repo has none, is undecided (`agent-tooling-u9n.19`), and the block
+  lacks the entry state, the state order, and the close reasons the Verbs
+  need (`agent-tooling-u9n.20`). ghw's board options, filing, and closing
+  work to fixed values of their own (`agent-tooling-u9n.21`,
+  `agent-tooling-u9n.22`, and the labels gap below), and nothing checks a
+  repo's Beads against its schema (`agent-tooling-u9n.23`).
 - `setup-issue-tracker` cannot register a repo's Forge identities: ghw has
   none yet and acts as whoever `gh` is authenticated as, and fjw has only
   its one machine account (`agent-tooling-fyxo`, `agent-tooling-1vr`).

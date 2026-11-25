@@ -322,7 +322,9 @@ writes to this repo, and the flag only narrows which board is touched.
   `arguments.py` (repo charset check, issue-number parsing), and
   `paths.py` (each tool's subdirectory of the Machine Config Directory and
   the Machine State Directory, per the
-  [Path layout](../../index.md#path-layout)).
+  [Path layout](../../index.md#path-layout)), and `tracker_schema.py`
+  (the reader for a repo's Tracker Schema, which no Verb calls yet; see
+  the [use-issues design](../use-issues/design.md#the-reader)).
 - `cli/lib/github/`: `gh.py` is the subprocess layer. Every call has a
   120-second timeout with stdin closed when nothing is piped, so a prompting
   subcommand or stalled connection fails loudly instead of hanging an
