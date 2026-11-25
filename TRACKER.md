@@ -29,8 +29,8 @@ an action on its own, only with a human's approval, or never).
 {
   "provenance": {
     "source_repo": "the-peregrin-group/agent-tooling",
-    "source_commit": "ca31d9e22cd930755757bac89b88c295b865498f",
-    "default_path": "skills/setup-github-issues/TRACKER.default.md"
+    "source_commit": "4f8a8408682241ee5ee9aa53232cf98aabd90eee",
+    "default_path": "skills/setup-issue-tracker/TRACKER.default.md"
   },
   "issue_kinds": [
     {
@@ -204,8 +204,10 @@ this file outside the markers.
   not a new label. Where the tracker has no field for an Issue's kind,
   priority, or state, a label named for it carries it; that label is
   declared by the kind, priority, or state it names and is not an unknown
-  label. The labels on the area axis are the repo's own, since
-  the parts of a project are that project's.
+  label. The labels on the area axis are the repo's own, since the parts of
+  a project are that project's, and the repo owner fills them in. While the
+  axis lists none, no Issue's labels can conform, so no Issue can be in a
+  state later than Needs Triage.
 - `issue_states`: the Issue States, each with its `name` and its `open`
   flag, `true` for an open state and `false` for a closed one. That flag is
   the only structure a state has. Every Issue is in exactly one state, and
@@ -222,12 +224,11 @@ Issue States it works.
 Terms used below. A Branch Issue is an Issue that holds other Issues as its
 children: a project, rather than a unit of work one session finishes. An
 Issue is a Branch Issue if it has any children, open or closed, or if it is
-of a kind designated to hold children (e.g., an epic), even before it has
-any. A Leaf Issue is an Issue that is not a Branch Issue: a unit of work
-meant to be claimed and finished in one session. A pass is one session's
-work on a Branch Issue. A claim makes it visible that someone is working on
-an Issue, since one person or agent advances an Issue at a time; a release
-gives the claim up.
+meant to hold children, even before it has any. A Leaf Issue is an Issue
+that is not a Branch Issue: a unit of work meant to be claimed and finished
+in one session. A pass is one session's work on a Branch Issue. A claim
+makes it visible that someone is working on an Issue, since one person or
+agent advances an Issue at a time; a release gives the claim up.
 
 ### What each state means
 

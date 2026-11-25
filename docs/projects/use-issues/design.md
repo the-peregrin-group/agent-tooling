@@ -120,11 +120,11 @@ rather than recording a revision that cannot be diffed against.
 This repo's Tracker Schema is [`TRACKER.md`](../../../TRACKER.md), the
 first copy of the default. It was copied by hand, before any setup skill
 did the copy, and this repo is itself the source repo: its `source_commit`
-is the commit on `main` whose default it was copied from, not a Receipt's
-commit, and its `default_path` is the default's old path under
-`skills/setup-github-issues/`. What it changes from the default is a diff
-of the two files. Its Issue State Diagram is the default's as of that
-commit except its last section, which says how much of an Issue State the
+is the commit on `main` whose default it follows, not a Receipt's commit,
+and it moves forward by hand when the copy takes what the default changed
+since. What it changes from the default is a diff of the two files. Its
+Issue State Diagram is the default's as of that commit except its last
+section, which says how much of an Issue State the
 Beads status records today, which is open or closed and whether a claim is
 held; holding the states themselves on Beads is
 `agent-tooling-c86` (status-gated Issue lifecycle on Beads).
