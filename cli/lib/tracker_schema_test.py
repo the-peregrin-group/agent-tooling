@@ -8,6 +8,7 @@ Run from the cli/ directory:
 from __future__ import annotations
 
 import copy
+import dataclasses
 import json
 import re
 import sys
@@ -99,9 +100,31 @@ class ExtractionTest(unittest.TestCase):
     def test_trailing_whitespace_and_crlf_still_match(self):
         text = _file(_fenced(_DOCUMENT)).replace(
             "<!-- BEGIN tracker-schema -->\n", "<!-- BEGIN tracker-schema -->  \t\n"
-        ).replace("```json\n", "```json \n")
+        ).replace(
+            "<!-- END tracker-schema -->\n", "<!-- END tracker-schema --> \n"
+        ).replace("```json\n", "```json \n").replace("\n```\n", "\n```\t\n")
         tracker_schema.parse(text)
         tracker_schema.parse(text.replace("\n", "\r\n"))
+
+    def test_extract_block_drops_crlf(self):
+        text = _file("```json\n{\n}\n```\n").replace("\n", "\r\n")
+        self.assertEqual(tracker_schema.extract_block(text), "{\n}")
+
+    def test_a_tab_indented_marker_is_refused(self):
+        text = _file(_fenced(_DOCUMENT)).replace(
+            "<!-- BEGIN tracker-schema -->", "\t<!-- BEGIN tracker-schema -->"
+        )
+        self._refuses(text, "remove the indentation")
+
+    def test_an_indented_example_of_a_marker_elsewhere_is_refused(self):
+        text = _file(_fenced(_DOCUMENT),
+                     after="An example:\n\n    <!-- END tracker-schema -->\n")
+        self._refuses(text, "remove the indentation")
+
+    def test_a_marker_inside_a_fenced_example_elsewhere_is_refused(self):
+        text = _file(_fenced(_DOCUMENT),
+                     after="```\n<!-- BEGIN tracker-schema -->\n```\n")
+        self._refuses(text, "appears on 2 lines")
 
     def test_a_marker_mentioned_inside_a_line_is_not_a_marker(self):
         text = _file(
@@ -158,6 +181,21 @@ class ExtractionTest(unittest.TestCase):
         block = _fenced(_DOCUMENT).replace("```json", "```jsonc", 1)
         self._refuses(_file(block), "exactly ```json")
 
+    def test_other_spellings_of_a_json_fence_are_refused(self):
+        # Each opens a json fenced block in CommonMark; the rule names one.
+        for opening in ("~~~json", "````json", "``` json", "```JSON",
+                        "```json title"):
+            with self.subTest(opening=opening):
+                block = _fenced(_DOCUMENT).replace("```json", opening, 1)
+                self._refuses(_file(block), "exactly ```json")
+
+    def test_other_closing_fences_are_refused(self):
+        for closing in ("~~~", "````"):
+            with self.subTest(closing=closing):
+                block = _fenced(_DOCUMENT)[:-len("```\n")] + closing + "\n"
+                self._refuses(_file(block), "must close with a line that is "
+                              "exactly ```")
+
     def test_an_indented_fence_is_refused(self):
         block = _fenced(_DOCUMENT).replace("```json", "   ```json", 1)
         self._refuses(_file(block), "exactly ```json")
@@ -180,6 +218,10 @@ class ExtractionTest(unittest.TestCase):
         block = '```json\n{"provenance": {}, "provenance": {}}\n```\n'
         self._refuses(_file(block), "the key 'provenance' twice")
 
+    def test_json_nested_too_deeply_is_refused(self):
+        block = "```json\n" + "[" * 100000 + "\n```\n"
+        self._refuses(_file(block), "nests too deeply")
+
 
 class ShapeTest(unittest.TestCase):
     """The block's shape, as the file's "What each key holds" documents it."""
@@ -199,6 +241,19 @@ class ShapeTest(unittest.TestCase):
 
     def test_an_unknown_key_is_refused(self):
         self._refuses(_with(issue_kind=[]), "unknown key(s) issue_kind")
+
+    def test_an_unknown_nested_key_is_refused(self):
+        kinds = [{"name": "bug", "meaning": "Broken", "color": "d73a4a"}]
+        self._refuses(_with(issue_kinds=kinds),
+                      "issue_kinds[0] has unknown key(s) color")
+
+    def test_a_name_with_a_control_or_invisible_character_is_refused(self):
+        for name in ("b\nug", chr(0x200B)):  # a newline; a zero-width space
+            with self.subTest(name=name):
+                self._refuses(
+                    _with(issue_kinds=[{"name": name, "meaning": "x"}]),
+                    "issue_kinds[0].name must hold no control",
+                )
 
     def test_provenance_fields_are_strings_or_null(self):
         provenance = {"source_repo": 7, "source_commit": None,
@@ -224,8 +279,38 @@ class ShapeTest(unittest.TestCase):
         self._refuses(_with(issue_kinds=[kind, kind]),
                       "issue_kinds: 'bug' is declared twice")
 
+    def test_names_differing_only_in_case_are_refused(self):
+        self._refuses(
+            _with(issue_kinds=[{"name": "Feature", "meaning": "x"},
+                               {"name": "feature", "meaning": "y"}]),
+            "'Feature' and 'feature' differ only in case",
+        )
+        label_schema = copy.deepcopy(_DOCUMENT["issue_label_schema"])
+        label_schema["labels"].append({"name": "Human", "meaning": "x"})
+        self._refuses(_with(issue_label_schema=label_schema),
+                      "'human' and 'Human' differ only in case")
+
+    def test_a_priority_declared_twice_is_refused(self):
+        priority = {"name": "P0", "meaning": "Now", "stale_after_days": 1}
+        self._refuses(_with(issue_priorities=[priority, priority]),
+                      "issue_priorities: 'P0' is declared twice")
+
+    def test_a_state_declared_twice_is_refused(self):
+        states = [{"name": "Open", "open": True}, {"name": "Open", "open": True},
+                  {"name": "Closed", "open": False}]
+        self._refuses(_with(issue_states=states),
+                      "issue_states: 'Open' is declared twice")
+
+    def test_the_same_label_twice_on_an_axis_is_refused(self):
+        label_schema = copy.deepcopy(_DOCUMENT["issue_label_schema"])
+        label_schema["axes"][0]["labels"].append(
+            {"name": "area:core", "meaning": "Again"}
+        )
+        self._refuses(_with(issue_label_schema=label_schema),
+                      "(all labels): 'area:core' is declared twice")
+
     def test_staleness_is_a_positive_whole_number_of_days(self):
-        for days in (0, 1.5, "7", True):
+        for days in (0, 1.5, "7", True, 10 ** 500):
             with self.subTest(days=days):
                 self._refuses(
                     _with(issue_priorities=[
@@ -252,11 +337,13 @@ class ShapeTest(unittest.TestCase):
         self._refuses(_with(issue_label_schema=label_schema),
                       "belongs in that axis's labels")
 
-    def test_two_axes_sharing_a_prefix_are_refused(self):
-        label_schema = copy.deepcopy(_DOCUMENT["issue_label_schema"])
-        label_schema["axes"][1]["prefix"] = "area:"
-        self._refuses(_with(issue_label_schema=label_schema),
-                      "two axes share the prefix 'area:'")
+    def test_overlapping_axis_prefixes_are_refused(self):
+        for prefix in ("area:", "a", "area:sub:", "AREA:"):
+            with self.subTest(prefix=prefix):
+                label_schema = copy.deepcopy(_DOCUMENT["issue_label_schema"])
+                label_schema["axes"][1]["prefix"] = prefix
+                self._refuses(_with(issue_label_schema=label_schema),
+                              f"the prefixes 'area:' and {prefix!r} overlap")
 
     def test_a_state_flag_must_be_a_boolean(self):
         self._refuses(
@@ -317,7 +404,7 @@ class AccessorTest(unittest.TestCase):
         self.assertFalse(lost.is_complete or lost.is_original)
 
     def test_the_schema_is_read_only(self):
-        with self.assertRaises(Exception):
+        with self.assertRaises(dataclasses.FrozenInstanceError):
             self.schema.issue_kinds = ()
         self.assertIsInstance(self.schema.issue_kinds, tuple)
 
@@ -332,6 +419,10 @@ class AccessorTest(unittest.TestCase):
             self.assertTrue(str(caught.exception).startswith(f"{path}: "))
             with self.assertRaises(FileNotFoundError):
                 tracker_schema.load(Path(directory) / "missing.md")
+            path.write_bytes(b"\xff\xfe not utf-8")
+            with self.assertRaises(TrackerSchemaError) as caught:
+                tracker_schema.load(path)
+            self.assertIn("not UTF-8 text", str(caught.exception))
 
 
 # The prose is keyed by state name: each state has a meaning section, a

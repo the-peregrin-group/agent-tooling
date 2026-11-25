@@ -24,8 +24,9 @@ How a Wrapper maps a failure to the Exit-code contract
 
   - TrackerSchemaError: exit 2. The repo's file is state the caller must
     change, through the repo's normal review, before the call can work.
-  - A missing file (FileNotFoundError from `load`): exit 3 where the Verb
-    needs the repo's own Tracker Schema, since the resource does not exist.
+  - A missing file (FileNotFoundError from `load`): the caller decides,
+    since what a Verb does when a repo has no Tracker Schema is not yet
+    settled (docs/projects/use-issues/design.md, "The reader").
   - Any other OSError: exit 1.
 
 Standard library only, Python 3.9.
@@ -36,6 +37,7 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import dataclass
+from datetime import timedelta
 from pathlib import Path
 from typing import Optional, Tuple, Union
 
@@ -57,7 +59,10 @@ _AXIS_KEYS = (
 )
 _LABEL_KEYS = ("name", "meaning")
 _STATE_KEYS = ("name", "open")
-_FULL_COMMIT = re.compile(r"^(?:[0-9a-f]{40}|[0-9a-f]{64})$")
+_FULL_COMMIT = re.compile(r"[0-9a-f]{40}|[0-9a-f]{64}")
+# The longest staleness a datetime.timedelta can hold, so a caller adding it
+# to a timestamp cannot overflow on a value the reader accepted.
+_MAX_STALE_DAYS = timedelta.max.days
 
 
 class TrackerSchemaError(Exception):
@@ -133,7 +138,12 @@ class IssueLabelSchema:
         ) + self.labels
 
     def label(self, name: str) -> Optional[IssueLabel]:
-        """The declared label with this exact name, or None."""
+        """The declared label with this exact name, or None.
+
+        Only the axes' labels and the unaxed labels are here. Where a tracker
+        has no field for kind, priority, or state, the file says a label
+        named for one carries it and is declared by it, so None from here
+        does not by itself make such a label unknown."""
         for candidate in self.all_labels():
             if candidate.name == name:
                 return candidate
@@ -220,12 +230,18 @@ def parse(text: str) -> TrackerSchema:
             f"the JSON block does not parse (line {first_line + error.lineno - 1}, "
             f"column {error.colno}): {error.msg}"
         ) from None
+    except RecursionError:
+        raise TrackerSchemaError(
+            "the JSON block nests too deeply to read; no key in it nests more "
+            "than a few levels"
+        ) from None
     return _schema(document)
 
 
 def extract_block(text: str) -> str:
     """The text strictly inside the JSON block's fence, by the delimiting
-    rule, unparsed. Raises TrackerSchemaError when the rule is not met."""
+    rule, unparsed, with "\\n" line endings whatever the file uses. Raises
+    TrackerSchemaError when the rule is not met."""
     return _extract(text)[0]
 
 
@@ -312,7 +328,9 @@ def _extract(text: str) -> Tuple[str, int]:
             f"the {OPENING_FENCE} fence opened on line {opening} is not closed "
             f"by a {CLOSING_FENCE} line before {END_MARKER} (line {end})"
         )
-    return "\n".join(lines[opening:closing - 1]), opening + 1
+    inside = (line[:-1] if line.endswith("\r") else line
+              for line in lines[opening:closing - 1])
+    return "\n".join(inside), opening + 1
 
 
 def _refuse_duplicate_keys(pairs: list) -> dict:
@@ -347,7 +365,7 @@ def _provenance(value: object) -> Provenance:
         if field is not None:
             _require_text(field, f"{where}.{key}", "a string or null")
     commit = value["source_commit"]
-    if commit is not None and not _FULL_COMMIT.match(commit):
+    if commit is not None and not _FULL_COMMIT.fullmatch(commit):
         raise TrackerSchemaError(
             f"{where}.source_commit must be a full commit (40 or 64 lowercase "
             "hex digits) or null"
@@ -373,10 +391,11 @@ def _priorities(value: object) -> Tuple[IssuePriority, ...]:
         where = f"issue_priorities[{position}]"
         _require_object(raw, where, _PRIORITY_KEYS)
         days = raw["stale_after_days"]
-        if isinstance(days, bool) or not isinstance(days, int) or days < 1:
+        if (isinstance(days, bool) or not isinstance(days, int)
+                or not 1 <= days <= _MAX_STALE_DAYS):
             raise TrackerSchemaError(
                 f"{where}.stale_after_days must be a whole number of days, "
-                "1 or more"
+                f"from 1 to {_MAX_STALE_DAYS}"
             )
         priorities.append(
             IssuePriority(_name(raw, where), _meaning(raw, where), days)
@@ -392,16 +411,21 @@ def _label_schema(value: object) -> IssueLabelSchema:
     for position, raw in enumerate(_require_list(value["axes"], f"{where}.axes")):
         axes.append(_axis(raw, f"{where}.axes[{position}]"))
     _refuse_duplicates(axes, f"{where}.axes")
-    prefixes = [axis.prefix for axis in axes]
-    for prefix in prefixes:
-        if prefixes.count(prefix) > 1:
-            raise TrackerSchemaError(
-                f"{where}.axes: two axes share the prefix {prefix!r}"
-            )
+    # One prefix that begins another would put a label on both axes, so
+    # which axis a label is on would depend on the order they are listed in.
+    for first, axis in enumerate(axes):
+        for other in axes[first + 1:]:
+            if (_folded(axis.prefix).startswith(_folded(other.prefix))
+                    or _folded(other.prefix).startswith(_folded(axis.prefix))):
+                raise TrackerSchemaError(
+                    f"{where}.axes: the prefixes {axis.prefix!r} and "
+                    f"{other.prefix!r} overlap; no axis's prefix may begin "
+                    "another's, so every label belongs to at most one axis"
+                )
     labels = _labels(value["labels"], f"{where}.labels")
     for position, label in enumerate(labels):
         for axis in axes:
-            if label.name.startswith(axis.prefix):
+            if _folded(label.name).startswith(_folded(axis.prefix)):
                 raise TrackerSchemaError(
                     f"{where}.labels[{position}]: {label.name!r} begins with "
                     f"the prefix of the {axis.name!r} axis, so it belongs in "
@@ -414,8 +438,7 @@ def _label_schema(value: object) -> IssueLabelSchema:
 
 def _axis(raw: object, where: str) -> LabelAxis:
     _require_object(raw, where, _AXIS_KEYS)
-    prefix = raw["prefix"]
-    _require_text(prefix, f"{where}.prefix", "a non-empty string")
+    prefix = _require_name(raw["prefix"], f"{where}.prefix")
     required = raw["every_issue_carries_at_least_one"]
     if not isinstance(required, bool):
         raise TrackerSchemaError(
@@ -471,10 +494,17 @@ def _require_object(value: object, where: str, keys: Tuple[str, ...]) -> None:
         )
     unknown = sorted(set(value) - set(keys))
     if unknown:
-        raise TrackerSchemaError(
-            f"{where} has unknown key(s) {', '.join(unknown)}; it takes exactly "
-            f"{', '.join(keys)}"
-        )
+        _on_unknown_keys(where, unknown, keys)
+
+
+def _on_unknown_keys(where: str, unknown: list, keys: Tuple[str, ...]) -> None:
+    """The whole policy for a key the file does not document, at any level:
+    today it is refused. Nothing reads an undocumented key, so returning
+    here instead (with a warning to the caller, say) would ignore it."""
+    raise TrackerSchemaError(
+        f"{where} has unknown key(s) {', '.join(unknown)}; it takes exactly "
+        f"{', '.join(keys)}"
+    )
 
 
 def _require_list(value: object, where: str, nonempty: bool = False) -> list:
@@ -493,8 +523,19 @@ def _require_text(value: object, where: str, wanted: str) -> None:
 
 
 def _name(raw: dict, where: str) -> str:
-    _require_text(raw["name"], f"{where}.name", "a non-empty string")
-    return raw["name"]
+    return _require_name(raw["name"], f"{where}.name")
+
+
+def _require_name(value: object, where: str) -> str:
+    """A name or prefix: text with no control or invisible formatting
+    characters, since it is matched against what a tracker holds."""
+    _require_text(value, where, "a non-empty string")
+    if not value.isprintable():
+        raise TrackerSchemaError(
+            f"{where} must hold no control or invisible formatting characters "
+            "(a newline or a zero-width space, say)"
+        )
+    return value
 
 
 def _meaning(raw: dict, where: str) -> str:
@@ -503,11 +544,26 @@ def _meaning(raw: dict, where: str) -> str:
 
 
 def _refuse_duplicates(entries: list, where: str) -> None:
-    seen = set()
+    """Refuse two entries whose names differ at most in case: a tracker may
+    match names case-insensitively, as GitHub does for labels, and then two
+    such entries would be one."""
+    seen = {}
     for entry in entries:
-        if entry.name in seen:
-            raise TrackerSchemaError(f"{where}: {entry.name!r} is declared twice")
-        seen.add(entry.name)
+        key = _folded(entry.name)
+        if key in seen:
+            if seen[key] == entry.name:
+                raise TrackerSchemaError(
+                    f"{where}: {entry.name!r} is declared twice"
+                )
+            raise TrackerSchemaError(
+                f"{where}: {seen[key]!r} and {entry.name!r} differ only in "
+                "case; names must differ by more than case"
+            )
+        seen[key] = entry.name
+
+
+def _folded(name: str) -> str:
+    return name.casefold()
 
 
 def _by_name(entries: tuple, name: str):
