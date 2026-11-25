@@ -27,8 +27,6 @@ if __package__ in (None, ""):  # direct invocation: python3 lib/install_test.py
 
 import gitw_test_support as fixture  # noqa: E402
 from lib.install import (  # noqa: E402
-    EXIT_REFUSED,
-    EXIT_USAGE,
     RECEIPT_NAME,
     InstallError,
     apply,
@@ -42,6 +40,7 @@ from lib.install import (  # noqa: E402
     select_cohorts,
     target_for,
 )
+from lib.plan import EXIT_BROKEN, EXIT_CALLER_ERROR, EXIT_NOT_FOUND  # noqa: E402
 
 CLI = Path(__file__).resolve().parent.parent / "tooling-install"
 
@@ -132,22 +131,33 @@ class ConfigTest(InstallTestCase):
         self.assertIn("skip-me.sh", cohort.excludes)
         self.assertIn("*_test.py", cohort.excludes)
 
-    def test_missing_manifest_is_a_usage_error(self):
+    def test_missing_manifest_is_a_caller_error(self):
         (self.source / "install.json").unlink()
-        with self.assertRaisesRegex(InstallError, "no install.json"):
+        with self.assertRaisesRegex(InstallError, "no install.json") as caught:
             load_config(self.source)
+        self.assertEqual(caught.exception.exit_code, EXIT_CALLER_ERROR)
 
-    def test_wrong_version_refused(self):
-        write(self.source / "install.json", json.dumps({"version": 99}))
-        with self.assertRaisesRegex(InstallError, "version 99"):
+    def test_invalid_manifest_is_a_caller_error(self):
+        write(self.source / "install.json", "{not json")
+        with self.assertRaisesRegex(InstallError, "not valid JSON") as caught:
             load_config(self.source)
+        self.assertEqual(caught.exception.exit_code, EXIT_CALLER_ERROR)
+
+    def test_wrong_version_is_broken_on_our_side(self):
+        # A manifest this installed copy cannot read means the installed
+        # tooling-install needs updating; the call itself is fine.
+        write(self.source / "install.json", json.dumps({"version": 99}))
+        with self.assertRaisesRegex(InstallError, "version 99") as caught:
+            load_config(self.source)
+        self.assertEqual(caught.exception.exit_code, EXIT_BROKEN)
 
     def test_two_cohorts_of_one_kind_refused(self):
         manifest = json.loads(json.dumps(self.manifest))
         manifest["cohorts"]["extra"] = {"kind": "bin", "sources": ["bin1"]}
         write(self.source / "install.json", json.dumps(manifest))
-        with self.assertRaisesRegex(InstallError, "both declare kind"):
+        with self.assertRaisesRegex(InstallError, "both declare kind") as caught:
             load_config(self.source)
+        self.assertEqual(caught.exception.exit_code, EXIT_CALLER_ERROR)
 
     def test_unknown_kind_refused(self):
         manifest = json.loads(json.dumps(self.manifest))
@@ -209,18 +219,20 @@ class CollectTest(InstallTestCase):
         write(self.source / "bin2" / "tool-a", "#!/bin/sh\necho clash\n")
         with self.assertRaises(InstallError) as caught:
             collect_sources(self.source, self.cohort("bin"))
-        self.assertEqual(caught.exception.exit_code, EXIT_REFUSED)
+        self.assertEqual(caught.exception.exit_code, EXIT_CALLER_ERROR)
         self.assertIn("same target path", str(caught.exception))
 
     def test_loose_file_in_a_unit_cohort_refused(self):
         write(self.source / "kits" / "README.md", "loose\n")
-        with self.assertRaisesRegex(InstallError, "only unit directories"):
+        with self.assertRaisesRegex(InstallError, "only unit directories") as caught:
             collect_sources(self.source, self.cohort("skills"))
+        self.assertEqual(caught.exception.exit_code, EXIT_CALLER_ERROR)
 
     def test_missing_source_directory_refused(self):
         shutil.rmtree(self.source / "bin2")
-        with self.assertRaisesRegex(InstallError, "not a directory"):
+        with self.assertRaisesRegex(InstallError, "not a directory") as caught:
             collect_sources(self.source, self.cohort("bin"))
+        self.assertEqual(caught.exception.exit_code, EXIT_CALLER_ERROR)
 
 
 class TargetTest(InstallTestCase):
@@ -233,15 +245,17 @@ class TargetTest(InstallTestCase):
         self.assertEqual(target_for("agents", self.home), self.home / ".claude" / "agents")
 
     def test_unknown_kind_rejected(self):
-        with self.assertRaisesRegex(InstallError, "unknown target kind"):
+        with self.assertRaisesRegex(InstallError, "unknown target kind") as caught:
             target_for("sbin", self.home)
+        # Unreachable through a validated manifest: a bug, so ours.
+        self.assertEqual(caught.exception.exit_code, EXIT_BROKEN)
 
 
 class OverlapTest(InstallTestCase):
     def refuses(self, source: Path, fragment: str):
         with self.assertRaises(InstallError) as caught:
             check_overlap(source, load_config(self.source), self.home)
-        self.assertEqual(caught.exception.exit_code, EXIT_REFUSED)
+        self.assertEqual(caught.exception.exit_code, EXIT_CALLER_ERROR)
         self.assertIn(fragment, str(caught.exception))
 
     def test_disjoint_source_and_targets_pass(self):
@@ -598,10 +612,10 @@ class CohortSelectionTest(InstallTestCase):
                 ["agents", "bin", "skills"],
             )
 
-    def test_unknown_cohort_is_a_usage_error(self):
+    def test_unknown_cohort_is_not_found(self):
         with self.assertRaises(InstallError) as caught:
             select_cohorts(load_config(self.source), ["bin", "nope"])
-        self.assertEqual(caught.exception.exit_code, EXIT_USAGE)
+        self.assertEqual(caught.exception.exit_code, EXIT_NOT_FOUND)
         self.assertIn("unknown cohort(s) nope", str(caught.exception))
 
     def test_selection_is_deduplicated_and_ordered(self):
@@ -648,7 +662,7 @@ class CohortSelectionTest(InstallTestCase):
             shutil.copytree(self.source / name, self.home / name)
         with self.assertRaises(InstallError) as caught:
             apply(self.home, home=self.home, cohorts=["bin"])
-        self.assertEqual(caught.exception.exit_code, EXIT_REFUSED)
+        self.assertEqual(caught.exception.exit_code, EXIT_CALLER_ERROR)
 
 
 class DirtySourceTest(InstallTestCase):
@@ -656,7 +670,7 @@ class DirtySourceTest(InstallTestCase):
         write(self.source / "bin1" / "tool-c", "#!/bin/sh\necho c\n")
         with self.assertRaises(InstallError) as caught:
             self.install()
-        self.assertEqual(caught.exception.exit_code, EXIT_REFUSED)
+        self.assertEqual(caught.exception.exit_code, EXIT_CALLER_ERROR)
         self.assertIn("uncommitted changes", str(caught.exception))
         self.assertFalse(target_for("bin", self.home).exists())
 
@@ -740,7 +754,7 @@ class MultiSourceTest(InstallTestCase):
         self.commit_all()
         with self.assertRaises(InstallError) as caught:
             self.install()
-        self.assertEqual(caught.exception.exit_code, EXIT_REFUSED)
+        self.assertEqual(caught.exception.exit_code, EXIT_CALLER_ERROR)
         self.assertIn("another source repo", str(caught.exception))
 
     def test_shipping_a_unit_another_repo_owns_is_refused(self):
@@ -922,7 +936,7 @@ class OwnershipTransferTest(TwoSourceFixture):
         self.commit_all(self.other)
         with self.assertRaises(InstallError) as caught:
             self.install_other(cohorts=["bin"])
-        self.assertEqual(caught.exception.exit_code, EXIT_REFUSED)
+        self.assertEqual(caught.exception.exit_code, EXIT_CALLER_ERROR)
         self.assertIn("different content", str(caught.exception))
         self.assertIn("tool-a", str(caught.exception))
         receipt = read_receipt(target_for("bin", self.home))
@@ -934,7 +948,7 @@ class OwnershipTransferTest(TwoSourceFixture):
         (target_for("bin", self.home) / "tool-a").unlink()
         with self.assertRaises(InstallError) as caught:
             self.install_other(cohorts=["bin"])
-        self.assertEqual(caught.exception.exit_code, EXIT_REFUSED)
+        self.assertEqual(caught.exception.exit_code, EXIT_CALLER_ERROR)
         self.assertIn("tool-a", str(caught.exception))
 
     # -- apply, unit target -------------------------------------------------
@@ -961,7 +975,7 @@ class OwnershipTransferTest(TwoSourceFixture):
         self.commit_all(self.other)
         with self.assertRaises(InstallError) as caught:
             self.install_other(cohorts=["skills"])
-        self.assertEqual(caught.exception.exit_code, EXIT_REFUSED)
+        self.assertEqual(caught.exception.exit_code, EXIT_CALLER_ERROR)
         self.assertIn("alpha", str(caught.exception))
         self.assertEqual(
             (target_for("skills", self.home) / "alpha" / "SKILL.md").read_text(),
@@ -975,7 +989,7 @@ class OwnershipTransferTest(TwoSourceFixture):
         self.commit_all(self.other)
         with self.assertRaises(InstallError) as caught:
             self.install_other(cohorts=["skills"])
-        self.assertEqual(caught.exception.exit_code, EXIT_REFUSED)
+        self.assertEqual(caught.exception.exit_code, EXIT_CALLER_ERROR)
         self.assertTrue(
             (target_for("skills", self.home) / "alpha" / "notes.md").exists()
         )
@@ -986,7 +1000,7 @@ class OwnershipTransferTest(TwoSourceFixture):
         write(target_for("skills", self.home) / "alpha" / "scratch.md", "by hand\n")
         with self.assertRaises(InstallError) as caught:
             self.install_other(cohorts=["skills"])
-        self.assertEqual(caught.exception.exit_code, EXIT_REFUSED)
+        self.assertEqual(caught.exception.exit_code, EXIT_CALLER_ERROR)
         self.assertTrue(
             (target_for("skills", self.home) / "alpha" / "scratch.md").exists()
         )
@@ -1085,21 +1099,23 @@ class OwnershipTransferTest(TwoSourceFixture):
 
     # -- exit codes ---------------------------------------------------------
 
-    def test_cli_diff_exits_1_on_an_adoptable_collision(self):
+    def test_cli_diff_exits_0_on_an_adoptable_collision(self):
+        # The pending transfer is drift, carried by the report, not the code.
         self.install()
         result = self.run_cli(
             "diff", str(self.other), "--cohort", "bin", "--json"
         )
-        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads(result.stdout)["status"], "drift")
         report = json.loads(result.stdout)["cohorts"]["bin"]
         self.assertEqual(report["adoptable"], ["lib/helper.py", "tool-a"])
 
-    def test_cli_apply_exits_4_on_a_conflicting_collision(self):
+    def test_cli_apply_exits_2_on_a_conflicting_collision(self):
         self.install()
         write(self.other / "tools" / "tool-a", "#!/bin/sh\necho different\n")
         self.commit_all(self.other)
         result = self.run_cli("apply", str(self.other), "--cohort", "bin")
-        self.assertEqual(result.returncode, 4)
+        self.assertEqual(result.returncode, 2)
         self.assertIn("different content", result.stderr)
 
 
@@ -1202,7 +1218,7 @@ class SupersedeTest(TwoSourceFixture):
         self.commit_all(self.other)
         with self.assertRaises(InstallError) as caught:
             self.supersede(cohorts=["bin"])
-        self.assertEqual(caught.exception.exit_code, EXIT_REFUSED)
+        self.assertEqual(caught.exception.exit_code, EXIT_CALLER_ERROR)
         self.assertIn("tool-s", str(caught.exception))
         self.assertNotIn("tool-a", str(caught.exception))
         self.assertIn("other than 'widget-kit'", str(caught.exception))
@@ -1215,18 +1231,18 @@ class SupersedeTest(TwoSourceFixture):
             ["tool-s"],
         )
 
-    def test_an_unknown_superseded_repo_is_a_usage_error(self):
+    def test_an_unknown_superseded_repo_is_not_found(self):
         self.install()
         with self.assertRaises(InstallError) as caught:
             self.supersede(repo="nonesuch", cohorts=["bin"])
-        self.assertEqual(caught.exception.exit_code, EXIT_USAGE)
+        self.assertEqual(caught.exception.exit_code, EXIT_NOT_FOUND)
         self.assertIn("nonesuch", str(caught.exception))
         self.assertIn("widget-kit", str(caught.exception))
 
-    def test_superseding_with_no_receipt_at_all_is_a_usage_error(self):
+    def test_superseding_with_no_receipt_at_all_is_not_found(self):
         with self.assertRaises(InstallError) as caught:
             self.supersede(cohorts=["bin"])
-        self.assertEqual(caught.exception.exit_code, EXIT_USAGE)
+        self.assertEqual(caught.exception.exit_code, EXIT_NOT_FOUND)
         self.assertIn("no other source repo", str(caught.exception))
 
     def test_the_superseded_repo_must_appear_in_a_selected_target(self):
@@ -1234,20 +1250,22 @@ class SupersedeTest(TwoSourceFixture):
         self.install(cohorts=["skills"])
         with self.assertRaises(InstallError) as caught:
             self.supersede(cohorts=["bin"])
-        self.assertEqual(caught.exception.exit_code, EXIT_USAGE)
+        self.assertEqual(caught.exception.exit_code, EXIT_NOT_FOUND)
 
-    def test_superseding_your_own_repo_is_a_usage_error(self):
+    def test_superseding_your_own_repo_is_a_caller_error(self):
+        # The name exists, but is the wrong record: fix the call.
         self.install()
         with self.assertRaises(InstallError) as caught:
             self.supersede(repo="gadget-kit", cohorts=["bin"])
-        self.assertEqual(caught.exception.exit_code, EXIT_USAGE)
+        self.assertEqual(caught.exception.exit_code, EXIT_CALLER_ERROR)
         self.assertIn("own repo label", str(caught.exception))
 
     def test_a_dirty_source_still_refuses_without_force(self):
         self.install()
         write(self.other / "tools" / "tool-a", "#!/bin/sh\necho uncommitted\n")
-        with self.assertRaisesRegex(InstallError, "uncommitted changes"):
+        with self.assertRaisesRegex(InstallError, "uncommitted changes") as caught:
             self.supersede(cohorts=["bin"])
+        self.assertEqual(caught.exception.exit_code, EXIT_CALLER_ERROR)
         result = self.supersede(cohorts=["bin"], force=True)
         self.assertTrue(result["source_commit"].endswith("-dirty"))
         self.assertEqual(result["cohorts"]["bin"]["adopted"], ["lib/helper.py", "tool-a"])
@@ -1394,10 +1412,10 @@ class SupersedeTest(TwoSourceFixture):
         result = self.run_cli("adopt", str(self.other), "--cohort", "bin")
         self.assertEqual(result.returncode, 2)
 
-    def test_cli_adopt_exits_2_on_an_unknown_superseded_repo(self):
+    def test_cli_adopt_exits_3_on_an_unknown_superseded_repo(self):
         self.install()
         result = self.run_cli("adopt", str(self.other), "nonesuch", "--cohort", "bin")
-        self.assertEqual(result.returncode, 2)
+        self.assertEqual(result.returncode, 3)
         self.assertIn("nonesuch", result.stderr)
 
 
@@ -1447,7 +1465,7 @@ class RecoveryTest(InstallTestCase):
         )
         with self.assertRaises(InstallError) as caught:
             recover(target.parent, {target.name})
-        self.assertEqual(caught.exception.exit_code, EXIT_REFUSED)
+        self.assertEqual(caught.exception.exit_code, EXIT_BROKEN)
         self.assertIn("a human must pick", str(caught.exception))
 
     def test_apply_recovers_before_installing(self):
@@ -1480,12 +1498,24 @@ class RecoveryTest(InstallTestCase):
 class CommandLineTest(InstallTestCase):
     """The entry point's argument handling and exit-code contract."""
 
-    def test_diff_exits_1_when_nothing_is_installed(self):
+    def test_diff_exits_0_when_nothing_is_installed(self):
         result = self.run_cli("diff", str(self.source), "--json")
-        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertEqual(result.returncode, 0, result.stderr)
         report = json.loads(result.stdout)
         self.assertEqual(report["status"], "drift")
         self.assertEqual(report["source_repo"], "widget-kit")
+        for cohort in report["cohorts"].values():
+            self.assertEqual(cohort["status"], "not-installed")
+
+    def test_diff_exits_0_on_drift(self):
+        self.install()
+        write(self.source / "bin1" / "tool-a", "#!/bin/sh\necho changed\n")
+        self.commit_all()
+        result = self.run_cli("diff", str(self.source), "--json")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        report = json.loads(result.stdout)
+        self.assertEqual(report["status"], "drift")
+        self.assertEqual(report["cohorts"]["bin"]["changed"], ["tool-a"])
 
     def test_diff_exits_0_once_in_sync(self):
         self.install()
@@ -1497,6 +1527,67 @@ class CommandLineTest(InstallTestCase):
         result = self.run_cli("apply", str(self.source), "--json")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(json.loads(result.stdout)["action"], "applied")
+
+    def test_apply_on_a_fresh_machine_exits_0(self):
+        # No Install Target exists, nor any directory above it: creating
+        # them is apply's job, not a failure.
+        self.assertEqual(list(self.home.iterdir()), [])
+        result = self.run_cli("apply", str(self.source))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        for kind in ("bin", "skills", "agents"):
+            self.assertTrue(target_for(kind, self.home).is_dir(), kind)
+        self.assertEqual(self.report()["status"], "in-sync")
+
+    def test_dirty_source_exits_2(self):
+        write(self.source / "bin1" / "tool-a", "#!/bin/sh\necho dirty\n")
+        result = self.run_cli("apply", str(self.source))
+        self.assertEqual(result.returncode, 2, result.stdout)
+        self.assertIn("uncommitted changes", result.stderr)
+        self.assertFalse(target_for("bin", self.home).exists())
+
+    def test_ambiguous_crash_recovery_exits_1(self):
+        self.install()
+        target = target_for("bin", self.home)
+        target.rename(target.parent / f"{target.name}.retired-9999")
+        shutil.copytree(
+            target.parent / f"{target.name}.retired-9999",
+            target.parent / f"{target.name}.retired-8888",
+        )
+        result = self.run_cli("apply", str(self.source), "--cohort", "bin")
+        self.assertEqual(result.returncode, 1, result.stdout)
+        self.assertIn("a human must pick", result.stderr)
+
+    def test_corrupt_receipt_exits_1(self):
+        self.install()
+        write(target_for("bin", self.home) / RECEIPT_NAME, "{not json")
+        for command in ("diff", "apply"):
+            with self.subTest(command=command):
+                result = self.run_cli(command, str(self.source), "--cohort", "bin")
+                self.assertEqual(result.returncode, 1, result.stdout)
+                self.assertIn("not valid JSON", result.stderr)
+
+    def test_manifest_newer_than_this_installer_exits_1(self):
+        manifest = dict(self.manifest, version=2)
+        write(self.source / "install.json", json.dumps(manifest))
+        self.commit_all()
+        result = self.run_cli("diff", str(self.source))
+        self.assertEqual(result.returncode, 1, result.stdout)
+        self.assertIn("understands version 1", result.stderr)
+
+    def test_invalid_manifest_exits_2(self):
+        manifest = dict(self.manifest, source_repo="")
+        write(self.source / "install.json", json.dumps(manifest))
+        self.commit_all()
+        result = self.run_cli("diff", str(self.source))
+        self.assertEqual(result.returncode, 2, result.stdout)
+        self.assertIn("source_repo", result.stderr)
+
+    def test_source_without_a_manifest_exits_2(self):
+        bare = self.tmp / "bare"
+        bare.mkdir()
+        result = self.run_cli("diff", str(bare))
+        self.assertEqual(result.returncode, 2, result.stdout)
+        self.assertIn("not an installable source", result.stderr)
 
     def test_missing_source_argument_is_a_usage_error(self):
         result = self.run_cli("diff")
@@ -1527,11 +1618,11 @@ class CommandLineTest(InstallTestCase):
         result = self.run_cli("diff", str(self.source), "--cohort", "bin", "--json")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(json.loads(result.stdout)["status"], "in-sync")
-        self.assertEqual(self.run_cli("diff", str(self.source)).returncode, 1)
+        self.assertEqual(self.run_cli("diff", str(self.source)).returncode, 0)
 
-    def test_unknown_cohort_exits_2(self):
+    def test_unknown_cohort_exits_3(self):
         result = self.run_cli("diff", str(self.source), "--cohort", "nope")
-        self.assertEqual(result.returncode, 2, result.stdout)
+        self.assertEqual(result.returncode, 3, result.stdout)
         self.assertIn("unknown cohort(s) nope", result.stderr)
 
     def test_cohort_without_a_name_is_a_usage_error(self):
@@ -1577,17 +1668,22 @@ class CommandLineTest(InstallTestCase):
         self.assertIn("usage:", result.stderr)
         self.assertFalse(target_for("bin", self.home).exists())
 
-    def test_nonexistent_source_is_a_usage_error(self):
+    def test_nonexistent_source_exits_3(self):
         result = self.run_cli("diff", str(self.tmp / "nowhere"))
+        self.assertEqual(result.returncode, 3)
+        self.assertIn("does not exist", result.stderr)
+
+    def test_source_that_is_a_file_exits_2(self):
+        result = self.run_cli("diff", str(self.source / "install.json"))
         self.assertEqual(result.returncode, 2)
         self.assertIn("is not a directory", result.stderr)
 
-    def test_source_containing_a_target_is_refused_with_4(self):
+    def test_source_containing_a_target_is_refused_with_2(self):
         write(self.home / "install.json", json.dumps(self.manifest))
         for name in ("bin1", "bin2", "kits", "bots"):
             shutil.copytree(self.source / name, self.home / name)
         result = self.run_cli("diff", str(self.home))
-        self.assertEqual(result.returncode, EXIT_REFUSED, result.stdout)
+        self.assertEqual(result.returncode, EXIT_CALLER_ERROR, result.stdout)
         self.assertIn("sits inside it", result.stderr)
 
     def test_help_exits_0(self):
@@ -1614,7 +1710,7 @@ class SummaryOutputTest(InstallTestCase):
         write(self.source / "bin2" / "tool-c.sh", "#!/bin/sh\necho c\n")
         self.commit_all()
         result = self.run_cli("diff", str(self.source))
-        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("  changed: tool-a\n", result.stdout)
         self.assertIn("  only in source: tool-c.sh\n", result.stdout)
 
@@ -1626,7 +1722,7 @@ class SummaryOutputTest(InstallTestCase):
         write(bin_target / "mine.sh", "#!/bin/sh\n")
         write(bin_target / "yours.sh", "#!/bin/sh\n")
         result = self.run_cli("diff", str(self.source))
-        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("  WOULD DELETE unowned: alpha/scratch.md\n", result.stdout)
         self.assertIn("2 unowned files left alone", result.stdout)
         self.assertNotIn("mine.sh", result.stdout)

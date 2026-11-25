@@ -106,12 +106,12 @@ tooling-install adopt <source-checkout> <superseded-source-repo> [--cohort <name
   with the *named* superseded record transfers whatever the content: the
   incoming copy wins, and the superseded checkout still holds what it gave
   up. Collisions with any other record still refuse. A superseded name no
-  selected receipt records is a usage error, so a typo cannot silently turn
-  the takeover into a plain install. `adopt` has no preview; `diff` is its
+  selected receipt records exits 3, so a typo cannot silently turn the
+  takeover into a plain install. `adopt` has no preview; `diff` is its
   dry run, and its `conflicting`, `unowned_replaced`, and
   `foreign_replaced` lists are what to read before approving one.
 - **`--cohort <name>`**, repeatable, restricts any command to the named
-  Cohorts. An undeclared name is a usage error, never an empty run.
+  Cohorts. An undeclared name exits 3, never an empty run.
 - **`--json`**, on any command, prints the full report instead of the
   summary (see Output).
 
@@ -193,11 +193,30 @@ What the contract leaves to the Installer:
   with exit 0. `apply` exits 1 if it fails while installing and ends with
   anything not installed. `adopt` installs as `apply` does.
 
-The refusals (a dirty source without `--force`, a source/target overlap,
-a conflicting collision, ambiguous crash recovery, an unknown superseded
-repo) have their placement under the contract classified by
-`agent-tooling-cjvo.5`. The commands do not exit this way yet; see the
-Known gaps in [the Installer's index](index.md#known-gaps).
+- **Every refusal is `2`: the caller changes the source or the call.** A
+  dirty source without `--force`, a source/target overlap, a conflicting
+  collision, and two source directories shipping one target path are state
+  in the caller's checkout or Receipts that must change first, as a dirty
+  worktree is for a Wrapper. None is policy, so none is `4`: the Installer
+  exits no `4`, and the gate on `apply` and `adopt` is the Permission rule,
+  not an exit code. A source that cannot be installed as given is `2` for
+  the same reason: a path that is not a directory, a checkout with no
+  Install Manifest or an invalid one, or a Cohort source directory that is
+  missing or holds a loose file where a unit belongs.
+- **A name that names nothing is `3`,** as an unknown Roster label is for a
+  Wrapper: a source checkout path that does not exist, a `--cohort` name
+  the Install Manifest does not declare, and an `adopt` superseded repo
+  that no selected Receipt records. Naming this source's own repo to
+  `adopt` is `2`: the name exists, but it is the wrong record.
+- **What breaks on the Installer's side is `1`:** a Receipt that is not
+  valid JSON or not a version 1 Receipt (the Installer is its only writer,
+  so a bad one is not the caller's doing); an Install Manifest version this
+  `tooling-install` does not read, where the installed Installer is what
+  needs updating; any failure while installing; and ambiguous crash
+  recovery. That last leaves a target missing beside several retired
+  copies, and the message names them, but only a human can say which is
+  right, so the output holds no resume step and it is not `5`. The
+  Installer exits no `5`.
 
 ## The executable-tooling directory
 

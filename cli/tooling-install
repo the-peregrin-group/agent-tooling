@@ -37,8 +37,8 @@ installs exactly as `apply` does, except that a collision with the *named*
 record transfers regardless of content -- the incoming copy wins, and the
 superseded checkout still has what it gave up. A collision with any other
 record refuses as always. A superseded name no receipt in the selected
-targets records is a usage error, so a typo cannot quietly turn the migration
-into an ordinary install.
+targets records exits 3 (not found), so a typo cannot quietly turn the
+migration into an ordinary install.
 
 It is a separate verb rather than an option on `apply` so that permission
 rules, which match literal command prefixes, can grant the two differently:
@@ -67,7 +67,7 @@ this run.
 
 `--cohort <name>`, repeatable on any command, restricts the run to the
 named cohorts of the manifest; without it every cohort ships. A name the
-manifest does not declare is a usage error, never an empty run. Dirtiness is
+manifest does not declare exits 3 (not found), never an empty run. Dirtiness is
 then judged only over the selected cohorts' source directories, so an edit
 in a tree this run does not ship cannot refuse it.
 
@@ -81,11 +81,21 @@ approving an `apply` or `adopt` hides nothing it would destroy. `--json`,
 accepted by every command, prints the full report instead: the stable
 machine-readable form, with every list and the per-cohort target paths.
 
-Exit codes: diff -- 0 in sync, 1 drift or not installed, 2 usage/environment
-error, 4 refused. apply and adopt -- 0 applied, 1 failed, 2 usage/environment
-error (including an unknown superseded repo), 4 refused (dirty source without
---force, source/target overlap, a conflicting ownership collision, ambiguous
-crash recovery).
+Exit codes follow the Exit-code contract (docs/index.md#exit-code-contract
+in the agent-tooling repo; the Installer's placements are in
+docs/projects/installer/design.md, Exit codes):
+  0  done: diff completed (drift or not-installed is in the report, not the
+     code), or apply/adopt installed, a fresh machine included
+  1  broken on our side: a corrupt Receipt, an install.json newer than this
+     tooling-install, ambiguous crash recovery, or a failure while installing
+     that leaves anything not installed
+  2  the caller must change the call or the source: a usage error, a dirty
+     source without --force, a source/target overlap, a conflicting
+     ownership collision, two source files shipping one target path, an
+     invalid install.json or cohort source tree, a source that is not a
+     directory or has no install.json
+  3  not found: the source checkout, a --cohort name, or adopt's superseded
+     repo names nothing
 """
 
 from __future__ import annotations
@@ -95,16 +105,15 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from lib.install import (  # noqa: E402
-    EXIT_DRIFT,
-    EXIT_OK,
-    EXIT_USAGE,
-    InstallError,
-    apply,
-    diff,
-)
+from lib.install import InstallError, apply, diff  # noqa: E402
 from lib.install_summary import summarize  # noqa: E402
-from lib.plan import emit, emit_plan  # noqa: E402
+from lib.plan import (  # noqa: E402
+    EXIT_CALLER_ERROR,
+    EXIT_NOT_FOUND,
+    EXIT_OK,
+    emit,
+    emit_plan,
+)
 
 USAGE = (
     "tooling-install diff <source-checkout> [--cohort <name>]... [--json]\n"
@@ -124,7 +133,7 @@ def _die(error: InstallError) -> int:
 
 def _usage(message: str) -> int:
     print(f"error: {message}\nusage: {USAGE}", file=sys.stderr)
-    return EXIT_USAGE
+    return EXIT_CALLER_ERROR
 
 
 def _parse_options(rest):
@@ -176,10 +185,14 @@ def main(argv) -> int:
         return _usage("--force applies to apply and adopt, not diff")
 
     source = Path(source_argument).expanduser()
+    if not source.exists():
+        print(f"tooling-install: source checkout {source} does not exist",
+              file=sys.stderr)
+        return EXIT_NOT_FOUND
     if not source.is_dir():
         print(f"tooling-install: source checkout {source} is not a directory",
               file=sys.stderr)
-        return EXIT_USAGE
+        return EXIT_CALLER_ERROR
 
     try:
         if command == "diff":
@@ -188,7 +201,8 @@ def main(argv) -> int:
                 emit(report)
             else:
                 print(summarize(report))
-            return EXIT_OK if report["status"] == "in-sync" else EXIT_DRIFT
+            # Drift is an answer, not a failure: the report carries it.
+            return EXIT_OK
         result = apply(source, force=force, cohorts=cohorts, supersedes=supersedes)
         if as_json:
             emit_plan("applied", **result)

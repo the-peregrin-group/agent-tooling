@@ -52,7 +52,11 @@ Receipt claims unless the bytes are identical. `adopt <checkout> <other-repo>` i
 the explicit takeover of files that the named repo installed earlier. Run `diff`
 first and read what it lists as `CONFLICTING` or `WOULD DELETE` (the
 `conflicting`, `unowned_replaced`, and `foreign_replaced` lists of the full
-report). `--cohort <name>` restricts any command to one Cohort. The full contract
+report). `--cohort <name>` restricts any command to one Cohort. Exit codes
+follow the shared [Exit-code contract](docs/index.md#exit-code-contract):
+`diff` exits 0 whenever it completes, drift included, since the report carries
+the answer, and a refused `apply` exits 2 (the Installer's placements are in
+[its design](docs/projects/installer/design.md#exit-codes)). The full contract
 is in the docstring of `cli/lib/install.py`.
 
 ## Bootstrap on a fresh machine
