@@ -170,10 +170,9 @@ this file outside the markers.
   not a new label. Where the tracker has no field for an Issue's kind,
   priority, or state, a label named for it carries it; that label is
   declared by the kind, priority, or state it names and is not an unknown
-  label. The labels on the area axis are the repo's own, since
-  the parts of a project are that project's: the shipped default lists
-  none, and the repo owner fills them in. Until then no Issue's labels can
-  conform, so no Issue can be in a
+  label. The labels on the area axis are the repo's own, since the parts of
+  a project are that project's, and the repo owner fills them in. While the
+  axis lists none, no Issue's labels can conform, so no Issue can be in a
   state later than Needs Triage.
 - `issue_states`: the Issue States, each with its `name` and its `open`
   flag, `true` for an open state and `false` for a closed one. That flag is
@@ -191,12 +190,11 @@ Issue States it works.
 Terms used below. A Branch Issue is an Issue that holds other Issues as its
 children: a project, rather than a unit of work one session finishes. An
 Issue is a Branch Issue if it has any children, open or closed, or if it is
-of a kind designated to hold children (e.g., an epic), even before it has
-any. A Leaf Issue is an Issue that is not a Branch Issue: a unit of work
-meant to be claimed and finished in one session. A pass is one session's
-work on a Branch Issue. A claim makes it visible that someone is working on
-an Issue, since one person or agent advances an Issue at a time; a release
-gives the claim up.
+meant to hold children, even before it has any. A Leaf Issue is an Issue
+that is not a Branch Issue: a unit of work meant to be claimed and finished
+in one session. A pass is one session's work on a Branch Issue. A claim
+makes it visible that someone is working on an Issue, since one person or
+agent advances an Issue at a time; a release gives the claim up.
 
 ### What each state means
 
@@ -382,9 +380,12 @@ label everywhere, and on Beads a gate as well.
 ### Where an Issue State is recorded
 
 An Issue State is recorded once, in the tracker's own mechanism for status
-where it has one, otherwise in the one place this file designates:
+where it has one, otherwise in the one place this file designates. Only the
+line for this repo's Issue Tracker applies:
 
-- Beads: the Issue's status.
+- Beads: the Issue's status, once the repo's Beads holds these states as
+  statuses. Until then nothing records which open state an Issue is in:
+  judge it from the Issue itself, and write it nowhere, a label included.
 - GitHub with a project board: the board's status field.
 - A forge with no status mechanism beyond open and closed (Forgejo, and
   GitHub without a project board): not designated in the shipped default.

@@ -243,8 +243,8 @@ but opaque to humans.
 
 **Branch Issue**: An Issue that holds other Issues as its children: a project,
 rather than a unit of work one session finishes. An Issue is a Branch Issue if
-it has any children, open or closed, or if it is of a kind designated to hold
-children (e.g., an epic), even before it has any. The work of a Branch Issue
+it has any children, open or closed, or if it is meant to hold children, even
+before it has any. The work of a Branch Issue
 is management: scoping, setting success criteria, breaking down into child
 Issues, and verifying completion.
 - _Invariants_: states success criteria, which its verifying pass checks
