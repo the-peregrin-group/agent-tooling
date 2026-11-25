@@ -23,7 +23,11 @@ if __package__ in (None, ""):  # direct invocation: python3 lib/tracker_schema_t
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from lib import tracker_schema
-from lib.tracker_schema import TrackerSchemaError, UnusableSectionError
+from lib.tracker_schema import (
+    IncompleteSectionError,
+    TrackerSchemaError,
+    UnusableSectionError,
+)
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _SHIPPED_DEFAULT = _REPO_ROOT / "skills" / "setup-issue-tracker" / "TRACKER.default.md"
@@ -63,6 +67,14 @@ _DOCUMENT = {
 }
 
 _ALL_SECTIONS = set(tracker_schema.SECTIONS)
+_PROPERTY = {
+    tracker_schema.PROVENANCE: "provenance",
+    tracker_schema.ISSUE_KINDS: "issue_kinds",
+    tracker_schema.ISSUE_PRIORITIES: "issue_priorities",
+    tracker_schema.LABEL_AXES: "label_axes",
+    tracker_schema.UNAXED_LABELS: "unaxed_labels",
+    tracker_schema.ISSUE_STATES: "issue_states",
+}
 
 
 def _file(block: str, before: str = "", after: str = "") -> str:
@@ -85,6 +97,13 @@ def _with(**changes) -> dict:
     return document
 
 
+def _labels(**changes) -> dict:
+    """The sample document with keys of issue_label_schema replaced."""
+    label_schema = copy.deepcopy(_DOCUMENT["issue_label_schema"])
+    label_schema.update(changes)
+    return _with(issue_label_schema=label_schema)
+
+
 def _read(document: object) -> tracker_schema.TrackerSchema:
     return tracker_schema.parse(_file(_fenced(document)))
 
@@ -94,20 +113,64 @@ def _usable(schema: tracker_schema.TrackerSchema) -> set:
             if schema.usable(section)}
 
 
-class ExtractionTest(unittest.TestCase):
+def _complete(schema: tracker_schema.TrackerSchema) -> set:
+    return {section for section in tracker_schema.SECTIONS
+            if schema.complete(section)}
+
+
+class _Checks(unittest.TestCase):
+
+    def _problem(self, schema, section, fragment: str,
+                 lossy: bool = True) -> None:
+        found = [p for p in schema.problems_in(section)
+                 if fragment in f"{p.where}: {p.message}"]
+        self.assertTrue(found, f"no problem in {section} mentions {fragment!r}: "
+                        f"{[f'{p.where}: {p.message}' for p in schema.problems]}")
+        self.assertTrue(all(p.lossy is lossy for p in found),
+                        f"{fragment!r} should have lossy={lossy}")
+
+    def _only_unusable(self, schema, *sections) -> None:
+        self.assertEqual(_usable(schema), _ALL_SECTIONS - set(sections))
+        for section in sections:
+            with self.assertRaises(UnusableSectionError) as caught:
+                getattr(schema, _PROPERTY[section])
+            self.assertEqual(caught.exception.section, section)
+            self.assertTrue(caught.exception.problems)
+
+    def _only_incomplete(self, schema, *sections) -> None:
+        """Every section usable, and complete except `sections`."""
+        self.assertEqual(_usable(schema), _ALL_SECTIONS)
+        self.assertEqual(_complete(schema), _ALL_SECTIONS - set(sections))
+        for section in sections:
+            with self.assertRaises(IncompleteSectionError) as caught:
+                schema.require_complete(section)
+            self.assertEqual(caught.exception.section, section)
+            self.assertTrue(all(p.lossy for p in caught.exception.problems))
+
+
+class ExtractionTest(_Checks):
     """The delimiting rule: whole-line markers, one of each, one json fence.
-    A file that fails it is the one whole-file failure, with valid JSON."""
+    Where the block is still plain to see, a file that strays from the rule
+    is read with a problem; only an unclear block, or JSON that does not
+    parse, fails the whole file."""
 
     def _refuses(self, text: str, fragment: str) -> None:
         with self.assertRaises(TrackerSchemaError) as caught:
             tracker_schema.parse(text)
-        self.assertNotIsInstance(caught.exception, UnusableSectionError)
         self.assertIn(fragment, str(caught.exception))
+
+    def _tolerates(self, text: str, fragment: str) -> None:
+        schema = tracker_schema.parse(text)
+        self.assertEqual(_complete(schema), _ALL_SECTIONS)
+        self.assertTrue(schema.problems)
+        self.assertTrue(all(p.section is None and not p.lossy
+                            for p in schema.problems))
+        self._problem(schema, None, fragment, lossy=False)
 
     def test_a_well_formed_file_reads_with_no_problem(self):
         schema = _read(_DOCUMENT)
         self.assertEqual(schema.problems, ())
-        self.assertEqual(_usable(schema), _ALL_SECTIONS)
+        self.assertEqual(_complete(schema), _ALL_SECTIONS)
         self.assertEqual([kind.name for kind in schema.issue_kinds],
                          ["bug", "feature"])
 
@@ -130,16 +193,21 @@ class ExtractionTest(unittest.TestCase):
         text = _file("```json\n{\n}\n```\n").replace("\n", "\r\n")
         self.assertEqual(tracker_schema.extract_block(text), "{\n}")
 
-    def test_a_tab_indented_marker_is_refused(self):
-        text = _file(_fenced(_DOCUMENT)).replace(
-            "<!-- BEGIN tracker-schema -->", "\t<!-- BEGIN tracker-schema -->"
-        )
-        self._refuses(text, "remove the indentation")
+    def test_an_indented_example_of_a_marker_elsewhere_is_ignored(self):
+        for example in ("    <!-- END tracker-schema -->",
+                        "  <!-- BEGIN tracker-schema -->",
+                        "\t<!-- BEGIN tracker-schema -->"):
+            with self.subTest(example=example):
+                text = _file(_fenced(_DOCUMENT),
+                             after=f"An example:\n\n{example}\n")
+                self._tolerates(text, "an indented marker line is not a marker")
 
-    def test_an_indented_example_of_a_marker_elsewhere_is_refused(self):
-        text = _file(_fenced(_DOCUMENT),
-                     after="An example:\n\n    <!-- END tracker-schema -->\n")
-        self._refuses(text, "remove the indentation")
+    def test_an_indented_marker_is_no_marker(self):
+        for marker in ("<!-- BEGIN tracker-schema -->",
+                       "<!-- END tracker-schema -->"):
+            with self.subTest(marker=marker):
+                text = _file(_fenced(_DOCUMENT)).replace(marker, "  " + marker)
+                self._refuses(text, f"no {marker} line")
 
     def test_a_marker_inside_a_fenced_example_elsewhere_is_refused(self):
         text = _file(_fenced(_DOCUMENT),
@@ -171,12 +239,6 @@ class ExtractionTest(unittest.TestCase):
                      after="<!-- BEGIN tracker-schema -->\n")
         self._refuses(text, "appears on 2 lines")
 
-    def test_an_indented_marker_is_refused(self):
-        text = _file(_fenced(_DOCUMENT)).replace(
-            "<!-- END tracker-schema -->", "  <!-- END tracker-schema -->"
-        )
-        self._refuses(text, "remove the indentation")
-
     def test_end_before_begin_is_refused(self):
         text = ("<!-- END tracker-schema -->\n" + _fenced(_DOCUMENT)
                 + "<!-- BEGIN tracker-schema -->\n")
@@ -186,47 +248,34 @@ class ExtractionTest(unittest.TestCase):
         self._refuses(_file("\n\n"), "no fenced block")
 
     def test_bare_json_without_a_fence_is_refused(self):
-        self._refuses(_file(json.dumps(_DOCUMENT) + "\n"),
-                      "only blank lines may sit")
+        self._refuses(_file(json.dumps(_DOCUMENT) + "\n"), "no fenced block")
 
     def test_two_fences_are_refused(self):
         self._refuses(_file(_fenced(_DOCUMENT) + "\n" + _fenced(_DOCUMENT)),
-                      "a second fenced block")
-
-    def test_an_untagged_fence_is_refused(self):
-        block = _fenced(_DOCUMENT).replace("```json", "```", 1)
-        self._refuses(_file(block), "exactly ```json")
-
-    def test_a_fence_tagged_otherwise_is_refused(self):
-        block = _fenced(_DOCUMENT).replace("```json", "```jsonc", 1)
-        self._refuses(_file(block), "exactly ```json")
-
-    def test_other_spellings_of_a_json_fence_are_refused(self):
-        # Each opens a json fenced block in CommonMark; the rule names one.
-        for opening in ("~~~json", "````json", "``` json", "```JSON",
-                        "```json title"):
-            with self.subTest(opening=opening):
-                block = _fenced(_DOCUMENT).replace("```json", opening, 1)
-                self._refuses(_file(block), "exactly ```json")
-
-    def test_other_closing_fences_are_refused(self):
-        for closing in ("~~~", "````"):
-            with self.subTest(closing=closing):
-                block = _fenced(_DOCUMENT)[:-len("```\n")] + closing + "\n"
-                self._refuses(_file(block), "must close with a line that is "
-                              "exactly ```")
-
-    def test_an_indented_fence_is_refused(self):
-        block = _fenced(_DOCUMENT).replace("```json", "   ```json", 1)
-        self._refuses(_file(block), "exactly ```json")
+                      "which one is the schema is unclear")
 
     def test_an_unclosed_fence_is_refused(self):
         block = _fenced(_DOCUMENT).rstrip("\n").rsplit("\n", 1)[0] + "\n"
         self._refuses(_file(block), "is not closed")
 
-    def test_prose_after_the_fence_is_refused(self):
-        self._refuses(_file(_fenced(_DOCUMENT) + "A note.\n"),
-                      "only blank lines may sit")
+    def test_other_opening_fences_are_read_with_a_problem(self):
+        for opening in ("```", "```jsonc", "~~~json", "````json", "``` json",
+                        "```JSON", "```json title", "   ```json"):
+            with self.subTest(opening=opening):
+                block = _fenced(_DOCUMENT).replace("```json", opening, 1)
+                self._tolerates(_file(block), "read as the opening fence")
+
+    def test_other_closing_fences_are_read_with_a_problem(self):
+        for closing in ("~~~", "````", "  ```"):
+            with self.subTest(closing=closing):
+                block = _fenced(_DOCUMENT)[:-len("```\n")] + closing + "\n"
+                self._tolerates(_file(block), "read as the closing fence")
+
+    def test_a_stray_line_beside_the_fence_is_ignored(self):
+        for block in ("A note.\n" + _fenced(_DOCUMENT),
+                      _fenced(_DOCUMENT) + "A note.\n"):
+            with self.subTest(block=block[:10]):
+                self._tolerates(_file(block), "only blank lines belong")
 
     def test_invalid_json_is_refused_with_its_file_line(self):
         text = _file('```json\n{\n  "provenance": ,\n}\n```\n')
@@ -238,44 +287,36 @@ class ExtractionTest(unittest.TestCase):
         block = "```json\n" + "[" * 100000 + "\n```\n"
         self._refuses(_file(block), "nests too deeply")
 
+    def test_a_whole_file_failure_is_not_a_section_error(self):
+        self.assertFalse(issubclass(UnusableSectionError, TrackerSchemaError))
+        self.assertFalse(issubclass(IncompleteSectionError, TrackerSchemaError))
 
-class DegradationTest(unittest.TestCase):
-    """A flaw in one part of the block leaves every other part usable."""
 
-    def _problem(self, schema, section, fragment: str) -> None:
-        messages = [f"{p.where}: {p.message}" for p in schema.problems_in(section)]
-        self.assertTrue(any(fragment in message for message in messages),
-                        f"no problem in {section} mentions {fragment!r}: "
-                        f"{messages}")
-
-    def _only_unusable(self, schema, *sections) -> None:
-        self.assertEqual(_usable(schema), _ALL_SECTIONS - set(sections))
-        for section in sections:
-            with self.assertRaises(UnusableSectionError) as caught:
-                getattr(schema, {
-                    tracker_schema.PROVENANCE: "provenance",
-                    tracker_schema.ISSUE_KINDS: "issue_kinds",
-                    tracker_schema.ISSUE_PRIORITIES: "issue_priorities",
-                    tracker_schema.LABEL_AXES: "label_axes",
-                    tracker_schema.UNAXED_LABELS: "unaxed_labels",
-                    tracker_schema.ISSUE_STATES: "issue_states",
-                }[section])
-            self.assertEqual(caught.exception.section, section)
-            self.assertTrue(caught.exception.problems)
+class DegradationTest(_Checks):
+    """A flaw in one part of the block leaves every other part usable, and
+    leaves a section complete only when the reader lost nothing of it."""
 
     # -- keys the reader does not know, and keys it lacks --------------
 
     def test_an_unknown_top_level_key_is_ignored_and_reported(self):
         schema = _read(_with(entry_state="Needs Triage"))
-        self.assertEqual(_usable(schema), _ALL_SECTIONS)
-        self._problem(schema, None, "entry_state: unknown key, ignored")
+        self.assertEqual(_complete(schema), _ALL_SECTIONS)
+        self._problem(schema, None, "entry_state: unknown key, ignored",
+                      lossy=False)
 
     def test_an_unknown_nested_key_is_ignored_and_reported(self):
         kinds = [{"name": "bug", "meaning": "Broken", "color": "d73a4a"}]
         schema = _read(_with(issue_kinds=kinds))
         self.assertEqual(schema.kind("bug").meaning, "Broken")
+        self.assertTrue(schema.complete(tracker_schema.ISSUE_KINDS))
         self._problem(schema, tracker_schema.ISSUE_KINDS,
-                      "issue_kinds[0].color: unknown key, ignored")
+                      "issue_kinds[0].color: unknown key, ignored", lossy=False)
+
+    def test_an_unknown_key_in_the_label_schema_belongs_to_neither_section(self):
+        schema = _read(_labels(colors={}))
+        self.assertEqual(_complete(schema), _ALL_SECTIONS)
+        self._problem(schema, None, "issue_label_schema.colors: unknown key",
+                      lossy=False)
 
     def test_a_newer_copy_keeps_working_with_this_reader(self):
         # A copy written for a later reader: new top-level keys, and a new
@@ -284,7 +325,7 @@ class DegradationTest(unittest.TestCase):
                          close_reasons=[{"name": "done"}])
         document["issue_states"][0]["order"] = 1
         schema = _read(document)
-        self.assertEqual(_usable(schema), _ALL_SECTIONS)
+        self.assertEqual(_complete(schema), _ALL_SECTIONS)
         self.assertEqual([s.name for s in schema.open_states], ["Needs Triage"])
         self.assertTrue(all("unknown key, ignored" in p.message
                             for p in schema.problems))
@@ -300,6 +341,7 @@ class DegradationTest(unittest.TestCase):
                             tracker_schema.UNAXED_LABELS)
         self.assertEqual(schema.priority("P1").stale_after_days, None)
         self.assertEqual(schema.priority("P0").stale_after_days, 1)
+        self.assertFalse(schema.complete(tracker_schema.ISSUE_PRIORITIES))
         self._problem(schema, tracker_schema.ISSUE_PRIORITIES,
                       "issue_priorities[1].stale_after_days: missing")
 
@@ -311,24 +353,29 @@ class DegradationTest(unittest.TestCase):
         self._problem(schema, tracker_schema.ISSUE_STATES, "missing")
         self.assertEqual(schema.kind("bug").name, "bug")
 
-    def test_a_block_that_is_no_object_leaves_every_section_unusable(self):
+    def test_a_block_that_is_no_object_is_one_problem(self):
         schema = _read([])
         self.assertEqual(_usable(schema), set())
+        self.assertEqual(len(schema.problems), 1)
         self._problem(schema, None, "must be a JSON object")
+        with self.assertRaises(UnusableSectionError) as caught:
+            schema.issue_kinds
+        self.assertEqual(caught.exception.problems, schema.problems)
 
     def test_a_section_key_written_twice_is_unusable_alone(self):
         block = ('```json\n{"issue_kinds": [], "issue_kinds": [],'
                  + _fenced(_DOCUMENT)[len("```json\n{"):])
-        document_text = _file(block)
-        schema = tracker_schema.parse(document_text)
+        schema = tracker_schema.parse(_file(block))
         self._only_unusable(schema, tracker_schema.ISSUE_KINDS)
         self._problem(schema, tracker_schema.ISSUE_KINDS, "written twice")
 
     # -- one broken section --------------------------------------------
 
-    def test_one_broken_section_leaves_the_others_usable(self):
+    def test_one_broken_section_leaves_the_others_complete(self):
         schema = _read(_with(issue_priorities="P0, P1"))
         self._only_unusable(schema, tracker_schema.ISSUE_PRIORITIES)
+        self.assertEqual(_complete(schema),
+                         _ALL_SECTIONS - {tracker_schema.ISSUE_PRIORITIES})
         self._problem(schema, tracker_schema.ISSUE_PRIORITIES,
                       "must be a JSON list")
         self.assertEqual(len(schema.issue_states), 2)
@@ -346,25 +393,31 @@ class DegradationTest(unittest.TestCase):
                  "feature", {"name": "chore", "meaning": "Upkeep"}]
         schema = _read(_with(issue_kinds=kinds))
         self.assertEqual([k.name for k in schema.issue_kinds], ["bug", "chore"])
+        self._only_incomplete(schema, tracker_schema.ISSUE_KINDS)
         self._problem(schema, tracker_schema.ISSUE_KINDS,
-                      "issue_kinds[1].name: missing")
+                      "issue_kinds[1].name: missing; the entry is left out")
         self._problem(schema, tracker_schema.ISSUE_KINDS,
                       "issue_kinds[2]: must be a JSON object")
+        self.assertEqual(len(schema.problems), 2)
 
-    def test_a_bad_field_on_a_named_entry_reads_as_none(self):
-        schema = _read(_with(
-            issue_kinds=[{"name": "bug", "meaning": " "}],
-            issue_states=[{"name": "Open", "open": "yes"},
-                          {"name": "Closed", "open": False}],
-        ))
+    def test_a_bad_meaning_reads_as_none(self):
+        schema = _read(_with(issue_kinds=[{"name": "bug", "meaning": " "}]))
         self.assertIsNone(schema.kind("bug").meaning)
-        self.assertIsNone(schema.state("Open").open)
+        self._only_incomplete(schema, tracker_schema.ISSUE_KINDS)
+
+    def test_a_state_with_a_bad_flag_is_left_out(self):
+        schema = _read(_with(issue_states=[
+            {"name": "Open", "open": "yes"}, {"name": "Closed", "open": False},
+        ]))
+        self.assertIsNone(schema.state("Open"))
         self.assertEqual(schema.open_states, ())
         self.assertEqual([s.name for s in schema.closed_states], ["Closed"])
+        self._only_incomplete(schema, tracker_schema.ISSUE_STATES)
         self._problem(schema, tracker_schema.ISSUE_STATES,
-                      "issue_states[0].open: must be true or false")
+                      "issue_states[0].open: must be true or false; the entry "
+                      "is left out")
         self._problem(schema, tracker_schema.ISSUE_STATES,
-                      "no state is flagged open")
+                      "no state is flagged open", lossy=False)
 
     def test_a_name_with_a_control_or_invisible_character_is_left_out(self):
         for name in ("b\nug", chr(0x200B)):  # a newline; a zero-width space
@@ -394,34 +447,88 @@ class DegradationTest(unittest.TestCase):
         ]))
         self.assertEqual([p.name for p in schema.issue_priorities], ["P0", "P2"])
 
+    # -- labels --------------------------------------------------------------
+
     def test_an_axis_label_without_its_prefix_is_left_out(self):
-        label_schema = copy.deepcopy(_DOCUMENT["issue_label_schema"])
-        label_schema["axes"][0]["labels"].append({"name": "core", "meaning": "x"})
-        schema = _read(_with(issue_label_schema=label_schema))
+        document = copy.deepcopy(_DOCUMENT)
+        document["issue_label_schema"]["axes"][0]["labels"].append(
+            {"name": "core", "meaning": "x"})
+        schema = _read(document)
         self.assertEqual([l.name for l in schema.label_axes[0].labels],
                          ["area:core"])
         self._problem(schema, tracker_schema.LABEL_AXES,
-                      "beginning with its prefix 'area:'")
+                      "does not begin with the axis's prefix 'area:'")
 
     def test_an_unaxed_label_with_an_axis_prefix_is_left_out(self):
-        label_schema = copy.deepcopy(_DOCUMENT["issue_label_schema"])
-        label_schema["labels"].append({"name": "area:docs", "meaning": "Docs"})
-        schema = _read(_with(issue_label_schema=label_schema))
+        document = copy.deepcopy(_DOCUMENT)
+        document["issue_label_schema"]["labels"].append(
+            {"name": "area:docs", "meaning": "Docs"})
+        schema = _read(document)
         self.assertEqual([l.name for l in schema.unaxed_labels], ["human"])
         self._problem(schema, tracker_schema.UNAXED_LABELS,
                       "belongs in that axis's labels")
 
-    def test_an_axis_with_a_bad_required_flag_keeps_its_labels(self):
-        label_schema = copy.deepcopy(_DOCUMENT["issue_label_schema"])
-        label_schema["axes"][0]["every_issue_carries_at_least_one"] = "yes"
-        schema = _read(_with(issue_label_schema=label_schema))
-        area = schema.issue_label_schema.axis("area")
-        self.assertIsNone(area.required)
-        self.assertEqual([l.name for l in area.labels], ["area:core"])
+    def test_an_axis_whose_labels_are_no_list_is_incomplete(self):
+        # A label sync that trusted this axis would delete every area:
+        # label on the forge.
+        document = copy.deepcopy(_DOCUMENT)
+        document["issue_label_schema"]["axes"][0]["labels"] = "area:core"
+        schema = _read(document)
+        self.assertEqual(schema.issue_label_schema.axis("area").labels, ())
+        self._only_incomplete(schema, tracker_schema.LABEL_AXES)
 
-    # -- names declared twice ----------------------------------------------
+    def test_an_axis_with_a_bad_prefix_is_left_out_and_doubts_the_unaxed(self):
+        # A label sync that trusted the axes would delete every scope:
+        # label; and an unaxed label may belong on the lost axis.
+        document = copy.deepcopy(_DOCUMENT)
+        document["issue_label_schema"]["axes"][1]["prefix"] = "scope: "
+        document["issue_label_schema"]["labels"].append(
+            {"name": "scope:prod", "meaning": "x"})
+        schema = _read(document)
+        self.assertEqual([a.name for a in schema.label_axes], ["area"])
+        self.assertIn("scope:prod",
+                      [l.name for l in schema.unaxed_labels])
+        self._only_incomplete(schema, tracker_schema.LABEL_AXES,
+                              tracker_schema.UNAXED_LABELS)
+        self._problem(schema, tracker_schema.UNAXED_LABELS,
+                      "could not be checked against every axis's prefix")
 
-    def test_a_kind_or_label_declared_twice_keeps_its_first(self):
+    def test_unusable_axes_leave_the_unaxed_labels_in_doubt(self):
+        no_list = _labels(axes="area")
+        no_axes = _labels()
+        del no_axes["issue_label_schema"]["axes"]
+        for document in (no_list, no_axes):
+            document["issue_label_schema"]["labels"].append(
+                {"name": "area:core", "meaning": "x"})
+            with self.subTest(axes=document["issue_label_schema"].get("axes")):
+                schema = _read(document)
+                self.assertFalse(schema.usable(tracker_schema.LABEL_AXES))
+                self.assertTrue(schema.usable(tracker_schema.UNAXED_LABELS))
+                self.assertFalse(schema.complete(tracker_schema.UNAXED_LABELS))
+                self._problem(schema, tracker_schema.UNAXED_LABELS,
+                              "could not be checked")
+
+    def test_unaxed_labels_alone_need_no_axis_check(self):
+        schema = _read(_labels(axes="area", labels=[]))
+        self.assertEqual(schema.unaxed_labels, ())
+        self.assertTrue(schema.complete(tracker_schema.UNAXED_LABELS))
+
+    def test_an_axis_with_a_bad_required_flag_is_left_out(self):
+        document = copy.deepcopy(_DOCUMENT)
+        document["issue_label_schema"]["axes"][0][
+            "every_issue_carries_at_least_one"] = "true"
+        document["issue_label_schema"]["labels"].append(
+            {"name": "area:docs", "meaning": "x"})
+        schema = _read(document)
+        self.assertIsNone(schema.issue_label_schema.axis("area"))
+        self.assertIs(schema.issue_label_schema.axis("scope").required, False)
+        # Its prefix still keeps its labels out of the unaxed ones.
+        self.assertEqual([l.name for l in schema.unaxed_labels], ["human"])
+        self.assertFalse(schema.complete(tracker_schema.LABEL_AXES))
+
+    # -- names declared more than once ---------------------------------------
+
+    def test_a_kind_or_label_declared_twice_keeps_one(self):
         schema = _read(_with(issue_kinds=[
             {"name": "Feature", "meaning": "first"},
             {"name": "feature", "meaning": "second"},
@@ -429,25 +536,44 @@ class DegradationTest(unittest.TestCase):
         ]))
         self.assertEqual([(k.name, k.meaning) for k in schema.issue_kinds],
                          [("Feature", "first"), ("bug", "b")])
+        self._only_incomplete(schema, tracker_schema.ISSUE_KINDS)
         self._problem(schema, tracker_schema.ISSUE_KINDS,
-                      "differs from 'Feature' only in case")
-        label_schema = copy.deepcopy(_DOCUMENT["issue_label_schema"])
-        label_schema["labels"].append({"name": "Human", "meaning": "x"})
-        label_schema["axes"][0]["labels"].append(
-            {"name": "area:core", "meaning": "again"}
-        )
-        schema = _read(_with(issue_label_schema=label_schema))
+                      "'Feature' and 'feature' name one kind")
+        document = copy.deepcopy(_DOCUMENT)
+        document["issue_label_schema"]["labels"].append(
+            {"name": "Human", "meaning": "x"})
+        document["issue_label_schema"]["axes"][0]["labels"].append(
+            {"name": "area:core", "meaning": "again"})
+        schema = _read(document)
         self.assertEqual([l.name for l in schema.unaxed_labels], ["human"])
         self.assertEqual(schema.issue_label_schema.label("area:core").meaning,
                          "The core")
         self._problem(schema, tracker_schema.LABEL_AXES,
-                      "'area:core': declared twice")
+                      "the label 'area:core' is declared 2 times")
 
-    def test_a_priority_declared_twice_makes_priorities_unusable(self):
-        priority = {"name": "P0", "meaning": "Now", "stale_after_days": 1}
-        schema = _read(_with(issue_priorities=[priority, priority]))
+    def test_a_duplicate_prefers_the_entry_that_reads(self):
+        schema = _read(_with(issue_kinds=[
+            {"name": "bug", "meaning": ""}, {"name": "bug", "meaning": "Broken"},
+        ]))
+        self.assertEqual(schema.kind("bug").meaning, "Broken")
+        schema = _read(_with(issue_states=[
+            {"name": "Open", "open": True},
+            {"name": "Closed", "open": "no"}, {"name": "Closed", "open": False},
+        ]))
+        self.assertEqual([s.name for s in schema.closed_states], ["Closed"])
+
+    def test_a_priority_declared_twice_is_left_out_and_the_rest_kept(self):
+        def entry(name):
+            return {"name": name, "meaning": "m", "stale_after_days": 1}
+        schema = _read(_with(issue_priorities=[
+            entry("P0"), entry("P1"), entry("P1"), entry("P2"),
+        ]))
+        self.assertEqual([p.name for p in schema.issue_priorities], ["P0", "P2"])
+        self._only_incomplete(schema, tracker_schema.ISSUE_PRIORITIES)
+        self._problem(schema, tracker_schema.ISSUE_PRIORITIES,
+                      "every entry of it is left out")
+        schema = _read(_with(issue_priorities=[entry("P0"), entry("P0")]))
         self._only_unusable(schema, tracker_schema.ISSUE_PRIORITIES)
-        self._problem(schema, tracker_schema.ISSUE_PRIORITIES, "no one rank")
 
     def test_a_state_listed_twice(self):
         same = _read(_with(issue_states=[
@@ -455,25 +581,44 @@ class DegradationTest(unittest.TestCase):
             {"name": "Closed", "open": False},
         ]))
         self.assertEqual([s.name for s in same.issue_states], ["Open", "Closed"])
-        opposite = _read(_with(issue_states=[
-            {"name": "Open", "open": True}, {"name": "open", "open": False},
-        ]))
-        self._only_unusable(opposite, tracker_schema.ISSUE_STATES)
+        # Flagged both ways, only that state is lost.
+        states = copy.deepcopy(_DOCUMENT["issue_states"]) + [
+            {"name": "closed", "open": True}]
+        opposite = _read(_with(issue_states=states))
+        self.assertEqual([s.name for s in opposite.issue_states],
+                         ["Needs Triage"])
+        self._only_incomplete(opposite, tracker_schema.ISSUE_STATES)
         self._problem(opposite, tracker_schema.ISSUE_STATES,
                       "flagged both open and closed")
 
-    def test_overlapping_axis_prefixes_make_axes_unusable(self):
+    def test_overlapping_axis_prefixes_leave_out_both_axes(self):
         for prefix in ("area:", "a", "area:sub:", "AREA:"):
             with self.subTest(prefix=prefix):
-                label_schema = copy.deepcopy(_DOCUMENT["issue_label_schema"])
-                label_schema["axes"][1]["prefix"] = prefix
-                label_schema["axes"][1]["labels"] = []
-                schema = _read(_with(issue_label_schema=label_schema))
-                self._only_unusable(schema, tracker_schema.LABEL_AXES)
+                document = copy.deepcopy(_DOCUMENT)
+                document["issue_label_schema"]["axes"][1]["prefix"] = prefix
+                document["issue_label_schema"]["labels"].append(
+                    {"name": "area:docs", "meaning": "x"})
+                schema = _read(document)
+                self.assertEqual(schema.label_axes, ())
+                self._only_incomplete(schema, tracker_schema.LABEL_AXES,
+                                      tracker_schema.UNAXED_LABELS)
                 self._problem(schema, tracker_schema.LABEL_AXES,
                               f"the prefixes 'area:' and {prefix!r} overlap")
+                # The prefixes still keep their labels out of the unaxed.
                 self.assertEqual([l.name for l in schema.unaxed_labels],
                                  ["human"])
+
+    def test_axes_sharing_a_name_are_left_out(self):
+        document = copy.deepcopy(_DOCUMENT)
+        document["issue_label_schema"]["axes"][1]["name"] = "Area"
+        document["issue_label_schema"]["labels"].append(
+            {"name": "scope:prod", "meaning": "x"})
+        schema = _read(document)
+        self.assertEqual(schema.label_axes, ())
+        self.assertEqual([l.name for l in schema.unaxed_labels], ["human"])
+        self._problem(schema, tracker_schema.LABEL_AXES, "differ only in case")
+
+    # -- provenance -----------------------------------------------------------
 
     def test_bad_provenance_is_unusable_as_a_whole(self):
         for provenance in (
@@ -486,25 +631,58 @@ class DegradationTest(unittest.TestCase):
                 schema = _read(_with(provenance=provenance))
                 self._only_unusable(schema, tracker_schema.PROVENANCE)
 
+    def test_partly_null_provenance_is_read_and_reported(self):
+        schema = _read(_with(provenance={
+            "source_repo": "o/r", "source_commit": None, "default_path": None,
+        }))
+        self.assertEqual(schema.provenance.source_repo, "o/r")
+        self.assertEqual(_complete(schema), _ALL_SECTIONS)
+        self._problem(schema, tracker_schema.PROVENANCE,
+                      "has lost its provenance", lossy=False)
+
 
 class WarningLinesTest(unittest.TestCase):
 
     def test_no_problem_means_no_warning(self):
         self.assertEqual(tracker_schema.warning_lines(_read(_DOCUMENT)), ())
 
-    def test_one_line_per_problem_naming_file_section_and_fault(self):
+    def test_one_line_per_problem_naming_file_place_and_fault(self):
         document = _with(entry_state="x")
         del document["issue_states"]
         document["issue_kinds"][0]["meaning"] = ""
+        document["issue_kinds"].append({"name": "feature", "meaning": "again"})
         lines = tracker_schema.warning_lines(_read(document))
         self.assertEqual(lines, (
-            "warning: TRACKER.md: the JSON block: entry_state: unknown key, "
-            "ignored (this reader knows provenance, issue_kinds, "
-            "issue_priorities, issue_label_schema, issue_states)",
-            "warning: TRACKER.md: issue_kinds: issue_kinds[0].meaning: must be "
-            "a non-empty string with no surrounding whitespace",
-            "warning: TRACKER.md: issue_states (unusable): missing",
+            "warning: TRACKER.md: entry_state: unknown key, ignored (this "
+            "reader knows provenance, issue_kinds, issue_priorities, "
+            "issue_label_schema, issue_states; the file may be newer than the "
+            "tool reading it)",
+            "warning: TRACKER.md: issue_kinds[0].meaning: must be a non-empty "
+            "string with no surrounding whitespace; read as absent",
+            "warning: TRACKER.md: issue_kinds: the kind 'feature' is declared 2 "
+            "times; one entry is kept and the others ignored",
+            "warning: TRACKER.md: issue_states: missing; the section is unusable",
         ))
+
+    def test_a_block_that_is_no_object_is_one_warning(self):
+        lines = tracker_schema.warning_lines(_read([]))
+        self.assertEqual(lines, (
+            "warning: TRACKER.md: the JSON block: must be a JSON object with "
+            "the keys provenance, issue_kinds, issue_priorities, "
+            "issue_label_schema, issue_states; no section is usable",
+        ))
+
+    def test_nothing_from_the_file_reaches_a_line_unescaped(self):
+        document = _with(**{"x\nwarning: TRACKER.md: forged": 1,
+                            "\x1b[31mred": 2})
+        document["issue_kinds"].append({"name": "a\x1bb", "meaning": "m"})
+        lines = tracker_schema.warning_lines(_read(document))
+        self.assertEqual(len(lines), 3)
+        for line in lines:
+            self.assertTrue(line.isprintable(), line)
+        self.assertTrue(any("'x\\nwarning: TRACKER.md: forged'" in line
+                            for line in lines))
+        self.assertTrue(any("\\x1b[31mred" in line for line in lines))
 
     def test_a_whole_file_failure_is_one_warning(self):
         try:
@@ -514,6 +692,15 @@ class WarningLinesTest(unittest.TestCase):
         self.assertEqual(len(lines), 1)
         self.assertTrue(lines[0].startswith(
             "warning: owner/repo TRACKER.md: no <!-- BEGIN"))
+
+    def test_a_load_failure_names_the_file_once(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "TRACKER.md"
+            path.write_text("no block here\n", encoding="utf-8")
+            with self.assertRaises(TrackerSchemaError) as caught:
+                tracker_schema.load(path)
+        (line,) = tracker_schema.warning_lines(caught.exception, str(path))
+        self.assertEqual(line.count(str(path)), 1)
 
 
 class AccessorTest(unittest.TestCase):
@@ -536,7 +723,7 @@ class AccessorTest(unittest.TestCase):
         labels = self.schema.issue_label_schema
         area = labels.axis("area")
         self.assertEqual((area.prefix, area.required), ("area:", True))
-        self.assertFalse(labels.axis("scope").required)
+        self.assertIs(labels.axis("scope").required, False)
         self.assertEqual([label.name for label in labels.all_labels()],
                          ["area:core", "human"])
         self.assertEqual(labels.label("human").meaning, "Waiting on a person")
@@ -545,7 +732,7 @@ class AccessorTest(unittest.TestCase):
         self.assertIsNone(labels.axis_of("human"))
 
     def test_states(self):
-        self.assertTrue(self.schema.state("Needs Triage").open)
+        self.assertIs(self.schema.state("Needs Triage").open, True)
         self.assertEqual([s.name for s in self.schema.open_states],
                          ["Needs Triage"])
         self.assertEqual([s.name for s in self.schema.closed_states],
@@ -560,12 +747,30 @@ class AccessorTest(unittest.TestCase):
         lost = tracker_schema.Provenance("o/r", None, "T.md")
         self.assertFalse(lost.is_complete or lost.is_original)
 
-    def test_the_schema_is_read_only(self):
+    def test_require_complete(self):
+        self.schema.require_complete(*tracker_schema.SECTIONS)
+        schema = _read(_with(issue_kinds="bug"))
+        with self.assertRaises(UnusableSectionError):
+            schema.require_complete(tracker_schema.ISSUE_STATES,
+                                    tracker_schema.ISSUE_KINDS)
+
+    def test_an_unknown_section_name_is_a_caller_error(self):
+        for call in (self.schema.usable, self.schema.complete,
+                     self.schema.require_complete, self.schema.problems_in):
+            with self.subTest(call=call.__name__):
+                with self.assertRaises(ValueError):
+                    call("issue_label_schema")
+
+    def test_the_schema_is_read_only_and_hashable(self):
         with self.assertRaises(dataclasses.FrozenInstanceError):
             self.schema.problems = ()
         with self.assertRaises(dataclasses.FrozenInstanceError):
             self.schema.issue_kinds[0].name = "x"
+        with self.assertRaises(TypeError):
+            self.schema._sections[tracker_schema.ISSUE_KINDS] = None
         self.assertIsInstance(self.schema.issue_kinds, tuple)
+        self.assertEqual(hash(self.schema), hash(_read(_DOCUMENT)))
+        self.assertEqual(self.schema, _read(_DOCUMENT))
 
     def test_load_reads_a_path_and_names_it_in_errors(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -576,6 +781,7 @@ class AccessorTest(unittest.TestCase):
             with self.assertRaises(TrackerSchemaError) as caught:
                 tracker_schema.load(str(path))
             self.assertTrue(str(caught.exception).startswith(f"{path}: "))
+            self.assertEqual(caught.exception.path, path)
             with self.assertRaises(FileNotFoundError):
                 tracker_schema.load(Path(directory) / "missing.md")
             path.write_bytes(b"\xff\xfe not utf-8")
@@ -605,8 +811,9 @@ def _sections(text: str, parent: str):
 
 class ShippedSchemaValidityTest(unittest.TestCase):
     """The shipped default and this repo's own copy read with no Problem at
-    all (no unknown key, no entry left out, every section usable), and in
-    each the block's state names and the prose's state sections agree."""
+    all (no stray from the delimiting rule, no unknown key, no entry left
+    out, every section complete), and in each the block's state names and
+    the prose's state sections agree."""
 
     def _check(self, path: Path) -> tracker_schema.TrackerSchema:
         text = path.read_text(encoding="utf-8")
