@@ -240,7 +240,8 @@ push_hosts = ["git.example.org"]
   the message names the file and the key to write, never a remote's URL
   or host; `bd dolt remote list` shows the remotes.
 - **Writing it is a person's act**, once per machine, after the Dolt
-  remote is added (use-bd's onboarding checklist has the order).
+  remote is added (the Beads setup steps,
+  `skills/setup-issue-tracker/beads.md`, have the order).
 - **The warning clears** when a push that `bdw` runs succeeds, which the
   next write (or the next call, while a push is owed) starts. A push run
   by hand, `bd dolt push`, does not clear it.

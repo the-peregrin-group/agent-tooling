@@ -15,7 +15,7 @@ and the lexicon is authoritative for them. This skill is written against no
 platform. Each platform's mechanics are a file beside it, read on demand
 when the plan needs them:
 
-- Beads: `onboarding.md` in the `use-bd` skill's directory.
+- Beads: `beads.md` in this skill's directory.
 - GitHub Issues: `github.md` in this skill's directory.
 - Forgejo issues: `forgejo.md` in this skill's directory.
 

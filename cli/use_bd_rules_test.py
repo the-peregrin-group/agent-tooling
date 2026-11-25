@@ -2,17 +2,18 @@
 
 `skills/use-bd/rules.json` is the canonical rule set, shipped with the Skill
 as data. This test checks the data's shape, then that every `bdw` command
-the Skills teach (in code spans and fenced blocks of use-bd's `SKILL.md`,
-`quirks.md`, and `onboarding.md`, and of create-issue's and work-issue's
-`SKILL.md`, which hold the filing commands and the working commands that
-moved out of use-bd) is allowed by it: it matches an allow row and no deny
-or ask row, so it neither prompts nor is refused.
+the Skills teach (in code spans and fenced blocks of use-bd's `SKILL.md` and
+`quirks.md`, of create-issue's and work-issue's `SKILL.md`, which hold the
+filing commands and the working commands that moved out of use-bd, and of
+setup-issue-tracker's `beads.md`, the Beads setup steps) is allowed by it:
+it matches an allow row and no deny or ask row, so it neither prompts nor is
+refused.
 
 A command the Skill names only to forbid it, or as a template rather than a
 call, is listed in NOT_TAUGHT with the reason, and the test holds each of
 those to the opposite: the rules must not allow it outright. Raw `bd`
 commands are out of scope: the canonical set denies them to agents, and the
-ones in `onboarding.md` are steps a human runs.
+ones in `beads.md` are the steps it marks as the owner's.
 """
 
 import re
@@ -36,7 +37,7 @@ SKILLS_DIR = SKILL_DIR.parent
 SKILL_FILES = (
     "use-bd/SKILL.md",
     "use-bd/quirks.md",
-    "use-bd/onboarding.md",
+    "setup-issue-tracker/beads.md",
     "create-issue/SKILL.md",
     "work-issue/SKILL.md",
 )
@@ -255,6 +256,14 @@ class SkillTeachesOnlyAllowedCommandsTest(unittest.TestCase):
             "bdw reopen X",
         ):
             self.assertIn("work-issue/SKILL.md", self.commands.get(command, ()))
+
+    def test_the_extractor_finds_the_setup_commands(self) -> None:
+        # The Beads setup steps live in setup-issue-tracker; a file dropped
+        # from SKILL_FILES would leave them unchecked without failing anything.
+        for command in ("bdw count", "bdw metrics off"):
+            self.assertIn(
+                "setup-issue-tracker/beads.md", self.commands.get(command, ())
+            )
 
     def test_every_taught_command_is_allowed(self) -> None:
         wrong = {}

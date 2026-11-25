@@ -135,6 +135,6 @@ only PRs to `main` are the ones a human asked for.
     installed copies (`tooling-install apply`), Beads, and Permission
     rules. GitHub issues are stale copies and stay untouched (see Issue
     tracking).
-- `skills/use-bd/onboarding.md` is the maintainer's checklist for
-  initializing Beads in another repo, the Beads part of
-  `setup-issue-tracker`.
+- `skills/setup-issue-tracker/beads.md` is the checklist for initializing
+  Beads in another repo, the Beads part of `setup-issue-tracker`; it marks
+  each step as the agent's or the owner's.

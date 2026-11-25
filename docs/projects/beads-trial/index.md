@@ -48,8 +48,8 @@ that lets agents cooperate on it: the [use-bd](../use-bd/index.md) Skill,
   its other conventions (the friction log, `TODO` citations) are in
   `.beads/PRIME.md`, and a commit or PR names the Issue it serves in a
   `Lands:` or `Advances:` trailer.
-- **Another repo** can repeat the setup with use-bd's onboarding
-  checklist, `skills/use-bd/onboarding.md`.
+- **Another repo** can repeat the setup with the `setup-issue-tracker`
+  Skill, whose Beads steps are `skills/setup-issue-tracker/beads.md`.
 
 Why the setup has this shape, and the alternatives it rules out, is in
 [design.md](design.md). The [phase-two proposal](phase-two.md), dated
