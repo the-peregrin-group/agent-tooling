@@ -172,8 +172,9 @@ this file outside the markers.
   `source_repo` is the name of the repo that ships the default,
   `source_commit` is the full commit of that repo the copy was made from,
   and `default_path` is the default's path in that repo at that commit.
-  "What has the default changed since" is a diff of that path between the
-  recorded commit and the current one. In the shipped default itself all
+  "What has the default changed since" is a diff of that path at the
+  recorded commit against the default as it is now, whose path may have
+  changed since. In the shipped default itself all
   three are `null`, because it is the original and not a copy; in a repo's
   copy all three are set, and a copy in which any is `null` has lost its
   provenance.

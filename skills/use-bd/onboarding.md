@@ -8,6 +8,10 @@ and the Permission rules suggested below deny agents `init` and every
 the files (`PRIME.md`, the Permission rules) and the change that lands
 them.
 
+This checklist is the Beads part of setting a tracker up. The procedure
+around it (the plan and its approval, the Tracker Schema, converting a
+backlog) is the `setup-issue-tracker` skill's.
+
 ## Before init
 
 - [ ] `bd` and `bdw` are on PATH. `bdw` is installed machine-wide by the
@@ -144,8 +148,10 @@ them.
 - [ ] Commit `.beads/PRIME.md`. `bd prime` prints it instead of its
   default text, which contradicts this skill. Keep it short: one line
   telling agents to load `/use-bd`, then the repo's conventions in words
-  (its labels, where friction is logged, how a PR names the Issue it
-  lands, how a `TODO` comment cites an Issue). It states conventions and
+  (where friction is logged, how a PR names the Issue it lands, how a
+  `TODO` comment cites an Issue). The repo's kinds, priorities, and labels
+  are not among them: they live in its Tracker Schema, `TRACKER.md` at the
+  repo root, which `PRIME.md` points at. It states conventions and
   points; it never grants or denies an operation, because what agents may
   run is decided only by the reviewed Permission rules.
 - [ ] Add the canonical Permission rules for `bdw` to the repo's
@@ -171,6 +177,22 @@ them.
   agent-tooling's `cli/repo_policy_test.py` is one to copy.
 - [ ] Point the repo's `CLAUDE.md` at this skill rather than restating
   Beads procedure: "Issues are tracked in Beads; load `/use-bd`."
+
+## Tailoring the Tracker Schema to Beads
+
+When `setup-issue-tracker` copies the default Tracker Schema into the
+repo:
+
+- [ ] Kind is bd's type, so each kind in the copy is a type bd accepts
+  (`bdw types` lists them): `task`, which bd gives an Issue filed without a
+  type, and `epic`, while `use-bd` says only an epic takes children,
+  included. A default kind that is not a bd type is replaced by one or
+  registered as a custom type. A bd type the repo does not use is said not
+  to be a kind.
+- [ ] bd has a fifth priority level, P4: declare it with a meaning and a
+  staleness threshold, or say in the copy that it is not used.
+- [ ] Until the repo's Beads holds the diagram's states as statuses, an
+  Issue's state is recorded nowhere: no state labels.
 
 ## The committed footprint
 

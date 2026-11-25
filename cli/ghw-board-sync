@@ -21,7 +21,7 @@ The new board is titled after the repo. `new` refuses when the repo already has
 a linked open board, so a repeated bootstrap cannot silently produce two.
 
 By convention (skill text, not enforced here) the create mode belongs to
-setup-github-issues.
+setup-issue-tracker (its github.md).
 
 Exit codes: 0 success (including a converged no-op), 1 unclassified gh/API
 failure, 2 usage error, 3 not found, 4 refused: the project number is not an

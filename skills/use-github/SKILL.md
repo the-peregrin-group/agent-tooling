@@ -89,9 +89,9 @@ label names, board numbers, or field options:
   label, and there is no status beyond open/closed), or `"unknown"` (boards
   exist but none resolved as canonical, or the canonical board's `Priority`
   field is missing or non-conforming). On `"unknown"`, don't guess a regime:
-  fix the board with `ghw-board-sync` (see `setup-github-issues`),
-  disambiguate with `ghw-board-set --project`, or ask the user — then
-  re-orient.
+  fix the board with `ghw-board-sync` (see `github.md` in the
+  `setup-issue-tracker` skill's directory), disambiguate with
+  `ghw-board-set --project`, or ask the user — then re-orient.
 
 If the repo root has a `TRIAGE.md`, the repo is also set up for the
 `triage-issues` skill. That doesn't change anything below; see the boundary
@@ -114,9 +114,9 @@ gh issue list --repo <owner/repo> --search "<keywords>" --state all --limit 20
 Area labels are repo-specific and come from orient's label registry. Every
 label you attach must already exist in the registry — propose a schema
 addition rather than inventing a label ad hoc (via `ghw-label-sync`, see
-`setup-github-issues`; note it syncs the *whole* registry declaratively, so
-its schema file must restate every repo-specific label, not just the new
-one).
+`github.md` in the `setup-issue-tracker` skill's directory; note it syncs
+the *whole* registry declaratively, so its schema file must restate every
+repo-specific label, not just the new one).
 
 | Type | Use for |
 |------|---------|
@@ -290,5 +290,5 @@ path an unattended run is granted; an attended pass uses the `ghw-*` Verbs
 as this skill teaches them. Use it for "run triage" or a grooming pass, not
 for filing one issue.
 
-`setup-github-issues` is the one-time bootstrap that created the label schema
-and board this skill assumes.
+Setting a repo's tracking up, including the label schema and board this
+skill assumes, is the `setup-issue-tracker` skill's one-time procedure.
