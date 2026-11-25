@@ -226,7 +226,7 @@ what its loading route needs. Why, and the alternatives rejected, is
 |---|---|---|
 | Only the user invokes it, and no agent or automation ever needs to | `disable-model-invocation: true`; one line | `whatd-i-miss` |
 | Something else tells the agent to load it: a CLAUDE.md, a hook, an Agent definition, another Skill | what it is, and when, in a sentence or two | `use-git`, `use-github`, `use-forgejo`, `use-bd`, `own-the-outcome` |
-| A clear-cut condition, with no judgement left | what it is, and an absolute trigger ("Always load before ...") | `create-issue`, `work-issue`, `breakdown-issue`, `setup-github-issues`, `handoff` |
+| A clear-cut condition, with no judgement left | what it is, and an absolute trigger ("Always load before ...") | `create-issue`, `work-issue`, `breakdown-issue`, `setup-issue-tracker`, `handoff` |
 | A judgement call, or model-invocable for convenience | what it is, and a terse trigger | `home-in`, `triage-issues`, `use-adrs`, `use-lexicon`, `refine-state-doc` |
 | A Knowledge Skill | the distillation of its knowledge, as tight as the content allows, and a terse trigger | `know-issues`, `know-unattended` |
 

@@ -1,19 +1,9 @@
 ---
 name: setup-issue-tracker
 description: >
-  Set up a repo's Issue Tracker on any platform (Beads, GitHub Issues,
-  Forgejo issues): confirm the target, draft the whole plan, and wait for
-  the owner's approval before changing anything; copy the shipped default
-  Tracker Schema in as the repo's TRACKER.md and customize it with the
-  owner; settle the Forge identities its agents act under; convert an
-  existing backlog into one reviewed plan that one filer files; retire each
-  backlog source through its owner. Load when a repo needs a tracker, a
-  Tracker Schema, labels, or a board, and when scattered TODOs or notes
-  should become Issues. Triggers: "set up issues", "set up tracking", "set
-  up Beads here", "create issues from TODOs", "bootstrap the backlog", "add
-  a TRACKER.md". EXCLUDE: filing one Issue (create-issue); a triage pass, or
-  standing triage up in a repo that already has a tracker (triage-issues);
-  daily tracker operations (use-bd, use-github, use-forgejo).
+  Set up a repo's Issue Tracker (Beads, GitHub Issues, Forgejo issues): its
+  Tracker Schema, labels, board, and backlog. Always load when setting up
+  issue tracking for a repo.
 ---
 
 # Setup Issue Tracker
