@@ -1,4 +1,4 @@
-"""The reader for a repo's Tracker Schema: its one JSON block, parsed and checked.
+"""The reader for a repo's Tracker Schema: its one JSON block, read section by section.
 
 A Tracker Schema is a Markdown file (`TRACKER.md` at a repo's root, copied
 from `skills/setup-issue-tracker/TRACKER.default.md`) whose one JSON block
@@ -9,25 +9,40 @@ are for agents and people, so this module reads none of it.
 
 The file itself is the contract this module implements: the rule under its
 "How the block is delimited" finds the block, and "What each key holds" is
-the shape the block is checked against. Anything else raises
-TrackerSchemaError with a message that names the line or the key at fault,
-so an agent can fix the file in one round trip. The reader never guesses:
-it does not search for a second-best block, fill in a missing key, skip an
-unknown one, or keep either value of a key written twice.
+the shape each part of the block is read against.
 
-What this module leaves to its callers: where a repo's Tracker Schema is
-found (a Verb names its repo, and the cwd never decides that), and what
-happens when a repo has none. It takes text, or a path for convenience.
+The reader degrades gracefully. A flaw in one part of the block never stops
+a caller from using the parts that are sound:
 
-How a Wrapper maps a failure to the Exit-code contract
-(docs/index.md#exit-code-contract):
+  - The whole file fails, with TrackerSchemaError, only when no block can be
+    found by the delimiting rule or its JSON does not parse. The rule stays
+    exact, since an ambiguous block has nothing in it worth salvaging.
+  - Otherwise `parse` always returns a TrackerSchema. Each section
+    (provenance, kinds, priorities, label axes, unaxed labels, states) is
+    read on its own. A section that cannot be read safely is unusable, and
+    asking for it raises UnusableSectionError for that section alone; a
+    caller that never asks is unaffected.
+  - Within a section, a bad entry is left out and the rest kept, and a bad
+    field on an entry whose name is sound reads as None, wherever that
+    cannot mislead. Where a partial section would mislead, the whole
+    section is unusable instead; each such case says why where it is made.
+  - A key the reader does not know, at any level, is ignored. A key it
+    needs and does not find makes that field or section absent. So a copy
+    written for a newer reader, and one written for an older reader, both
+    keep everything else working.
+  - Everything the reader left out, ignored, or could not use is a Problem
+    in `TrackerSchema.problems`, worded so an agent can fix the file, and
+    `warning_lines` turns them into the warnings every Verb prints, so a
+    defect is visible even to a Verb that did not need the part at fault.
 
-  - TrackerSchemaError: exit 2. The repo's file is state the caller must
-    change, through the repo's normal review, before the call can work.
-  - A missing file (FileNotFoundError from `load`): the caller decides,
-    since what a Verb does when a repo has no Tracker Schema is not yet
-    settled (docs/projects/use-issues/design.md, "The reader").
-  - Any other OSError: exit 1.
+The library reports; it makes no exit-code decisions. What a missing file,
+an unusable section, or a list of problems means for a Verb is the caller's
+call, under the Exit-code contract (docs/index.md#exit-code-contract) and
+the rule in docs/projects/use-issues/design.md, "The reader".
+
+The ghw and fjw Verbs read the schema from the repo's default branch on the
+forge and bdw from the workspace it stands in, so `parse(text)` is the main
+entry; `load(path)` reads a file, for bdw and for tests.
 
 Standard library only, Python 3.9.
 """
@@ -36,15 +51,25 @@ from __future__ import annotations
 
 import json
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import timedelta
 from pathlib import Path
-from typing import Optional, Tuple, Union
+from typing import Dict, List, Optional, Tuple, Union
 
 BEGIN_MARKER = "<!-- BEGIN tracker-schema -->"
 END_MARKER = "<!-- END tracker-schema -->"
 OPENING_FENCE = "```json"
 CLOSING_FENCE = "```"
+
+# The sections, named as each Problem names them.
+PROVENANCE = "provenance"
+ISSUE_KINDS = "issue_kinds"
+ISSUE_PRIORITIES = "issue_priorities"
+LABEL_AXES = "issue_label_schema.axes"
+UNAXED_LABELS = "issue_label_schema.labels"
+ISSUE_STATES = "issue_states"
+SECTIONS = (PROVENANCE, ISSUE_KINDS, ISSUE_PRIORITIES, LABEL_AXES,
+            UNAXED_LABELS, ISSUE_STATES)
 
 _TOP_LEVEL_KEYS = (
     "provenance", "issue_kinds", "issue_priorities", "issue_label_schema",
@@ -66,8 +91,34 @@ _MAX_STALE_DAYS = timedelta.max.days
 
 
 class TrackerSchemaError(Exception):
-    """Raised when a Tracker Schema is malformed: its block cannot be found
-    by the delimiting rule, does not parse, or is not the documented shape."""
+    """The file as a whole cannot be read: no block can be found by the
+    delimiting rule, or its JSON does not parse."""
+
+
+class UnusableSectionError(TrackerSchemaError):
+    """A caller asked for a section the reader could not use. `section` names
+    it and `problems` says why."""
+
+    def __init__(self, section: str, problems: Tuple["Problem", ...]):
+        self.section = section
+        self.problems = problems
+        reasons = "; ".join(f"{p.where}: {p.message}" for p in problems)
+        super().__init__(
+            f"the Tracker Schema's {section} cannot be used: {reasons}"
+        )
+
+
+@dataclass(frozen=True)
+class Problem:
+    """One thing the reader left out, ignored, or could not use.
+
+    `section` is one of SECTIONS, or None for the block as a whole; `where`
+    is the key path at fault; `message` says what is wrong and what was done
+    about it."""
+
+    section: Optional[str]
+    where: str
+    message: str
 
 
 @dataclass(frozen=True)
@@ -96,14 +147,14 @@ class Provenance:
 @dataclass(frozen=True)
 class IssueKind:
     name: str
-    meaning: str
+    meaning: Optional[str]  # None when the file's meaning is missing or bad
 
 
 @dataclass(frozen=True)
 class IssuePriority:
     name: str
-    meaning: str
-    stale_after_days: int
+    meaning: Optional[str]
+    stale_after_days: Optional[int]  # None when missing or bad
 
 
 @dataclass(frozen=True)
@@ -111,18 +162,18 @@ class IssueLabel:
     """A declared Issue Label, its name written in full as on an Issue."""
 
     name: str
-    meaning: str
+    meaning: Optional[str]
 
 
 @dataclass(frozen=True)
 class LabelAxis:
     """An axis of the Issue Label Schema. `required` is the file's
-    `every_issue_carries_at_least_one`."""
+    `every_issue_carries_at_least_one`, None when missing or bad."""
 
     name: str
     prefix: str
-    meaning: str
-    required: bool
+    meaning: Optional[str]
+    required: Optional[bool]
     labels: Tuple[IssueLabel, ...]
 
 
@@ -144,21 +195,17 @@ class IssueLabelSchema:
         has no field for kind, priority, or state, the file says a label
         named for one carries it and is declared by it, so None from here
         does not by itself make such a label unknown."""
-        for candidate in self.all_labels():
-            if candidate.name == name:
-                return candidate
-        return None
+        return _by_name(self.all_labels(), name)
 
     def axis(self, name: str) -> Optional[LabelAxis]:
         """The axis with this name, or None."""
-        for candidate in self.axes:
-            if candidate.name == name:
-                return candidate
-        return None
+        return _by_name(self.axes, name)
 
     def axis_of(self, label_name: str) -> Optional[LabelAxis]:
         """The axis whose prefix the label name begins with, or None. This
-        answers by prefix, so it also places a label the axis does not list."""
+        answers by prefix, so it also places a label the axis does not list.
+        No two prefixes overlap in a usable axes section, so the answer does
+        not depend on the order of the axes."""
         for candidate in self.axes:
             if label_name.startswith(candidate.prefix):
                 return candidate
@@ -168,19 +215,60 @@ class IssueLabelSchema:
 @dataclass(frozen=True)
 class IssueState:
     name: str
-    open: bool
+    open: Optional[bool]  # None when the file's flag is missing or bad
 
 
 @dataclass(frozen=True)
 class TrackerSchema:
-    """A parsed, checked Tracker Schema. Read-only: every collection is a
-    tuple in file order, and the priorities run from highest to lowest."""
+    """What the reader could use of a Tracker Schema, and what it could not.
 
-    provenance: Provenance
-    issue_kinds: Tuple[IssueKind, ...]
-    issue_priorities: Tuple[IssuePriority, ...]
-    issue_label_schema: IssueLabelSchema
-    issue_states: Tuple[IssueState, ...]
+    Each section is a property that raises UnusableSectionError when the
+    section is unusable. Every collection is a tuple in file order, and the
+    priorities run from highest to lowest."""
+
+    problems: Tuple[Problem, ...]
+    _sections: Dict[str, object] = field(repr=False)
+
+    def usable(self, section: str) -> bool:
+        return self._sections.get(section) is not None
+
+    def problems_in(self, section: Optional[str]) -> Tuple[Problem, ...]:
+        return tuple(p for p in self.problems if p.section == section)
+
+    def _section(self, section: str):
+        value = self._sections.get(section)
+        if value is None:
+            raise UnusableSectionError(section, self.problems_in(section))
+        return value
+
+    @property
+    def provenance(self) -> Provenance:
+        return self._section(PROVENANCE)
+
+    @property
+    def issue_kinds(self) -> Tuple[IssueKind, ...]:
+        return self._section(ISSUE_KINDS)
+
+    @property
+    def issue_priorities(self) -> Tuple[IssuePriority, ...]:
+        return self._section(ISSUE_PRIORITIES)
+
+    @property
+    def label_axes(self) -> Tuple[LabelAxis, ...]:
+        return self._section(LABEL_AXES)
+
+    @property
+    def unaxed_labels(self) -> Tuple[IssueLabel, ...]:
+        return self._section(UNAXED_LABELS)
+
+    @property
+    def issue_label_schema(self) -> IssueLabelSchema:
+        """Both label sections together; unusable if either is."""
+        return IssueLabelSchema(self.label_axes, self.unaxed_labels)
+
+    @property
+    def issue_states(self) -> Tuple[IssueState, ...]:
+        return self._section(ISSUE_STATES)
 
     def kind(self, name: str) -> Optional[IssueKind]:
         return _by_name(self.issue_kinds, name)
@@ -193,19 +281,47 @@ class TrackerSchema:
 
     @property
     def open_states(self) -> Tuple[IssueState, ...]:
-        return tuple(state for state in self.issue_states if state.open)
+        """The states the file flags open; a state with no usable flag is in
+        neither this nor closed_states."""
+        return tuple(state for state in self.issue_states if state.open is True)
 
     @property
     def closed_states(self) -> Tuple[IssueState, ...]:
-        return tuple(state for state in self.issue_states if not state.open)
+        return tuple(state for state in self.issue_states if state.open is False)
+
+
+def warning_lines(result: Union[TrackerSchema, TrackerSchemaError],
+                  source: str = "TRACKER.md") -> Tuple[str, ...]:
+    """One warning line per problem, for stderr, so every Wrapper warns about
+    a Tracker Schema in the same words, whether or not the Verb needed the
+    part at fault.
+
+    `result` is what `parse` returned, or the TrackerSchemaError it raised;
+    `source` names the file (the repo's TRACKER.md, say). Each line names
+    the file, the section, and what is wrong; a section that cannot be used
+    says so."""
+    if isinstance(result, TrackerSchemaError):
+        return (f"warning: {source}: {result}",)
+    lines = []
+    for problem in result.problems:
+        if problem.section is None:
+            label = "the JSON block"
+        elif result.usable(problem.section):
+            label = problem.section
+        else:
+            label = f"{problem.section} (unusable)"
+        detail = (problem.message if problem.where == problem.section
+                  else f"{problem.where}: {problem.message}")
+        lines.append(f"warning: {source}: {label}: {detail}")
+    return tuple(lines)
 
 
 def load(path: Union[str, Path]) -> TrackerSchema:
     """Read and parse the Tracker Schema at `path`.
 
-    A missing or unreadable file raises the OSError unchanged, since what it
-    means is the caller's to decide; a file that is not UTF-8, or is
-    malformed, raises TrackerSchemaError with the path in its message.
+    A missing or unreadable file raises the OSError unchanged, for the caller
+    to decide what it means; a file that is not UTF-8, or whose block cannot
+    be read at all, raises TrackerSchemaError with the path in its message.
     """
     path = Path(path)
     try:
@@ -219,10 +335,12 @@ def load(path: Union[str, Path]) -> TrackerSchema:
 
 
 def parse(text: str) -> TrackerSchema:
-    """Extract, parse, and check the JSON block of a Tracker Schema's text."""
+    """Read a Tracker Schema's text. Raises TrackerSchemaError only when no
+    block can be found or its JSON does not parse; every other flaw is a
+    Problem on the result."""
     block, first_line = _extract(text)
     try:
-        document = json.loads(block, object_pairs_hook=_refuse_duplicate_keys)
+        document = json.loads(block, object_pairs_hook=_JsonObject.from_pairs)
     except json.JSONDecodeError as error:
         # The position is reported as a line of the whole file, so the agent
         # fixing it need not count from the fence.
@@ -235,7 +353,7 @@ def parse(text: str) -> TrackerSchema:
             "the JSON block nests too deeply to read; no key in it nests more "
             "than a few levels"
         ) from None
-    return _schema(document)
+    return _Reader().read(document)
 
 
 def extract_block(text: str) -> str:
@@ -333,233 +451,441 @@ def _extract(text: str) -> Tuple[str, int]:
     return "\n".join(inside), opening + 1
 
 
-def _refuse_duplicate_keys(pairs: list) -> dict:
-    """json's object hook: a key written twice in one object is refused,
-    since keeping either value would be a guess."""
-    document = {}
-    for key, value in pairs:
-        if key in document:
-            raise TrackerSchemaError(
-                f"the JSON block writes the key {key!r} twice in one object"
-            )
-        document[key] = value
-    return document
+class _JsonObject(dict):
+    """A JSON object that remembers the keys written in it more than once.
+
+    Keeping either value of such a key would be a guess, so the reader
+    treats the key as unreadable rather than refusing the whole file."""
+
+    duplicate_keys: frozenset = frozenset()
+
+    @classmethod
+    def from_pairs(cls, pairs: list) -> "_JsonObject":
+        document, duplicates = cls(), set()
+        for key, value in pairs:
+            if key in document:
+                duplicates.add(key)
+            document[key] = value
+        for key in duplicates:
+            del document[key]
+        document.duplicate_keys = frozenset(duplicates)
+        return document
 
 
-def _schema(document: object) -> TrackerSchema:
-    _require_object(document, "the JSON block", _TOP_LEVEL_KEYS)
-    return TrackerSchema(
-        provenance=_provenance(document["provenance"]),
-        issue_kinds=_kinds(document["issue_kinds"]),
-        issue_priorities=_priorities(document["issue_priorities"]),
-        issue_label_schema=_label_schema(document["issue_label_schema"]),
-        issue_states=_states(document["issue_states"]),
-    )
+class _Reader:
+    """Reads a parsed block section by section, collecting Problems."""
 
+    def __init__(self):
+        self.problems: List[Problem] = []
 
-def _provenance(value: object) -> Provenance:
-    where = "provenance"
-    _require_object(value, where, _PROVENANCE_KEYS)
-    for key in _PROVENANCE_KEYS:
-        field = value[key]
-        if field is not None:
-            _require_text(field, f"{where}.{key}", "a string or null")
-    commit = value["source_commit"]
-    if commit is not None and not _FULL_COMMIT.fullmatch(commit):
-        raise TrackerSchemaError(
-            f"{where}.source_commit must be a full commit (40 or 64 lowercase "
-            "hex digits) or null"
+    def problem(self, section: Optional[str], where: str, message: str) -> None:
+        self.problems.append(Problem(section, where, message))
+
+    def read(self, document: object) -> TrackerSchema:
+        sections: Dict[str, object] = {}
+        top = self.fields(document, None, "", _TOP_LEVEL_KEYS)
+        if top is None:
+            for section in SECTIONS:
+                self.problem(section, section, "absent, since the JSON block is "
+                             "not an object")
+            return TrackerSchema(tuple(self.problems), sections)
+
+        sections[PROVENANCE] = self.section(top, "provenance", PROVENANCE,
+                                            self.provenance)
+        sections[ISSUE_KINDS] = self.section(top, "issue_kinds", ISSUE_KINDS,
+                                             self.kinds)
+        sections[ISSUE_PRIORITIES] = self.section(
+            top, "issue_priorities", ISSUE_PRIORITIES, self.priorities
         )
-    return Provenance(value["source_repo"], commit, value["default_path"])
+        sections[ISSUE_STATES] = self.section(top, "issue_states", ISSUE_STATES,
+                                              self.states)
+        axes, labels = self.label_schema(top)
+        sections[LABEL_AXES], sections[UNAXED_LABELS] = axes, labels
+        return TrackerSchema(tuple(self.problems), sections)
 
+    def section(self, top: dict, key: str, section: str, reader):
+        if key not in top:
+            self.missing(top, section, key)
+            return None
+        return reader(top[key])
 
-def _kinds(value: object) -> Tuple[IssueKind, ...]:
-    entries = _require_list(value, "issue_kinds", nonempty=True)
-    kinds = []
-    for position, raw in enumerate(entries):
-        where = f"issue_kinds[{position}]"
-        _require_object(raw, where, _KIND_KEYS)
-        kinds.append(IssueKind(_name(raw, where), _meaning(raw, where)))
-    _refuse_duplicates(kinds, "issue_kinds")
-    return tuple(kinds)
+    def missing(self, container: dict, section: str, where: str) -> None:
+        written_twice = _key_of(where) in getattr(container, "duplicate_keys", ())
+        self.problem(section, where, "written twice in one object, so neither "
+                     "value is used" if written_twice else "missing")
 
+    # -- objects and plain values ---------------------------------------
 
-def _priorities(value: object) -> Tuple[IssuePriority, ...]:
-    entries = _require_list(value, "issue_priorities", nonempty=True)
-    priorities = []
-    for position, raw in enumerate(entries):
-        where = f"issue_priorities[{position}]"
-        _require_object(raw, where, _PRIORITY_KEYS)
+    def fields(self, value: object, section: Optional[str], where: str,
+               keys: Tuple[str, ...]) -> Optional[dict]:
+        """`value` as an object, with unknown keys reported and ignored and
+        keys written twice reported and dropped; None if it is no object."""
+        if not isinstance(value, dict):
+            self.problem(section, where or "the JSON block", "must be a JSON "
+                         f"object with the keys {', '.join(keys)}")
+            return None
+        for key in sorted(set(value) - set(keys)):
+            self.problem(section, _at(where, key),
+                         f"unknown key, ignored (this reader knows "
+                         f"{', '.join(keys)})")
+        for key in sorted(getattr(value, "duplicate_keys", ())):
+            if key not in keys:
+                self.problem(section, _at(where, key),
+                             "unknown key written twice, ignored")
+        return value
+
+    def text(self, raw: dict, key: str, section: str, where: str,
+             name: bool = False) -> Optional[str]:
+        """A string field, or None with a Problem. A name must also hold no
+        control or invisible characters, since it is matched against what a
+        tracker holds."""
+        at = f"{where}.{key}"
+        if key not in raw:
+            self.missing(raw, section, at)
+            return None
+        value = raw[key]
+        if not isinstance(value, str) or not value or value != value.strip():
+            self.problem(section, at, "must be a non-empty string with no "
+                         "surrounding whitespace")
+            return None
+        if name and not value.isprintable():
+            self.problem(section, at, "must hold no control or invisible "
+                         "formatting characters (a newline or a zero-width "
+                         "space, say)")
+            return None
+        return value
+
+    def flag(self, raw: dict, key: str, section: str,
+             where: str) -> Optional[bool]:
+        at = f"{where}.{key}"
+        if key not in raw:
+            self.missing(raw, section, at)
+            return None
+        if not isinstance(raw[key], bool):
+            self.problem(section, at, "must be true or false")
+            return None
+        return raw[key]
+
+    def entries(self, value: object, section: str) -> Optional[list]:
+        """A section's list, or None (unusable) with a Problem."""
+        if not isinstance(value, list):
+            self.problem(section, section, "must be a JSON list; the section "
+                         "is unusable")
+            return None
+        return value
+
+    def unusable_if_empty(self, items: list, section: str):
+        """An empty section reads as unusable rather than as "none declared":
+        no kind, priority, or state at all would make every Issue
+        nonconforming, which is a broken file, not a repo's choice."""
+        if not items:
+            self.problem(section, section, "declares no usable entry; the "
+                         "section is unusable")
+            return None
+        return tuple(items)
+
+    # -- sections ---------------------------------------------------------
+
+    def provenance(self, value: object) -> Optional[Provenance]:
+        # All or nothing: provenance is used as one diff target, and a
+        # repo, commit, or path read alone would point at the wrong thing.
+        raw = self.fields(value, PROVENANCE, PROVENANCE, _PROVENANCE_KEYS)
+        if raw is None:
+            return None
+        values, sound = {}, True
+        for key in _PROVENANCE_KEYS:
+            at = f"{PROVENANCE}.{key}"
+            if key not in raw:
+                self.missing(raw, PROVENANCE, at)
+                sound = False
+            elif raw[key] is not None and (
+                    not isinstance(raw[key], str) or not raw[key]
+                    or raw[key] != raw[key].strip()):
+                self.problem(PROVENANCE, at, "must be a non-empty string with "
+                             "no surrounding whitespace, or null")
+                sound = False
+            else:
+                values[key] = raw[key]
+        commit = values.get("source_commit")
+        if commit is not None and not _FULL_COMMIT.fullmatch(commit):
+            self.problem(PROVENANCE, f"{PROVENANCE}.source_commit",
+                         "must be a full commit (40 or 64 lowercase hex "
+                         "digits) or null")
+            sound = False
+        if not sound:
+            self.problem(PROVENANCE, PROVENANCE, "the section is unusable, "
+                         "since its fields are only meaningful together")
+            return None
+        return Provenance(values["source_repo"], values["source_commit"],
+                          values["default_path"])
+
+    def kinds(self, value: object) -> Optional[Tuple[IssueKind, ...]]:
+        entries = self.entries(value, ISSUE_KINDS)
+        if entries is None:
+            return None
+        kinds = []
+        for position, raw in enumerate(entries):
+            where = f"{ISSUE_KINDS}[{position}]"
+            raw = self.fields(raw, ISSUE_KINDS, where, _KIND_KEYS)
+            name = raw and self.text(raw, "name", ISSUE_KINDS, where, name=True)
+            if not name:
+                self.problem(ISSUE_KINDS, where, "left out, since it has no "
+                             "usable name")
+                continue
+            kinds.append(IssueKind(name, self.text(raw, "meaning", ISSUE_KINDS,
+                                                   where)))
+        return self.unusable_if_empty(self.first_of_each(kinds, ISSUE_KINDS),
+                                      ISSUE_KINDS)
+
+    def priorities(self, value: object) -> Optional[Tuple[IssuePriority, ...]]:
+        entries = self.entries(value, ISSUE_PRIORITIES)
+        if entries is None:
+            return None
+        priorities = []
+        for position, raw in enumerate(entries):
+            where = f"{ISSUE_PRIORITIES}[{position}]"
+            raw = self.fields(raw, ISSUE_PRIORITIES, where, _PRIORITY_KEYS)
+            name = raw and self.text(raw, "name", ISSUE_PRIORITIES, where,
+                                     name=True)
+            if not name:
+                # Leaving it out keeps the others' order relative to each
+                # other, which is all the order means.
+                self.problem(ISSUE_PRIORITIES, where, "left out, since it has "
+                             "no usable name")
+                continue
+            priorities.append(IssuePriority(
+                name, self.text(raw, "meaning", ISSUE_PRIORITIES, where),
+                self.days(raw, where),
+            ))
+        # A name listed twice has two ranks, and which one it holds would be
+        # a guess, so the order cannot be trusted at all.
+        if self.duplicated(priorities, ISSUE_PRIORITIES):
+            self.problem(ISSUE_PRIORITIES, ISSUE_PRIORITIES, "the section is "
+                         "unusable, since a priority listed twice has no one "
+                         "rank")
+            return None
+        return self.unusable_if_empty(priorities, ISSUE_PRIORITIES)
+
+    def days(self, raw: dict, where: str) -> Optional[int]:
+        at = f"{where}.stale_after_days"
+        if "stale_after_days" not in raw:
+            self.missing(raw, ISSUE_PRIORITIES, at)
+            return None
         days = raw["stale_after_days"]
         if (isinstance(days, bool) or not isinstance(days, int)
                 or not 1 <= days <= _MAX_STALE_DAYS):
-            raise TrackerSchemaError(
-                f"{where}.stale_after_days must be a whole number of days, "
-                f"from 1 to {_MAX_STALE_DAYS}"
-            )
-        priorities.append(
-            IssuePriority(_name(raw, where), _meaning(raw, where), days)
-        )
-    _refuse_duplicates(priorities, "issue_priorities")
-    return tuple(priorities)
+            self.problem(ISSUE_PRIORITIES, at, "must be a whole number of "
+                         f"days, from 1 to {_MAX_STALE_DAYS}")
+            return None
+        return days
+
+    def states(self, value: object) -> Optional[Tuple[IssueState, ...]]:
+        entries = self.entries(value, ISSUE_STATES)
+        if entries is None:
+            return None
+        states = []
+        for position, raw in enumerate(entries):
+            where = f"{ISSUE_STATES}[{position}]"
+            raw = self.fields(raw, ISSUE_STATES, where, _STATE_KEYS)
+            name = raw and self.text(raw, "name", ISSUE_STATES, where, name=True)
+            if not name:
+                self.problem(ISSUE_STATES, where, "left out, since it has no "
+                             "usable name")
+                continue
+            states.append(IssueState(name, self.flag(raw, "open", ISSUE_STATES,
+                                                     where)))
+        # A state listed twice with opposite flags leaves open-or-closed a
+        # guess for every Issue in it, so the section is unusable; listed
+        # twice the same way, the second adds nothing and is dropped.
+        flags: Dict[str, set] = {}
+        for state in states:
+            flags.setdefault(_folded(state.name), set()).add(state.open)
+        if any({True, False} <= seen for seen in flags.values()):
+            self.duplicated(states, ISSUE_STATES)
+            self.problem(ISSUE_STATES, ISSUE_STATES, "the section is unusable, "
+                         "since a state listed twice is flagged both open and "
+                         "closed")
+            return None
+        states = self.first_of_each(states, ISSUE_STATES)
+        if states and not any(state.open is True for state in states):
+            self.problem(ISSUE_STATES, ISSUE_STATES, "no state is flagged open")
+        if states and not any(state.open is False for state in states):
+            self.problem(ISSUE_STATES, ISSUE_STATES, "no state is flagged "
+                         "closed")
+        return self.unusable_if_empty(states, ISSUE_STATES)
+
+    def label_schema(self, top: dict):
+        where = "issue_label_schema"
+        if where not in top:
+            self.missing(top, LABEL_AXES, where)
+            self.missing(top, UNAXED_LABELS, where)
+            return None, None
+        raw = self.fields(top[where], LABEL_AXES, where, _LABEL_SCHEMA_KEYS)
+        if raw is None:
+            self.problem(UNAXED_LABELS, where, "absent, since "
+                         "issue_label_schema is not an object")
+            return None, None
+        axes = self.section(raw, "axes", LABEL_AXES, self.axes)
+        labels = self.section(raw, "labels", UNAXED_LABELS,
+                              lambda value: self.unaxed(value, axes))
+        if axes is not None and labels is not None:
+            # A label declared on an axis and again among the unaxed ones:
+            # keep the axis's, which is the more specific declaration.
+            declared = {_folded(label.name) for axis in axes
+                        for label in axis.labels}
+            kept = []
+            for label in labels:
+                if _folded(label.name) in declared:
+                    self.problem(UNAXED_LABELS, f"{UNAXED_LABELS}: {label.name!r}",
+                                 "also declared on an axis; this one is ignored")
+                else:
+                    kept.append(label)
+            labels = tuple(kept)
+        return axes, labels
+
+    def axes(self, value: object) -> Optional[Tuple[LabelAxis, ...]]:
+        entries = self.entries(value, LABEL_AXES)
+        if entries is None:
+            return None
+        axes = []
+        for position, raw in enumerate(entries):
+            where = f"{LABEL_AXES}[{position}]"
+            raw = self.fields(raw, LABEL_AXES, where, _AXIS_KEYS)
+            name = raw and self.text(raw, "name", LABEL_AXES, where, name=True)
+            prefix = raw and self.text(raw, "prefix", LABEL_AXES, where,
+                                       name=True)
+            if not name or not prefix:
+                # With no name or prefix an axis cannot classify anything.
+                self.problem(LABEL_AXES, where, "left out, since it has no "
+                             "usable name or prefix")
+                continue
+            axes.append(LabelAxis(
+                name, prefix, self.text(raw, "meaning", LABEL_AXES, where),
+                self.flag(raw, "every_issue_carries_at_least_one", LABEL_AXES,
+                          where),
+                self.axis_labels(raw, prefix, where),
+            ))
+        # Axes that share a name, or prefixes where one begins another, make
+        # which axis a label is on depend on the order of the list, so no
+        # answer about axes can be trusted.
+        if self.duplicated(axes, LABEL_AXES):
+            self.problem(LABEL_AXES, LABEL_AXES, "the section is unusable, "
+                         "since two axes share a name")
+            return None
+        for first, axis in enumerate(axes):
+            for other in axes[first + 1:]:
+                if (_folded(axis.prefix).startswith(_folded(other.prefix))
+                        or _folded(other.prefix).startswith(
+                            _folded(axis.prefix))):
+                    self.problem(LABEL_AXES, LABEL_AXES, "the section is "
+                                 f"unusable, since the prefixes {axis.prefix!r} "
+                                 f"and {other.prefix!r} overlap: no axis's "
+                                 "prefix may begin another's")
+                    return None
+        # Labels declared on two axes cannot happen once prefixes do not
+        # overlap; within one axis a label listed twice keeps its first.
+        return tuple(axes)
+
+    def axis_labels(self, raw: dict, prefix: str,
+                    where: str) -> Tuple[IssueLabel, ...]:
+        at = f"{where}.labels"
+        if "labels" not in raw:
+            self.missing(raw, LABEL_AXES, at)
+            return ()
+        kept = []
+        for label in self.labels(raw["labels"], LABEL_AXES, at):
+            if not label.name.startswith(prefix) or label.name == prefix:
+                self.problem(LABEL_AXES, f"{at}: {label.name!r}", "left out: "
+                             "every label on this axis is written in full, "
+                             f"beginning with its prefix {prefix!r}")
+            else:
+                kept.append(label)
+        return tuple(self.first_of_each(kept, LABEL_AXES))
+
+    def unaxed(self, value: object,
+               axes: Optional[Tuple[LabelAxis, ...]]) -> Optional[Tuple[IssueLabel, ...]]:
+        if not isinstance(value, list):
+            self.problem(UNAXED_LABELS, UNAXED_LABELS, "must be a JSON list; "
+                         "the section is unusable")
+            return None
+        kept = []
+        for label in self.labels(value, UNAXED_LABELS, UNAXED_LABELS):
+            axis = next((axis for axis in axes or ()
+                         if _folded(label.name).startswith(_folded(axis.prefix))),
+                        None)
+            if axis is not None:
+                self.problem(UNAXED_LABELS, f"{UNAXED_LABELS}: {label.name!r}",
+                             f"left out: it begins with the prefix of the "
+                             f"{axis.name!r} axis, so it belongs in that axis's "
+                             "labels")
+            else:
+                kept.append(label)
+        # An empty list is a real choice here: a repo may have no label
+        # outside its axes.
+        return tuple(self.first_of_each(kept, UNAXED_LABELS))
+
+    def labels(self, value: object, section: str, where: str) -> List[IssueLabel]:
+        if not isinstance(value, list):
+            self.problem(section, where, "must be a JSON list; its labels are "
+                         "left out")
+            return []
+        labels = []
+        for position, raw in enumerate(value):
+            at = f"{where}[{position}]"
+            raw = self.fields(raw, section, at, _LABEL_KEYS)
+            name = raw and self.text(raw, "name", section, at, name=True)
+            if not name:
+                self.problem(section, at, "left out, since it has no usable "
+                             "name")
+                continue
+            labels.append(IssueLabel(name, self.text(raw, "meaning", section,
+                                                     at)))
+        return labels
+
+    # -- names --------------------------------------------------------------
+
+    def duplicated(self, entries: list, section: str) -> bool:
+        """Report every name declared twice (names that differ only in case
+        count, since a tracker may match them case-insensitively, as GitHub
+        does for labels); True if there was any."""
+        seen: Dict[str, str] = {}
+        found = False
+        for entry in entries:
+            key = _folded(entry.name)
+            if key in seen:
+                found = True
+                self.problem(section, f"{section}: {entry.name!r}",
+                             "declared twice" if seen[key] == entry.name else
+                             f"differs from {seen[key]!r} only in case; names "
+                             "must differ by more than case")
+            else:
+                seen[key] = entry.name
+        return found
+
+    def first_of_each(self, entries: list, section: str) -> list:
+        """Keep the first entry of each name and drop the rest, reporting
+        them: where order and flags do not hang on which one is kept, the
+        first is as good a reading as any and the others stay usable."""
+        if not self.duplicated(entries, section):
+            return entries
+        seen, kept = set(), []
+        for entry in entries:
+            if _folded(entry.name) not in seen:
+                seen.add(_folded(entry.name))
+                kept.append(entry)
+        self.problem(section, section, "each name declared more than once "
+                     "keeps its first entry; the others are ignored")
+        return kept
 
 
-def _label_schema(value: object) -> IssueLabelSchema:
-    where = "issue_label_schema"
-    _require_object(value, where, _LABEL_SCHEMA_KEYS)
-    axes = []
-    for position, raw in enumerate(_require_list(value["axes"], f"{where}.axes")):
-        axes.append(_axis(raw, f"{where}.axes[{position}]"))
-    _refuse_duplicates(axes, f"{where}.axes")
-    # One prefix that begins another would put a label on both axes, so
-    # which axis a label is on would depend on the order they are listed in.
-    for first, axis in enumerate(axes):
-        for other in axes[first + 1:]:
-            if (_folded(axis.prefix).startswith(_folded(other.prefix))
-                    or _folded(other.prefix).startswith(_folded(axis.prefix))):
-                raise TrackerSchemaError(
-                    f"{where}.axes: the prefixes {axis.prefix!r} and "
-                    f"{other.prefix!r} overlap; no axis's prefix may begin "
-                    "another's, so every label belongs to at most one axis"
-                )
-    labels = _labels(value["labels"], f"{where}.labels")
-    for position, label in enumerate(labels):
-        for axis in axes:
-            if _folded(label.name).startswith(_folded(axis.prefix)):
-                raise TrackerSchemaError(
-                    f"{where}.labels[{position}]: {label.name!r} begins with "
-                    f"the prefix of the {axis.name!r} axis, so it belongs in "
-                    "that axis's labels; this list is for labels on no axis"
-                )
-    schema = IssueLabelSchema(tuple(axes), labels)
-    _refuse_duplicates(list(schema.all_labels()), f"{where} (all labels)")
-    return schema
+def _key_of(where: str) -> str:
+    """The last key of a key path."""
+    return where.rsplit(".", 1)[-1]
 
 
-def _axis(raw: object, where: str) -> LabelAxis:
-    _require_object(raw, where, _AXIS_KEYS)
-    prefix = _require_name(raw["prefix"], f"{where}.prefix")
-    required = raw["every_issue_carries_at_least_one"]
-    if not isinstance(required, bool):
-        raise TrackerSchemaError(
-            f"{where}.every_issue_carries_at_least_one must be true or false"
-        )
-    labels = _labels(raw["labels"], f"{where}.labels")
-    for position, label in enumerate(labels):
-        if not label.name.startswith(prefix) or label.name == prefix:
-            raise TrackerSchemaError(
-                f"{where}.labels[{position}]: every label on this axis is "
-                f"written in full, beginning with its prefix {prefix!r}"
-            )
-    return LabelAxis(_name(raw, where), prefix, _meaning(raw, where), required,
-                     labels)
-
-
-def _labels(value: object, where: str) -> Tuple[IssueLabel, ...]:
-    labels = []
-    for position, raw in enumerate(_require_list(value, where)):
-        at = f"{where}[{position}]"
-        _require_object(raw, at, _LABEL_KEYS)
-        labels.append(IssueLabel(_name(raw, at), _meaning(raw, at)))
-    return tuple(labels)
-
-
-def _states(value: object) -> Tuple[IssueState, ...]:
-    entries = _require_list(value, "issue_states", nonempty=True)
-    states = []
-    for position, raw in enumerate(entries):
-        where = f"issue_states[{position}]"
-        _require_object(raw, where, _STATE_KEYS)
-        if not isinstance(raw["open"], bool):
-            raise TrackerSchemaError(f"{where}.open must be true or false")
-        states.append(IssueState(_name(raw, where), raw["open"]))
-    _refuse_duplicates(states, "issue_states")
-    if not any(state.open for state in states):
-        raise TrackerSchemaError("issue_states: no state is open")
-    if all(state.open for state in states):
-        raise TrackerSchemaError("issue_states: no state is closed")
-    return tuple(states)
-
-
-def _require_object(value: object, where: str, keys: Tuple[str, ...]) -> None:
-    if not isinstance(value, dict):
-        raise TrackerSchemaError(
-            f"{where} must be a JSON object with the keys {', '.join(keys)}"
-        )
-    missing = [key for key in keys if key not in value]
-    if missing:
-        raise TrackerSchemaError(
-            f"{where} is missing {', '.join(missing)}; it takes exactly "
-            f"{', '.join(keys)}"
-        )
-    unknown = sorted(set(value) - set(keys))
-    if unknown:
-        _on_unknown_keys(where, unknown, keys)
-
-
-def _on_unknown_keys(where: str, unknown: list, keys: Tuple[str, ...]) -> None:
-    """The whole policy for a key the file does not document, at any level:
-    today it is refused. Nothing reads an undocumented key, so returning
-    here instead (with a warning to the caller, say) would ignore it."""
-    raise TrackerSchemaError(
-        f"{where} has unknown key(s) {', '.join(unknown)}; it takes exactly "
-        f"{', '.join(keys)}"
-    )
-
-
-def _require_list(value: object, where: str, nonempty: bool = False) -> list:
-    if not isinstance(value, list):
-        raise TrackerSchemaError(f"{where} must be a JSON list")
-    if nonempty and not value:
-        raise TrackerSchemaError(f"{where} must list at least one entry")
-    return value
-
-
-def _require_text(value: object, where: str, wanted: str) -> None:
-    if not isinstance(value, str) or not value or value != value.strip():
-        raise TrackerSchemaError(
-            f"{where} must be {wanted}, with no surrounding whitespace"
-        )
-
-
-def _name(raw: dict, where: str) -> str:
-    return _require_name(raw["name"], f"{where}.name")
-
-
-def _require_name(value: object, where: str) -> str:
-    """A name or prefix: text with no control or invisible formatting
-    characters, since it is matched against what a tracker holds."""
-    _require_text(value, where, "a non-empty string")
-    if not value.isprintable():
-        raise TrackerSchemaError(
-            f"{where} must hold no control or invisible formatting characters "
-            "(a newline or a zero-width space, say)"
-        )
-    return value
-
-
-def _meaning(raw: dict, where: str) -> str:
-    _require_text(raw["meaning"], f"{where}.meaning", "a non-empty string")
-    return raw["meaning"]
-
-
-def _refuse_duplicates(entries: list, where: str) -> None:
-    """Refuse two entries whose names differ at most in case: a tracker may
-    match names case-insensitively, as GitHub does for labels, and then two
-    such entries would be one."""
-    seen = {}
-    for entry in entries:
-        key = _folded(entry.name)
-        if key in seen:
-            if seen[key] == entry.name:
-                raise TrackerSchemaError(
-                    f"{where}: {entry.name!r} is declared twice"
-                )
-            raise TrackerSchemaError(
-                f"{where}: {seen[key]!r} and {entry.name!r} differ only in "
-                "case; names must differ by more than case"
-            )
-        seen[key] = entry.name
+def _at(where: str, key: str) -> str:
+    """The key path of `key` inside the object at `where` ("" for the top)."""
+    return f"{where}.{key}" if where else key
 
 
 def _folded(name: str) -> str:
