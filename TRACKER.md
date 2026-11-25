@@ -161,14 +161,18 @@ with END, and both name `tracker-schema`, written exactly as they are above.
 The file has exactly one of each. Between them is exactly one fenced code
 block, opened by a line that is exactly `` ```json `` and closed by a line
 that is exactly `` ``` ``, with nothing else there but blank lines, and the
-lines inside that fence are one JSON object. A reader finds the two marker lines
-by matching each as a whole line, takes the lines strictly inside the fence
-between them, and parses those as JSON. A marker or fence line still
+lines inside that fence are one JSON object. A reader finds the two marker
+lines by matching each as a whole line, takes the lines strictly inside the
+fence between them, and parses those as JSON. A marker or fence line still
 matches when it has trailing whitespace or a CRLF line ending, since
-neither can make prose look like a marker; an indented one makes the file
-malformed, since indentation changes what a line means in Markdown.
-Anything else is a malformed file, to be reported and never guessed at.
-Keep any other code block you add to this file outside the markers.
+neither can make prose look like a marker; an indented line is not a
+marker, since indentation changes what a line means in Markdown. A file
+that strays from this form but whose block is still plain to see (an
+indented copy of a marker, a fence spelled another way, a stray line
+beside the fence) is read anyway, with a warning. One where it is unclear
+which block is meant (a marker missing or repeated, no fence or two, a
+fence never closed) is reported and never guessed at. Keep any other code
+block you add to this file outside the markers.
 
 ### What each key holds
 
@@ -222,8 +226,8 @@ Keep any other code block you add to this file outside the markers.
 
 Tools use whatever in the block is valid and warn about the rest: a key
 they do not know is ignored, and a mistake in one part leaves the other
-parts in use. Only a block that cannot be found or does not parse leaves
-them nothing to use.
+parts in use. Only a file in which it is unclear which block is meant, or
+whose block does not parse as a JSON object, leaves them nothing to use.
 
 ## Issue State Diagram
 
