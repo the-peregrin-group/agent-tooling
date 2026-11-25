@@ -96,3 +96,7 @@ How and why it works: [design.md](design.md).
   ghw constants. `ghw-label-sync` will not redeclare them, and
   `ghw-board-sync` provisions the four levels as the board's `Priority`
   options (`agent-tooling-xgzm`).
+- `ghw-issue-create` and `ghw-issue-edit add-label` match label names
+  exactly, so a live `Human` refuses `human`, and the schema file's
+  redeclaration and duplicate checks ignore case-only twins, though GitHub
+  and `ghw-label-sync` treat them as one label (`agent-tooling-uln8`).

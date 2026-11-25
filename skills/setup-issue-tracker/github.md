@@ -77,10 +77,11 @@ Then, either way:
 ## Labels
 
 `ghw-label-sync` manages labels declaratively. The five kind labels
-(`feature`, `improvement`, `bug`, `debt`, `meta`) and the four priority
-labels are the Wrapper's own constants, never redeclared: it refuses a
-schema file that redeclares one, and a board's `Priority` options are the
-same `P0` to `P3`. So on GitHub the kinds are those five and the priority
+(`feature`, `improvement`, `bug`, `debt`, `meta`), the `human` label, and
+the four priority labels are the Wrapper's own constants, never declared
+in the schema file: it refuses a kind or priority label there and ignores
+a `scope` entry named `human` with a note. A board's `Priority` options
+are the same `P0` to `P3`. So on GitHub the kinds are those five and the priority
 levels those four until the Wrapper changes. Do not swap in GitHub's issue
 types; a Tracker Schema that proposes other kinds or levels cannot be
 applied here yet, so say so in the plan.
@@ -125,10 +126,6 @@ normally wants `apply-delete`. A re-run converges to no change. To change
 labels later, rebuild the whole file from `ghw-orient`'s live `labels`
 plus the change: a partial file makes every omitted label a deletion
 candidate.
-
-The `human` label the default Tracker Schema declares ships with the kind
-labels, so the file does not declare it. An older file that lists it under
-`scope` still syncs: the Wrapper ignores that entry and says so.
 
 ## Filing the backlog
 

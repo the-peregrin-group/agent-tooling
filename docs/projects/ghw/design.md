@@ -133,9 +133,9 @@ resolution) before the write itself.
   `debt`, `meta`) and at least one `area:` label; otherwise accepts any label
   in the repo's live registry that is not a second type label (which admits
   `human` and the unprefixed scope labels setup defines for multi-site
-  repos). The
-  registry is the attachment authority, and `ghw-label-sync` is the only way
-  labels get created. `TRIAGE.md` plays no part in label validation.
+  repos). The registry is the attachment authority, and `ghw-label-sync` is
+  the only way labels get created. `TRIAGE.md` plays no part in label
+  validation.
 - `ghw-issue-comment <repo> <issue#> <body-file>`.
 - `ghw-issue-edit <repo> <add-label|remove-label|retitle|set-body> <issue#>
   <value>`: the subverb at position 2 lets a grant include label edits while
@@ -209,8 +209,9 @@ resolution) before the write itself.
   decides whether to grant deletion. Case-only mismatches are reported;
   creates run before deletes; a partial failure lists the writes that landed.
   A file redeclaring a type or priority label is refused, but a `scope`
-  entry named `human` is dropped with a note on stderr: setup once taught
-  that workaround, and refusing it would strand those repos' syncs.
+  entry named `human` is dropped with a note on stderr: `scope` is the one
+  family that takes an unprefixed name, so a file built from the live labels
+  tends to list it there, and a refusal would stop that repo's sync.
 - `ghw-board-sync <repo> <project#|new>`: one canonical board schema:
   `Priority` (P0 to P3), `Status` (the eight canonical triage states),
   `Size`, `Last Triaged`. Given a project number, it creates missing fields
