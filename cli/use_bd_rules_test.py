@@ -36,7 +36,7 @@ SKILLS_DIR = SKILL_DIR.parent
 SKILL_FILES = (
     "use-bd/SKILL.md",
     "use-bd/quirks.md",
-    "use-bd/onboarding.md",
+    "setup-issue-tracker/beads.md",
     "create-issue/SKILL.md",
     "work-issue/SKILL.md",
 )
