@@ -115,6 +115,24 @@ class GhwIssueEditBehaviorTest(unittest.TestCase):
         edit.assert_not_called()
         self.assertIn("label registry", stderr.getvalue())
 
+    def test_the_human_label_adds_and_removes_as_an_ordinary_label(self):
+        # Alongside a type label it is not a second type label, and removing
+        # it leaves the type label alone.
+        registry = [{"name": "bug"}, {"name": "area:cli"}, {"name": "human"}]
+        for subverb, attached, add, remove in (
+                ("add-label", ["bug", "area:cli"], ["human"], []),
+                ("remove-label", ["bug", "area:cli", "human"], [], ["human"])):
+            with self.subTest(subverb=subverb), \
+                    mock.patch.object(_MODULE.boards, "fetch_labels",
+                                      return_value=registry), \
+                    mock.patch.object(_MODULE.gh, "issue_view", return_value={
+                        "labels": [{"name": name} for name in attached]}), \
+                    mock.patch.object(_MODULE.gh, "issue_edit_labels") as edit, \
+                    contextlib.redirect_stdout(io.StringIO()) as stdout:
+                self.assertEqual(_MODULE.main(["o/r", subverb, "5", "human"]), 0)
+                edit.assert_called_once_with("o/r", 5, add=add, remove=remove)
+                self.assertTrue(json.loads(stdout.getvalue())["changed"])
+
     def test_removing_an_absent_label_is_a_no_op(self):
         with mock.patch.object(_MODULE.gh, "issue_view",
                                return_value={"labels": [{"name": "bug"}]}), \

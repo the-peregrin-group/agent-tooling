@@ -137,6 +137,25 @@ class GhwIssueCreateLabelTailTest(unittest.TestCase):
         self.assertIn("takes no flags", stderr)
         fetch.assert_not_called()
 
+    def test_the_human_label_rides_the_tail_as_an_ordinary_label(self):
+        # 'human' is a shipped label but neither a type nor an area label: it
+        # counts as neither a second type label nor the required area label.
+        registry = [{"name": "bug"}, {"name": "area:cli"}, {"name": "human"}]
+        with mock.patch.object(_MODULE.boards, "fetch_labels",
+                               return_value=registry), \
+                mock.patch.object(_MODULE.gh, "issue_create",
+                                  return_value="https://github.com/o/r/issues/7"
+                                  ) as create, \
+                contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(_MODULE.main(
+                ["o/r", "bug", "Title", self.body, "area:cli", "human"]), 0)
+        self.assertEqual(create.call_args[0][3], ["bug", "area:cli", "human"])
+
+    def test_the_human_label_does_not_stand_in_for_an_area_label(self):
+        code, _, stderr = self._main_expecting_exit("human")
+        self.assertEqual(code, 4)
+        self.assertIn("'area:' label is required", stderr)
+
 
 class GhwIssueCreateWriteFailureTest(unittest.TestCase):
     def test_failure_exit_codes_route_through_write_exit_code(self):

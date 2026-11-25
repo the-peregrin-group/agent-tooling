@@ -42,6 +42,15 @@ PRIORITY_LABELS: dict[str, dict[str, str]] = {
     "P3": {"color": "0e8a16", "description": "Nice-to-have; opportunistic"},
 }
 
+# The one fixed label that is not a kind: it marks an issue waiting on a
+# person, and is the one queue for what needs a human on every platform. Like
+# the type labels it is always synced and never declared in a schema file.
+HUMAN_LABEL = "human"
+HUMAN_LABEL_COLOR = "d876e3"
+HUMAN_LABEL_DESCRIPTION = (
+    "Waiting on a person: a decision, an answer, or an action only they can take"
+)
+
 AREA_LABEL_PREFIX = "area:"
 AREA_LABEL_COLOR = "bfdadc"
 

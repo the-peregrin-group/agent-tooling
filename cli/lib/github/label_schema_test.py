@@ -15,7 +15,14 @@ if __package__ in (None, ""):  # direct invocation: python3 lib/label_schema_tes
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from lib.github import label_schema
-from lib.schema import AREA_LABEL_COLOR, SCOPE_LABEL_COLOR, TYPE_LABELS
+from lib.schema import (
+    AREA_LABEL_COLOR,
+    HUMAN_LABEL,
+    HUMAN_LABEL_COLOR,
+    HUMAN_LABEL_DESCRIPTION,
+    SCOPE_LABEL_COLOR,
+    TYPE_LABELS,
+)
 
 _MINIMAL = {"area": [{"name": "core", "description": "Core engine"}]}
 
@@ -130,12 +137,55 @@ class ParseSchemaTest(unittest.TestCase):
                         "scope": [{"name": "area:core", "description": "C"}]},
                  "prefix")
 
+    def test_a_file_without_human_has_nothing_redundant(self):
+        self.assertEqual(_parse(_MINIMAL)["redundant"], [])
+
+    def test_human_declared_under_scope_is_dropped_and_reported(self):
+        # The old setup workaround: such a file must keep syncing, so the
+        # entry is tolerated, not refused like a type label.
+        schema = _parse({**_MINIMAL, "scope": [
+            {"name": "human", "description": "Waiting on a person"},
+            {"name": "site-a", "description": "Site A"},
+        ]})
+        self.assertEqual(schema["redundant"], ["human"])
+        self.assertEqual([entry["name"] for entry in schema["scope"]], ["site-a"])
+
+    def test_human_under_scope_matches_without_regard_to_case(self):
+        # GitHub's label namespace is case-insensitive, so 'Human' is the
+        # same label as the shipped 'human'.
+        schema = _parse({**_MINIMAL, "scope": [
+            {"name": "Human", "description": "Waiting on a person"}]})
+        self.assertEqual(schema["redundant"], ["Human"])
+        self.assertEqual(schema["scope"], [])
+
+    def test_an_area_named_human_is_an_ordinary_area_label(self):
+        schema = _parse({"area": [{"name": "human", "description": "People"}]})
+        self.assertEqual(schema["redundant"], [])
+        self.assertIn("area:human", label_schema.desired_labels(schema))
+
 
 class DesiredLabelsTest(unittest.TestCase):
     def test_type_labels_are_always_present_from_the_shared_constants(self):
         desired = label_schema.desired_labels(_parse(_MINIMAL))
         for name, attributes in TYPE_LABELS.items():
             self.assertEqual(desired[name]["color"], attributes["color"])
+
+    def test_the_human_label_is_always_present_from_the_shared_constants(self):
+        desired = label_schema.desired_labels(_parse(_MINIMAL))
+        self.assertEqual(desired[HUMAN_LABEL], {
+            "color": HUMAN_LABEL_COLOR, "description": HUMAN_LABEL_DESCRIPTION,
+        })
+
+    def test_the_shipped_human_label_wins_over_a_scope_declaration(self):
+        desired = label_schema.desired_labels(_parse({**_MINIMAL, "scope": [
+            {"name": "human", "description": "Mine", "color": "000000"}]}))
+        self.assertEqual(desired[HUMAN_LABEL]["color"], HUMAN_LABEL_COLOR)
+        self.assertEqual(desired[HUMAN_LABEL]["description"],
+                         HUMAN_LABEL_DESCRIPTION)
+
+    def test_the_human_label_fits_githubs_description_limit(self):
+        # GitHub refuses a label description over 100 characters.
+        self.assertLessEqual(len(HUMAN_LABEL_DESCRIPTION), 100)
 
     def test_area_names_are_prefixed_and_scope_names_are_not(self):
         desired = label_schema.desired_labels(_parse(
