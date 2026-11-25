@@ -126,10 +126,9 @@ labels later, rebuild the whole file from `ghw-orient`'s live `labels`
 plus the change: a partial file makes every omitted label a deletion
 candidate.
 
-The schema file has no family of its own for the `human` label the
-default Tracker Schema declares. Declare it in `scope`, the one family that
-takes an unprefixed name; a label the file does not declare is deleted by
-the next `apply-delete`.
+The `human` label the default Tracker Schema declares ships with the kind
+labels, so the file does not declare it. An older file that lists it under
+`scope` still syncs: the Wrapper ignores that entry and says so.
 
 ## Filing the backlog
 

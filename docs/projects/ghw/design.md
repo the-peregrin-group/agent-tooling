@@ -132,7 +132,8 @@ resolution) before the write itself.
   requires exactly one canonical type label (`feature`, `improvement`, `bug`,
   `debt`, `meta`) and at least one `area:` label; otherwise accepts any label
   in the repo's live registry that is not a second type label (which admits
-  the unprefixed scope labels setup defines for multi-site repos). The
+  `human` and the unprefixed scope labels setup defines for multi-site
+  repos). The
   registry is the attachment authority, and `ghw-label-sync` is the only way
   labels get created. `TRIAGE.md` plays no part in label validation.
 - `ghw-issue-comment <repo> <issue#> <body-file>`.
@@ -190,8 +191,9 @@ resolution) before the write itself.
 ### Schema sync (bootstrap-grade, declarative)
 
 - `ghw-label-sync <repo> <plan|apply|apply-delete> <schema-file>`: the five
-  canonical type labels and colors come from the shared constants; the JSON
-  schema file supplies only the repo's families:
+  canonical type labels and the `human` label, with their colors, come from
+  the shared constants; the JSON schema file supplies only the repo's
+  families:
   `{"priority_labels": <bool>, "area": [{name, description, color?}…],
   "scope": […]}`. `area` names are written bare and the Verb adds the
   prefix; `priority_labels: true` adds P0 to P3 to the desired set, so on a
@@ -206,6 +208,9 @@ resolution) before the write itself.
   stderr (and in the JSON plan), because `plan` is exactly where a human
   decides whether to grant deletion. Case-only mismatches are reported;
   creates run before deletes; a partial failure lists the writes that landed.
+  A file redeclaring a type or priority label is refused, but a `scope`
+  entry named `human` is dropped with a note on stderr: setup once taught
+  that workaround, and refusing it would strand those repos' syncs.
 - `ghw-board-sync <repo> <project#|new>`: one canonical board schema:
   `Priority` (P0 to P3), `Status` (the eight canonical triage states),
   `Size`, `Last Triaged`. Given a project number, it creates missing fields
@@ -308,10 +313,10 @@ writes to this repo, and the flag only narrows which board is touched.
 ## Shared library
 
 - `cli/lib/` (forge-neutral, shared with the other Wrappers): `schema.py` is
-  the single home for the type labels and colors, P0 to P3, area and scope
-  colors, canonical field names, the eight Status states with their exact
-  casing (title case like `Needs Triage` beside sentence case like
-  `In progress`), the terminal-state set, and Size XS to XL. Also
+  the single home for the type labels and colors, the `human` label, P0 to
+  P3, area and scope colors, canonical field names, the eight Status states
+  with their exact casing (title case like `Needs Triage` beside sentence
+  case like `In progress`), the terminal-state set, and Size XS to XL. Also
   `staging.py` (invariant 9), `plan.py` (JSON plan and exit codes),
   `arguments.py` (repo charset check, issue-number parsing), and
   `paths.py` (each tool's subdirectory of the Machine Config Directory and

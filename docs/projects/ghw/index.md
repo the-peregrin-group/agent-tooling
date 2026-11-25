@@ -79,10 +79,9 @@ How and why it works: [design.md](design.md).
   `triage-apply-sync` writes Done or Rejected to a closed issue and sends a
   reopened one to Needs Scope whatever the diagram says
   (`agent-tooling-u9n.12`).
-- No `triage-*` script comments on an issue or adds the `human` label, and
-  the labels `ghw-label-sync` provisions do not include `human`, so an
-  unattended pass lists its findings in the ledger instead of putting each
-  on the affected issue (`agent-tooling-u9n.13`).
+- No `triage-*` script comments on an issue or adds the `human` label, so
+  an unattended pass lists its findings in the ledger instead of putting
+  each on the affected issue (`agent-tooling-u9n.13`).
 - No `triage-*` script returns an issue's body or comments, or the
   ledger's current body, so an unattended pass cannot judge a bar that
   depends on what an issue says, read an earlier finding or a person's

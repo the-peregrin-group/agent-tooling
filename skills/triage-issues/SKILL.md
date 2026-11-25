@@ -249,13 +249,12 @@ What today's scripts assume, which the text above does not:
   not planned. For an open issue whose `Status` is Done or Rejected it
   writes Needs Scope, whatever the diagram would say; if the diagram puts
   the issue elsewhere, that is a further move for the pass or a person.
-- No script comments on an affected issue or adds the `human` label, and
-  the labels `ghw-label-sync` provisions do not include `human`. Until the
-  scripts can, a pass that can do neither, as an unattended pass granted only
-  the six scripts cannot, puts each finding in the digest's body with a
-  link to its issue and says there that the queue could not be written.
-  This is a stopgap, and the one exception to "the digest is not the
-  queue".
+- No script comments on an affected issue or adds the `human` label. Until
+  the scripts can, a pass that can do neither, as an unattended pass
+  granted only the six scripts cannot, puts each finding in the digest's
+  body with a link to its issue and says there that the queue could not be
+  written. This is a stopgap, and the one exception to "the digest is not
+  the queue".
 - No script returns an issue's body or comments, or the digest's current
   body. A pass that has only the scripts can check classification,
   open-or-closed against `Status`, staleness, and pull request evidence.
