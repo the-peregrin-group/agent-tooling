@@ -32,6 +32,7 @@ is tracked in `agent-tooling-84n3` (bdw), `agent-tooling-fyxo` (ghw),
 |---|---|---|
 | The default Tracker Schema, with its Issue State Diagram | shipped | `skills/setup-issue-tracker/TRACKER.default.md`; [design](design.md) |
 | This repo's own Tracker Schema, copied from the default and customized | shipped | `TRACKER.md` |
+| A reader for the Tracker Schema's JSON block that keeps what is valid, warns about the rest, and tells a complete section from one that lost entries, and a test that the default and this repo's copy read with no problem | shipped | `cli/lib/tracker_schema.py`; [design](design.md#the-reader) |
 | `know-issues`, the Knowledge Skill for the issue fundamentals | shipped | `skills/know-issues/SKILL.md`; documented under [know](../know/index.md) |
 | `create-issue`, generic, against today's Verbs | shipped | `skills/create-issue/SKILL.md` |
 | `work-issue`, generic, against today's Verbs | shipped | `skills/work-issue/SKILL.md` |
@@ -47,17 +48,27 @@ is tracked in `agent-tooling-84n3` (bdw), `agent-tooling-fyxo` (ghw),
 
 ### Known gaps
 
-- Nothing reads the default Tracker Schema's JSON block yet, and no test
-  checks that the shipped default is well formed (`agent-tooling-rtag`).
+- No Wrapper reads a repo's `TRACKER.md` yet, so none follows its schema
+  or warns about its defects as [the design](design.md#how-a-wrapper-uses-the-schema)
+  says; the lines below are the parts (`agent-tooling-u9n`).
+- The JSON block lacks the entry state, the state order, and the close
+  reasons the Verbs need (`agent-tooling-u9n.20`).
+- ghw's labels follow fixed kind and priority labels and a local label
+  schema file, not the repo's Tracker Schema (`agent-tooling-xgzm`).
+- ghw's board Status and Priority options are fixed constants, not the
+  repo's Issue States and Issue Priorities (`agent-tooling-u9n.21`).
+- ghw filing sets no priority or entry state, and ghw closing carries no
+  close reason (`agent-tooling-u9n.22`).
+- Nothing checks that a repo's Beads holds the kinds, priorities, and
+  labels its Tracker Schema declares (`agent-tooling-u9n.23`).
+- fjw's issue-Verbs design plans labels that ignore the Tracker Schema
+  (`agent-tooling-u9n.25`).
 - `setup-issue-tracker` cannot register a repo's Forge identities: ghw has
   none yet and acts as whoever `gh` is authenticated as, and fjw has only
   its one machine account (`agent-tooling-fyxo`, `agent-tooling-1vr`).
 - On Beads, no shipped tool expands the canonical Permission rules into a
   repo's settings, so the setup steps point at a test-support function to
   copy (`agent-tooling-j6x`).
-- On GitHub, a repo's Issue Kinds and Issue Priorities cannot follow its
-  Tracker Schema, since ghw fixes the five kind labels and the four
-  priority levels (`agent-tooling-xgzm`).
 - This repo's `TRACKER.md` declares no `meta` kind, because it is not a
   registered Beads type, and some imported Issues still carry GitHub type
   labels the schema does not declare (`agent-tooling-aio.7`).

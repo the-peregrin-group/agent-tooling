@@ -131,13 +131,22 @@ an action on its own, only with a human's approval, or never).
 
 The block sits between two marker lines, each an HTML comment alone on its
 line: the one above the block begins with BEGIN and the one below it begins
-with END, and both name `tracker-schema`. The file has exactly one of each.
-Between them is exactly one fenced code block, tagged `json`, and the lines
-inside that fence are one JSON object. A reader finds the two marker lines
-by matching each as a whole line, takes the lines strictly inside the fence
-between them, and parses those as JSON. Anything else is a malformed file,
-to be reported and never guessed at. Keep any other code block you add to
-this file outside the markers.
+with END, and both name `tracker-schema`, written exactly as they are above.
+The file has exactly one of each. Between them is exactly one fenced code
+block, opened by a line that is exactly `` ```json `` and closed by a line
+that is exactly `` ``` ``, with nothing else there but blank lines, and the
+lines inside that fence are one JSON object. A reader finds the two marker
+lines by matching each as a whole line, takes the lines strictly inside the
+fence between them, and parses those as JSON. A marker or fence line still
+matches when it has trailing whitespace or a CRLF line ending, since
+neither can make prose look like a marker; an indented line is not a
+marker, since indentation changes what a line means in Markdown. A file
+that strays from this form but whose block is still plain to see (an
+indented copy of a marker, a fence spelled another way, a stray line
+beside the fence) is read anyway, with a warning. One where it is unclear
+which block is meant (a marker missing or repeated, no fence or two, a
+fence never closed) is reported and never guessed at. Keep any other code
+block you add to this file outside the markers.
 
 ### What each key holds
 
@@ -181,6 +190,11 @@ this file outside the markers.
   whether an Issue is open or closed follows from its Issue State. The
   order of this list carries no meaning; the Issue State Diagram below
   gives the order.
+
+Tools use whatever in the block is valid and warn about the rest: a key
+they do not know is ignored, and a mistake in one part leaves the other
+parts in use. Only a file in which it is unclear which block is meant, or
+whose block does not parse as a JSON object, leaves them nothing to use.
 
 ## Issue State Diagram
 
