@@ -40,14 +40,18 @@ The block uses the same marker convention as `TRIAGE.md`'s config block:
 two HTML comment marker lines naming `tracker-schema`, with one fenced
 `json` block between them. The matching rule is stricter than that
 precedent's: a reader matches each marker as a whole line, so prose that
-mentions a marker cannot be mistaken for one, and the fence must be tagged
-`json`. Trailing whitespace and a CRLF line ending do not stop a line from
+mentions a marker cannot be mistaken for one, and the fence lines are
+exactly `` ```json `` and `` ``` ``, one of the several spellings of a
+`json` fence that Markdown allows, so there is one form to write and check.
+Trailing whitespace and a CRLF line ending do not stop a line from
 matching, since neither can turn prose into a marker and both are easy to
 introduce unseen; indentation does, and makes the file malformed, since an
 indented line can be a code block or part of a list item in Markdown.
 Rejected: matching only an exact line (it refuses a file over an
 invisible trailing space that changes nothing), and stripping both ends
-(it would accept a marker inside an indented example). The file itself
+(it would accept a marker inside an indented example), and accepting every
+Markdown spelling of a `json` fence (`~~~`, longer fences, text after the
+tag), which adds forms to support and gains nothing. The file itself
 states the rule and what each key holds, since it is the only context a
 repo's agents have.
 
@@ -65,15 +69,22 @@ state the caller must change. It does not reuse the triage scripts'
 untagged fence. Rejected: a lenient reader that skips unknown keys (a
 misspelt key would read as absent, silently).
 
+Beyond the shape the file documents, the reader refuses what would make a
+tracker's reading ambiguous: two names that differ only in case (GitHub
+matches label names case-insensitively, and kinds, priorities, and states
+can become labels or board options), axis prefixes where one begins
+another (a label would then sit on two axes), and names holding control
+or invisible characters.
+
 The reader takes the file's text, or a path, and decides neither where a
 Wrapper finds a repo's Tracker Schema nor what happens when a repo has
 none; those are open (`agent-tooling-u9n.19`, how a Wrapper finds a repo's
 Tracker Schema). It reads none of the prose. Whether a file's prose and
 block agree (every state in the block has a meaning section and an "Out
-of" section, and the prose names no other state) is checked by a test over
-the shipped default and this repo's copy, not by the reader, because the
-prose's headings are written for people and agents and a repo may arrange
-its own copy's prose differently.
+of" section, and no meaning or "Out of" section names a state the block
+lacks) is checked by a test over the shipped default and this repo's copy,
+not by the reader, because the prose's headings are written for people and
+agents and a repo may arrange its own copy's prose differently.
 
 ### Path
 

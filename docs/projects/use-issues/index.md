@@ -48,14 +48,17 @@ is tracked in `agent-tooling-84n3` (bdw), `agent-tooling-fyxo` (ghw),
 
 ### Known gaps
 
-- No Wrapper follows a repo's Tracker Schema yet: the reader exists, but no
-  Verb calls it. How a Verb finds a repo's schema, and what it does when
-  the repo has none, is undecided (`agent-tooling-u9n.19`), and the block
-  lacks the entry state, the state order, and the close reasons the Verbs
-  need (`agent-tooling-u9n.20`). ghw's board options, filing, and closing
-  work to fixed values of their own (`agent-tooling-u9n.21`,
-  `agent-tooling-u9n.22`, and the labels gap below), and nothing checks a
-  repo's Beads against its schema (`agent-tooling-u9n.23`).
+- No Wrapper Verb calls the Tracker Schema reader yet, and how a Verb
+  finds a repo's schema, or what it does when there is none, is undecided
+  (`agent-tooling-u9n.19`).
+- The JSON block lacks the entry state, the state order, and the close
+  reasons the Verbs need (`agent-tooling-u9n.20`).
+- ghw's board Status and Priority options are fixed constants, not the
+  repo's Issue States and Issue Priorities (`agent-tooling-u9n.21`).
+- ghw filing sets no priority or entry state, and ghw closing carries no
+  close reason (`agent-tooling-u9n.22`).
+- Nothing checks that a repo's Beads holds the kinds, priorities, and
+  labels its Tracker Schema declares (`agent-tooling-u9n.23`).
 - `setup-issue-tracker` cannot register a repo's Forge identities: ghw has
   none yet and acts as whoever `gh` is authenticated as, and fjw has only
   its one machine account (`agent-tooling-fyxo`, `agent-tooling-1vr`).
