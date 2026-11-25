@@ -91,11 +91,14 @@ How and why it works: [design.md](design.md).
 - `triage-timeline` reads only the first 100 timeline events of an issue, so
   without `--since` a busy issue reports activity that is not its latest
   (`agent-tooling-oj8w`).
-- A repo's Issue Kinds and Issue Priorities cannot follow its Tracker
-  Schema on GitHub: the five kind labels and the four priority levels are
-  ghw constants. `ghw-label-sync` will not redeclare them, and
-  `ghw-board-sync` provisions the four levels as the board's `Priority`
-  options (`agent-tooling-xgzm`).
+- A repo's labels cannot follow its Tracker Schema on GitHub: the five
+  kind labels and the four priority levels are ghw constants, and
+  `ghw-label-sync` takes a local label schema file rather than reading the
+  repo's `TRACKER.md` from its default branch, as the
+  [use-issues design](../use-issues/design.md#how-a-wrapper-uses-the-schema)
+  says it should (`agent-tooling-xgzm`). `ghw-board-sync` likewise
+  provisions fixed `Status` and `Priority` options
+  (`agent-tooling-u9n.21`).
 - `ghw-issue-create` and `ghw-issue-edit add-label` match label names
   exactly, so a live `Human` refuses `human`, and the schema file's
   redeclaration and duplicate checks ignore case-only twins, though GitHub

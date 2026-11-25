@@ -58,33 +58,105 @@ repo's agents have.
 ### The reader
 
 `cli/lib/tracker_schema.py` is the one reader of the block, for every
-Wrapper that will follow a repo's Tracker Schema. It implements the rule
-the file states, checks the block against what the file says each key
-holds, and returns read-only, typed values; anything else is refused with
-an error that names the line or key at fault, never guessed at. A Wrapper
-maps that refusal to exit 2 under the
-[Exit-code contract](../../index.md#exit-code-contract), since the file is
-state the caller must change. It does not reuse the triage scripts'
-`lib_profile.py`, which matches its markers by substring and accepts an
-untagged fence. Rejected: a lenient reader that skips unknown keys (a
-misspelt key would read as absent, silently).
+Wrapper that follows a repo's Tracker Schema. It degrades gracefully: a
+defect in a repo's file never stops what the file's valid data can still
+support, and it is always reported. The maintainer ruled this on
+2026-11-25, and it shapes everything below.
 
-Beyond the shape the file documents, the reader refuses what would make a
-tracker's reading ambiguous: two names that differ only in case (GitHub
-matches label names case-insensitively, and kinds, priorities, and states
-can become labels or board options), axis prefixes where one begins
-another (a label would then sit on two axes), and names holding control
-or invisible characters.
+- **One whole-file failure.** The file fails as a whole only when no block
+  can be found by the delimiting rule or its JSON does not parse. The rule
+  stays exact, because an ambiguous block holds nothing worth salvaging.
+- **Section by section.** Otherwise the reader always returns a result.
+  It reads each section on its own: provenance, kinds, priorities, label
+  axes, unaxed labels, and states. A caller that asks for an unusable
+  section gets an error for that section alone. A caller that never asks
+  is unaffected.
+- **Keep what is sound.** Within a section, a bad entry is left out and the
+  rest kept. A bad field on an entry whose name is sound reads as absent.
+  A key the reader does not know is ignored, and a key it needs but cannot
+  find leaves that field or section absent. So a repo's copy written for a
+  newer reader, and one written for an older reader, both keep everything
+  else working. The reader is updated whenever the block's shape changes.
+- **Unusable as a whole only where a part would mislead.** A whole section
+  becomes unusable only where a partial reading would mislead:
+  - provenance with any bad field, since its fields are used together as
+    one diff target;
+  - priorities with a name listed twice, since that name would have no one
+    rank;
+  - axes that share a name, or whose prefixes overlap, since which axis a
+    label sits on would depend on list order;
+  - states listed twice with opposite open flags;
+  - any section that is not a list, or that lists nothing usable.
+- **Ambiguous names are flaws.** Beyond the documented shape, the reader
+  treats as a flaw anything that would make a tracker's reading ambiguous:
+  - two names that differ only in case, since GitHub matches label names
+    case-insensitively, and kinds, priorities, and states can become
+    labels or board options;
+  - axis prefixes where one begins another;
+  - names holding control or invisible characters.
+- **Every flaw is reported.** Each flaw is a problem on the result.
+  `warning_lines` turns the problems, or a whole-file failure, into one
+  stderr warning each, naming the file, the section, and what is wrong, so
+  every Wrapper warns in the same words.
+- **No exit codes.** The library makes no exit-code decisions; the rule
+  below is the callers'.
 
-The reader takes the file's text, or a path, and decides neither where a
-Wrapper finds a repo's Tracker Schema nor what happens when a repo has
-none; those are open (`agent-tooling-u9n.19`, how a Wrapper finds a repo's
-Tracker Schema). It reads none of the prose. Whether a file's prose and
-block agree (every state in the block has a meaning section and an "Out
-of" section, and no meaning or "Out of" section names a state the block
-lacks) is checked by a test over the shipped default and this repo's copy,
-not by the reader, because the prose's headings are written for people and
-agents and a repo may arrange its own copy's prose differently.
+It does not reuse the triage scripts' `lib_profile.py`, which matches its
+markers by substring and accepts an untagged fence. Rejected:
+- refusing the whole file on any unknown, missing, or malformed key. Any
+  drift between a repo's copy and the installed Wrappers would then stop
+  every Verb in that repo, including Verbs that need nothing from the
+  schema, and an agent would be sent to fix a file that was correct.
+
+The reader reads none of the prose. Whether a file's prose and block agree
+(every state in the block has a meaning section and an "Out of" section,
+and no meaning or "Out of" section names a state the block lacks) is
+checked by a test over the shipped default and this repo's copy, not by
+the reader, because the prose's headings are written for people and agents
+and a repo may arrange its own copy's prose differently. The same test is
+where strictness lives: both files must read with no problem at all.
+
+### How a Wrapper uses the schema
+
+The maintainer ruled on 2026-11-25 how a Wrapper finds a repo's Tracker
+Schema and what it does when the schema is missing or broken
+(`agent-tooling-u9n.19`).
+
+- **Where it is read.** The ghw and fjw Verbs read `TRACKER.md` from the
+  repo's default branch on the forge. No local file is an input to any
+  Verb, so a change to a repo's labels or states goes through the repo's
+  own review: change `TRACKER.md` and merge it, then sync. bdw reads the
+  `TRACKER.md` of the workspace it stands in, which is the repo whose
+  `.beads/` it already uses.
+- **When data a Verb needs is missing or unusable** (the repo has no
+  `TRACKER.md`, or the section the Verb's check needs cannot be used):
+  - Reads, and writes that need nothing from the schema (orient, a
+    comment, a link), always work.
+  - Additive writes whose schema check cannot run (filing an Issue,
+    attaching a label) go ahead on what can still be verified, such as the
+    label existing on the forge.
+  - Destructive writes derived from the unusable part (a label sync
+    deleting labels, a board sync removing options) are refused, naming the
+    problem.
+- **Warnings.** In all three cases, every problem found in `TRACKER.md`
+  is printed as a warning, even when nothing is blocked, so the defect is
+  visible to people and agents alike.
+
+Rejected:
+- reading from the checkout the session stands in, since the answer would
+  depend on which branch is checked out, and a ghw Verb is not bound to a
+  checkout;
+- a path argument, and a file that label sync accepts for setup, since
+  either lets a local file change a repo's labels without its review;
+- falling back to the shipped default when a repo has none, since the
+  default's area axis lists no labels, so every check against it would
+  fail, and a Wrapper would have to read a file from the Skills;
+- refusing every Verb when a repo has none, since most Verbs need nothing
+  from the schema.
+
+The triage pass's rule under triage-issues, below, is for an agent's
+judgement, not for a Wrapper. That rule is to read a repo with no schema
+against the default's diagram, and say so.
 
 ### Path
 
