@@ -220,6 +220,11 @@ Keep any other code block you add to this file outside the markers.
   order of this list carries no meaning; the Issue State Diagram below
   gives the order.
 
+Tools use whatever in the block is valid and warn about the rest: a key
+they do not know is ignored, and a mistake in one part leaves the other
+parts in use. Only a block that cannot be found or does not parse leaves
+them nothing to use.
+
 ## Issue State Diagram
 
 An Issue State says what kind of expert attention the Issue needs next. The
