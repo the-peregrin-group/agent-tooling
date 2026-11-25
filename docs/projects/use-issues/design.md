@@ -230,9 +230,8 @@ assume, and what a pass on Beads lacks, are Known gaps in
 ## setup-issue-tracker
 
 `setup-issue-tracker` sets a repo's Issue Tracker up on any platform. Its
-text names no platform; each platform's mechanics are a file read on
-demand: `github.md` and `forgejo.md` beside the Skill, and `use-bd`'s
-`onboarding.md` for Beads.
+text names no platform; each platform's mechanics are a file beside it,
+read on demand: `beads.md`, `github.md`, and `forgejo.md`.
 
 - **The owner approves the whole plan first.** Setup is a human
   procedure: confirm the target, draft one plan covering the Tracker
@@ -278,11 +277,18 @@ demand: `github.md` and `forgejo.md` beside the Skill, and `use-bd`'s
   code review to find more work, plan tables with set columns, a recited
   list of conventions).
 
-Where the platform steps live. Rejected: `use-github/setup.md`, which the
-[proposal](2026-11-13-proposal.md) named for slice 5 as a waypoint until
-this Skill existed; with the Skill shipped, the steps go straight to their
-home beside it. Also rejected: one setup Skill per platform, which repeats
-the procedure and lets the copies disagree.
-`use-bd`'s `onboarding.md` stays where it is because the canonical Beads
-Permission rules it installs live beside it, and the rules test reads it
-there for the commands it teaches.
+Where the platform steps live: every platform's, Beads included, in a
+file beside this Skill, so one Skill holds all of setup. A platform file
+says which steps an agent runs through the platform's Wrapper and which
+are the owner's, since what a Wrapper can do differs by platform: on
+Beads most of setup is raw `bd` calls and machine configuration, which
+the canonical rules keep from agents. A file may point at what its
+platform Skill owns (the Beads steps at `rules.json` and `quirks.md` in
+`use-bd`'s directory) rather than copy it. Rejected: `use-github/setup.md`,
+which the [proposal](2026-11-13-proposal.md) named for slice 5 as a
+waypoint until this Skill existed; with the Skill shipped, the steps go
+straight to their home beside it. Also rejected: one setup Skill per
+platform, which repeats the procedure and lets the copies disagree; and
+keeping the Beads steps in `use-bd` beside the canonical rules they
+install, which made Beads the one platform whose setup lived outside the
+setup Skill. The rules test reads the steps wherever they live.

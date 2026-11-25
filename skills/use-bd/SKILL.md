@@ -59,12 +59,13 @@ log live in `bdw`'s subdirectory of the Machine State Directory
 names the log.
 
 The repo's own conventions are in `.beads/PRIME.md`, which `bdw prime`
-prints. Read this skill's `quirks.md` when bd surprises you, and
-`onboarding.md` only when setting Beads up in a new repo. `rules.json`
-beside it is the canonical Permission rule set for Beads: every command
-this skill, `create-issue`, and `work-issue` teach as a call (not the ones
-they tell you never to make) is allowed by it, so a taught command that prompts or is denied means the
-repo's rules have drifted from it.
+prints. Read this skill's `quirks.md` when bd surprises you. Setting Beads
+up in a new repo is the `setup-issue-tracker` skill's, in its `beads.md`.
+`rules.json`, in this skill's directory, is the canonical Permission rule
+set for Beads: every `bdw` command this skill, `create-issue`,
+`work-issue`, and that `beads.md` teach as a call (not the ones they tell
+you never to make) is allowed by it, so a taught command that prompts or
+is denied means the repo's rules have drifted from it.
 
 ## Working an Issue
 

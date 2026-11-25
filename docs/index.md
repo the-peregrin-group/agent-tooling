@@ -32,8 +32,9 @@ projects, which lives under `docs/audits/`.
   [design](projects/beads-trial/design.md) and the dated phase-two
   proposal.
 - [use-bd](projects/use-bd/index.md): the Skill that is the operating
-  manual for Beads through `bdw`, including onboarding a new repo; its
-  version-one proposal.
+  manual for Beads through `bdw`; its version-one proposal. Setting Beads
+  up in a new repo is `setup-issue-tracker`'s, under
+  [use-issues](projects/use-issues/index.md).
 
 ### Skills
 

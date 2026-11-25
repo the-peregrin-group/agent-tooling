@@ -174,7 +174,7 @@ reasons. You need `bd` to contribute, not to use the tooling. A fresh clone
 gets the `.beads/` config but no issue data: the database is local to the
 maintainer's machine, and nothing in it syncs to this repository. To set up Beads in
 another repo, use the `setup-issue-tracker` skill; its Beads steps are the
-checklist in `skills/use-bd/onboarding.md`.
+checklist in `skills/setup-issue-tracker/beads.md`.
 
 ## Provenance
 

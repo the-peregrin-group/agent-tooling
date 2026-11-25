@@ -38,6 +38,7 @@ is tracked in `agent-tooling-84n3` (bdw), `agent-tooling-fyxo` (ghw),
 | `breakdown-issue`, for Branch Issue passes | shipped | `skills/breakdown-issue/SKILL.md` |
 | `triage-issues` read against the Issue State Diagram | shipped | `skills/triage-issues/SKILL.md`; [design](design.md#triage-issues) |
 | `setup-issue-tracker`, generic, with each platform's setup steps read on demand | shipped | `skills/setup-issue-tracker/SKILL.md`; [design](design.md#setup-issue-tracker) |
+| Beads setup steps, each marked the agent's or the owner's: init and its cleanup, `PRIME.md`, Permission rules, pinning bd | shipped | `skills/setup-issue-tracker/beads.md` |
 | bdw rebuilt with its own issue Verbs and per-Verb help; `use-bd` as a failsafe pointer | planned | [proposal](2026-11-13-proposal.md), slice 4; `agent-tooling-84n3` |
 | ghw issue Verbs on the shared grammar, with Forge identity | planned | [proposal](2026-11-13-proposal.md), slice 5; `agent-tooling-fyxo` |
 | fjw issue Verbs on the shared grammar, and the triage scripts as Wrappers | planned | [proposal](2026-11-13-proposal.md), slice 6; `agent-tooling-1vr`, `agent-tooling-2340` |
@@ -51,6 +52,9 @@ is tracked in `agent-tooling-84n3` (bdw), `agent-tooling-fyxo` (ghw),
 - `setup-issue-tracker` cannot register a repo's Forge identities: ghw has
   none yet and acts as whoever `gh` is authenticated as, and fjw has only
   its one machine account (`agent-tooling-fyxo`, `agent-tooling-1vr`).
+- On Beads, no shipped tool expands the canonical Permission rules into a
+  repo's settings, so the setup steps point at a test-support function to
+  copy (`agent-tooling-j6x`).
 - On GitHub, a repo's Issue Kinds and Issue Priorities cannot follow its
   Tracker Schema, since ghw fixes the five kind labels and the four
   priority levels (`agent-tooling-xgzm`).
