@@ -32,7 +32,7 @@ is tracked in `agent-tooling-84n3` (bdw), `agent-tooling-fyxo` (ghw),
 |---|---|---|
 | The default Tracker Schema, with its Issue State Diagram | shipped | `skills/setup-issue-tracker/TRACKER.default.md`; [design](design.md) |
 | This repo's own Tracker Schema, copied from the default and customized | shipped | `TRACKER.md` |
-| A reader for the Tracker Schema's JSON block that keeps what is valid and warns about the rest, and a test that the default and this repo's copy read with no problem | shipped | `cli/lib/tracker_schema.py`; [design](design.md#the-reader) |
+| A reader for the Tracker Schema's JSON block that keeps what is valid, warns about the rest, and tells a complete section from one that lost entries, and a test that the default and this repo's copy read with no problem | shipped | `cli/lib/tracker_schema.py`; [design](design.md#the-reader) |
 | `know-issues`, the Knowledge Skill for the issue fundamentals | shipped | `skills/know-issues/SKILL.md`; documented under [know](../know/index.md) |
 | `create-issue`, generic, against today's Verbs | shipped | `skills/create-issue/SKILL.md` |
 | `work-issue`, generic, against today's Verbs | shipped | `skills/work-issue/SKILL.md` |

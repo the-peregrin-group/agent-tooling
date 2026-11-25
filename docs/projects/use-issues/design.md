@@ -45,13 +45,15 @@ exactly `` ```json `` and `` ``` ``, one of the several spellings of a
 `json` fence that Markdown allows, so there is one form to write and check.
 Trailing whitespace and a CRLF line ending do not stop a line from
 matching, since neither can turn prose into a marker and both are easy to
-introduce unseen; indentation does, and makes the file malformed, since an
-indented line can be a code block or part of a list item in Markdown.
-Rejected: matching only an exact line (it refuses a file over an
-invisible trailing space that changes nothing), and stripping both ends
-(it would accept a marker inside an indented example), and accepting every
-Markdown spelling of a `json` fence (`~~~`, longer fences, text after the
-tag), which adds forms to support and gains nothing. The file itself
+introduce unseen; indentation does, since an indented line can be a code
+block or part of a list item in Markdown, so an indented marker line is an
+example, not a marker. Rejected: matching only an exact line (it refuses a
+file over an invisible trailing space that changes nothing), and stripping
+both ends (it would take a marker inside an indented example for the real
+one). The written rule is the one form a file should have, and the
+validity test holds this repo's files to it; the reader is more tolerant
+(see the next section), so a repo whose file strays from it in a way that
+leaves the block plain to see still has its schema read. The file itself
 states the rule and what each key holds, since it is the only context a
 repo's agents have.
 
@@ -63,30 +65,54 @@ defect in a repo's file never stops what the file's valid data can still
 support, and it is always reported. The maintainer ruled this on
 2026-11-25, and it shapes everything below.
 
-- **One whole-file failure.** The file fails as a whole only when no block
-  can be found by the delimiting rule or its JSON does not parse. The rule
-  stays exact, because an ambiguous block holds nothing worth salvaging.
+- **Whole-file failure only for an unclear block.** The file fails as a
+  whole only when it is unclear which block is meant (a marker missing or
+  repeated, END before BEGIN, no fence or two between the markers, a fence
+  never closed) or the block's JSON does not parse. A file that strays
+  from the delimiting rule but whose block is plain to see (an indented
+  copy of a marker, a fence spelled another way, a stray line beside the
+  fence) is read, with a problem for each stray.
 - **Section by section.** Otherwise the reader always returns a result.
   It reads each section on its own: provenance, kinds, priorities, label
   axes, unaxed labels, and states. A caller that asks for an unusable
   section gets an error for that section alone. A caller that never asks
   is unaffected.
 - **Keep what is sound.** Within a section, a bad entry is left out and the
-  rest kept. A bad field on an entry whose name is sound reads as absent.
-  A key the reader does not know is ignored, and a key it needs but cannot
-  find leaves that field or section absent. So a repo's copy written for a
-  newer reader, and one written for an older reader, both keep everything
-  else working. The reader is updated whenever the block's shape changes.
-- **Unusable as a whole only where a part would mislead.** A whole section
-  becomes unusable only where a partial reading would mislead:
+  rest kept. A bad descriptive field (a meaning, a staleness threshold)
+  reads as absent. A flag a caller acts on (a state's open flag, an axis's
+  required flag) is never absent: an entry whose flag is bad is left out,
+  so no caller can take an unknown flag for false. A key the reader does
+  not know is ignored, and a key it needs but cannot find leaves that field
+  or section absent. So a repo's copy written for a newer reader, and one
+  written for an older reader, both keep everything else working. The
+  reader is updated whenever the block's shape changes.
+- **Conflicts lose only the entries in conflict.** Where entries contradict
+  each other, every entry involved is left out and the rest kept:
+  - a priority listed twice, since it would have no one rank; leaving it
+    out keeps the others' order, which is all the order means;
+  - a state listed twice with opposite open flags;
+  - axes that share a name, or whose prefixes overlap, since which axis a
+    label sits on would depend on list order. Their prefixes still keep
+    labels out of the unaxed labels.
+
+  A name listed twice where nothing hangs on which entry is kept (a kind,
+  a label, a state flagged the same way twice) keeps one entry, the first
+  whose fields all read.
+- **Unusable as a whole only where nothing can be kept safely:**
   - provenance with any bad field, since its fields are used together as
     one diff target;
-  - priorities with a name listed twice, since that name would have no one
-    rank;
-  - axes that share a name, or whose prefixes overlap, since which axis a
-    label sits on would depend on list order;
-  - states listed twice with opposite open flags;
-  - any section that is not a list, or that lists nothing usable.
+  - a section that is missing, written twice, or not a list;
+  - every section inside a block, or an `issue_label_schema`, that is not
+    a JSON object;
+  - kinds, priorities, or states with no usable entry left, since an empty
+    list would make every Issue nonconforming.
+- **Usable is not complete.** Each problem says whether it is lossy: the
+  reader dropped or doubted data the file meant to declare. An unknown key,
+  partly-null provenance, or a stray from the delimiting rule loses
+  nothing. A section is complete when it is usable and has no lossy
+  problem. The unaxed labels are in doubt, and so not complete, when an
+  axis's prefix could not be read, since a label among them may belong on
+  that axis.
 - **Ambiguous names are flaws.** Beyond the documented shape, the reader
   treats as a flaw anything that would make a tracker's reading ambiguous:
   - two names that differ only in case, since GitHub matches label names
@@ -96,17 +122,28 @@ support, and it is always reported. The maintainer ruled this on
   - names holding control or invisible characters.
 - **Every flaw is reported.** Each flaw is a problem on the result.
   `warning_lines` turns the problems, or a whole-file failure, into one
-  stderr warning each, naming the file, the section, and what is wrong, so
-  every Wrapper warns in the same words.
+  stderr warning each, naming the file, the key path at fault, and what is
+  wrong and what was done about it, so every Wrapper warns in the same
+  words. Nothing from the file reaches a warning unescaped, so a file
+  cannot forge a warning line or send terminal escapes.
 - **No exit codes.** The library makes no exit-code decisions; the rule
   below is the callers'.
 
 It does not reuse the triage scripts' `lib_profile.py`, which matches its
-markers by substring and accepts an untagged fence. Rejected:
+markers by substring, so prose that mentions a marker can be taken for
+one. Rejected:
 - refusing the whole file on any unknown, missing, or malformed key. Any
   drift between a repo's copy and the installed Wrappers would then stop
   every Verb in that repo, including Verbs that need nothing from the
-  schema, and an agent would be sent to fix a file that was correct.
+  schema, and an agent would be sent to fix a file that was correct;
+- refusing the whole file whenever it strays from the delimiting rule,
+  when the block is still plain to see; that would stop every Verb over a
+  stray the reader can name and step past;
+- making a whole section unusable when some of its entries conflict.
+  Completeness already keeps a destructive write off such a section, so
+  refusing the rest would only stop additive writes it still supports;
+- keeping a state or axis whose flag is bad with the flag absent, since a
+  caller testing the flag as true or false would take absent for false.
 
 The reader reads none of the prose. Whether a file's prose and block agree
 (every state in the block has a meaning section and an "Out of" section,
@@ -127,17 +164,22 @@ Schema and what it does when the schema is missing or broken
   Verb, so a change to a repo's labels or states goes through the repo's
   own review: change `TRACKER.md` and merge it, then sync. bdw reads the
   `TRACKER.md` of the workspace it stands in, which is the repo whose
-  `.beads/` it already uses.
+  `.beads/` it already uses. Reading it costs a ghw or fjw Verb one more
+  forge request per call; how to keep that cost down is left to the
+  Verbs that read it.
 - **When data a Verb needs is missing or unusable** (the repo has no
-  `TRACKER.md`, or the section the Verb's check needs cannot be used):
+  `TRACKER.md`, the forge cannot be reached to fetch it, or the section the
+  Verb's check needs cannot be used):
   - Reads, and writes that need nothing from the schema (orient, a
     comment, a link), always work.
   - Additive writes whose schema check cannot run (filing an Issue,
     attaching a label) go ahead on what can still be verified, such as the
     label existing on the forge.
-  - Destructive writes derived from the unusable part (a label sync
-    deleting labels, a board sync removing options) are refused, naming the
-    problem.
+  - Destructive writes (a label sync deleting labels, a board sync
+    removing options) are refused unless every section they derive from is
+    complete, not merely usable (`require_complete`), naming the problem.
+    A usable section may have lost entries, and a lost entry would
+    otherwise read as one to delete.
 - **Warnings.** In all three cases, every problem found in `TRACKER.md`
   is printed as a warning, even when nothing is blocked, so the defect is
   visible to people and agents alike.
