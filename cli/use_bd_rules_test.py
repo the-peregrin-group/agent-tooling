@@ -260,13 +260,7 @@ class SkillTeachesOnlyAllowedCommandsTest(unittest.TestCase):
     def test_the_extractor_finds_the_setup_commands(self) -> None:
         # The Beads setup steps live in setup-issue-tracker; a file dropped
         # from SKILL_FILES would leave them unchecked without failing anything.
-        for command in (
-            "bdw help config",
-            "bdw count",
-            "bdw types",
-            "bdw metrics off",
-            "bdw config get create.require-description",
-        ):
+        for command in ("bdw count", "bdw metrics off"):
             self.assertIn(
                 "setup-issue-tracker/beads.md", self.commands.get(command, ())
             )

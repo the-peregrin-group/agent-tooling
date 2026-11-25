@@ -281,8 +281,8 @@ Where the platform steps live: every platform's, Beads included, in a
 file beside this Skill, so one Skill holds all of setup. A platform file
 says which steps an agent runs through the platform's Wrapper and which
 are the owner's, since what a Wrapper can do differs by platform: on
-Beads most of setup is raw `bd` calls and machine configuration, which
-the canonical rules keep from agents. A file may point at what its
+Beads most of setup is raw `bd` calls, which the canonical rules deny to
+agents, and machine configuration, which is the owner's. A file may point at what its
 platform Skill owns (the Beads steps at `rules.json` and `quirks.md` in
 `use-bd`'s directory) rather than copy it. Rejected: `use-github/setup.md`,
 which the [proposal](2026-11-13-proposal.md) named for slice 5 as a
@@ -290,5 +290,5 @@ waypoint until this Skill existed; with the Skill shipped, the steps go
 straight to their home beside it. Also rejected: one setup Skill per
 platform, which repeats the procedure and lets the copies disagree; and
 keeping the Beads steps in `use-bd` beside the canonical rules they
-install, which made Beads the one platform whose setup lived outside the
-setup Skill. The rules test reads the steps wherever they live.
+install, which would make Beads the one platform whose setup lives
+outside the setup Skill. The rules test reads the steps wherever they live.

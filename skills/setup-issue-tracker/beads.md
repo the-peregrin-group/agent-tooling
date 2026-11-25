@@ -1,17 +1,18 @@
 # Setting up Beads
 
 The Beads mechanics of `setup-issue-tracker`, read when its plan reaches a
-step on Beads 1.3.0. The procedure, the plan, and the approval are the
-skill's; this file says only how each step is done on Beads today, so that
+step on Beads. The procedure, the plan, and the approval are the skill's;
+this file says only how each step is done on Beads 1.3.0, so that
 the tracker stays local to the machine, only its config lands in version
 control, and agents work it through `bdw` under the `use-bd` skill.
 
 ## Whose step is whose
 
-Each step below says whether it is the agent's or the owner's. The line
-follows the canonical Permission rules for Beads: they deny agents every
-raw `bd` call, and through `bdw` they deny `init` and every `dolt`
-subcommand and ask before configuration and backup changes.
+Each step below says whether it is the agent's or the owner's, except the
+Tracker Schema tailoring, which is drafting the copy and so the agent's.
+The line follows the canonical Permission rules for Beads: they deny
+agents every raw `bd` call, and through `bdw` they deny `init` and every
+`dolt` subcommand and ask before configuration and backup changes.
 
 - **The agent's:** reads and checks through `bdw`; drafting the repo's
   own files (`.beads/config.yaml` and the `.gitignore` files, `PRIME.md`,
@@ -31,8 +32,8 @@ can run them where they fall.
 - [ ] Owner: `bd` and `bdw` are on PATH. `bdw` is installed machine-wide by
   the agent-tooling installer.
 - [ ] Owner: pin bd in the package manager that installed it, so it
-  changes only deliberately: `bdw` and `quirks.md` in the `use-bd` skill's
-  directory are verified against one version, `bdw` refuses writes on any
+  changes only deliberately: `bdw`, and `quirks.md` in the `use-bd` skill's
+  directory, are verified against one version, `bdw` refuses writes on any
   other, and an upgrade means re-verifying them.
 
 ## Init and its cleanup
@@ -173,10 +174,10 @@ can run them where they fall.
   repo root, which `PRIME.md` points at. It states conventions and
   points; it never grants or denies an operation, because what agents may
   run is decided only by the reviewed Permission rules.
-- [ ] Agent: add the canonical Permission rules for `bdw` to the repo's
-  `.claude/settings.json`. They are `rules.json` in the `use-bd` skill's
-  directory: reads and reversible writes allowed through `bdw`; raw `bd`
-  and `beads` denied outright, reads included; the irreversible,
+- [ ] Agent: draft the change that adds the canonical Permission rules for
+  `bdw` to the repo's `.claude/settings.json`. They are `rules.json` in the
+  `use-bd` skill's directory: reads and reversible writes allowed through
+  `bdw`; raw `bd` and `beads` denied outright, reads included; the irreversible,
   off-machine, and record-falsifying verbs denied; and what steps around a
   safeguard (taking over a claim, forcing a close) asked for. Each of its
   `deny`, `ask`, and `allow` lists is a list of groups, and each group says
@@ -198,16 +199,12 @@ can run them where they fall.
 
 ## Tailoring the Tracker Schema to Beads
 
-The agent drafts these changes to the copy, for the owner to approve with
-the rest of the plan.
-
 - [ ] Kind is bd's type, so each kind in the copy is a type bd accepts
   (`bdw types` lists them): `task`, which bd gives an Issue filed without a
   type, and `epic`, while `use-bd` says only an epic takes children,
   included. A default kind that is not a bd type is replaced by one or
-  registered as a custom type; registering one changes bd's configuration,
-  so it is the owner's. A bd type the repo does not use is said not to be
-  a kind.
+  registered as a custom type (`types.custom` in `.beads/config.yaml`). A
+  bd type the repo does not use is said not to be a kind.
 - [ ] bd has a fifth priority level, P4: declare it with a meaning and a
   staleness threshold, or say in the copy that it is not used.
 - [ ] Until the repo's Beads holds the diagram's states as statuses, an
@@ -215,9 +212,8 @@ the rest of the plan.
 
 ## Verify
 
-Agent: `bdw prime` prints the repo's `PRIME.md`, `bdw types` lists every
-kind the copy declares, and `bdw config get create.require-description`
-reads `true`.
+Agent: `bdw prime` prints the repo's `PRIME.md`, and `bdw types` lists
+every kind the copy declares.
 
 ## The committed footprint
 
