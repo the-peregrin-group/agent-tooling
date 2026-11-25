@@ -79,10 +79,9 @@ How and why it works: [design.md](design.md).
   `triage-apply-sync` writes Done or Rejected to a closed issue and sends a
   reopened one to Needs Scope whatever the diagram says
   (`agent-tooling-u9n.12`).
-- No `triage-*` script comments on an issue or adds the `human` label, and
-  the labels `ghw-label-sync` provisions do not include `human`, so an
-  unattended pass lists its findings in the ledger instead of putting each
-  on the affected issue (`agent-tooling-u9n.13`).
+- No `triage-*` script comments on an issue or adds the `human` label, so
+  an unattended pass lists its findings in the ledger instead of putting
+  each on the affected issue (`agent-tooling-u9n.13`).
 - No `triage-*` script returns an issue's body or comments, or the
   ledger's current body, so an unattended pass cannot judge a bar that
   depends on what an issue says, read an earlier finding or a person's
@@ -97,3 +96,7 @@ How and why it works: [design.md](design.md).
   ghw constants. `ghw-label-sync` will not redeclare them, and
   `ghw-board-sync` provisions the four levels as the board's `Priority`
   options (`agent-tooling-xgzm`).
+- `ghw-issue-create` and `ghw-issue-edit add-label` match label names
+  exactly, so a live `Human` refuses `human`, and the schema file's
+  redeclaration and duplicate checks ignore case-only twins, though GitHub
+  and `ghw-label-sync` treat them as one label (`agent-tooling-uln8`).

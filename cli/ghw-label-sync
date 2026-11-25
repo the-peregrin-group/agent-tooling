@@ -2,12 +2,15 @@
 """ghw-label-sync <repo> <plan|apply|apply-delete> <schema-file> -- sync a repo's labels to a declared schema.
 
 Declarative and idempotent: the desired registry is the five canonical type
-labels (from the shared schema constants, never redeclared in a file) plus the
-repo-specific `area:` and scope families the JSON schema file declares, plus
-P0-P3 when the file sets "priority_labels": true. Anything in the repo and not
-in that set is a deletion candidate -- which is how eight of GitHub's nine
-stock labels get cleared at bootstrap (stock `bug` is a canonical type label, so
-it is kept).
+labels and the `human` label (from the shared schema constants, never
+redeclared in a file) plus the repo-specific `area:` and scope families the
+JSON schema file declares, plus P0-P3 when the file sets "priority_labels":
+true. Anything in the repo and not in that set is a deletion candidate --
+which is how eight of GitHub's nine stock labels get cleared at bootstrap
+(stock `bug` is a canonical type label, so it is kept).
+
+A scope entry named `human` (in any case) is ignored with a note on stderr:
+the shipped color and description apply, and the label is kept.
 
 Modes are positional because deletion authority is granted by allowlisting a
 mode, never by a trailing flag:
@@ -64,6 +67,7 @@ def main(argv: list[str]) -> int:
         schema = label_schema.parse_schema(text)
     except label_schema.SchemaFileError as error:
         gh.die(f"{schema_argument}: {error}", plan.EXIT_USAGE)
+    _note_redundant_entries(schema["redundant"])
 
     done: list[str] = []
     try:
@@ -91,6 +95,21 @@ def main(argv: list[str]) -> int:
         changed=bool(done),
     )
     return plan.EXIT_OK
+
+
+def _note_redundant_entries(names: list[str]) -> None:
+    """Say on stderr that the file declares a label the shipped set provides.
+
+    A note, not a refusal: a file written to the old workaround must keep
+    syncing. stderr, because stdout carries the JSON plan.
+    """
+    for name in names:
+        print(
+            f"note: the schema file's scope entry {name!r} is ignored: "
+            "'human' ships with the canonical labels, so its shipped color "
+            "and description apply. Remove the entry from the file.",
+            file=sys.stderr,
+        )
 
 
 def _deletion_report(repository: str, names: list[str]) -> list[dict]:

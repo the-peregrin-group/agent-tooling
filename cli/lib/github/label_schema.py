@@ -1,10 +1,10 @@
 """ghw-label-sync's desired-state model: schema-file parsing and the label diff.
 
-The canonical type labels (and, for repos in the P0-P3 label regime, the
-priority labels) come from lib.schema and are never redeclared in a schema
-file. The file supplies only the two repo-specific families
-setup-issue-tracker defines: the prefixed `area:` family and the unprefixed
-multi-site scope family.
+The canonical type labels, the `human` label (and, for repos in the P0-P3
+label regime, the priority labels) come from lib.schema and are never
+redeclared in a schema file. The file supplies only the two repo-specific
+families setup-issue-tracker defines: the prefixed `area:` family and the
+unprefixed multi-site scope family.
 
 File shape (JSON, never YAML -- the wrappers are stdlib-only):
 
@@ -31,6 +31,11 @@ File shape (JSON, never YAML -- the wrappers are stdlib-only):
     board. It defaults to false, and it exists because the desired state is
     authoritative for deletion: without it, apply-delete on a label-regime repo
     would strip the very P0-P3 labels that repo tracks priority with.
+  - A `scope` entry named `human` is dropped, not refused like a type or
+    priority label: `scope` is the one family that takes an unprefixed name,
+    so a file built from the live labels tends to list it there, and a
+    refusal would stop that repo's sync. The shipped color and description
+    win, and the wrapper notes the redundant entry.
 
 Everything the file does not declare is a deletion candidate, which is what
 makes the sync declarative -- including eight of GitHub's nine stock labels
@@ -46,6 +51,9 @@ from typing import Iterable
 from lib.schema import (
     AREA_LABEL_COLOR,
     AREA_LABEL_PREFIX,
+    HUMAN_LABEL,
+    HUMAN_LABEL_COLOR,
+    HUMAN_LABEL_DESCRIPTION,
     PRIORITY_LABELS,
     SCOPE_LABEL_COLOR,
     TYPE_LABELS,
@@ -62,12 +70,16 @@ class SchemaFileError(Exception):
 
 
 def parse_schema(text: str) -> dict:
-    """Parse a schema file's text into {"priority_labels", "area", "scope"}.
+    """Parse a schema file's text into
+    {"priority_labels", "area", "scope", "redundant"}.
 
     Both families come back as lists of {"name", "description", "color"} with
     colors normalized and defaults filled in; `name` is still the bare,
-    unprefixed name. Raises SchemaFileError, with a message an agent can
-    self-correct from, for anything that is not the documented shape.
+    unprefixed name. `redundant` lists the `scope` entries dropped because the
+    shipped set already provides them (only `human`, matched without regard
+    to case), so the caller can say so. Raises SchemaFileError, with a message
+    an agent can self-correct from, for anything that is not the documented
+    shape.
     """
     try:
         document = json.loads(text)
@@ -103,19 +115,26 @@ def parse_schema(text: str) -> dict:
             "'area:' label, so a repo with none cannot pass ghw-issue-create"
         )
     _refuse_duplicate_names(schema)
+    schema["redundant"] = [entry["name"] for entry in schema["scope"]
+                           if entry["name"].lower() == HUMAN_LABEL]
+    schema["scope"] = [entry for entry in schema["scope"]
+                       if entry["name"].lower() != HUMAN_LABEL]
     return schema
 
 
 def desired_labels(schema: dict) -> dict[str, dict[str, str]]:
     """The full desired label registry: {name: {"color", "description"}}.
 
-    Merges the shared canonical families (type labels always, priority labels
-    when the schema selects the label regime) with the schema file's `area:`
-    and scope families.
+    Merges the shared canonical labels (type labels and `human` always,
+    priority labels when the schema selects the label regime) with the schema
+    file's `area:` and scope families.
     """
     desired: dict[str, dict[str, str]] = {}
     for name, attributes in TYPE_LABELS.items():
         desired[name] = dict(attributes)
+    desired[HUMAN_LABEL] = {
+        "color": HUMAN_LABEL_COLOR, "description": HUMAN_LABEL_DESCRIPTION,
+    }
     if schema["priority_labels"]:
         for name, attributes in PRIORITY_LABELS.items():
             desired[name] = dict(attributes)

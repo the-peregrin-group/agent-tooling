@@ -72,8 +72,8 @@ ghw-orient <owner/repo>
 One JSON blob replaces the old multi-call dance. Read from it — never guess
 label names, board numbers, or field options:
 
-- `labels` — the live label registry (type labels, `area:` labels, any scope
-  labels).
+- `labels` — the live label registry (type labels, the `human` label,
+  `area:` labels, any scope labels).
 - `boards` — every open linked project board, each with its field and option
   maps and a `conformance` verdict against the canonical board schema:
   `conforms` is driven by `gaps` (missing canonical fields/options);
@@ -116,7 +116,8 @@ label you attach must already exist in the registry — propose a schema
 addition rather than inventing a label ad hoc (via `ghw-label-sync`, see
 `github.md` in the `setup-issue-tracker` skill's directory; note it syncs
 the *whole* registry declaratively, so its schema file must restate every
-repo-specific label, not just the new one).
+repo-specific label, not just the new one). The `human` label ships with
+the type labels; attach it like any other label.
 
 | Type | Use for |
 |------|---------|

@@ -62,11 +62,11 @@ class GhwOrientConformanceVerdictTest(unittest.TestCase):
     """Orient publishes a canonical-schema verdict per linked board. Advisory
     only: it reports, and ghw-board-sync is what acts."""
 
-    def _orient(self, boards: list[dict]) -> dict:
+    def _orient(self, boards: list[dict], labels=()) -> dict:
         orientation = {
             "repo": {"name_with_owner": "o/r", "node_id": "R_1",
                      "default_branch": "main", "is_private": True},
-            "labels": [],
+            "labels": list(labels),
             "boards": boards,
         }
         with mock.patch.object(_MODULE.boards, "fetch_orientation",
@@ -109,6 +109,17 @@ class GhwOrientConformanceVerdictTest(unittest.TestCase):
         payload = self._orient([])
         self.assertEqual(payload["boards"], [])
         self.assertIsNone(payload["canonical_board"])
+
+    def test_a_synced_human_label_is_reported_in_the_live_labels(self):
+        # Orient reports the shipped human label through the live registry,
+        # as it does every label; it is not a priority label.
+        human = {"name": "human", "color": "d876e3",
+                 "description": "Waiting on a person"}
+        registry = [{"name": "bug", "color": "d73a4a", "description": "Broken"},
+                    human]
+        payload = self._orient([], labels=registry)
+        self.assertIn(human, payload["labels"])
+        self.assertEqual(payload["priority_labels_present"], [])
 
 
 class GhwOrientArgumentContractTest(

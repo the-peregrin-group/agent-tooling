@@ -40,12 +40,17 @@ _MODULE = ghw_test_support.load_wrapper_module(_SCRIPT)
 
 _SCHEMA = {"area": [{"name": "core", "description": "Core engine"}]}
 
-# A registry holding every canonical type label already correct, so a test's
-# own additions are the only diff.
+_HUMAN = {"name": _MODULE.label_schema.HUMAN_LABEL,
+          "color": _MODULE.label_schema.HUMAN_LABEL_COLOR,
+          "description": _MODULE.label_schema.HUMAN_LABEL_DESCRIPTION}
+
+# A registry holding every canonical type label and the human label already
+# correct, so a test's own additions are the only diff.
 _CANONICAL_REGISTRY = [
-    {"name": name, "color": attributes["color"],
-     "description": attributes["description"]}
-    for name, attributes in _MODULE.label_schema.TYPE_LABELS.items()
+    *({"name": name, "color": attributes["color"],
+       "description": attributes["description"]}
+      for name, attributes in _MODULE.label_schema.TYPE_LABELS.items()),
+    _HUMAN,
 ]
 
 
@@ -88,7 +93,10 @@ class GhwLabelSyncArgumentsTest(unittest.TestCase):
         self.assertIn("ghw-label-sync <repo>", result.stdout)
 
 
-class GhwLabelSyncBehaviorTest(unittest.TestCase):
+class _SyncSeam:
+    """The scratch schema file and the mocked gh seam, shared by the behavior
+    test classes. Holds no tests of its own."""
+
     def setUp(self):
         os.makedirs("/tmp/claude", exist_ok=True)
         self.scratch = Path(tempfile.mkdtemp(dir="/tmp/claude"))
@@ -131,6 +139,9 @@ class GhwLabelSyncBehaviorTest(unittest.TestCase):
                 contextlib.redirect_stdout(io.StringIO()) as stdout:
             yield {"create": create, "edit": edit, "delete": delete,
                    "stdout": stdout, "stderr": stderr}
+
+
+class GhwLabelSyncBehaviorTest(_SyncSeam, unittest.TestCase):
 
     def test_plan_mode_writes_nothing_and_reports_the_full_diff(self):
         with self._synced([]) as seam:
@@ -343,6 +354,7 @@ class GhwLabelSyncBehaviorTest(unittest.TestCase):
                     for name, attributes in _MODULE.label_schema.TYPE_LABELS.items()]
         registry.append({"name": "area:core", "color": "bfdadc",
                          "description": "Core engine"})
+        registry.append(_HUMAN)
         with self._synced(registry) as seam:
             _MODULE.main(["o/r", "plan", self._schema_file()])
         payload = json.loads(seam["stdout"].getvalue())
@@ -364,6 +376,118 @@ class GhwLabelSyncBehaviorTest(unittest.TestCase):
         payload = json.loads(seam["stdout"].getvalue())
         self.assertEqual(payload["delete"], [])
         self.assertIn("P0", payload["unchanged"])
+
+
+class GhwLabelSyncHumanLabelTest(_SyncSeam, unittest.TestCase):
+    """The shipped `human` label on the three kinds of existing repo: none,
+    a hand-made one, and one the schema file declared under scope."""
+
+    _AREA = {"name": "area:core", "color": "bfdadc",
+             "description": "Core engine"}
+
+    def _types_and_area(self):
+        return [entry for entry in _CANONICAL_REGISTRY
+                if entry["name"] != "human"] + [self._AREA]
+
+    def test_a_repo_without_human_gets_it_created(self):
+        with self._synced(self._types_and_area()) as seam:
+            self.assertEqual(
+                _MODULE.main(["o/r", "apply-delete", self._schema_file()]), 0
+            )
+        seam["create"].assert_called_once_with(
+            "o/r", "human", _HUMAN["color"], _HUMAN["description"]
+        )
+        seam["delete"].assert_not_called()
+        payload = json.loads(seam["stdout"].getvalue())
+        self.assertEqual(payload["create"], [_HUMAN])
+
+    def test_a_hand_made_human_label_is_updated_never_deleted(self):
+        hand_made = {"name": "human", "color": "ededed",
+                     "description": "Needs a human"}
+        with self._synced([*self._types_and_area(), hand_made]) as seam:
+            self.assertEqual(
+                _MODULE.main(["o/r", "apply-delete", self._schema_file()]), 0
+            )
+        seam["create"].assert_not_called()
+        seam["delete"].assert_not_called()
+        seam["edit"].assert_called_once_with(
+            "o/r", "human", _HUMAN["color"], _HUMAN["description"]
+        )
+        payload = json.loads(seam["stdout"].getvalue())
+        self.assertEqual(payload["update"][0]["from"],
+                         {"color": "ededed", "description": "Needs a human"})
+
+    def test_human_declared_under_scope_converges_with_the_label_intact(self):
+        # The file follows the old setup workaround and the live label was
+        # created from it, in the scope family's color.
+        declared = {"name": "human", "description": "Waiting on a person"}
+        live = {"name": "human", "color": "c5def5",
+                "description": "Waiting on a person"}
+        schema = {**_SCHEMA, "scope": [declared]}
+        with self._synced([*self._types_and_area(), live]) as seam:
+            self.assertEqual(
+                _MODULE.main(["o/r", "apply-delete", self._schema_file(schema)]),
+                0,
+            )
+        seam["create"].assert_not_called()
+        seam["delete"].assert_not_called()
+        seam["edit"].assert_called_once_with(
+            "o/r", "human", _HUMAN["color"], _HUMAN["description"]
+        )
+        self.assertIn("scope entry 'human' is ignored",
+                      seam["stderr"].getvalue())
+
+    def test_a_converged_scope_declaration_is_a_no_op_with_a_note(self):
+        schema = {**_SCHEMA, "scope": [
+            {"name": "human", "description": "Waiting on a person"}]}
+        with self._synced([*self._types_and_area(), _HUMAN]) as seam:
+            _MODULE.main(["o/r", "plan", self._schema_file(schema)])
+        payload = json.loads(seam["stdout"].getvalue())
+        self.assertEqual((payload["create"], payload["update"],
+                          payload["delete"]), ([], [], []))
+        self.assertIn("Remove the entry", seam["stderr"].getvalue())
+
+    def test_a_live_label_differing_only_in_case_is_kept_never_recreated(self):
+        # GitHub's label namespace is case-insensitive: deleting a live
+        # 'Human' and creating 'human' would detach it from every issue, and
+        # a create alone would fail as already-existing on every run.
+        for spelling in ("Human", "HUMAN"):
+            for color, edits in (("ededed", 1), (_HUMAN["color"], 0)):
+                live = {"name": spelling, "color": color,
+                        "description": _HUMAN["description"]}
+                with self.subTest(spelling=spelling, color=color), \
+                        self._synced([*self._types_and_area(), live]) as seam:
+                    self.assertEqual(_MODULE.main(
+                        ["o/r", "apply-delete", self._schema_file()]), 0)
+                    seam["create"].assert_not_called()
+                    seam["delete"].assert_not_called()
+                    self.assertEqual(seam["edit"].call_count, edits)
+                    if edits:
+                        seam["edit"].assert_called_once_with(
+                            "o/r", spelling, _HUMAN["color"],
+                            _HUMAN["description"])
+                    payload = json.loads(seam["stdout"].getvalue())
+                    self.assertEqual(payload["case_mismatch"],
+                                     [{"live": spelling, "desired": "human"}])
+
+    def test_a_scope_entry_and_a_live_label_both_capitalized_converge(self):
+        schema = {**_SCHEMA, "scope": [
+            {"name": "Human", "description": "Waiting on a person"}]}
+        live = {"name": "Human", "color": "c5def5",
+                "description": "Waiting on a person"}
+        with self._synced([*self._types_and_area(), live]) as seam:
+            self.assertEqual(_MODULE.main(
+                ["o/r", "apply-delete", self._schema_file(schema)]), 0)
+        seam["create"].assert_not_called()
+        seam["delete"].assert_not_called()
+        seam["edit"].assert_called_once_with(
+            "o/r", "Human", _HUMAN["color"], _HUMAN["description"])
+        self.assertIn("scope entry 'Human' is ignored", seam["stderr"].getvalue())
+
+    def test_no_note_when_the_file_does_not_declare_human(self):
+        with self._synced([*self._types_and_area(), _HUMAN]) as seam:
+            _MODULE.main(["o/r", "plan", self._schema_file()])
+        self.assertEqual(seam["stderr"].getvalue(), "")
 
 
 class GhwLabelSyncArgumentContractTest(
