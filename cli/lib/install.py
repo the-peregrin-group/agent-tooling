@@ -42,12 +42,12 @@ content, so cohort excludes narrow the source scan only.
 Cohort selection
 ----------------
 `diff` and `apply` take an optional subset of cohort names (`--cohort`,
-repeatable); an unknown name is a usage error. A selected run touches only the
-named cohorts' targets, and judges source dirtiness only over their source
-directories -- the unselected trees do not ship in this run, so their state
-cannot invalidate its receipt. The source/target overlap refusal (below) is
-always evaluated over every declared cohort, selected or not: it is a
-statement about the checkout, not about one shipment.
+repeatable); an unknown name exits EXIT_NOT_FOUND. A selected run touches
+only the named cohorts' targets, and judges source dirtiness only over their
+source directories -- the unselected trees do not ship in this run, so their
+state cannot invalidate its receipt. The source/target overlap refusal
+(below) is always evaluated over every declared cohort, selected or not: it
+is a statement about the checkout, not about one shipment.
 
 Target kinds
 ------------
@@ -141,7 +141,7 @@ as it would in any ordinary install of a file this source already owned, and
 nothing is destroyed that the superseded checkout cannot reproduce. A
 collision with any other record still refuses, so the widening is scoped to
 one named repo. The name must match a record in a selected target's receipt;
-an unknown one is a usage error, never a silently narrower run.
+an unknown one exits EXIT_NOT_FOUND, never a silently narrower run.
 
 The reason this is a subcommand and not a flag on `apply`: permission rules
 match literal command prefixes, so a trailing option cannot be excluded from
@@ -169,9 +169,9 @@ merge target carried through the swap as a symlink (the link is copied, never
 the referent). On a unit target it falls inside the wholesale replacement like
 any other unowned file, and says so via `unowned_replaced`.
 
-Content a swap would destroy is drift, not a footnote: `diff` exits 1 for
-`unowned_replaced` and for `foreign_replaced`, because the only honest answer
-to "would installing lose something?" is yes.
+Content a swap would destroy is drift, not a footnote: `unowned_replaced` and
+`foreign_replaced` each make a cohort's status `drift`, because the only
+honest answer to "would installing lose something?" is yes.
 
 Refusals
 --------
@@ -185,6 +185,17 @@ Refusals
   with a foreign file or unit already in the target. A byte-identical
   collision is adopted instead, as is any collision with the record `adopt`
   names (see Ownership transfer and `adopt`, above).
+
+Exit codes
+----------
+Every `InstallError` carries its code under the Exit-code contract
+(docs/index.md#exit-code-contract; constants in lib/plan.py). The Installer's
+own placements are in docs/projects/installer/design.md (Exit codes). In
+brief: each refusal above, and an install.json or source tree that needs
+fixing, is EXIT_CALLER_ERROR (2); an unknown `--cohort` name or superseded
+repo is EXIT_NOT_FOUND (3); a corrupt receipt, an install.json newer than
+this tooling-install, and ambiguous crash recovery are EXIT_BROKEN (1).
+`diff` that completes exits 0 whatever it reports.
 
 The swap
 --------
@@ -215,6 +226,8 @@ import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 
+from lib.plan import EXIT_BROKEN, EXIT_CALLER_ERROR, EXIT_NOT_FOUND
+
 CONFIG_NAME = "install.json"
 CONFIG_VERSION = 1
 RECEIPT_NAME = "install-receipt.json"
@@ -223,16 +236,12 @@ RECEIPT_VERSION = 1
 KINDS = ("bin", "skills", "agents")
 UNIT_KINDS = ("skills",)
 
-EXIT_OK = 0
-EXIT_DRIFT = 1
-EXIT_USAGE = 2
-EXIT_REFUSED = 4
-
 
 class InstallError(Exception):
-    """A refusal or an unusable environment, carrying its own exit code."""
+    """A refusal or an unusable environment, carrying its Exit-code contract
+    code: EXIT_CALLER_ERROR unless the raise site names another."""
 
-    def __init__(self, message: str, exit_code: int = EXIT_USAGE):
+    def __init__(self, message: str, exit_code: int = EXIT_CALLER_ERROR):
         super().__init__(message)
         self.exit_code = exit_code
 
@@ -279,9 +288,12 @@ def load_config(source: Path) -> Config:
     if not isinstance(raw, dict):
         raise InstallError(f"{path} must contain a JSON object")
     if raw.get("version") != CONFIG_VERSION:
+        # The manifest is newer (or other) than this installed copy reads:
+        # the installed tooling-install is what needs fixing, not the call.
         raise InstallError(
             f"{path} has version {raw.get('version')!r}; "
-            f"this tooling-install understands version {CONFIG_VERSION}"
+            f"this tooling-install understands version {CONFIG_VERSION}",
+            EXIT_BROKEN,
         )
     source_repo = raw.get("source_repo")
     if not isinstance(source_repo, str) or not source_repo:
@@ -343,8 +355,8 @@ def _string_list(value, where: str):
 def select_cohorts(config: Config, names=None):
     """The cohorts a run acts on: every declared one, or the named subset.
 
-    An unknown name is a usage error rather than a silently empty run -- a
-    typo in `--cohort` must never look like a successful install of nothing.
+    An unknown name exits EXIT_NOT_FOUND rather than running empty -- a typo
+    in `--cohort` must never look like a successful install of nothing.
     """
     if not names:
         return config.cohorts
@@ -353,7 +365,8 @@ def select_cohorts(config: Config, names=None):
     if unknown:
         raise InstallError(
             f"unknown cohort(s) {', '.join(unknown)}; {config.source_repo} "
-            f"declares {', '.join(sorted(declared))}"
+            f"declares {', '.join(sorted(declared))}",
+            EXIT_NOT_FOUND,
         )
     return tuple(declared[name] for name in sorted(set(names)))
 
@@ -371,7 +384,7 @@ def target_for(kind: str, home=None) -> Path:
         return root / ".claude" / "skills"
     if kind == "agents":
         return root / ".claude" / "agents"
-    raise InstallError(f"unknown target kind {kind!r}")
+    raise InstallError(f"unknown target kind {kind!r}", EXIT_BROKEN)
 
 
 def excluded(relpath: str, patterns) -> bool:
@@ -426,7 +439,7 @@ def collect_sources(source: Path, cohort: Cohort):
                 raise InstallError(
                     f"cohort {cohort.name!r}: {origin[relative]} and {entry} both "
                     f"ship {relative!r} to the same target path",
-                    EXIT_REFUSED,
+                    EXIT_CALLER_ERROR,
                 )
             files[relative] = path
             origin[relative] = entry
@@ -480,9 +493,13 @@ def read_receipt(target: Path) -> dict:
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError) as error:
-        raise InstallError(f"{path} is unreadable or not valid JSON: {error}")
+        raise InstallError(
+            f"{path} is unreadable or not valid JSON: {error}", EXIT_BROKEN
+        )
     if not isinstance(data, dict) or not isinstance(data.get("sources"), dict):
-        raise InstallError(f"{path} is not a version {RECEIPT_VERSION} receipt")
+        raise InstallError(
+            f"{path} is not a version {RECEIPT_VERSION} receipt", EXIT_BROKEN
+        )
     return data
 
 
@@ -633,7 +650,7 @@ def check_overlap(source: Path, config: Config, home=None) -> None:
             raise InstallError(
                 f"refusing to install from {source}: it is the {cohort.kind} "
                 "target itself",
-                EXIT_REFUSED,
+                EXIT_CALLER_ERROR,
             )
         if resolved.is_relative_to(source):
             raise InstallError(
@@ -641,14 +658,14 @@ def check_overlap(source: Path, config: Config, home=None) -> None:
                 f"{resolved} sits inside it, so the swap would rename part of "
                 "the source out from under this run. Install from a separate "
                 "checkout (a worktree).",
-                EXIT_REFUSED,
+                EXIT_CALLER_ERROR,
             )
         if source.is_relative_to(resolved):
             raise InstallError(
                 f"refusing to install from {source}: it sits inside the "
                 f"{cohort.kind} target {resolved}, which the swap replaces "
                 "wholesale.",
-                EXIT_REFUSED,
+                EXIT_CALLER_ERROR,
             )
 
 
@@ -704,7 +721,7 @@ def recover(parent: Path, names):
                 f"{parent / base} is missing and {len(copies)} retired copies "
                 f"exist ({', '.join(copy.name for copy in copies)}); a human "
                 "must pick the right one before installing",
-                EXIT_REFUSED,
+                EXIT_BROKEN,
             )
         copies[0].rename(parent / base)
         actions.append({"restored": str(parent / base), "from": copies[0].name})
@@ -732,9 +749,9 @@ def diff(source: Path, home=None, cohorts=None) -> dict:
     `adoptable` and `conflicting` -- target-relative paths on a merge target,
     unit names on a unit target. `foreign_files` and `foreign_units` then carry
     their narrowed meaning: claimed by another source and *not* shipped by this
-    one. Either new category being non-empty makes the cohort drift, so the
-    exit-code contract is unchanged and now honest: 0 means `apply` would do
-    nothing, 1 means it would act (including rewriting ownership) or refuse.
+    one. Either new category being non-empty makes the cohort drift, so a
+    report whose status is `in-sync` means `apply` would do nothing, and
+    `drift` means it would act (including rewriting ownership) or refuse.
 
     `receipt_mismatch` lists recorded files whose installed bytes no longer
     match the receipt's hash, or that are missing on disk: the receipt
@@ -929,7 +946,7 @@ def apply(
             f"{source} has uncommitted changes in what ships; commit them or "
             "pass --force (a forced install is stamped -dirty in the "
             "receipt):\n" + state["dirty"],
-            EXIT_REFUSED,
+            EXIT_CALLER_ERROR,
         )
     commit = stamp_commit(state)
     installed_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
@@ -991,7 +1008,8 @@ def _check_supersedes(config: Config, selected, supersedes: str, home) -> None:
         )
         raise InstallError(
             f"no receipt in the selected target(s) records a source repo "
-            f"{supersedes!r}; {recorded}"
+            f"{supersedes!r}; {recorded}",
+            EXIT_NOT_FOUND,
         )
 
 
@@ -1026,7 +1044,7 @@ def _apply_merged(
             f"installed by {_other_repos(supersedes)} would be overwritten "
             f"with different content ({', '.join(conflicting[:5])}); resolve "
             "the overlap in the source repos",
-            EXIT_REFUSED,
+            EXIT_CALLER_ERROR,
         )
 
     staging = target.parent / f"{target.name}.new-{os.getpid()}"
@@ -1082,7 +1100,7 @@ def _apply_units(
             f"cohort {cohort.name!r}: unit(s) {', '.join(clash)} are already "
             f"installed by {_other_repos(supersedes)} and differ from what "
             "this source ships; resolve the overlap in the source repos",
-            EXIT_REFUSED,
+            EXIT_CALLER_ERROR,
         )
 
     for unit in incoming:

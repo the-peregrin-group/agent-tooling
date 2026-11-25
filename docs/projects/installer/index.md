@@ -30,6 +30,6 @@ that agent tooling runs only from installed copies, is
 
 ### Known gaps
 
-- `tooling-install` still exits its own codes (`diff` exits 1 on drift,
-  refusals exit 4), not the six-code Exit-code contract
-  (`agent-tooling-cjvo.5`).
+- A refusal found in a later Cohort during `apply` or `adopt` lands after
+  earlier Cohorts are already installed, and the output does not say what was
+  (`agent-tooling-6glt`).
