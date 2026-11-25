@@ -9,9 +9,8 @@ true. Anything in the repo and not in that set is a deletion candidate --
 which is how eight of GitHub's nine stock labels get cleared at bootstrap
 (stock `bug` is a canonical type label, so it is kept).
 
-A `human` entry under the file's scope family (the workaround
-setup-issue-tracker taught before the label shipped) is ignored with a note on
-stderr: the shipped color and description apply, and the label is kept.
+A scope entry named `human` (in any case) is ignored with a note on stderr:
+the shipped color and description apply, and the label is kept.
 
 Modes are positional because deletion authority is granted by allowlisting a
 mode, never by a trailing flag:

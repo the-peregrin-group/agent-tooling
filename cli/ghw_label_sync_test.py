@@ -447,6 +447,43 @@ class GhwLabelSyncHumanLabelTest(_SyncSeam, unittest.TestCase):
                           payload["delete"]), ([], [], []))
         self.assertIn("Remove the entry", seam["stderr"].getvalue())
 
+    def test_a_live_label_differing_only_in_case_is_kept_never_recreated(self):
+        # GitHub's label namespace is case-insensitive: deleting a live
+        # 'Human' and creating 'human' would detach it from every issue, and
+        # a create alone would fail as already-existing on every run.
+        for spelling in ("Human", "HUMAN"):
+            for color, edits in (("ededed", 1), (_HUMAN["color"], 0)):
+                live = {"name": spelling, "color": color,
+                        "description": _HUMAN["description"]}
+                with self.subTest(spelling=spelling, color=color), \
+                        self._synced([*self._types_and_area(), live]) as seam:
+                    self.assertEqual(_MODULE.main(
+                        ["o/r", "apply-delete", self._schema_file()]), 0)
+                    seam["create"].assert_not_called()
+                    seam["delete"].assert_not_called()
+                    self.assertEqual(seam["edit"].call_count, edits)
+                    if edits:
+                        seam["edit"].assert_called_once_with(
+                            "o/r", spelling, _HUMAN["color"],
+                            _HUMAN["description"])
+                    payload = json.loads(seam["stdout"].getvalue())
+                    self.assertEqual(payload["case_mismatch"],
+                                     [{"live": spelling, "desired": "human"}])
+
+    def test_a_scope_entry_and_a_live_label_both_capitalized_converge(self):
+        schema = {**_SCHEMA, "scope": [
+            {"name": "Human", "description": "Waiting on a person"}]}
+        live = {"name": "Human", "color": "c5def5",
+                "description": "Waiting on a person"}
+        with self._synced([*self._types_and_area(), live]) as seam:
+            self.assertEqual(_MODULE.main(
+                ["o/r", "apply-delete", self._schema_file(schema)]), 0)
+        seam["create"].assert_not_called()
+        seam["delete"].assert_not_called()
+        seam["edit"].assert_called_once_with(
+            "o/r", "Human", _HUMAN["color"], _HUMAN["description"])
+        self.assertIn("scope entry 'Human' is ignored", seam["stderr"].getvalue())
+
     def test_no_note_when_the_file_does_not_declare_human(self):
         with self._synced([*self._types_and_area(), _HUMAN]) as seam:
             _MODULE.main(["o/r", "plan", self._schema_file()])

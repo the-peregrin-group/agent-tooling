@@ -31,10 +31,11 @@ File shape (JSON, never YAML -- the wrappers are stdlib-only):
     board. It defaults to false, and it exists because the desired state is
     authoritative for deletion: without it, apply-delete on a label-regime repo
     would strip the very P0-P3 labels that repo tracks priority with.
-  - A `scope` entry named `human` is tolerated and dropped, unlike a type or
-    priority label: setup-issue-tracker told repos to declare it there before
-    it shipped, so refusing it would strand their next sync. The shipped
-    color and description win, and the wrapper notes the redundant entry.
+  - A `scope` entry named `human` is dropped, not refused like a type or
+    priority label: `scope` is the one family that takes an unprefixed name,
+    so a file built from the live labels tends to list it there, and a
+    refusal would stop that repo's sync. The shipped color and description
+    win, and the wrapper notes the redundant entry.
 
 Everything the file does not declare is a deletion candidate, which is what
 makes the sync declarative -- including eight of GitHub's nine stock labels
