@@ -1,17 +1,20 @@
-"""Output and exit-code conventions shared by every wrapper.
+"""Output and exit-code conventions shared by every wrapper and the Installer.
 
 Exit codes follow the Exit-code contract in docs/index.md#exit-code-contract
 (ADR 0013); that section is the source of truth for what each code means and
 how the boundaries between them fall. The constants below name its six codes.
 
 Families migrate to the contract one at a time (the agent-tooling-cjvo epic).
-Until a family has migrated it keeps exiting with the earlier seven-code
-taxonomy through the transitional constants, whose values are unchanged.
+Until a Wrapper family has migrated it keeps exiting with the earlier
+seven-code taxonomy through the transitional constants, whose values are
+unchanged. The Installer never used them: it exits the six codes directly.
 
-Write wrappers emit a JSON plan to stdout with "action": "plan" |
-"applied" | "conflict" -- the last for a write that stopped partway
-leaving deliberate resumable state (a gitw-rebase conflict stop), so
-every Wrapper shares one discriminator vocabulary.
+The Wrapper families' write Verbs emit a JSON plan to stdout with "action":
+"plan" | "applied" | "conflict" -- the last for a write that stopped partway
+leaving deliberate resumable state (a gitw-rebase conflict stop), so every
+Wrapper shares one discriminator vocabulary. The Installer emits the same
+plan only under --json; by default it prints a plain-text summary instead
+(docs/projects/installer/design.md, Output).
 """
 
 from __future__ import annotations
