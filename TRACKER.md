@@ -159,8 +159,9 @@ The block sits between two marker lines, each an HTML comment alone on its
 line: the one above the block begins with BEGIN and the one below it begins
 with END, and both name `tracker-schema`, written exactly as they are above.
 The file has exactly one of each. Between them is exactly one fenced code
-block, tagged `json`, with nothing else there but blank lines, and the lines
-inside that fence are one JSON object. A reader finds the two marker lines
+block, opened by a line that is exactly `` ```json `` and closed by a line
+that is exactly `` ``` ``, with nothing else there but blank lines, and the
+lines inside that fence are one JSON object. A reader finds the two marker lines
 by matching each as a whole line, takes the lines strictly inside the fence
 between them, and parses those as JSON. A marker or fence line still
 matches when it has trailing whitespace or a CRLF line ending, since
