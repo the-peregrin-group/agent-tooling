@@ -78,8 +78,9 @@ change is committed, then installed.
 ## Commands
 
 ```
-tooling-install {diff | apply} <source-checkout> [--cohort <name>]... [--force]
-tooling-install adopt <source-checkout> <superseded-source-repo> [--cohort <name>]... [--force]
+tooling-install diff <source-checkout> [--cohort <name>]... [--json]
+tooling-install apply <source-checkout> [--cohort <name>]... [--force] [--json]
+tooling-install adopt <source-checkout> <superseded-source-repo> [--cohort <name>]... [--force] [--json]
 ```
 
 - **`diff`** is read-only. It reports drift per Cohort, classifies
@@ -111,6 +112,38 @@ tooling-install adopt <source-checkout> <superseded-source-repo> [--cohort <name
   `foreign_replaced` lists are what to read before approving one.
 - **`--cohort <name>`**, repeatable, restricts any command to the named
   Cohorts. An undeclared name is a usage error, never an empty run.
+- **`--json`**, on any command, prints the full report instead of the
+  summary (see Output).
+
+## Output
+
+Every command prints its report to stdout in one of two forms.
+
+- **The summary**, the default, is plain text: a header naming the Source
+  repo and the short commit (with `diff`'s overall status, or `applied`
+  and any superseded repo), then one line per Cohort with its status and
+  shipped count, or what `apply` installed. An in-sync Cohort is that one
+  line. An interrupted swap, pending or recovered, gets its own line under
+  the header.
+- **`--json`** prints the full report: every key, every list in full, and
+  each Cohort's kind and Install Target. It is the stable machine-readable
+  form, and the key names this document uses (`changed`,
+  `unowned_replaced`, and the rest) are its keys.
+
+The summary exists because the full report is mostly empty lists and
+inventory, which costs an agent tokens on every `diff`. It shrinks the
+report without hiding anything an install would do. The lists of what a
+run leaves alone or merely ships (`unowned_preserved`, `foreign_files`,
+`foreign_units`, `apply`'s `preserved` and `units`) appear as counts only,
+with a closing line pointing at `--json`. Every other non-empty list is
+printed item by item, and what an install would remove, delete, or
+overwrite (`only_installed`, `retired`, `unowned_replaced`,
+`foreign_replaced`, `conflicting`, `receipt_mismatch`) is labelled in
+capitals. The classification is explicit and fails safe: a key the
+summary does not know, list or scalar, is printed under its own name, so a
+key added to the report later is visible by default. A `diff` read before
+approving an `apply` or `adopt` therefore names everything the install
+would destroy, in either form.
 
 ## Invariants
 
@@ -152,7 +185,7 @@ Wrapper family; why one contract covers all agent-tooling software is
 What the contract leaves to the Installer:
 
 - **`diff` exits 0 whenever it completes.** Drift is an answer, not a
-  failure: the per-Cohort status in the JSON (`in-sync`, `drift`,
+  failure: the per-Cohort status in the report (`in-sync`, `drift`,
   `not-installed`) carries it, along with the lists of what an install
   would destroy.
 - **`apply` exits 0 when it installed.** A missing Install Target is not a

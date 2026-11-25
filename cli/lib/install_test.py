@@ -1087,7 +1087,9 @@ class OwnershipTransferTest(TwoSourceFixture):
 
     def test_cli_diff_exits_1_on_an_adoptable_collision(self):
         self.install()
-        result = self.run_cli("diff", str(self.other), "--cohort", "bin")
+        result = self.run_cli(
+            "diff", str(self.other), "--cohort", "bin", "--json"
+        )
         self.assertEqual(result.returncode, 1, result.stderr)
         report = json.loads(result.stdout)["cohorts"]["bin"]
         self.assertEqual(report["adoptable"], ["lib/helper.py", "tool-a"])
@@ -1372,7 +1374,9 @@ class SupersedeTest(TwoSourceFixture):
         self.install()
         write(self.other / "tools" / "tool-a", "#!/bin/sh\necho rewritten\n")
         self.commit_all(self.other)
-        result = self.run_cli("adopt", str(self.other), "widget-kit", "--cohort", "bin")
+        result = self.run_cli(
+            "adopt", str(self.other), "widget-kit", "--cohort", "bin", "--json"
+        )
         self.assertEqual(result.returncode, 0, result.stderr)
         payload = json.loads(result.stdout)
         self.assertEqual(payload["action"], "applied")
@@ -1477,7 +1481,7 @@ class CommandLineTest(InstallTestCase):
     """The entry point's argument handling and exit-code contract."""
 
     def test_diff_exits_1_when_nothing_is_installed(self):
-        result = self.run_cli("diff", str(self.source))
+        result = self.run_cli("diff", str(self.source), "--json")
         self.assertEqual(result.returncode, 1, result.stderr)
         report = json.loads(result.stdout)
         self.assertEqual(report["status"], "drift")
@@ -1485,12 +1489,12 @@ class CommandLineTest(InstallTestCase):
 
     def test_diff_exits_0_once_in_sync(self):
         self.install()
-        result = self.run_cli("diff", str(self.source))
+        result = self.run_cli("diff", str(self.source), "--json")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(json.loads(result.stdout)["status"], "in-sync")
 
     def test_apply_emits_an_applied_plan(self):
-        result = self.run_cli("apply", str(self.source))
+        result = self.run_cli("apply", str(self.source), "--json")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(json.loads(result.stdout)["action"], "applied")
 
@@ -1504,14 +1508,14 @@ class CommandLineTest(InstallTestCase):
         self.assertEqual(result.returncode, 2)
 
     def test_cohort_flag_restricts_the_run(self):
-        result = self.run_cli("apply", str(self.source), "--cohort", "bin")
+        result = self.run_cli("apply", str(self.source), "--cohort", "bin", "--json")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(json.loads(result.stdout)["selected_cohorts"], ["bin"])
         self.assertFalse(target_for("skills", self.home).exists())
 
     def test_repeated_cohort_flags_accumulate(self):
         result = self.run_cli(
-            "apply", str(self.source), "--cohort", "skills", "--cohort=agents"
+            "apply", str(self.source), "--cohort", "skills", "--cohort=agents", "--json"
         )
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(
@@ -1520,7 +1524,7 @@ class CommandLineTest(InstallTestCase):
 
     def test_diff_of_one_installed_cohort_exits_0_while_the_rest_are_missing(self):
         self.run_cli("apply", str(self.source), "--cohort", "bin")
-        result = self.run_cli("diff", str(self.source), "--cohort", "bin")
+        result = self.run_cli("diff", str(self.source), "--cohort", "bin", "--json")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(json.loads(result.stdout)["status"], "in-sync")
         self.assertEqual(self.run_cli("diff", str(self.source)).returncode, 1)
@@ -1590,6 +1594,71 @@ class CommandLineTest(InstallTestCase):
         result = self.run_cli("--help")
         self.assertEqual(result.returncode, 0)
         self.assertIn("tooling-install", result.stdout)
+
+
+class SummaryOutputTest(InstallTestCase):
+    """The default plain-text output and the --json full report."""
+
+    def test_in_sync_diff_is_one_line_per_cohort(self):
+        self.install()
+        result = self.run_cli("diff", str(self.source))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        lines = result.stdout.splitlines()
+        self.assertEqual(lines[0], f"widget-kit @ {self.commit()[:7]}: in-sync")
+        self.assertEqual(len(lines), 4, result.stdout)
+        self.assertRegex(lines[2], r"^bin +in-sync \(3 shipped\)$")
+
+    def test_drift_lists_the_changed_names(self):
+        self.install()
+        write(self.source / "bin1" / "tool-a", "#!/bin/sh\necho changed\n")
+        write(self.source / "bin2" / "tool-c.sh", "#!/bin/sh\necho c\n")
+        self.commit_all()
+        result = self.run_cli("diff", str(self.source))
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertIn("  changed: tool-a\n", result.stdout)
+        self.assertIn("  only in source: tool-c.sh\n", result.stdout)
+
+    def test_destruction_is_named_and_inventory_is_counted(self):
+        self.install()
+        skills = target_for("skills", self.home)
+        write(skills / "alpha" / "scratch.md", "hand-made\n")
+        bin_target = target_for("bin", self.home)
+        write(bin_target / "mine.sh", "#!/bin/sh\n")
+        write(bin_target / "yours.sh", "#!/bin/sh\n")
+        result = self.run_cli("diff", str(self.source))
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertIn("  WOULD DELETE unowned: alpha/scratch.md\n", result.stdout)
+        self.assertIn("2 unowned files left alone", result.stdout)
+        self.assertNotIn("mine.sh", result.stdout)
+        self.assertIn("--json", result.stdout)
+
+    def test_removal_is_named_on_apply(self):
+        self.install()
+        shutil.rmtree(self.source / "kits" / "beta")
+        self.commit_all()
+        result = self.run_cli("apply", str(self.source))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue(result.stdout.startswith("applied widget-kit @ "))
+        self.assertIn("  REMOVED (no longer shipped): beta\n", result.stdout)
+
+    def test_json_prints_the_full_report(self):
+        self.install()
+        result = self.run_cli("diff", str(self.source), "--json", "--cohort", "bin")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(
+            json.loads(result.stdout), diff(self.source, self.home, cohorts=["bin"])
+        )
+
+    def test_json_works_with_force_on_apply(self):
+        write(self.source / "bin1" / "tool-a", "#!/bin/sh\necho dirty\n")
+        result = self.run_cli("apply", str(self.source), "--force", "--json")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        payload = json.loads(result.stdout)
+        self.assertEqual(payload["action"], "applied")
+        self.assertTrue(payload["source_commit"].endswith("-dirty"))
+
+    def commit(self):
+        return fixture.git(self.source, "rev-parse", "HEAD").stdout.strip()
 
 
 if __name__ == "__main__":

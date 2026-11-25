@@ -45,12 +45,14 @@ the same Install Target; each one's Receipt record covers only its own files.
 ```
 
 `diff` reports each Cohort's status (`in-sync`, `drift`, or `not-installed`)
-in its JSON. `apply` refuses a dirty source tree
+in a short plain-text summary; `--json` on any command prints the full report
+instead. `apply` refuses a dirty source tree
 unless given `--force`, and it never overwrites a file another Source repo's
 Receipt claims unless the bytes are identical. `adopt <checkout> <other-repo>` is
 the explicit takeover of files that the named repo installed earlier. Run `diff`
-first and read its `conflicting`, `unowned_replaced`, and `foreign_replaced`
-lists. `--cohort <name>` restricts any command to one Cohort. The full contract
+first and read what it lists as `CONFLICTING` or `WOULD DELETE` (the
+`conflicting`, `unowned_replaced`, and `foreign_replaced` lists of the full
+report). `--cohort <name>` restricts any command to one Cohort. The full contract
 is in the docstring of `cli/lib/install.py`.
 
 ## Bootstrap on a fresh machine
