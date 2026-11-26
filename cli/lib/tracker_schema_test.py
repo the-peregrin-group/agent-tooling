@@ -417,7 +417,7 @@ class DegradationTest(_Checks):
         self.assertIsNone(schema.entry_state)
         self._problem(schema, tracker_schema.ISSUE_STATES,
                       "no state is flagged \"entry\": true; the entry state "
-                      "is unknown")
+                      "is unknown", lossy=False)
         self._problem(schema, tracker_schema.ISSUE_KINDS,
                       "issue_kinds[0].color: missing; read as absent")
         self._problem(schema, tracker_schema.CLOSE_REASONS, "missing")
@@ -661,6 +661,17 @@ class DegradationTest(_Checks):
             {"name": "Closed", "open": False},
         ]))
         self.assertEqual([s.name for s in same.issue_states], ["Open", "Closed"])
+        # Nothing hangs on which copy is kept, so the first whose fields all
+        # read is kept, as for a kind: here the second, which has a colour.
+        sound_second = _read(_with(issue_states=[
+            {"name": "Open", "open": True, "entry": True},
+            {"name": "Open", "open": True, "color": "123456"},
+            {"name": "Closed", "open": False, "color": "6a737d"},
+        ]), fill=False)
+        self.assertEqual(sound_second.state("Open").color, "123456")
+        self.assertEqual(sound_second.entry_state.name, "Open")
+        self._problem(sound_second, tracker_schema.ISSUE_STATES,
+                      "the state 'Open' is declared 2 times; one entry is kept")
         # Flagged both ways, only that state is lost.
         states = copy.deepcopy(_DOCUMENT["issue_states"]) + [
             {"name": "closed", "open": True}]
@@ -676,12 +687,19 @@ class DegradationTest(_Checks):
     # Whatever is wrong with the entry flags, every state is kept and only
     # the entry state is unknown, so only a caller that needs it stops.
 
-    def _entry_unknown(self, states, fragment: str) -> None:
+    def _entry_unknown(self, states, fragment: str,
+                       state_lost: bool = False) -> None:
+        """The entry state is unknown, with a problem that is not lossy, so
+        the states stay complete unless a state was itself left out."""
         schema = _read(_with(issue_states=states), fill=False)
         self.assertIsNone(schema.entry_state)
-        self.assertEqual(_usable(schema), _ALL_SECTIONS)
-        self._only_incomplete(schema, tracker_schema.ISSUE_STATES)
-        self._problem(schema, tracker_schema.ISSUE_STATES, fragment)
+        if state_lost:
+            self._only_incomplete(schema, tracker_schema.ISSUE_STATES)
+        else:
+            self.assertEqual(_complete(schema), _ALL_SECTIONS)
+            schema.require_complete(tracker_schema.ISSUE_STATES)
+        self._problem(schema, tracker_schema.ISSUE_STATES, fragment,
+                      lossy=False)
         return schema
 
     def test_no_entry_state_leaves_it_unknown(self):
@@ -709,16 +727,20 @@ class DegradationTest(_Checks):
                                            '"entry": true, "entry": false')
         schema = tracker_schema.parse(_file(block))
         self.assertIsNone(schema.entry_state)
+        self.assertTrue(schema.complete(tracker_schema.ISSUE_STATES))
         self._problem(schema, tracker_schema.ISSUE_STATES,
-                      "issue_states[0].entry: written twice")
+                      "issue_states[0].entry: written twice", lossy=False)
 
     def test_an_entry_state_left_out_leaves_it_unknown(self):
+        # Incomplete here only because a state was itself left out.
         states = copy.deepcopy(_DOCUMENT["issue_states"])
         states[0]["open"] = "yes"
-        self._entry_unknown(states, "'Needs Triage', is left out")
+        self._entry_unknown(states, "'Needs Triage', is left out",
+                            state_lost=True)
         states = copy.deepcopy(_DOCUMENT["issue_states"])
         del states[0]["name"]
-        self._entry_unknown(states, "left out for want of a name")
+        self._entry_unknown(states, "left out for want of a name",
+                            state_lost=True)
 
     def test_a_closed_entry_state_leaves_it_unknown(self):
         states = copy.deepcopy(_DOCUMENT["issue_states"])

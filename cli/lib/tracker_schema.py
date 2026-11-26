@@ -36,8 +36,9 @@ a caller from using the parts that are sound:
     is always a real answer. The entry flag is the one exception, since it
     picks one state out of the list rather than describing each: a bad
     entry flag, or no state or several flagged, keeps every state and makes
-    `entry_state` None, so only a caller that needs the entry state is
-    stopped.
+    `entry_state` None. Those problems are not lossy, since no state is
+    lost, so the states can still be complete and only a caller that needs
+    the entry state is stopped.
   - A key the reader does not know, at any level, is ignored. A key it
     needs and does not find makes that field or section absent. So a copy
     written for a newer reader, and one written for an older reader, both
@@ -404,8 +405,10 @@ class TrackerSchema:
     def entry_state(self) -> Optional[IssueState]:
         """The state an Issue is filed in when its right state is not known,
         or None when the file does not name exactly one open state as it
-        (`problems_in(ISSUE_STATES)` says why). Raises UnusableSectionError
-        when the states are unusable."""
+        (`problems_in(ISSUE_STATES)` says why). That None is the only
+        signal: the problem behind it is not lossy, so `complete` on the
+        states does not reflect it. Raises UnusableSectionError when the
+        states are unusable."""
         self.issue_states
         if self._entry_state is None:
             return None
@@ -862,8 +865,10 @@ class _Reader:
             if flag is not None:
                 states.append(IssueState(name, flag,
                                          self.color(raw, ISSUE_STATES, where)))
-        # Listed twice the same way, the second adds nothing; listed twice
-        # with opposite flags, whether its Issues are open would be a guess.
+        # Listed twice the same way, nothing hangs on which entry is kept,
+        # so keep the first whose fields all read, as for a kind; listed
+        # twice with opposite flags, whether its Issues are open would be a
+        # guess.
         kept = []
         for group in _groups(states):
             if len(group) == 1:
@@ -875,9 +880,10 @@ class _Reader:
                              "left out")
             else:
                 self.problem(ISSUE_STATES, ISSUE_STATES,
-                             f"{_declared(group, 'state')}; the first entry "
-                             "is kept and the others ignored")
-                kept.append(group[0])
+                             f"{_declared(group, 'state')}; one entry is "
+                             "kept and the others ignored")
+                kept.append(next((state for state in group if _sound(state)),
+                                 group[0]))
         if kept and not any(state.open for state in kept):
             self.problem(ISSUE_STATES, ISSUE_STATES, "no state is flagged "
                          "open", lossy=False)
@@ -895,11 +901,15 @@ class _Reader:
         unknown = "; the entry state is unknown"
         if "entry" not in raw:
             if "entry" in getattr(raw, "duplicate_keys", ()):
-                self.missing(raw, ISSUE_STATES, at, unknown)
+                # Not lossy, like every entry-flag problem: no state is
+                # lost, and `entry_state` being None is the signal.
+                self.problem(ISSUE_STATES, at, "written twice in one object, "
+                             f"so neither value is used{unknown}", lossy=False)
                 return None
             return False
         if not isinstance(raw["entry"], bool):
-            self.problem(ISSUE_STATES, at, f"must be true or false{unknown}")
+            self.problem(ISSUE_STATES, at, f"must be true or false{unknown}",
+                         lossy=False)
             return None
         return raw["entry"]
 
@@ -907,32 +917,35 @@ class _Reader:
                         flagged: List[Optional[str]]) -> Optional[str]:
         """The name of the one open state flagged as the entry state, or
         None, with a Problem, when that is not plain. Every state is kept
-        either way: only the entry state is unknown."""
-        unknown = "; the entry state is unknown"
+        either way: only the entry state is unknown, so the Problem is not
+        lossy and the states can still be complete; `entry_state` being
+        None is what tells a caller that needs it."""
+
+        def unknown(message: str) -> None:
+            self.problem(ISSUE_STATES, ISSUE_STATES,
+                         f"{message}; the entry state is unknown", lossy=False)
+
         if not flagged:
-            self.problem(ISSUE_STATES, ISSUE_STATES, "no state is flagged "
-                         f"\"entry\": true{unknown}")
+            unknown("no state is flagged \"entry\": true")
             return None
         if None in flagged:
-            self.problem(ISSUE_STATES, ISSUE_STATES, "a state flagged "
-                         f"\"entry\": true is left out for want of a name{unknown}")
+            unknown("a state flagged \"entry\": true is left out for want of "
+                    "a name")
             return None
         names = list(dict.fromkeys(flagged))
         if len({_folded(name) for name in names}) > 1:
-            self.problem(ISSUE_STATES, ISSUE_STATES, "more than one state is "
-                         f"flagged \"entry\": true ({', '.join(map(repr, names))}), "
-                         f"and exactly one may be{unknown}")
+            unknown("more than one state is flagged \"entry\": true "
+                    f"({', '.join(map(repr, names))}), and exactly one may be")
             return None
         state = next((state for state in kept
                       if _folded(state.name) == _folded(names[0])), None)
         if state is None:
-            self.problem(ISSUE_STATES, ISSUE_STATES, f"the state flagged "
-                         f"\"entry\": true, {names[0]!r}, is left out{unknown}")
+            unknown(f"the state flagged \"entry\": true, {names[0]!r}, is "
+                    "left out")
             return None
         if not state.open:
-            self.problem(ISSUE_STATES, ISSUE_STATES, f"the state flagged "
-                         f"\"entry\": true, {state.name!r}, is flagged closed, "
-                         f"and an Issue is filed open{unknown}")
+            unknown(f"the state flagged \"entry\": true, {state.name!r}, is "
+                    "flagged closed, and an Issue is filed open")
             return None
         return state.name
 

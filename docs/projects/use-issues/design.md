@@ -61,13 +61,14 @@ description: a sync makes the tracker's colour match the file's, and a
 repo that wants other colours changes its `TRACKER.md`. Where the file's
 colour for an entry is missing or bad, a Wrapper warns, leaves a live
 colour as it is, and gives a neutral default only to a label or option it
-must create. Where a tracker
-offers only a few named colours (a GitHub project board's options take one
-of eight), the Wrapper that writes there shows the nearest, so the file
-holds one form for every platform. The shipped default's colours are ghw's
-label constants where one exists, and for the states hex values that read
-as the board colours ghw gives those states today, so the first sync from
-the schema changes nothing it need not. Rejected, with ADR 0027: a colour
+must create. Where a tracker offers only a few named colours (a GitHub
+project board's options take one of eight), the Wrapper that writes there
+shows the nearest, so the file holds one form for every platform. The
+shipped default's colours are ghw's label constants where one exists, and
+for the states hex values chosen to read as the board colours ghw gives
+those states today, so that the first sync from the schema need change
+little; what "nearest" means is the board Verb's to define
+(`agent-tooling-u9n.21`). Rejected, with ADR 0027: a colour
 rule in the Wrappers, and colours set on creation only; both make colour a
 special case unlike every other part of the schema.
 
@@ -130,10 +131,12 @@ support, and it is always reported. The maintainer ruled this on
   handled apart from the open flag's: no state flagged, more than one, a
   flag that is not true or false, the flagged state left out, or a closed
   state flagged all keep every state and leave the entry state unknown
-  (`entry_state` is None), with a lossy problem on the states. Only a
+  (`entry_state` is None), with a problem on the states that is not lossy,
+  since no state is lost. So the states can still be complete, and only a
   caller that needs the entry state, such as filing that sets it, stops,
-  and only for that need. A state with no entry key is simply not the
-  entry state, since only one state carries it.
+  and only for that need; a board sync that needs the states complete but
+  never the entry state goes ahead. A state with no entry key is simply
+  not the entry state, since only one state carries it.
 - **Conflicts lose only the entries in conflict.** Where entries contradict
   each other, every entry involved is left out and the rest kept:
   - a priority listed twice, since it would have no one rank;
@@ -156,9 +159,9 @@ support, and it is always reported. The maintainer ruled this on
     nonconforming.
 - **Usable is not complete.** Each problem says whether it is lossy: the
   reader dropped or doubted data the file meant to declare. An unknown key,
-  partly-null provenance, or a stray from the delimiting rule loses
-  nothing. A missing or bad colour, like a missing or bad meaning, is
-  lossy, and so is an unknown entry state. A section is complete when it is
+  partly-null provenance, a stray from the delimiting rule, or an unknown
+  entry state loses nothing. A missing or bad colour, like a missing or bad
+  meaning, is lossy. A section is complete when it is
   usable and has no lossy problem. The unaxed labels are in doubt, and so
   not complete, when an axis's prefix could not be read, since a label
   among them may belong on that axis.
@@ -436,7 +439,7 @@ Skill. GitHub's are the six `triage-*` scripts, documented under
 - **Staleness has no exempt state.** Every open Issue is judged against its
   priority's `stale_after_days`. The earlier Skill exempted its entry
   state, because every pass screened every Issue there. An Issue that
-  lingers in the default entry state past its threshold is one screening
+  lingers in the entry state past its threshold is one screening
   could not move and nobody has fixed, which is what staleness is for, and
   the rule needs no state name.
 - **Judgement over enumeration.** The earlier Skill enumerated cases (split
