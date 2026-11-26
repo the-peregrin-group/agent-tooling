@@ -21,20 +21,55 @@ on the file's format, its path in a repo, where the shipped default lives,
 and its provenance on 2026-11-13. The format is recorded in
 [ADR 0025](../../adr/0025-the-tracker-schema-is-one-markdown-file-with-one-json-block.md)
 (the Tracker Schema is a Markdown file with one JSON block for what tooling
-reads, each fact in exactly one place); the other three did not clear the
-ADR gate and are recorded here, each with the options rejected.
+reads, each fact in exactly one place), and what the block holds beyond its
+first keys in
+[ADR 0027](../../adr/0027-the-tracker-schema-block-holds-state-order-entry-state-close-reasons-and-colours.md)
+(the block also holds the state order, the entry state, the close reasons,
+and every colour); the other three did not clear the ADR gate and are
+recorded here, each with the options rejected.
 
 ### Format
 
 The file is Markdown with one fenced JSON block. Each fact lives in exactly
-one place: the JSON block holds the Issue Kinds, the Issue Priorities with
-their staleness thresholds, the Issue Label Schema, each Issue State's name
-with its open or closed flag, and the provenance; the prose holds the state
-meanings and the transition conditions, keyed by state name. JSON, because
-the Wrappers run on the system Python 3.9 with the standard library only,
-which parses JSON and neither TOML nor YAML. Rejected: pure Markdown prose
-(Wrappers would parse prose), and a pure JSON file (multi-paragraph
-mini-prompts in JSON strings are poor to write and review).
+one place. The JSON block holds:
+
+- the Issue Kinds, each with its meaning and colour;
+- the Issue Priorities, highest first, each with its meaning, staleness
+  threshold, and colour;
+- the Issue Label Schema: its axes, and each label, on an axis or on none,
+  with its meaning and colour. A repo's own labels that take no prefix are
+  labels on no axis, so they need no key of their own;
+- the Issue States, in Issue State Diagram order, each with its open or
+  closed flag and colour, and exactly one open state flagged as the entry
+  state;
+- the close reasons, each with its meaning;
+- the provenance.
+
+The prose holds the state meanings and the transition conditions, keyed by
+state name, and the condition for giving each close reason, keyed by the
+reason's name. A fact moved into the block leaves the prose: the prose
+names no entry state and does not hold the order, and only describes its
+states in the block's order. JSON, because the Wrappers run on the system
+Python 3.9 with the standard library only, which parses JSON and neither
+TOML nor YAML. Rejected: pure Markdown prose (Wrappers would parse prose),
+and a pure JSON file (multi-paragraph mini-prompts in JSON strings are poor
+to write and review).
+
+A colour is six hex digits with no leading `#`, the form labels take on
+GitHub, Forgejo, and in ghw's constants, and it is declared like a
+description: a sync makes the tracker's colour match the file's, and a
+repo that wants other colours changes its `TRACKER.md`. Where the file's
+colour for an entry is missing or bad, a Wrapper warns, leaves a live
+colour as it is, and gives a neutral default only to a label or option it
+must create. Where a tracker
+offers only a few named colours (a GitHub project board's options take one
+of eight), the Wrapper that writes there shows the nearest, so the file
+holds one form for every platform. The shipped default's colours are ghw's
+label constants where one exists, and for the states hex values that read
+as the board colours ghw gives those states today, so the first sync from
+the schema changes nothing it need not. Rejected, with ADR 0027: a colour
+rule in the Wrappers, and colours set on creation only; both make colour a
+special case unlike every other part of the schema.
 
 The block uses the same marker convention as `TRIAGE.md`'s config block:
 two HTML comment marker lines naming `tracker-schema`, with one fenced
@@ -74,45 +109,66 @@ support, and it is always reported. The maintainer ruled this on
   fence) is read, with a problem for each stray.
 - **Section by section.** Otherwise the reader always returns a result.
   It reads each section on its own: provenance, kinds, priorities, label
-  axes, unaxed labels, and states. A caller that asks for an unusable
-  section gets an error for that section alone. A caller that never asks
-  is unaffected.
+  axes, unaxed labels, states, and close reasons. A caller that asks for an
+  unusable section gets an error for that section alone. A caller that
+  never asks is unaffected.
 - **Keep what is sound.** Within a section, a bad entry is left out and the
-  rest kept. A bad descriptive field (a meaning, a staleness threshold)
-  reads as absent. A flag a caller acts on (a state's open flag, an axis's
-  required flag) is never absent: an entry whose flag is bad is left out,
-  so no caller can take an unknown flag for false. A key the reader does
-  not know is ignored, and a key it needs but cannot find leaves that field
-  or section absent. So a repo's copy written for a newer reader, and one
-  written for an older reader, both keep everything else working. The
-  reader is updated whenever the block's shape changes.
+  rest kept. A bad descriptive field (a meaning, a colour, a staleness
+  threshold) reads as absent, and so does a missing one; a colour is
+  treated exactly like a meaning. A flag a caller acts on (a state's open
+  flag, an axis's required flag) is never absent: an entry whose flag is
+  bad is left out, so no caller can take an unknown flag for false. A key
+  the reader does not know is ignored, and a key it needs but cannot find
+  leaves that field or section absent. So a repo's copy written for a
+  newer reader, and one written for an older reader, both keep everything
+  else working. The reader is updated whenever the block's shape changes.
+- **Order survives a lost entry.** The priorities and the states are read
+  in file order, and leaving an entry out keeps the others' order relative
+  to each other, which is all the order means.
+- **The entry state is unknown, not guessed.** The entry flag picks one
+  state out of the list rather than describing each, so its defects are
+  handled apart from the open flag's: no state flagged, more than one, a
+  flag that is not true or false, the flagged state left out, or a closed
+  state flagged all keep every state and leave the entry state unknown
+  (`entry_state` is None), with a lossy problem on the states. Only a
+  caller that needs the entry state, such as filing that sets it, stops,
+  and only for that need. A state with no entry key is simply not the
+  entry state, since only one state carries it.
 - **Conflicts lose only the entries in conflict.** Where entries contradict
   each other, every entry involved is left out and the rest kept:
-  - a priority listed twice, since it would have no one rank; leaving it
-    out keeps the others' order, which is all the order means;
+  - a priority listed twice, since it would have no one rank;
   - a state listed twice with opposite open flags;
   - axes that share a name, or whose prefixes overlap, since which axis a
     label sits on would depend on list order. Their prefixes still keep
     labels out of the unaxed labels.
 
   A name listed twice where nothing hangs on which entry is kept (a kind,
-  a label, a state flagged the same way twice) keeps one entry, the first
-  whose fields all read.
+  a label, a close reason, a state flagged the same way twice) keeps one
+  entry, the first whose fields all read.
 - **Unusable as a whole only where nothing can be kept safely:**
   - provenance with any bad field, since its fields are used together as
     one diff target;
   - a section that is missing, written twice, or not a list;
   - every section inside a block, or an `issue_label_schema`, that is not
     a JSON object;
-  - kinds, priorities, or states with no usable entry left, since an empty
-    list would make every Issue nonconforming.
+  - kinds, priorities, states, or close reasons with no usable entry left,
+    since an empty list would make every Issue, or every close,
+    nonconforming.
 - **Usable is not complete.** Each problem says whether it is lossy: the
   reader dropped or doubted data the file meant to declare. An unknown key,
   partly-null provenance, or a stray from the delimiting rule loses
-  nothing. A section is complete when it is usable and has no lossy
-  problem. The unaxed labels are in doubt, and so not complete, when an
-  axis's prefix could not be read, since a label among them may belong on
-  that axis.
+  nothing. A missing or bad colour, like a missing or bad meaning, is
+  lossy, and so is an unknown entry state. A section is complete when it is
+  usable and has no lossy problem. The unaxed labels are in doubt, and so
+  not complete, when an axis's prefix could not be read, since a label
+  among them may belong on that axis.
+- **Older copies.** A copy written before the entry flag, the close
+  reasons, and the colours existed still reads: its kinds, priorities,
+  labels, and states are usable, with a warning for each missing colour
+  and for the unknown entry state, and its close reasons are unusable.
+  Since a missing colour is lossy, none of those sections is complete
+  until the copy declares its colours, so a destructive sync waits for
+  that edit, as it would for a missing meaning.
 - **Ambiguous names are flaws.** Beyond the documented shape, the reader
   treats as a flaw anything that would make a tracker's reading ambiguous:
   - two names that differ only in case, since GitHub matches label names
@@ -143,15 +199,25 @@ one. Rejected:
   Completeness already keeps a destructive write off such a section, so
   refusing the rest would only stop additive writes it still supports;
 - keeping a state or axis whose flag is bad with the flag absent, since a
-  caller testing the flag as true or false would take absent for false.
+  caller testing the flag as true or false would take absent for false;
+- leaving out a state whose entry flag is bad, or every state flagged as
+  the entry, as the open flag's rule would; that loses states over a fact
+  about one of them, when an unknown entry state is easy for a caller to
+  test for;
+- reading the first state flagged, or the first state listed, as the entry
+  state when the flags do not name one plainly, since filing an Issue in
+  the wrong state is the guess the flag exists to prevent.
 
 The reader reads none of the prose. Whether a file's prose and block agree
-(every state in the block has a meaning section and an "Out of" section,
-and no meaning or "Out of" section names a state the block lacks) is
-checked by a test over the shipped default and this repo's copy, not by
+is checked by a test over the shipped default and this repo's copy, not by
 the reader, because the prose's headings are written for people and agents
-and a repo may arrange its own copy's prose differently. The same test is
-where strictness lives: both files must read with no problem at all.
+and a repo may arrange its own copy's prose differently. The test checks
+that the meaning sections and the "Out of" sections name the block's
+states in the block's order, and that the conditions under "Into Closed"
+are keyed by exactly the block's close reasons. The same test is where
+strictness lives: both files must read with no problem at all, so each
+names exactly one entry state and gives everything that takes a colour its
+colour.
 
 ### How a Wrapper uses the schema
 

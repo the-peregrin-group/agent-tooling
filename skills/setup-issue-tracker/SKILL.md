@@ -69,7 +69,8 @@ approves the whole of it at once.
   parts of this project, enough to label meaningfully and few enough to
   apply consistently. Lines meant for other platforms may be trimmed or
   left.
-- The default's kinds and priority levels are proposals, not mandates. The
+- The default's kinds, priority levels, and colours are proposals, not
+  mandates. A kind, priority, or label the copy adds takes a colour too. The
   owner keeps, changes, or replaces them, unless the platform materially
   prevents it. Every change is the repo's customization of its copy.
 

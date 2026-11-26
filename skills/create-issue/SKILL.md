@@ -89,8 +89,8 @@ declare.
   answer "what do I work on next?" Set it as best you can: where the tracker
   fills in a default, that default is the tool's guess, not the filer's. A
   wrong priority costs nothing, since the batch pass reconciles it.
-- **Entry state.** A new Issue goes in the default entry Issue State the
-  repo's Issue State Diagram declares when its right state is not known. A
+- **Entry state.** A new Issue goes in the entry Issue State the repo's
+  Tracker Schema declares when its right state is not known. A
   filer who knows the Issue already meets every bar up to a later state
   files it there, judging that against the diagram as for any move.
 - **Labels.** Labels are drawn from the Issue Label Schema; an unknown label
