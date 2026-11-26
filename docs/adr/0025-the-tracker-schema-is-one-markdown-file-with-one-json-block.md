@@ -13,7 +13,7 @@ status: amended
 
 ## Consequences
 
-- Folding `TRIAGE.md`'s config block into this file's JSON block is left to `agent-tooling-u9n.8` (make triage-issues tool-agnostic). (That Issue closed without folding it; the question now sits with `agent-tooling-wx5`, one per-repo config home.)
+- Folding `TRIAGE.md`'s config block into this file's JSON block is left to `agent-tooling-u9n.8` (make triage-issues tool-agnostic).
 
 ## Alternatives Considered
 
