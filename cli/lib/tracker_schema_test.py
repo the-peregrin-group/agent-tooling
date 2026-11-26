@@ -38,19 +38,22 @@ _DOCUMENT = {
         "source_repo": None, "source_commit": None, "default_path": None,
     },
     "issue_kinds": [
-        {"name": "bug", "meaning": "Something is broken"},
-        {"name": "feature", "meaning": "Something new"},
+        {"name": "bug", "meaning": "Something is broken", "color": "d73a4a"},
+        {"name": "feature", "meaning": "Something new", "color": "a2eeef"},
     ],
     "issue_priorities": [
-        {"name": "P0", "meaning": "Drop everything", "stale_after_days": 1},
-        {"name": "P1", "meaning": "Next", "stale_after_days": 7},
+        {"name": "P0", "meaning": "Drop everything", "color": "b60205",
+         "stale_after_days": 1},
+        {"name": "P1", "meaning": "Next", "color": "d93f0b",
+         "stale_after_days": 7},
     ],
     "issue_label_schema": {
         "axes": [
             {
                 "name": "area", "prefix": "area:", "meaning": "Part concerned",
                 "every_issue_carries_at_least_one": True,
-                "labels": [{"name": "area:core", "meaning": "The core"}],
+                "labels": [{"name": "area:core", "meaning": "The core",
+                            "color": "bfdadc"}],
             },
             {
                 "name": "scope", "prefix": "scope:", "meaning": "Deployment",
@@ -58,11 +61,18 @@ _DOCUMENT = {
                 "labels": [],
             },
         ],
-        "labels": [{"name": "human", "meaning": "Waiting on a person"}],
+        "labels": [{"name": "human", "meaning": "Waiting on a person",
+                    "color": "d876e3"}],
     },
     "issue_states": [
-        {"name": "Needs Triage", "open": True},
-        {"name": "Closed", "open": False},
+        {"name": "Needs Triage", "open": True, "entry": True,
+         "color": "d73a4a"},
+        {"name": "In review", "open": True, "color": "db61a2"},
+        {"name": "Closed", "open": False, "color": "6a737d"},
+    ],
+    "close_reasons": [
+        {"name": "done", "meaning": "The work is finished"},
+        {"name": "rejected", "meaning": "It was decided not to do it"},
     ],
 }
 
@@ -74,7 +84,9 @@ _PROPERTY = {
     tracker_schema.LABEL_AXES: "label_axes",
     tracker_schema.UNAXED_LABELS: "unaxed_labels",
     tracker_schema.ISSUE_STATES: "issue_states",
+    tracker_schema.CLOSE_REASONS: "close_reasons",
 }
+_FILLER_COLOR = "ededed"
 
 
 def _file(block: str, before: str = "", after: str = "") -> str:
@@ -104,7 +116,47 @@ def _labels(**changes) -> dict:
     return _with(issue_label_schema=label_schema)
 
 
-def _read(document: object) -> tracker_schema.TrackerSchema:
+def _filled(document: object) -> object:
+    """A copy of `document` with what a test about something else would
+    otherwise have to spell out on every entry: a colour on each kind,
+    priority, label, and state that has none, and, where no state has an
+    entry key, the entry flag on the first state flagged open. Anything
+    that is not the expected shape is left as it is."""
+    document = copy.deepcopy(document)
+    if not isinstance(document, dict):
+        return document
+
+    def coloured(entries):
+        for entry in entries if isinstance(entries, list) else ():
+            if isinstance(entry, dict):
+                entry.setdefault("color", _FILLER_COLOR)
+
+    coloured(document.get("issue_kinds"))
+    coloured(document.get("issue_priorities"))
+    labels = document.get("issue_label_schema")
+    if isinstance(labels, dict):
+        coloured(labels.get("labels"))
+        for axis in labels.get("axes") if isinstance(labels.get("axes"),
+                                                     list) else ():
+            if isinstance(axis, dict):
+                coloured(axis.get("labels"))
+    states = document.get("issue_states")
+    coloured(states)
+    if isinstance(states, list):
+        dicts = [state for state in states if isinstance(state, dict)]
+        if not any("entry" in state for state in dicts):
+            first = next((state for state in dicts
+                          if state.get("open") is True), None)
+            if first is not None:
+                first["entry"] = True
+    return document
+
+
+def _read(document: object, fill: bool = True) -> tracker_schema.TrackerSchema:
+    """Parse `document`, filled in as `_filled` says unless `fill` is
+    False, which tests of colours and entry flags themselves pass."""
+    if fill:
+        document = _filled(document)
     return tracker_schema.parse(_file(_fenced(document)))
 
 
@@ -299,18 +351,19 @@ class DegradationTest(_Checks):
     # -- keys the reader does not know, and keys it lacks --------------
 
     def test_an_unknown_top_level_key_is_ignored_and_reported(self):
-        schema = _read(_with(entry_state="Needs Triage"))
+        schema = _read(_with(board_ids={}))
         self.assertEqual(_complete(schema), _ALL_SECTIONS)
-        self._problem(schema, None, "entry_state: unknown key, ignored",
+        self._problem(schema, None, "board_ids: unknown key, ignored",
                       lossy=False)
 
     def test_an_unknown_nested_key_is_ignored_and_reported(self):
-        kinds = [{"name": "bug", "meaning": "Broken", "color": "d73a4a"}]
+        kinds = [{"name": "bug", "meaning": "Broken", "color": "d73a4a",
+                  "emoji": "x"}]
         schema = _read(_with(issue_kinds=kinds))
         self.assertEqual(schema.kind("bug").meaning, "Broken")
         self.assertTrue(schema.complete(tracker_schema.ISSUE_KINDS))
         self._problem(schema, tracker_schema.ISSUE_KINDS,
-                      "issue_kinds[0].color: unknown key, ignored", lossy=False)
+                      "issue_kinds[0].emoji: unknown key, ignored", lossy=False)
 
     def test_an_unknown_key_in_the_label_schema_belongs_to_neither_section(self):
         schema = _read(_labels(colors={}))
@@ -321,12 +374,11 @@ class DegradationTest(_Checks):
     def test_a_newer_copy_keeps_working_with_this_reader(self):
         # A copy written for a later reader: new top-level keys, and a new
         # key on entries this reader already knows.
-        document = _with(entry_state="Needs Triage",
-                         close_reasons=[{"name": "done"}])
-        document["issue_states"][0]["order"] = 1
+        document = _with(board_ids={}, reopen_reasons=[{"name": "regressed"}])
+        document["issue_states"][0]["aliases"] = ["Triage"]
         schema = _read(document)
         self.assertEqual(_complete(schema), _ALL_SECTIONS)
-        self.assertEqual([s.name for s in schema.open_states], ["Needs Triage"])
+        self.assertEqual(schema.entry_state.name, "Needs Triage")
         self.assertTrue(all("unknown key, ignored" in p.message
                             for p in schema.problems))
 
@@ -344,6 +396,34 @@ class DegradationTest(_Checks):
         self.assertFalse(schema.complete(tracker_schema.ISSUE_PRIORITIES))
         self._problem(schema, tracker_schema.ISSUE_PRIORITIES,
                       "issue_priorities[1].stale_after_days: missing")
+
+    def test_a_copy_from_before_entry_order_close_reasons_and_colours(self):
+        # The block as it was before the entry flag, the close reasons, and
+        # the colours: every older section stays usable, with warnings.
+        document = copy.deepcopy(_DOCUMENT)
+        del document["close_reasons"]
+        for entry in (document["issue_kinds"] + document["issue_priorities"]
+                      + document["issue_label_schema"]["labels"]
+                      + document["issue_label_schema"]["axes"][0]["labels"]
+                      + document["issue_states"]):
+            entry.pop("color")
+            entry.pop("entry", None)
+        schema = _read(document, fill=False)
+        self._only_unusable(schema, tracker_schema.CLOSE_REASONS)
+        self.assertEqual([s.name for s in schema.issue_states],
+                         ["Needs Triage", "In review", "Closed"])
+        self.assertEqual(schema.kind("bug").meaning, "Something is broken")
+        self.assertIsNone(schema.kind("bug").color)
+        self.assertIsNone(schema.entry_state)
+        self._problem(schema, tracker_schema.ISSUE_STATES,
+                      "no state is flagged \"entry\": true; the entry state "
+                      "is unknown")
+        self._problem(schema, tracker_schema.ISSUE_KINDS,
+                      "issue_kinds[0].color: missing; read as absent")
+        self._problem(schema, tracker_schema.CLOSE_REASONS, "missing")
+        # Treated like a missing meaning: lossy, so a destructive write
+        # waits until the file declares its colours.
+        self.assertEqual(_complete(schema), {tracker_schema.PROVENANCE})
 
     def test_a_missing_section_is_unusable_alone(self):
         document = copy.deepcopy(_DOCUMENT)
@@ -378,7 +458,7 @@ class DegradationTest(_Checks):
                          _ALL_SECTIONS - {tracker_schema.ISSUE_PRIORITIES})
         self._problem(schema, tracker_schema.ISSUE_PRIORITIES,
                       "must be a JSON list")
-        self.assertEqual(len(schema.issue_states), 2)
+        self.assertEqual(len(schema.issue_states), 3)
         self.assertEqual(schema.issue_label_schema.label("human").name, "human")
 
     def test_an_empty_list_is_unusable(self):
@@ -586,10 +666,141 @@ class DegradationTest(_Checks):
             {"name": "closed", "open": True}]
         opposite = _read(_with(issue_states=states))
         self.assertEqual([s.name for s in opposite.issue_states],
-                         ["Needs Triage"])
+                         ["Needs Triage", "In review"])
         self._only_incomplete(opposite, tracker_schema.ISSUE_STATES)
         self._problem(opposite, tracker_schema.ISSUE_STATES,
                       "flagged both open and closed")
+
+    # -- the entry state ------------------------------------------------------
+    #
+    # Whatever is wrong with the entry flags, every state is kept and only
+    # the entry state is unknown, so only a caller that needs it stops.
+
+    def _entry_unknown(self, states, fragment: str) -> None:
+        schema = _read(_with(issue_states=states), fill=False)
+        self.assertIsNone(schema.entry_state)
+        self.assertEqual(_usable(schema), _ALL_SECTIONS)
+        self._only_incomplete(schema, tracker_schema.ISSUE_STATES)
+        self._problem(schema, tracker_schema.ISSUE_STATES, fragment)
+        return schema
+
+    def test_no_entry_state_leaves_it_unknown(self):
+        states = copy.deepcopy(_DOCUMENT["issue_states"])
+        del states[0]["entry"]
+        schema = self._entry_unknown(states, "no state is flagged")
+        self.assertEqual(len(schema.issue_states), 3)
+
+    def test_two_entry_states_leave_it_unknown(self):
+        states = copy.deepcopy(_DOCUMENT["issue_states"])
+        states[1]["entry"] = True
+        self._entry_unknown(states, "more than one state is flagged "
+                            "\"entry\": true ('Needs Triage', 'In review')")
+
+    def test_a_bad_entry_flag_leaves_it_unknown(self):
+        for flag in ("yes", None, 1):
+            with self.subTest(flag=flag):
+                states = copy.deepcopy(_DOCUMENT["issue_states"])
+                states[1]["entry"] = flag
+                self._entry_unknown(states, "issue_states[1].entry: must be "
+                                    "true or false; the entry state is unknown")
+
+    def test_an_entry_flag_written_twice_leaves_it_unknown(self):
+        block = _fenced(_DOCUMENT).replace('"entry": true',
+                                           '"entry": true, "entry": false')
+        schema = tracker_schema.parse(_file(block))
+        self.assertIsNone(schema.entry_state)
+        self._problem(schema, tracker_schema.ISSUE_STATES,
+                      "issue_states[0].entry: written twice")
+
+    def test_an_entry_state_left_out_leaves_it_unknown(self):
+        states = copy.deepcopy(_DOCUMENT["issue_states"])
+        states[0]["open"] = "yes"
+        self._entry_unknown(states, "'Needs Triage', is left out")
+        states = copy.deepcopy(_DOCUMENT["issue_states"])
+        del states[0]["name"]
+        self._entry_unknown(states, "left out for want of a name")
+
+    def test_a_closed_entry_state_leaves_it_unknown(self):
+        states = copy.deepcopy(_DOCUMENT["issue_states"])
+        del states[0]["entry"]
+        states[2]["entry"] = True
+        self._entry_unknown(states, "'Closed', is flagged closed")
+
+    def test_entry_false_is_no_problem(self):
+        states = copy.deepcopy(_DOCUMENT["issue_states"])
+        states[1]["entry"] = False
+        schema = _read(_with(issue_states=states), fill=False)
+        self.assertEqual(schema.problems, ())
+        self.assertEqual(schema.entry_state.name, "Needs Triage")
+
+    def test_unusable_states_have_no_entry_state_to_ask_for(self):
+        schema = _read(_with(issue_states="Needs Triage"), fill=False)
+        with self.assertRaises(UnusableSectionError):
+            schema.entry_state
+        self.assertFalse([p for p in schema.problems if "entry" in p.message])
+
+    # -- colours --------------------------------------------------------------
+
+    def test_a_colour_is_read_in_either_case_and_kept_in_lowercase(self):
+        kinds = [{"name": "bug", "meaning": "Broken", "color": "D73A4A"}]
+        schema = _read(_with(issue_kinds=kinds), fill=False)
+        self.assertEqual(schema.kind("bug").color, "d73a4a")
+        self.assertTrue(schema.complete(tracker_schema.ISSUE_KINDS))
+
+    def test_a_bad_colour_reads_as_none_and_keeps_the_entry(self):
+        for color in ("#d73a4a", "d73a4", "red", "RED", 0xd73a4a, None, " d73a4a"):
+            with self.subTest(color=color):
+                document = copy.deepcopy(_DOCUMENT)
+                document["issue_states"][1]["color"] = color
+                schema = _read(document, fill=False)
+                self.assertEqual(schema.state("In review").open, True)
+                self.assertIsNone(schema.state("In review").color)
+                self._only_incomplete(schema, tracker_schema.ISSUE_STATES)
+                self._problem(schema, tracker_schema.ISSUE_STATES,
+                              "issue_states[1].color: must be six hex digits "
+                              "with no leading #, such as d73a4a; read as "
+                              "absent")
+
+    def test_a_missing_colour_reads_as_none_in_every_section(self):
+        document = copy.deepcopy(_DOCUMENT)
+        del document["issue_kinds"][0]["color"]
+        del document["issue_priorities"][0]["color"]
+        del document["issue_label_schema"]["axes"][0]["labels"][0]["color"]
+        del document["issue_label_schema"]["labels"][0]["color"]
+        del document["issue_states"][0]["color"]
+        schema = _read(document, fill=False)
+        self.assertIsNone(schema.kind("bug").color)
+        self.assertIsNone(schema.priority("P0").color)
+        self.assertIsNone(schema.issue_label_schema.label("area:core").color)
+        self.assertIsNone(schema.issue_label_schema.label("human").color)
+        self.assertIsNone(schema.entry_state.color)
+        self._only_incomplete(schema, tracker_schema.ISSUE_KINDS,
+                              tracker_schema.ISSUE_PRIORITIES,
+                              tracker_schema.LABEL_AXES,
+                              tracker_schema.UNAXED_LABELS,
+                              tracker_schema.ISSUE_STATES)
+
+    # -- close reasons --------------------------------------------------------
+
+    def test_close_reasons_degrade_like_kinds(self):
+        reasons = [{"name": "done", "meaning": "Finished"}, {"meaning": "x"},
+                   {"name": "done", "meaning": "again"},
+                   {"name": "rejected", "meaning": ""}]
+        schema = _read(_with(close_reasons=reasons))
+        self.assertEqual([(r.name, r.meaning) for r in schema.close_reasons],
+                         [("done", "Finished"), ("rejected", None)])
+        self._only_incomplete(schema, tracker_schema.CLOSE_REASONS)
+        self._problem(schema, tracker_schema.CLOSE_REASONS,
+                      "close_reasons[1].name: missing; the entry is left out")
+        self._problem(schema, tracker_schema.CLOSE_REASONS,
+                      "the close reason 'done' is declared 2 times")
+
+    def test_close_reasons_unusable_alone(self):
+        for reasons in ([], "done", [{"meaning": "x"}]):
+            with self.subTest(reasons=reasons):
+                schema = _read(_with(close_reasons=reasons))
+                self._only_unusable(schema, tracker_schema.CLOSE_REASONS)
+                self.assertEqual(schema.entry_state.name, "Needs Triage")
 
     def test_overlapping_axis_prefixes_leave_out_both_axes(self):
         for prefix in ("area:", "a", "area:sub:", "AREA:"):
@@ -647,16 +858,16 @@ class WarningLinesTest(unittest.TestCase):
         self.assertEqual(tracker_schema.warning_lines(_read(_DOCUMENT)), ())
 
     def test_one_line_per_problem_naming_file_place_and_fault(self):
-        document = _with(entry_state="x")
+        document = _with(board_ids="x")
         del document["issue_states"]
         document["issue_kinds"][0]["meaning"] = ""
         document["issue_kinds"].append({"name": "feature", "meaning": "again"})
         lines = tracker_schema.warning_lines(_read(document))
         self.assertEqual(lines, (
-            "warning: TRACKER.md: entry_state: unknown key, ignored (this "
+            "warning: TRACKER.md: board_ids: unknown key, ignored (this "
             "reader knows provenance, issue_kinds, issue_priorities, "
-            "issue_label_schema, issue_states; the file may be newer than the "
-            "tool reading it)",
+            "issue_label_schema, issue_states, close_reasons; the file may be "
+            "newer than the tool reading it)",
             "warning: TRACKER.md: issue_kinds[0].meaning: must be a non-empty "
             "string with no surrounding whitespace; read as absent",
             "warning: TRACKER.md: issue_kinds: the kind 'feature' is declared 2 "
@@ -669,7 +880,8 @@ class WarningLinesTest(unittest.TestCase):
         self.assertEqual(lines, (
             "warning: TRACKER.md: the JSON block: must be a JSON object with "
             "the keys provenance, issue_kinds, issue_priorities, "
-            "issue_label_schema, issue_states; no section is usable",
+            "issue_label_schema, issue_states, close_reasons; no section is "
+            "usable",
         ))
 
     def test_nothing_from_the_file_reaches_a_line_unescaped(self):
@@ -727,16 +939,34 @@ class AccessorTest(unittest.TestCase):
         self.assertEqual([label.name for label in labels.all_labels()],
                          ["area:core", "human"])
         self.assertEqual(labels.label("human").meaning, "Waiting on a person")
+        self.assertEqual(labels.label("human").color, "d876e3")
+        self.assertEqual(labels.label("area:core").color, "bfdadc")
         self.assertIsNone(labels.label("area:docs"))
         self.assertIs(labels.axis_of("area:docs"), area)
         self.assertIsNone(labels.axis_of("human"))
 
-    def test_states(self):
+    def test_states_in_diagram_order(self):
         self.assertIs(self.schema.state("Needs Triage").open, True)
+        self.assertEqual([s.name for s in self.schema.issue_states],
+                         ["Needs Triage", "In review", "Closed"])
         self.assertEqual([s.name for s in self.schema.open_states],
-                         ["Needs Triage"])
+                         ["Needs Triage", "In review"])
         self.assertEqual([s.name for s in self.schema.closed_states],
                          ["Closed"])
+        self.assertIs(self.schema.entry_state,
+                      self.schema.state("Needs Triage"))
+        self.assertEqual(self.schema.state("Closed").color, "6a737d")
+
+    def test_colours(self):
+        self.assertEqual(self.schema.kind("bug").color, "d73a4a")
+        self.assertEqual(self.schema.priority("P1").color, "d93f0b")
+
+    def test_close_reasons(self):
+        self.assertEqual([r.name for r in self.schema.close_reasons],
+                         ["done", "rejected"])
+        self.assertEqual(self.schema.close_reason("done").meaning,
+                         "The work is finished")
+        self.assertIsNone(self.schema.close_reason("wontfix"))
 
     def test_provenance(self):
         self.assertTrue(self.schema.provenance.is_original)
@@ -809,11 +1039,28 @@ def _sections(text: str, parent: str):
     return headings
 
 
+def _close_reason_conditions(text: str):
+    """The close reasons the prose keys a condition by: each bullet under
+    the "Into Closed" heading that begins with a name in backticks."""
+    names, inside = [], False
+    for line in text.split("\n"):
+        if line.startswith("#"):
+            inside = line.startswith("#### Into Closed")
+        elif inside:
+            match = re.match(r"- `([^`]+)`:", line)
+            if match:
+                names.append(match.group(1))
+    return names
+
+
 class ShippedSchemaValidityTest(unittest.TestCase):
     """The shipped default and this repo's own copy read with no Problem at
     all (no stray from the delimiting rule, no unknown key, no entry left
-    out, every section complete), and in each the block's state names and
-    the prose's state sections agree."""
+    out, every section complete, so exactly one entry state and a colour on
+    everything that takes one), and in each the block and the prose agree:
+    the prose's state sections are the block's states in the block's order,
+    and its close-reason conditions are keyed by the block's close
+    reasons."""
 
     def _check(self, path: Path) -> tracker_schema.TrackerSchema:
         text = path.read_text(encoding="utf-8")
@@ -833,13 +1080,23 @@ class ShippedSchemaValidityTest(unittest.TestCase):
         ]
         self.assertTrue(meanings and transitions,
                         f"{path.name}: no state sections found in the prose")
-        self.assertCountEqual(
+        # The block's list is the order; the prose follows it.
+        self.assertEqual(
             states, meanings,
-            f"{path.name}: the block's states and the meaning sections differ",
+            f"{path.name}: the meaning sections are not the block's states "
+            "in the block's order",
         )
-        self.assertCountEqual(
+        self.assertEqual(
             states, transitions,
-            f"{path.name}: the block's states and the 'Out of' sections differ",
+            f"{path.name}: the 'Out of' sections are not the block's states "
+            "in the block's order",
+        )
+        self.assertIsNotNone(schema.entry_state)
+        self.assertEqual(
+            [reason.name for reason in schema.close_reasons],
+            _close_reason_conditions(text),
+            f"{path.name}: the block's close reasons and those the 'Into "
+            "Closed' prose keys a condition by differ",
         )
         return schema
 

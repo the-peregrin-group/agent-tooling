@@ -3,9 +3,12 @@
 A Tracker Schema is a Markdown file (`TRACKER.md` at a repo's root, copied
 from `skills/setup-issue-tracker/TRACKER.default.md`) whose one JSON block
 holds what tooling reads: the Issue Kinds, the Issue Priorities, the Issue
-Label Schema, each Issue State's name and open flag, and the provenance. The
-prose around it holds the state meanings and transition conditions, which
-are for agents and people, so this module reads none of it.
+Label Schema, the Issue States in the Issue State Diagram's order with each
+one's open flag and which one is the entry state, the close reasons, a
+colour for every kind, priority, label, and state, and the provenance. The
+prose around it holds the state meanings and transition conditions, and
+when each close reason may be given, which are for agents and people, so
+this module reads none of it.
 
 The file itself is the contract this module implements: the rule under its
 "How the block is delimited" finds the block, and "What each key holds" is
@@ -21,16 +24,20 @@ a caller from using the parts that are sound:
     a marker in the prose, a fence spelled another way, a stray line beside
     the fence) is read anyway, with a Problem.
   - Otherwise `parse` always returns a TrackerSchema. Each section
-    (provenance, kinds, priorities, label axes, unaxed labels, states) is
-    read on its own. A section with nothing safe to read is unusable, and
+    (provenance, kinds, priorities, label axes, unaxed labels, states, close
+    reasons) is read on its own. A section with nothing safe to read is unusable, and
     asking for it raises UnusableSectionError for that section alone; a
     caller that never asks is unaffected.
   - Within a section, a bad entry is left out and the rest kept, and so is
     every entry of a name declared in conflicting ways. A bad descriptive
-    field (a meaning, a staleness threshold) reads as None. A flag a caller
-    acts on (a state's open flag, an axis's required flag) is never None:
-    an entry whose flag is bad is left out instead, so `if state.open:` is
-    always a real answer.
+    field (a meaning, a colour, a staleness threshold) reads as None. A flag
+    a caller acts on (a state's open flag, an axis's required flag) is never
+    None: an entry whose flag is bad is left out instead, so `if state.open:`
+    is always a real answer. The entry flag is the one exception, since it
+    picks one state out of the list rather than describing each: a bad
+    entry flag, or no state or several flagged, keeps every state and makes
+    `entry_state` None, so only a caller that needs the entry state is
+    stopped.
   - A key the reader does not know, at any level, is ignored. A key it
     needs and does not find makes that field or section absent. So a copy
     written for a newer reader, and one written for an older reader, both
@@ -85,23 +92,27 @@ ISSUE_PRIORITIES = "issue_priorities"
 LABEL_AXES = "issue_label_schema.axes"
 UNAXED_LABELS = "issue_label_schema.labels"
 ISSUE_STATES = "issue_states"
+CLOSE_REASONS = "close_reasons"
 SECTIONS = (PROVENANCE, ISSUE_KINDS, ISSUE_PRIORITIES, LABEL_AXES,
-            UNAXED_LABELS, ISSUE_STATES)
+            UNAXED_LABELS, ISSUE_STATES, CLOSE_REASONS)
 
 _TOP_LEVEL_KEYS = (
     "provenance", "issue_kinds", "issue_priorities", "issue_label_schema",
-    "issue_states",
+    "issue_states", "close_reasons",
 )
 _PROVENANCE_KEYS = ("source_repo", "source_commit", "default_path")
-_KIND_KEYS = ("name", "meaning")
-_PRIORITY_KEYS = ("name", "meaning", "stale_after_days")
+_KIND_KEYS = ("name", "meaning", "color")
+_PRIORITY_KEYS = ("name", "meaning", "color", "stale_after_days")
 _LABEL_SCHEMA_KEYS = ("axes", "labels")
 _AXIS_KEYS = (
     "name", "prefix", "meaning", "every_issue_carries_at_least_one", "labels",
 )
-_LABEL_KEYS = ("name", "meaning")
-_STATE_KEYS = ("name", "open")
+_LABEL_KEYS = ("name", "meaning", "color")
+_STATE_KEYS = ("name", "open", "entry", "color")
+_CLOSE_REASON_KEYS = ("name", "meaning")
 _FULL_COMMIT = re.compile(r"[0-9a-f]{40}|[0-9a-f]{64}")
+# A colour: six hex digits, as a label takes it, with no leading "#".
+_COLOR = re.compile(r"[0-9A-Fa-f]{6}")
 # A line that opens a fenced code block in Markdown, and one that can close it.
 _FENCE_OPENING = re.compile(r"(`{3,}|~{3,})")
 _FENCE_CLOSING = re.compile(r"`{3,}|~{3,}")
@@ -198,6 +209,9 @@ class Provenance:
 class IssueKind:
     name: str
     meaning: Optional[str]  # None when the file's meaning is missing or bad
+    # Six lowercase hex digits with no "#", or None when missing or bad, as
+    # on every entry that has a colour.
+    color: Optional[str]
 
 
 @dataclass(frozen=True)
@@ -205,6 +219,7 @@ class IssuePriority:
     name: str
     meaning: Optional[str]
     stale_after_days: Optional[int]  # None when missing or bad
+    color: Optional[str]
 
 
 @dataclass(frozen=True)
@@ -213,6 +228,7 @@ class IssueLabel:
 
     name: str
     meaning: Optional[str]
+    color: Optional[str]
 
 
 @dataclass(frozen=True)
@@ -266,10 +282,22 @@ class IssueLabelSchema:
 @dataclass(frozen=True)
 class IssueState:
     """An Issue State. A state whose open flag is bad is left out, so `open`
-    is always a real bool."""
+    is always a real bool. Which state is the entry state is
+    `TrackerSchema.entry_state`, not a field here, since it can be unknown
+    while every state is still sound."""
 
     name: str
     open: bool
+    color: Optional[str]
+
+
+@dataclass(frozen=True)
+class CloseReason:
+    """A reason an Issue is closed with. When it may be given is in the
+    file's prose, keyed by this name."""
+
+    name: str
+    meaning: Optional[str]
 
 
 @dataclass(frozen=True)
@@ -277,12 +305,15 @@ class TrackerSchema:
     """What the reader could use of a Tracker Schema, and what it could not.
 
     Each section is a property that raises UnusableSectionError when the
-    section is unusable. Every collection is a tuple in file order, and the
-    priorities run from highest to lowest. A destructive write calls
-    `require_complete` on every section it derives from first."""
+    section is unusable. Every collection is a tuple in file order: the
+    priorities run from highest to lowest, and the states run in the Issue
+    State Diagram's order, the order an Issue normally moves through them.
+    A destructive write calls `require_complete` on every section it
+    derives from first."""
 
     problems: Tuple[Problem, ...]
     _sections: Mapping[str, object] = field(repr=False, hash=False)
+    _entry_state: Optional[str] = field(default=None, repr=False)
 
     def usable(self, section: str) -> bool:
         """True if the section can be read, perhaps with entries left out."""
@@ -368,6 +399,24 @@ class TrackerSchema:
     @property
     def closed_states(self) -> Tuple[IssueState, ...]:
         return tuple(state for state in self.issue_states if not state.open)
+
+    @property
+    def entry_state(self) -> Optional[IssueState]:
+        """The state an Issue is filed in when its right state is not known,
+        or None when the file does not name exactly one open state as it
+        (`problems_in(ISSUE_STATES)` says why). Raises UnusableSectionError
+        when the states are unusable."""
+        self.issue_states
+        if self._entry_state is None:
+            return None
+        return self.state(self._entry_state)
+
+    @property
+    def close_reasons(self) -> Tuple[CloseReason, ...]:
+        return self._section(CLOSE_REASONS)
+
+    def close_reason(self, name: str) -> Optional[CloseReason]:
+        return _by_name(self.close_reasons, name)
 
 
 def warning_lines(result: Union[TrackerSchema, TrackerSchemaError],
@@ -548,6 +597,7 @@ class _Reader:
 
     def __init__(self, problems: List[Problem]):
         self.problems: List[Problem] = list(problems)
+        self.entry_state: Optional[str] = None
 
     def problem(self, section: Optional[str], where: str, message: str,
                 lossy: bool = True) -> None:
@@ -570,7 +620,11 @@ class _Reader:
             )
             sections[ISSUE_STATES] = self.section(top, "issue_states",
                                                   ISSUE_STATES, self.states)
-        return TrackerSchema(tuple(self.problems), MappingProxyType(sections))
+            sections[CLOSE_REASONS] = self.section(
+                top, "close_reasons", CLOSE_REASONS, self.close_reasons
+            )
+        return TrackerSchema(tuple(self.problems), MappingProxyType(sections),
+                             self.entry_state)
 
     def section(self, container: dict, key: str, section: str, reader):
         if key not in container:
@@ -638,6 +692,20 @@ class _Reader:
             return None
         return raw[key]
 
+    def color(self, raw: dict, section: str, where: str) -> Optional[str]:
+        """A colour, read like a meaning: None, with a Problem, when it is
+        missing or bad. Read in either case and returned in lowercase."""
+        at = f"{where}.color"
+        if "color" not in raw:
+            self.missing(raw, section, at, _ABSENT)
+            return None
+        value = raw["color"]
+        if not isinstance(value, str) or not _COLOR.fullmatch(value):
+            self.problem(section, at, "must be six hex digits with no leading "
+                         f"#, such as d73a4a{_ABSENT}")
+            return None
+        return value.lower()
+
     def entry(self, value: object, section: str, where: str,
               keys: Tuple[str, ...]) -> Tuple[Optional[dict], Optional[str]]:
         """An entry of a list, and its name; the name is None, with a
@@ -657,8 +725,9 @@ class _Reader:
 
     def unusable_if_empty(self, items: list, section: str):
         """An empty section reads as unusable rather than as "none declared":
-        no kind, priority, or state at all would make every Issue
-        nonconforming, which is a broken file, not a repo's choice."""
+        no kind, priority, state, or close reason at all would make every
+        Issue, or every close, nonconforming, which is a broken file, not a
+        repo's choice."""
         if not items:
             self.problem(section, section, f"declares no usable entry{_UNUSABLE}")
             return None
@@ -716,8 +785,10 @@ class _Reader:
             raw, name = self.entry(item, ISSUE_KINDS, where, _KIND_KEYS)
             if name is None:
                 continue
-            kinds.append(IssueKind(name, self.text(raw, "meaning", ISSUE_KINDS,
-                                                   where, _ABSENT)))
+            kinds.append(IssueKind(
+                name, self.text(raw, "meaning", ISSUE_KINDS, where, _ABSENT),
+                self.color(raw, ISSUE_KINDS, where),
+            ))
         return self.unusable_if_empty(
             self.one_of_each(kinds, ISSUE_KINDS, "kind"), ISSUE_KINDS
         )
@@ -739,6 +810,7 @@ class _Reader:
                 name, self.text(raw, "meaning", ISSUE_PRIORITIES, where,
                                 _ABSENT),
                 self.days(raw, where),
+                self.color(raw, ISSUE_PRIORITIES, where),
             ))
         # A name listed twice has two ranks, and which one it holds would be
         # a guess; leaving out every entry of it keeps the rest in order.
@@ -766,18 +838,30 @@ class _Reader:
         if entries is None:
             return None
         states = []
+        # The names flagged as the entry state, those of states later left
+        # out included, and whether any entry flag could not be read.
+        flagged: List[Optional[str]] = []
+        doubted = False
         for position, item in enumerate(entries):
             where = f"{ISSUE_STATES}[{position}]"
             raw, name = self.entry(item, ISSUE_STATES, where, _STATE_KEYS)
             if name is None:
+                if raw is not None and raw.get("entry") is True:
+                    flagged.append(None)
                 continue
+            entry = self.entry_flag(raw, where)
+            if entry is None:
+                doubted = True
+            elif entry:
+                flagged.append(name)
             # A state with no usable flag is left out rather than kept with
             # None, so no caller can read an unknown flag as closed.
             flag = self.flag(raw, "open", ISSUE_STATES, where,
                              f"{_LEFT_OUT}, since whether its Issues are "
                              "open would be a guess")
             if flag is not None:
-                states.append(IssueState(name, flag))
+                states.append(IssueState(name, flag,
+                                         self.color(raw, ISSUE_STATES, where)))
         # Listed twice the same way, the second adds nothing; listed twice
         # with opposite flags, whether its Issues are open would be a guess.
         kept = []
@@ -800,7 +884,76 @@ class _Reader:
         if kept and all(state.open for state in kept):
             self.problem(ISSUE_STATES, ISSUE_STATES, "no state is flagged "
                          "closed", lossy=False)
+        if kept and not doubted:
+            self.entry_state = self.the_entry_state(kept, flagged)
         return self.unusable_if_empty(kept, ISSUE_STATES)
+
+    def entry_flag(self, raw: dict, where: str) -> Optional[bool]:
+        """A state's entry flag: False when it is absent, as on every state
+        but one, and None, with a Problem, when it cannot be read."""
+        at = f"{where}.entry"
+        unknown = "; the entry state is unknown"
+        if "entry" not in raw:
+            if "entry" in getattr(raw, "duplicate_keys", ()):
+                self.missing(raw, ISSUE_STATES, at, unknown)
+                return None
+            return False
+        if not isinstance(raw["entry"], bool):
+            self.problem(ISSUE_STATES, at, f"must be true or false{unknown}")
+            return None
+        return raw["entry"]
+
+    def the_entry_state(self, kept: list,
+                        flagged: List[Optional[str]]) -> Optional[str]:
+        """The name of the one open state flagged as the entry state, or
+        None, with a Problem, when that is not plain. Every state is kept
+        either way: only the entry state is unknown."""
+        unknown = "; the entry state is unknown"
+        if not flagged:
+            self.problem(ISSUE_STATES, ISSUE_STATES, "no state is flagged "
+                         f"\"entry\": true{unknown}")
+            return None
+        if None in flagged:
+            self.problem(ISSUE_STATES, ISSUE_STATES, "a state flagged "
+                         f"\"entry\": true is left out for want of a name{unknown}")
+            return None
+        names = list(dict.fromkeys(flagged))
+        if len({_folded(name) for name in names}) > 1:
+            self.problem(ISSUE_STATES, ISSUE_STATES, "more than one state is "
+                         f"flagged \"entry\": true ({', '.join(map(repr, names))}), "
+                         f"and exactly one may be{unknown}")
+            return None
+        state = next((state for state in kept
+                      if _folded(state.name) == _folded(names[0])), None)
+        if state is None:
+            self.problem(ISSUE_STATES, ISSUE_STATES, f"the state flagged "
+                         f"\"entry\": true, {names[0]!r}, is left out{unknown}")
+            return None
+        if not state.open:
+            self.problem(ISSUE_STATES, ISSUE_STATES, f"the state flagged "
+                         f"\"entry\": true, {state.name!r}, is flagged closed, "
+                         f"and an Issue is filed open{unknown}")
+            return None
+        return state.name
+
+    def close_reasons(self, value: object) -> Optional[Tuple[CloseReason, ...]]:
+        entries = self.entries(value, CLOSE_REASONS)
+        if entries is None:
+            return None
+        reasons = []
+        for position, item in enumerate(entries):
+            where = f"{CLOSE_REASONS}[{position}]"
+            raw, name = self.entry(item, CLOSE_REASONS, where,
+                                   _CLOSE_REASON_KEYS)
+            if name is None:
+                continue
+            reasons.append(CloseReason(name, self.text(
+                raw, "meaning", CLOSE_REASONS, where, _ABSENT
+            )))
+        return self.unusable_if_empty(
+            self.one_of_each(reasons, CLOSE_REASONS, "close reason"),
+            CLOSE_REASONS,
+        )
 
     def label_schema(self, top: dict):
         key = "issue_label_schema"
@@ -940,8 +1093,10 @@ class _Reader:
             at = f"{where}[{position}]"
             raw, name = self.entry(item, section, at, _LABEL_KEYS)
             if name is not None:
-                labels.append(IssueLabel(name, self.text(raw, "meaning",
-                                                         section, at, _ABSENT)))
+                labels.append(IssueLabel(
+                    name, self.text(raw, "meaning", section, at, _ABSENT),
+                    self.color(raw, section, at),
+                ))
         return labels
 
     # -- names declared more than once -----------------------------------
