@@ -232,21 +232,23 @@ of six hex digits with no `#`, treated exactly like its description: where
 the live colour differs, a sync changes it to the schema's (see the
 [use-issues design](../use-issues/design.md#format) and
 [ADR 0027](../../adr/0027-the-tracker-schema-block-holds-state-order-entry-state-close-reasons-and-colours.md),
-the block also holds every colour). Where the schema's colour for an entry
-is missing or bad, the Verb warns, leaves a live colour as it is, and
-gives a neutral default only to a label or option it must create. A label
-takes the hex value as it is. A board option cannot: `createProjectV2Field`
+the block also holds every colour). What a Verb does when the schema's
+colour for an entry is missing or bad is the general Wrapper rule in the
+use-issues design's Format. A label takes the hex value as it is. A board option cannot: `createProjectV2Field`
 and `updateProjectV2Field` take each option's `color` as
 `ProjectV2SingleSelectFieldOptionColor`, a required enum of eight names
 (`GRAY`, `BLUE`, `GREEN`, `YELLOW`, `ORANGE`, `RED`, `PINK`, `PURPLE`;
 GitHub's GraphQL reference, Projects), and `board_schema.py`'s
 `_OPTION_COLORS` uses those names today. So the board Verb maps each
-state's and priority's hex colour to the nearest of the eight
-(`agent-tooling-u9n.21`), and the label Verb takes label colours from the
+state's and priority's hex colour to the nearest of the eight, and
+defining what "nearest" means is part of that Verb's Issue
+(`agent-tooling-u9n.21`); the label Verb takes label colours from the
 schema instead of `schema.py`'s constants (`agent-tooling-xgzm`). The
-shipped default's colours were chosen so that mapping gives today's
-options their current names. Both still use the constants; the Known gaps
-in [index.md](index.md) say so.
+shipped default's state and priority colours were chosen with that
+mapping in mind, to read as the names today's open-state and priority
+options carry; its `Closed` state has no option on today's boards. Both
+Verbs still use the constants; the Known gaps in [index.md](index.md) say
+so.
 
 ### Board disambiguation
 

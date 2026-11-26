@@ -144,7 +144,7 @@ file yet states its scheme in `.beads/PRIME.md`, which `bdw prime` prints.
   --labels=<labels> --body-file=<path>`.
 - Kind is the type field (`--type`; `bdw types` lists the kinds), never a
   label. bd defaults the priority and the status on every Issue, so the
-  default entry state needs no call and the priority still needs yours.
+  entry state needs no call and the priority still needs yours.
 - Labels: `bdw label list-all` lists the ones in use.
 - A dependency: `bdw dep add <blocked> <blocker> --type=blocks`. Always pass
   `--type` to `dep add`: bare, it creates a blocking edge. Any other link is
