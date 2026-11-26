@@ -32,7 +32,7 @@ an action on its own, only with a human's approval, or never).
 {
   "provenance": {
     "source_repo": "the-peregrin-group/agent-tooling",
-    "source_commit": "4f8a8408682241ee5ee9aa53232cf98aabd90eee",
+    "source_commit": "28c6c3acace71d4ef7757c49028c855ba9edb4f9",
     "default_path": "skills/setup-issue-tracker/TRACKER.default.md"
   },
   "issue_kinds": [
