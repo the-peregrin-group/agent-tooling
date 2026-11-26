@@ -1,6 +1,6 @@
 ---
 date: 2026-11-13
-status: current
+status: amended
 ---
 
 # The Tracker Schema is a Markdown file with one JSON block for what tooling reads, each fact in exactly one place
@@ -13,7 +13,7 @@ status: current
 
 ## Consequences
 
-- Folding `TRIAGE.md`'s config block into this file's JSON block is left to `agent-tooling-u9n.8` (make triage-issues tool-agnostic).
+- Folding `TRIAGE.md`'s config block into this file's JSON block is left to `agent-tooling-u9n.8` (make triage-issues tool-agnostic). (That Issue closed without folding it; the question now sits with `agent-tooling-wx5`, one per-repo config home.)
 
 ## Alternatives Considered
 
@@ -26,3 +26,7 @@ status: current
 
 **Description:** The whole schema, state meanings and transition conditions included, is one JSON file.
 **Rejection rationale:** Multi-paragraph mini-prompts in JSON strings are poor to write and review.
+
+## Amended by
+
+- [ADR 0027](0027-the-tracker-schema-block-holds-state-order-entry-state-close-reasons-and-colours.md): the block also holds the states' order, the entry state, the close reasons, and a colour on every kind, priority, label, and state.
