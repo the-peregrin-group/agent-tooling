@@ -7,7 +7,7 @@ status: current
 
 **Context:** [ADR 0025](0025-the-tracker-schema-is-one-markdown-file-with-one-json-block.md) (the Tracker Schema is a Markdown file with one JSON block for what tooling reads) lists what the block holds, and the Wrappers, which must now follow each repo's Tracker Schema, need facts it lacked: which Issue State is the Entry State, the order of the states, the Close Reasons, and the label and board colours ghw hard-codes. The block said its state list's order carried no meaning, and the Entry State and Close Reasons were prose only. The file as built is described in the [use-issues design](../projects/use-issues/design.md).
 
-**Decision:** The block lists the Issue States in Issue State Diagram order with exactly one open state flagged as the Entry State, holds the Close Reasons by name and meaning in a list of their own, and gives every Issue Kind, Issue Priority, Issue Label, and Issue State a colour that bringing the tracker in line with the file applies just as it applies a description.
+**Decision:** The Schema's JSON block lists the Issue States in Issue State Diagram order. Exactly one open state is flagged as the Entry State. The Close Reasons sit in a list of their own, each with its name and meaning. Every Issue Kind, Issue Priority, Issue Label, and Issue State has a colour. Bringing the tracker in line with the file applies that colour just as it applies a description.
 
 **Rationale:** Each is a fact tooling acts on, so it lives once, in the block, and a colour is declared data like a description rather than a special case for the Wrappers.
 
