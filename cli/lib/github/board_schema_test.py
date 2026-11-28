@@ -1,4 +1,10 @@
-"""Unit tests for board_schema.py (canonical-schema conformance and provisioning).
+"""Unit tests for board_schema.py: the colour rule, the fields a Tracker
+Schema asks for, conformance, and the option and migration plans. Pure
+functions; no network.
+
+The schema is tracker_schema_test_support's fixture, whose states and
+priorities are not the shipped default's, so nothing here leans on a name
+ghw used to hold as a constant.
 
 Run from the cli/ directory:
     python3 -m unittest discover -s . -p '*_test.py'
@@ -9,196 +15,378 @@ from __future__ import annotations
 import sys
 import unittest
 from pathlib import Path
-from unittest import mock
 
-if __package__ in (None, ""):  # direct invocation: python3 lib/board_schema_test.py
-    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+if __package__ in (None, ""):  # direct invocation
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
+import tracker_schema_test_support as fixture
+from lib import tracker_schema
 from lib.github import board_schema
-from lib.schema import (
-    CANONICAL_FIELDS,
-    PRIORITY_OPTIONS,
-    SINGLE_SELECT,
-    SIZE_OPTIONS,
-    STATUS_STATES,
-)
+from lib.github.repo_schema import RepoSchema
+
+_DEFAULT = (Path(__file__).resolve().parents[3]
+            / "skills" / "setup-issue-tracker" / "TRACKER.default.md")
+
+STATES = ("Needs Triage", "In progress", "Closed")
+PRIORITIES = ("P0", "P1", "P4")
+SIZES = ("XS", "S", "M", "L", "XL")
 
 
-def _single_select(options) -> dict:
-    return {"id": "F", "data_type": "SINGLE_SELECT",
-            "options": {option: f"opt_{option}" for option in options}}
-
-
-_FIELD_NAMES = {"priority": "Priority", "status": "Status", "size": "Size",
-                "last_triaged": "Last Triaged"}
-
-
-def _canonical_board(**overrides) -> dict:
-    """A board conforming to the canonical schema, before any overrides.
-
-    Override keys are the lowercased field names in _FIELD_NAMES; a value of
-    None drops that field entirely.
-    """
-    fields = {
-        "Priority": _single_select(PRIORITY_OPTIONS),
-        "Status": _single_select(STATUS_STATES),
-        "Size": _single_select(SIZE_OPTIONS),
-        "Last Triaged": {"id": "F", "data_type": "DATE", "options": {}},
+def _field(names, colors=None, data_type="SINGLE_SELECT", field_id="F"):
+    """A live board field as lib.github.boards builds one."""
+    colors = colors or {}
+    return {
+        "id": field_id, "data_type": data_type,
+        "options": {name: f"o_{name}" for name in names},
+        "option_details": [
+            {"id": f"o_{name}", "name": name, "color": colors.get(name, "GRAY"),
+             "description": f"about {name}"}
+            for name in names
+        ],
     }
-    for key, value in overrides.items():
-        field_name = _FIELD_NAMES[key]
-        if value is None:
-            fields.pop(field_name)
-        else:
-            fields[field_name] = value
+
+
+def _board(status=STATES, priority=PRIORITIES, size=SIZES, last_triaged=True,
+           status_colors=None, priority_colors=None):
+    fields = {}
+    if priority is not None:
+        fields["Priority"] = _field(priority, priority_colors or {
+            "P0": "RED", "P1": "ORANGE", "P4": "GRAY"}, field_id="F_priority")
+    if status is not None:
+        fields["Status"] = _field(status, status_colors or {
+            "Needs Triage": "RED", "In progress": "PURPLE", "Closed": "GRAY"},
+            field_id="F_status")
+    if size is not None:
+        fields["Size"] = _field(size, field_id="F_size")
+    if last_triaged:
+        fields["Last Triaged"] = {"id": "F_date", "data_type": "DATE",
+                                  "options": {}, "option_details": []}
     return {"number": 1, "title": "Board", "node_id": "PVT_1", "fields": fields}
 
 
-class EvaluateConformanceTest(unittest.TestCase):
-    def test_canonical_board_conforms_with_no_gaps(self):
-        verdict = board_schema.evaluate_conformance(_canonical_board())
-        self.assertTrue(verdict["conforms"])
-        self.assertEqual(verdict["gaps"], [])
-        self.assertEqual(verdict["tolerated_gaps"], [])
+def _fields(document=None):
+    return board_schema.desired_fields(fixture.loaded(document))
 
-    def test_missing_last_triaged_is_a_hard_gap(self):
-        verdict = board_schema.evaluate_conformance(_canonical_board(last_triaged=None))
-        self.assertFalse(verdict["conforms"])
-        self.assertIn("'Last Triaged' is missing", verdict["gaps"][0])
 
-    def test_missing_size_is_tolerated_and_does_not_clear_conformance(self):
-        verdict = board_schema.evaluate_conformance(_canonical_board(size=None))
-        self.assertTrue(verdict["conforms"])
+def _spec(name, document=None):
+    return next(spec for spec in _fields(document) if spec.name == name)
+
+
+class NamedColorTest(unittest.TestCase):
+    def test_the_shipped_defaults_colours_land_on_the_board_colours(self):
+        # The default's colours were chosen to read as the names the board
+        # options carried before the board followed the schema. Closed is
+        # new (it replaces Done and Rejected) and P4 is not in the default.
+        schema = tracker_schema.load(_DEFAULT)
+        expected = {
+            "Needs Triage": "RED", "Needs Scope": "ORANGE",
+            "Needs Eng Design": "YELLOW", "Needs Impl": "BLUE",
+            "In progress": "PURPLE", "In review": "PINK", "Closed": "GRAY",
+            "P0": "RED", "P1": "ORANGE", "P2": "YELLOW", "P3": "GREEN",
+        }
+        got = {entry.name: board_schema.named_color(entry.color)
+               for entry in schema.issue_states + schema.issue_priorities}
+        self.assertEqual(got, expected)
+
+    def test_low_chroma_is_gray_whatever_its_lightness(self):
+        for color in ("000000", "ffffff", "6a737d", "cfd3d7", "808080"):
+            with self.subTest(color=color):
+                self.assertEqual(board_schema.named_color(color), "GRAY")
+
+    def test_hue_picks_the_nearest_name_around_the_wheel(self):
+        cases = {"ff0000": "RED", "ff1a00": "RED", "ff00e6": "PINK",
+                 "ffa500": "ORANGE", "ffff00": "YELLOW", "00ff00": "GREEN",
+                 "0000ff": "BLUE", "8000ff": "PURPLE", "D73A4A": "RED"}
+        for color, name in cases.items():
+            with self.subTest(color=color):
+                self.assertEqual(board_schema.named_color(color), name)
+
+    def test_every_result_is_one_of_the_eight(self):
+        for value in range(0, 0xffffff, 0x0f0f0f):
+            self.assertIn(board_schema.named_color(f"{value:06x}"),
+                          board_schema.NAMED_COLORS)
+
+    def test_no_colour_maps_to_none(self):
+        for color in (None, "", "#d73a4a", "red", "12345"):
+            with self.subTest(color=color):
+                self.assertIsNone(board_schema.named_color(color))
+
+
+class DesiredFieldsTest(unittest.TestCase):
+    def test_options_are_the_schemas_states_and_priorities_in_order(self):
+        self.assertEqual([option.name for option in _spec("Status").options],
+                         list(STATES))
+        self.assertEqual([option.name for option in _spec("Priority").options],
+                         list(PRIORITIES))
+        self.assertEqual([option.color for option in _spec("Priority").options],
+                         ["RED", "ORANGE", "GRAY"])
+
+    def test_size_and_last_triaged_are_fixed(self):
+        self.assertEqual([option.name for option in _spec("Size").options],
+                         list(SIZES))
+        self.assertIsNone(_spec("Size").section)
+        self.assertEqual(_spec("Last Triaged").options, ())
+
+    def test_an_unusable_section_leaves_its_options_unknown(self):
+        document = fixture.document()
+        document["issue_states"] = "none"
+        self.assertIsNone(_spec("Status", document).options)
+        self.assertIsNotNone(_spec("Priority", document).options)
+
+    def test_no_schema_leaves_both_unknown(self):
+        fields = board_schema.desired_fields(fixture.missing())
+        by_name = {spec.name: spec for spec in fields}
+        self.assertIsNone(by_name["Status"].options)
+        self.assertIsNone(by_name["Priority"].options)
+
+    def test_any_state_name_and_a_missing_colour_are_fine(self):
+        # Nothing is checked at import time, so a name ghw has never seen,
+        # or a state with no colour, is simply an option.
+        document = fixture.document()
+        document["issue_states"][1] = {"name": "Blocked on vendor", "open": True}
+        options = _spec("Status", document).options
+        self.assertEqual(options[1], board_schema.DesiredOption(
+            "Blocked on vendor", None))
+
+
+class ConformanceTest(unittest.TestCase):
+    def _verdict(self, board, document=None, loaded: RepoSchema = None):
+        fields = board_schema.desired_fields(loaded or fixture.loaded(document))
+        return board_schema.evaluate_conformance(board, fields)
+
+    def test_a_board_holding_exactly_the_schema_conforms(self):
+        verdict = self._verdict(_board())
+        self.assertIs(verdict["conforms"], True)
         self.assertEqual(verdict["gaps"], [])
+        self.assertEqual(verdict["color_drift"], [])
+
+    def test_a_missing_declared_option_is_a_gap(self):
+        verdict = self._verdict(_board(status=("Needs Triage", "Closed")))
+        self.assertIs(verdict["conforms"], False)
+        self.assertIn("'Status' is missing options: In progress", verdict["gaps"][0])
+
+    def test_an_undeclared_option_is_a_gap(self):
+        verdict = self._verdict(_board(status=(*STATES, "Done", "Rejected")))
+        self.assertIs(verdict["conforms"], False)
+        self.assertIn("does not declare: Done, Rejected", " ".join(verdict["gaps"]))
+
+    def test_options_out_of_order_are_a_gap(self):
+        verdict = self._verdict(_board(priority=("P1", "P0", "P4")))
+        self.assertIn("out of the Tracker Schema's order", " ".join(verdict["gaps"]))
+
+    def test_colour_drift_is_listed_but_does_not_clear_the_verdict(self):
+        verdict = self._verdict(_board(priority_colors={
+            "P0": "RED", "P1": "YELLOW", "P4": "GRAY"}))
+        self.assertIs(verdict["conforms"], True)
+        self.assertIn("'P1' is YELLOW", verdict["color_drift"][0])
+
+    def test_size_is_tolerated_missing_and_its_extras_are_advisory(self):
+        verdict = self._verdict(_board(size=None))
+        self.assertIs(verdict["conforms"], True)
         self.assertIn("'Size' is missing", verdict["tolerated_gaps"][0])
+        verdict = self._verdict(_board(size=(*SIZES, "XXL")))
+        self.assertIs(verdict["conforms"], True)
+        self.assertIn("XXL", verdict["extra_options"][0])
 
-    def test_missing_status_states_are_named_individually(self):
-        # A typical stock board, never triage-provisioned.
-        stock = _canonical_board(status=_single_select(["Todo", "In Progress", "Done"]))
-        verdict = board_schema.evaluate_conformance(stock)
-        self.assertFalse(verdict["conforms"])
-        missing = next(gap for gap in verdict["gaps"] if "missing options" in gap)
-        self.assertIn("Needs Triage", missing)
-        self.assertIn("In progress", missing)  # exact casing: not "In Progress"
-        self.assertNotIn("Done", missing)      # Done is canonical and present
+    def test_a_missing_field_and_a_wrong_type_are_gaps(self):
+        board = _board(last_triaged=False)
+        board["fields"]["Priority"]["data_type"] = "TEXT"
+        gaps = " ".join(self._verdict(board)["gaps"])
+        self.assertIn("'Last Triaged' is missing", gaps)
+        self.assertIn("'Priority' is TEXT", gaps)
 
-    def test_extra_options_are_reported_apart_from_gaps(self):
-        stock = _canonical_board(status=_single_select(["Todo", "In Progress", "Done"]))
-        verdict = board_schema.evaluate_conformance(stock)
-        self.assertEqual(verdict["gaps"],
-                         [gap for gap in verdict["gaps"] if "missing" in gap])
-        extra = " ".join(verdict["extra_options"])
-        self.assertIn("Todo", extra)
-        self.assertIn("In Progress", extra)
+    def test_unknown_options_are_unchecked_and_the_verdict_unknown(self):
+        verdict = self._verdict(_board(status=("Anything",)),
+                                loaded=fixture.missing())
+        self.assertIsNone(verdict["conforms"])
+        self.assertEqual(len(verdict["unchecked"]), 2)
 
-    def test_a_human_authored_extra_state_does_not_clear_conformance(self):
-        # The wrappers only ever write canonical option names, so a board
-        # carrying an extra 'Blocked' state still serves triage fine.
-        board = _canonical_board(
-            status=_single_select([*STATUS_STATES, "Blocked"])
-        )
-        verdict = board_schema.evaluate_conformance(board)
-        self.assertTrue(verdict["conforms"])
-        self.assertEqual(verdict["gaps"], [])
-        self.assertIn("Blocked", verdict["extra_options"][0])
+    def test_a_gap_outweighs_an_unchecked_field(self):
+        verdict = self._verdict(_board(last_triaged=False),
+                                loaded=fixture.missing())
+        self.assertIs(verdict["conforms"], False)
 
-    def test_wrong_data_type_is_a_gap_and_skips_option_checks(self):
-        board = _canonical_board(
-            priority={"id": "F", "data_type": "TEXT", "options": {}}
-        )
-        verdict = board_schema.evaluate_conformance(board)
-        priority_gaps = [gap for gap in verdict["gaps"] if "'Priority'" in gap]
-        self.assertEqual(len(priority_gaps), 1)
-        self.assertIn("is TEXT, not SINGLE_SELECT", priority_gaps[0])
-
-    def test_a_board_with_no_fields_at_all_reports_every_canonical_field(self):
-        verdict = board_schema.evaluate_conformance(
-            {"number": 1, "title": "Empty", "node_id": "PVT_1", "fields": {}}
-        )
-        reported = " ".join(verdict["gaps"] + verdict["tolerated_gaps"])
-        for field_name in CANONICAL_FIELDS:
-            self.assertIn(repr(field_name), reported)
+    def test_a_board_without_option_details_is_still_judged(self):
+        board = _board()
+        for field in board["fields"].values():
+            field.pop("option_details")
+        self.assertIs(self._verdict(board)["conforms"], True)
 
 
 class FieldsToCreateTest(unittest.TestCase):
-    def test_conforming_board_needs_nothing(self):
+    def test_existing_board_leaves_size_to_a_person(self):
+        board = _board(priority=None, size=None, last_triaged=False)
+        created = board_schema.fields_to_create(board, _fields(), new_board=False)
+        self.assertEqual([spec.name for spec in created],
+                         ["Priority", "Last Triaged"])
+
+    def test_new_board_gets_size(self):
+        board = _board(priority=None, size=None, last_triaged=False)
+        created = board_schema.fields_to_create(board, _fields(), new_board=True)
+        self.assertEqual([spec.name for spec in created],
+                         ["Priority", "Size", "Last Triaged"])
+
+    def test_a_field_whose_options_are_unknown_is_not_created(self):
+        board = _board(priority=None, status=None)
+        fields = board_schema.desired_fields(fixture.missing())
         self.assertEqual(
-            board_schema.fields_to_create(_canonical_board(), new_board=False), []
-        )
+            board_schema.fields_to_create(board, fields, new_board=True), [])
 
-    def test_size_is_never_created_on_an_existing_board(self):
-        board = _canonical_board(size=None)
-        self.assertEqual(board_schema.fields_to_create(board, new_board=False), [])
-
-    def test_size_is_created_on_a_new_board(self):
-        board = _canonical_board(size=None)
-        self.assertEqual(
-            board_schema.fields_to_create(board, new_board=True), ["Size"]
-        )
-
-    def test_absent_fields_come_back_in_canonical_order(self):
-        board = {"number": 1, "title": "Empty", "node_id": "PVT_1", "fields": {}}
-        self.assertEqual(
-            board_schema.fields_to_create(board, new_board=True),
-            list(CANONICAL_FIELDS),
-        )
-
-    def test_drifted_field_is_never_queued_for_creation(self):
-        # Drift is reported, never edited: creating over it would be an edit.
-        board = _canonical_board(status=_single_select(["Todo"]))
-        self.assertNotIn(
-            "Status", board_schema.fields_to_create(board, new_board=True)
-        )
+    def test_creation_options_fall_back_to_the_neutral_colour(self):
+        document = fixture.document()
+        del document["issue_priorities"][1]["color"]
+        options = board_schema.creation_options(_spec("Priority", document))
+        self.assertEqual(options, [
+            {"name": "P0", "color": "RED", "description": ""},
+            {"name": "P1", "color": board_schema.NEUTRAL_COLOR, "description": ""},
+            {"name": "P4", "color": "GRAY", "description": ""},
+        ])
 
 
-class SingleSelectOptionsTest(unittest.TestCase):
-    def test_status_options_are_the_canonical_states_in_order(self):
-        options = board_schema.single_select_options("Status")
-        self.assertEqual([option["name"] for option in options],
-                         list(STATUS_STATES))
+class PlanFieldTest(unittest.TestCase):
+    def _plan(self, live, name="Status", document=None):
+        return board_schema.plan_field(_spec(name, document), live)
 
-    def test_every_color_is_a_valid_api_enum_value(self):
-        # boards._options_literal refuses anything outside the enum, so a typo
-        # here would only surface as a runtime GraphQL failure.
-        from lib.github.boards import _OPTION_COLOR_VALUES
-        for field_name, specification in board_schema.FIELD_SPECS.items():
-            if specification["data_type"] != SINGLE_SELECT:
-                continue
-            for option in board_schema.single_select_options(field_name):
-                with self.subTest(field=field_name, option=option["name"]):
-                    self.assertIn(option["color"], _OPTION_COLOR_VALUES)
+    def test_a_converged_field_plans_nothing(self):
+        plan = self._plan(_board()["fields"]["Status"])
+        self.assertIsNone(plan.additive)
+        self.assertEqual((plan.add, plan.remove, plan.recolor, plan.reorder),
+                         ([], [], [], False))
+        self.assertFalse(plan.destructive)
 
-    def test_a_non_single_select_field_has_no_options(self):
-        self.assertEqual(board_schema.single_select_options("Last Triaged"), [])
+    def test_the_additive_list_keeps_every_live_option_by_id(self):
+        live = _field(("Done", "In progress", "Needs Triage", "Rejected"),
+                      {"Done": "GREEN", "In progress": "PURPLE",
+                       "Needs Triage": "RED", "Rejected": "GRAY"})
+        plan = self._plan(live)
+        self.assertEqual(plan.add, ["Closed"])
+        self.assertEqual(plan.remove, ["Done", "Rejected"])
+        self.assertTrue(plan.reorder)
+        # Declared first, in the schema's order, the new one without an id;
+        # then every undeclared live option, untouched, in board order.
+        self.assertEqual(plan.additive, [
+            {"id": "o_Needs Triage", "name": "Needs Triage", "color": "RED",
+             "description": "about Needs Triage"},
+            {"id": "o_In progress", "name": "In progress", "color": "PURPLE",
+             "description": "about In progress"},
+            {"name": "Closed", "color": "GRAY", "description": ""},
+            {"id": "o_Done", "name": "Done", "color": "GREEN",
+             "description": "about Done"},
+            {"id": "o_Rejected", "name": "Rejected", "color": "GRAY",
+             "description": "about Rejected"},
+        ])
+        self.assertEqual([entry["name"] for entry in plan.final], list(STATES))
+        self.assertTrue(plan.destructive)
+        live_ids = set(live["options"].values())
+        self.assertTrue(live_ids <= {entry.get("id") for entry in plan.additive})
 
-    def test_descriptions_are_empty_by_design(self):
-        for option in board_schema.single_select_options("Priority"):
-            self.assertEqual(option["description"], "")
+    def test_recolouring_keeps_the_id_and_description(self):
+        live = _field(PRIORITIES, {"P0": "RED", "P1": "YELLOW", "P4": "GRAY"})
+        plan = self._plan(live, "Priority")
+        self.assertEqual(plan.recolor, [{"option": "P1", "from": "YELLOW",
+                                         "to": "ORANGE"}])
+        self.assertEqual(plan.additive[1], {"id": "o_P1", "name": "P1",
+                                            "color": "ORANGE",
+                                            "description": "about P1"})
+
+    def test_a_missing_schema_colour_keeps_the_live_one(self):
+        document = fixture.document()
+        del document["issue_priorities"][1]["color"]
+        live = _field(PRIORITIES, {"P0": "RED", "P1": "PINK", "P4": "GRAY"})
+        plan = self._plan(live, "Priority", document)
+        self.assertEqual(plan.recolor, [])
+        self.assertIsNone(plan.additive)
+
+    def test_nothing_is_planned_without_known_options_or_a_field(self):
+        live = _board()["fields"]["Status"]
+        loaded = fixture.missing()
+        spec = next(spec for spec in board_schema.desired_fields(loaded)
+                    if spec.name == "Status")
+        self.assertIsNone(board_schema.plan_field(spec, live))
+        self.assertIsNone(self._plan(None))
+        self.assertIsNone(self._plan(_board()["fields"]["Size"], "Size"))
 
 
-class OptionColorGuardTest(unittest.TestCase):
-    """_OPTION_COLORS duplicates lib.schema's option names, so the import-time
-    guard is what keeps a rename there from silently degrading the colors
-    here. Asserting on the guard directly, since single_select_options()
-    indexes the map and would only ever show post-lookup values."""
+def _item(item_id, option, field_id="F_status", type_="Issue", state="CLOSED",
+          number=1):
+    return {"item_id": item_id, "archived": False,
+            "content": {"type": type_, "number": number, "title": "t",
+                        "url": f"https://github.com/o/r/issues/{number}",
+                        "state": state},
+            "values": {field_id: option} if option else {}}
 
-    def test_the_shipped_map_passes_its_own_guard(self):
-        board_schema._check_option_colors()  # no raise
 
-    def test_a_renamed_option_is_caught_as_missing(self):
-        doctored = {**board_schema._OPTION_COLORS,
-                    "Priority": {"P0": "RED", "P1": "ORANGE", "P2": "YELLOW"}}
-        with mock.patch.object(board_schema, "_OPTION_COLORS", doctored):
-            with self.assertRaisesRegex(RuntimeError, "P3"):
-                board_schema._check_option_colors()
+class PlanMovesTest(unittest.TestCase):
+    def setUp(self):
+        self.live = _field((*STATES, "Done"), field_id="F_status")
+        self.plan = board_schema.plan_field(_spec("Status"), self.live)
+        self.states = fixture.loaded().schema.issue_states
 
-    def test_a_stale_key_is_caught_too(self):
-        doctored = {**board_schema._OPTION_COLORS,
-                    "Priority": {**board_schema._OPTION_COLORS["Priority"],
-                                 "P9": "PINK"}}
-        with mock.patch.object(board_schema, "_OPTION_COLORS", doctored):
-            with self.assertRaisesRegex(RuntimeError, "P9"):
-                board_schema._check_option_colors()
+    def _moves(self, items, moves=None, states=None):
+        return board_schema.plan_moves(
+            self.plan, self.live, items, moves or {},
+            self.states if states is None else states)
+
+    def test_a_closed_issue_moves_to_the_one_closed_state(self):
+        result = self._moves([_item("I_1", "o_Done")])
+        self.assertEqual(result[0]["option"], "Done")
+        self.assertEqual(result[0]["items"][0]["to"], "Closed")
+        self.assertEqual(result[0]["items"][0]["by"], "issue state")
+
+    def test_a_merged_or_closed_pull_request_moves_the_same_way(self):
+        for state in ("MERGED", "CLOSED"):
+            with self.subTest(state=state):
+                result = self._moves([_item("I_1", "o_Done", type_="PullRequest",
+                                            state=state)])
+                self.assertEqual(result[0]["items"][0]["to"], "Closed")
+
+    def test_an_open_issue_has_no_target_among_several_open_states(self):
+        result = self._moves([_item("I_1", "o_Done", state="OPEN")])
+        self.assertIsNone(result[0]["items"][0]["to"])
+        self.assertEqual(len(board_schema.unmoved(result)), 1)
+
+    def test_a_draft_or_hidden_item_has_no_target(self):
+        for type_ in ("DraftIssue", None):
+            with self.subTest(type_=type_):
+                result = self._moves([_item("I_1", "o_Done", type_=type_,
+                                            state=None)])
+                self.assertIsNone(result[0]["items"][0]["to"])
+
+    def test_two_closed_states_give_no_target(self):
+        document = fixture.document()
+        document["issue_states"].append(
+            {"name": "Wontfix", "open": False, "color": "ffffff"})
+        states = fixture.loaded(document).schema.issue_states
+        result = self._moves([_item("I_1", "o_Done")], states=states)
+        self.assertIsNone(result[0]["items"][0]["to"])
+
+    def test_a_single_open_state_takes_open_issues(self):
+        document = fixture.document()
+        del document["issue_states"][1]
+        states = fixture.loaded(document).schema.issue_states
+        result = self._moves([_item("I_1", "o_Done", state="OPEN")], states=states)
+        self.assertEqual(result[0]["items"][0]["to"], "Needs Triage")
+
+    def test_a_named_move_wins_for_every_item_on_the_option(self):
+        result = self._moves([_item("I_1", "o_Done"),
+                              _item("I_2", "o_Done", state="OPEN")],
+                             moves={"Done": "In progress"})
+        self.assertEqual([item["to"] for item in result[0]["items"]],
+                         ["In progress", "In progress"])
+        self.assertEqual(result[0]["items"][0]["by"], "named")
+
+    def test_items_on_kept_options_or_no_option_are_not_moved(self):
+        result = self._moves([_item("I_1", "o_Closed"), _item("I_2", None),
+                              _item("I_3", "o_Done", field_id="F_other")])
+        self.assertEqual(result, [{"option": "Done", "items": []}])
+
+    def test_priority_has_no_issue_state_rule(self):
+        live = _field((*PRIORITIES, "P2"), field_id="F_priority")
+        plan = board_schema.plan_field(_spec("Priority"), live)
+        result = board_schema.plan_moves(
+            plan, live, [_item("I_1", "o_P2", field_id="F_priority")], {},
+            self.states)
+        self.assertIsNone(result[0]["items"][0]["to"])
 
 
 if __name__ == "__main__":

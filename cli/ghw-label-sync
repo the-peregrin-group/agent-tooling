@@ -94,7 +94,7 @@ def main(argv: list[str]) -> int:
                 f"the desired set comes from to be complete, and {delete_refused}. "
                 "Fix TRACKER.md on the default branch, or run apply, which "
                 "deletes nothing.",
-                _refusal_exit_code(loaded),
+                loaded.refusal_exit_code(),
             )
         difference = label_schema.diff_labels(
             desired, boards.fetch_labels(repository)
@@ -144,15 +144,6 @@ def _priority_regime(repository: str) -> str:
         repository, linked, None
     )
     return boards.determine_priority_regime(canonical, linked)
-
-
-def _refusal_exit_code(loaded: repo_schema.RepoSchema) -> int:
-    """The exit code for a deletion the schema cannot back: a transient
-    fetch fault (network, auth) keeps its own class, so a caller can retry
-    or flag it; anything else about the schema is a refusal."""
-    if loaded.fetch_exit_code in (plan.EXIT_NETWORK, plan.EXIT_AUTH):
-        return loaded.fetch_exit_code
-    return plan.EXIT_REFUSED
 
 
 def _deletion_refusal(loaded: repo_schema.RepoSchema,

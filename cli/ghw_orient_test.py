@@ -117,10 +117,55 @@ class GhwOrientConformanceVerdictTest(unittest.TestCase):
         self.assertIn("'Last Triaged' is missing", gaps)
         self.assertIn("'Priority' is missing", gaps)
         self.assertIn("'Size' is missing", " ".join(verdict["tolerated_gaps"]))
-        # A stock 'Todo' is drift to report, not a shortfall: it is reported
-        # apart from the gaps and does not itself clear the verdict.
-        self.assertIn("Todo", " ".join(verdict["extra_options"]))
-        self.assertNotIn("Todo", gaps)
+        # The Status options are exactly the schema's Issue States, so a
+        # stock 'Todo' the schema does not declare is a gap too.
+        self.assertIn("does not declare: Todo, Done", gaps)
+
+    def _board(self, status, priority) -> dict:
+        def field(names):
+            return {"id": "F", "data_type": "SINGLE_SELECT",
+                    "options": {name: f"o_{name}" for name in names}}
+        return {"number": 1, "title": "Board", "node_id": "PVT_1",
+                "fields": {"Status": field(status), "Priority": field(priority),
+                           "Size": field(["XS", "S", "M", "L", "XL"]),
+                           "Last Triaged": {"id": "F", "data_type": "DATE",
+                                            "options": {}}}}
+
+    def test_a_board_holding_the_schemas_options_conforms(self):
+        # The fixture declares P0, P1, and P4, not the old fixed P0 to P3.
+        payload = self._orient([self._board(
+            ["Needs Triage", "In progress", "Closed"], ["P0", "P1", "P4"])])
+        self.assertTrue(payload["boards"][0]["conformance"]["conforms"])
+        self.assertEqual(payload["priority_regime"], "board-field")
+
+    def test_a_board_whose_priorities_differ_names_them_and_keeps_the_regime(self):
+        payload = self._orient([self._board(
+            ["Needs Triage", "In progress", "Closed"], ["P0", "P1", "P2", "P3"])])
+        verdict = payload["boards"][0]["conformance"]
+        self.assertFalse(verdict["conforms"])
+        gaps = " ".join(verdict["gaps"])
+        self.assertIn("'Priority' is missing options: P4", gaps)
+        self.assertIn("does not declare: P2, P3", gaps)
+        # Differing options are a conformance gap, never an unknown regime.
+        self.assertEqual(payload["priority_regime"], "board-field")
+
+    def test_unreadable_states_leave_the_status_options_unchecked(self):
+        document = fixture.document()
+        document["issue_states"] = "none"
+        payload = self._orient(
+            [self._board(["Anything"], ["P0", "P1", "P4"])],
+            schema=fixture.loaded(document))
+        verdict = payload["boards"][0]["conformance"]
+        self.assertIsNone(verdict["conforms"])
+        self.assertIn("'Status'", " ".join(verdict["unchecked"]))
+
+    def test_priority_labels_present_follows_the_schemas_priorities(self):
+        labels = [{"name": name, "color": "ededed", "description": ""}
+                  for name in ("P4", "P2", "P0")]
+        payload = self._orient([], labels=labels)
+        self.assertEqual(payload["priority_labels_present"], ["P0", "P4"])
+        payload = self._orient([], labels=labels, schema=fixture.missing())
+        self.assertIsNone(payload["priority_labels_present"])
 
     def test_every_linked_board_gets_its_own_verdict(self):
         payload = self._orient([

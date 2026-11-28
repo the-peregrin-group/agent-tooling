@@ -32,7 +32,7 @@ import sys
 from dataclasses import dataclass
 from typing import Optional, TextIO, Tuple
 
-from lib import tracker_schema
+from lib import plan, tracker_schema
 from lib.github import gh
 
 PATH = "TRACKER.md"
@@ -122,6 +122,14 @@ class RepoSchema:
         if not self.usable(section):
             return None
         return getattr(self.schema, _PROPERTIES[section])
+
+    def refusal_exit_code(self) -> int:
+        """The exit code for a destructive write this schema cannot back: a
+        transient fetch fault (network, auth) keeps its own class, so a
+        caller can retry or flag it; anything else is a refusal."""
+        if self.fetch_exit_code in (plan.EXIT_NETWORK, plan.EXIT_AUTH):
+            return self.fetch_exit_code
+        return plan.EXIT_REFUSED
 
     def require_complete(self, *sections: str) -> None:
         """Raise SchemaIncomplete for the first of `sections` that is not

@@ -23,7 +23,7 @@ from pathlib import Path
 
 from lib import plan
 from lib.github import gh
-from lib.schema import FIELD_PRIORITY, PRIORITY_OPTIONS, SINGLE_SELECT
+from lib.schema import FIELD_PRIORITY, SINGLE_SELECT
 
 # Repo identity plus the first page of the label registry;
 # _fetch_repository_with_labels() paginates past 100 labels.
@@ -60,7 +60,9 @@ query($owner: String!, $name: String!, $projectCursor: String) {
           pageInfo { hasNextPage }
           nodes {
             ... on ProjectV2FieldCommon { id name dataType }
-            ... on ProjectV2SingleSelectField { options { id name } }
+            ... on ProjectV2SingleSelectField {
+              options { id name color description }
+            }
           }
         }
       }
@@ -146,7 +148,45 @@ query($projectId: ID!) {
         pageInfo { hasNextPage }
         nodes {
           ... on ProjectV2FieldCommon { id name dataType }
-          ... on ProjectV2SingleSelectField { options { id name } }
+          ... on ProjectV2SingleSelectField {
+            options { id name color description }
+          }
+        }
+      }
+    }
+  }
+}
+"""
+
+# One page of a board's items, archived ones included (the connection
+# leaves them out by default, and an archived item loses its value like any
+# other when its option is removed), each with what it holds and the
+# single-select value it holds in every field.
+_BOARD_ITEMS_QUERY = """
+query($projectId: ID!, $cursor: String) {
+  node(id: $projectId) {
+    ... on ProjectV2 {
+      items(first: 100, after: $cursor,
+            archivedStates: [ARCHIVED, NOT_ARCHIVED]) {
+        pageInfo { hasNextPage endCursor }
+        nodes {
+          id
+          isArchived
+          content {
+            __typename
+            ... on Issue { number title url state }
+            ... on PullRequest { number title url state }
+            ... on DraftIssue { title }
+          }
+          fieldValues(first: 100) {
+            pageInfo { hasNextPage }
+            nodes {
+              ... on ProjectV2ItemFieldSingleSelectValue {
+                optionId
+                field { ... on ProjectV2FieldCommon { id } }
+              }
+            }
+          }
         }
       }
     }
@@ -230,7 +270,8 @@ def fetch_orientation(repository: str) -> dict:
 def fetch_boards(repository: str) -> list[dict]:
     """The repo's open linked boards, paginated past 50, each shaped as
     {"number", "title", "node_id", "fields": {field_name: {"id", "data_type",
-    "options": {option_name: option_id}}}}.
+    "options": {option_name: option_id}, "option_details": [{"id", "name",
+    "color", "description"}, ...]}}}, the details in board order.
 
     The boards-only sibling of fetch_orientation() for wrappers (ghw-board-set)
     that never read the label registry. Raises gh.GhError on any API failure.
@@ -405,10 +446,9 @@ def create_field(board_node_id: str, name: str, data_type: str,
 
     `options` is the [{"name", "color", "description"}] list for a
     SINGLE_SELECT field and None otherwise. Option values are inlined into the
-    mutation document (gh's `-f` variables carry scalars only), which is safe
-    precisely because they are the baked-in canonical schema and never caller
-    input; _options_literal() still refuses anything outside the API's color
-    enum. Raises gh.GhError on any API failure.
+    mutation document, since gh's `-f` variables carry scalars only; see
+    _options_literal() for why that is safe. Raises gh.GhError on any API
+    failure.
     """
     literal = f", singleSelectOptions: {_options_literal(options)}" if options else ""
     mutation = f"""
@@ -426,13 +466,17 @@ mutation($projectId: ID!, $name: String!, $dataType: ProjectV2CustomFieldType!) 
     return data["createProjectV2Field"]["projectV2Field"]["id"]
 
 
-def replace_single_select_options(field_node_id: str, options: list[dict]) -> None:
-    """Replace a single-select field's entire option set.
+def update_single_select_options(field_node_id: str, options: list[dict]) -> None:
+    """Set a single-select field's whole option list, in order.
 
-    Destructive by nature: options left out are removed, and any item value
-    assigned to them is orphaned. Exactly one caller is sanctioned --
-    ghw-board-sync replacing the stock Todo/In Progress/Done options on a board
-    it just created, which by construction has no items. Raises gh.GhError on
+    `options` is [{"name", "color", "description"}], each with the "id" of
+    the live option it keeps where it keeps one. updateProjectV2Field
+    replaces the whole list: an option sent with its id keeps its identity,
+    so the items holding it keep their value; one sent without an id is
+    created; and a live option left out is removed, clearing it on every
+    item that held it (GitHub's GraphQL reference,
+    ProjectV2SingleSelectFieldOptionInput). Callers re-read the field
+    afterwards to confirm the ids they sent survived. Raises gh.GhError on
     any API failure.
     """
     mutation = f"""
@@ -447,26 +491,85 @@ mutation($fieldId: ID!) {{
     gh.graphql(mutation, {"fieldId": field_node_id})
 
 
+def fetch_board_items(board_node_id: str) -> list[dict]:
+    """Every item on a board, archived ones included, paginated past 100.
+
+    Returns [{"item_id", "archived", "content": {"type", "number", "title",
+    "url", "state"}, "values": {field_id: option_id}}], where `values` holds
+    the item's single-select values only, and `content` is as much as the
+    item has ("type" is "Issue", "PullRequest", or "DraftIssue"; a draft
+    has no number, url, or state, and an item the token cannot see has no
+    content at all). Raises gh.GhError on any API failure, and rather than
+    return a partial map when an item holds more field values than one page.
+    """
+    items: list[dict] = []
+    cursor = None
+    while True:
+        variables = {"projectId": board_node_id}
+        if cursor:
+            variables["cursor"] = cursor
+        node = gh.graphql(_BOARD_ITEMS_QUERY, variables)["node"]
+        if not node or "items" not in node:
+            raise gh.GhError(f"node {board_node_id!r} is not a ProjectV2 board",
+                             plan.EXIT_NOT_FOUND)
+        connection = node["items"]
+        for item_node in connection["nodes"]:
+            items.append(_build_item(item_node))
+        if not connection["pageInfo"]["hasNextPage"]:
+            break
+        cursor = connection["pageInfo"]["endCursor"]
+    return items
+
+
+def _build_item(item_node: dict) -> dict:
+    values_node = item_node["fieldValues"]
+    if values_node["pageInfo"]["hasNextPage"]:
+        raise gh.GhError(
+            f"board item {item_node['id']} holds more than 100 field values; "
+            "refusing to return a partial map"
+        )
+    values = {}
+    for value in values_node["nodes"]:
+        if value and value.get("optionId") and (value.get("field") or {}).get("id"):
+            values[value["field"]["id"]] = value["optionId"]
+    content = item_node.get("content") or {}
+    return {
+        "item_id": item_node["id"],
+        "archived": bool(item_node.get("isArchived")),
+        "content": {
+            "type": content.get("__typename"),
+            "number": content.get("number"),
+            "title": content.get("title"),
+            "url": content.get("url"),
+            "state": content.get("state"),
+        },
+        "values": values,
+    }
+
+
 def _options_literal(options: list[dict]) -> str:
     """Render single-select options as a GraphQL list literal.
 
-    Names and descriptions go through json.dumps (GraphQL string literals are
-    JSON-compatible); colors are bare enum tokens, so each is checked against
-    the API's enum rather than interpolated blind.
+    The names come from the repo's Tracker Schema and the ids and
+    descriptions from the live board, so every string goes through
+    json.dumps, whose escapes GraphQL string literals share, and none is
+    interpolated raw. Colors are bare enum tokens, so each is checked
+    against the API's enum rather than interpolated blind.
     """
     rendered = []
     for option in options:
         color = option["color"]
         if color not in _OPTION_COLOR_VALUES:
-            # GhError, not ValueError: unreachable while the colors are
-            # baked-in constants, but a future typo should still exit 1 the
-            # way every other wrapper failure does, not as a traceback.
+            # GhError, not ValueError: every color is a named one by
+            # construction, but a bug should still exit 1 the way every
+            # other wrapper failure does, not as a traceback.
             raise gh.GhError(
                 f"option color {color!r} is not one of "
                 f"{', '.join(sorted(_OPTION_COLOR_VALUES))}"
             )
+        identity = f'id: {json.dumps(option["id"])}, ' if option.get("id") else ""
         rendered.append(
-            f'{{name: {json.dumps(option["name"])}, color: {color}, '
+            f'{{{identity}name: {json.dumps(option["name"])}, color: {color}, '
             f'description: {json.dumps(option["description"])}}}'
         )
     return "[" + ", ".join(rendered) + "]"
@@ -524,20 +627,22 @@ def determine_priority_regime(canonical_board: dict | None, boards: list[dict]) 
     """Determine how the repo tracks priority.
 
     Returns "board-field" when the canonical board carries a single-select
-    Priority field with all of P0-P3 among its options (a field merely *named*
-    Priority is not enough -- a write against it would fail), "p-labels" when
-    no board is linked at all (priority lives in issue labels, one per Issue
-    Priority the repo's Tracker Schema declares), and
-    "unknown" when boards exist but none resolved as canonical or the
-    canonical one's Priority field is absent or non-conforming.
+    Priority field (a field merely *named* Priority is not enough -- a write
+    against it would fail), "p-labels" when no board is linked at all
+    (priority lives in issue labels, one per Issue Priority the repo's
+    Tracker Schema declares), and "unknown" when boards exist but none
+    resolved as canonical or the canonical one has no single-select
+    Priority field.
+
+    Which options the field holds does not decide the regime: a field whose
+    options differ from the repo's Issue Priorities is a conformance gap,
+    named in the board's verdict and fixed by ghw-board-sync, not a sign
+    that priority lives somewhere else. So the regime needs nothing from
+    the Tracker Schema, and every Verb that judges it agrees.
     """
     if canonical_board is not None:
         priority = canonical_board["fields"].get(FIELD_PRIORITY)
-        if (
-            priority is not None
-            and priority["data_type"] == SINGLE_SELECT
-            and all(option in priority["options"] for option in PRIORITY_OPTIONS)
-        ):
+        if priority is not None and priority["data_type"] == SINGLE_SELECT:
             return "board-field"
         return "unknown"
     if not boards:
@@ -545,13 +650,15 @@ def determine_priority_regime(canonical_board: dict | None, boards: list[dict]) 
     return "unknown"
 
 
-def priority_labels_present(labels: list[dict]) -> list[str]:
-    """Return which of the P0-P3 labels exist in the repo's label registry.
-
-    This still checks the fixed P0-P3, not the repo's Tracker Schema's
-    Issue Priorities (agent-tooling-u9n.21)."""
+def priority_labels_present(labels: list[dict],
+                            priorities: list[str] | None) -> list[str] | None:
+    """Which of the repo's Issue Priorities exist as labels, in the
+    schema's order: `priorities` are their names, or None when the Tracker
+    Schema's priorities cannot be read, which gives None (unknown)."""
+    if priorities is None:
+        return None
     names = {label["name"] for label in labels}
-    return [option for option in PRIORITY_OPTIONS if option in names]
+    return [name for name in priorities if name in names]
 
 
 def find_triage_profile(start_directory: Path) -> dict | None:
@@ -602,7 +709,8 @@ def _read_triage_profile(candidate: Path) -> dict | None:
 def _build_board(board_node: dict) -> dict:
     """Reshape one GraphQL ProjectV2 node into the board dict used throughout:
     {"number", "title", "node_id", "fields": {name: {"id", "data_type",
-    "options": {option_name: option_id}}}}.
+    "options": {option_name: option_id}, "option_details": [{"id", "name",
+    "color", "description"}, ...]}}}, the details in board order.
 
     Raises gh.GhError rather than returning a truncated field map if the board
     somehow exceeds the 100-field page (GitHub's own limits should make that
@@ -619,13 +727,17 @@ def _build_board(board_node: dict) -> dict:
         # ProjectV2FieldCommon, so empty objects should never occur.
         if not field_node:
             continue
+        options = field_node.get("options", [])
         fields[field_node["name"]] = {
             "id": field_node["id"],
             "data_type": field_node["dataType"],
-            "options": {
-                option["name"]: option["id"]
-                for option in field_node.get("options", [])
-            },
+            "options": {option["name"]: option["id"] for option in options},
+            "option_details": [
+                {"id": option["id"], "name": option["name"],
+                 "color": option.get("color"),
+                 "description": option.get("description") or ""}
+                for option in options
+            ],
         }
     return {
         "number": board_node["number"],
