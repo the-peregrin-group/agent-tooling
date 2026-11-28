@@ -11,6 +11,12 @@ schema, naming the specific gaps (missing Status states, an absent Last
 Triaged field, and so on). The verdict is advisory: orient reports, and
 ghw-board-sync is what acts.
 
+It also reads the repo's Tracker Schema, TRACKER.md on its default branch,
+prints every problem in it as a warning on stderr, and reports under
+"tracker_schema" which file it read, whether it could be read at all, and
+how many warnings it gave. A missing or broken TRACKER.md never fails
+orientation.
+
 IDs are resolved live on every call; there is no on-disk cache.
 
 Exit codes: 0 success, 1 unclassified gh/API failure, 2 usage error,
@@ -25,7 +31,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from lib import arguments, plan
-from lib.github import board_schema, boards, gh
+from lib.github import board_schema, boards, gh, repo_schema
 
 _USAGE = "ghw-orient <owner/repo>"
 
@@ -46,6 +52,7 @@ def main(argv: list[str]) -> int:
         orientation = boards.fetch_orientation(repository)
     except gh.GhError as error:
         gh.die(str(error), error.exit_code)
+    loaded = repo_schema.load(repository)
 
     triage_profile = boards.find_triage_profile(Path.cwd())
     canonical, rule, note = boards.resolve_canonical_board(
@@ -65,6 +72,11 @@ def main(argv: list[str]) -> int:
         "priority_labels_present": boards.priority_labels_present(
             orientation["labels"]
         ),
+        "tracker_schema": {
+            "source": loaded.source,
+            "readable": loaded.schema is not None,
+            "warnings": len(loaded.warning_lines()),
+        },
     })
     return plan.EXIT_OK
 

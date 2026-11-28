@@ -2,7 +2,7 @@
 the agent wrote into its own staging directory, never inline.
 
 Every wrapper that takes a file-path argument -- <body-file>, <comment-file>,
-or ghw-label-sync's <schema-file> -- accepts only paths inside the agent's own
+and the like -- accepts only paths inside the agent's own
 staging directories:
 
     /tmp/claude/...
@@ -15,7 +15,7 @@ Restricted to the staging directories, a wrapper can never read anything the
 agent could not already read, and every staged file first passes through a
 visible, permission-mediated Write.
 
-`description` only names the argument in error messages ("body file", "schema
+`description` only names the argument in error messages ("body file", "comment
 file"); the policy itself is identical for every file a wrapper reads.
 """
 

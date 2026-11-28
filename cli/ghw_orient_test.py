@@ -2,7 +2,7 @@
 
 Argument tests run the script as a subprocess with arguments that fail before
 any network I/O. Behavior tests load the script as a module and mock the lib
-boards seam. Either way, no `gh` calls are made.
+boards seam and the Tracker Schema fetch. Either way, no `gh` calls are made.
 
 Run from the cli/ directory:
     python3 -m unittest discover -s . -p '*_test.py'
@@ -20,6 +20,7 @@ from pathlib import Path
 from unittest import mock
 
 import ghw_test_support
+import tracker_schema_test_support as fixture
 
 _SCRIPT = Path(__file__).resolve().parent / "ghw-orient"
 _MODULE = ghw_test_support.load_wrapper_module(_SCRIPT)
@@ -62,7 +63,8 @@ class GhwOrientConformanceVerdictTest(unittest.TestCase):
     """Orient publishes a canonical-schema verdict per linked board. Advisory
     only: it reports, and ghw-board-sync is what acts."""
 
-    def _orient(self, boards: list[dict], labels=()) -> dict:
+    def _orient(self, boards: list[dict], labels=(), schema=None,
+                stderr=None) -> dict:
         orientation = {
             "repo": {"name_with_owner": "o/r", "node_id": "R_1",
                      "default_branch": "main", "is_private": True},
@@ -73,9 +75,33 @@ class GhwOrientConformanceVerdictTest(unittest.TestCase):
                                return_value=orientation), \
                 mock.patch.object(_MODULE.boards, "find_triage_profile",
                                   return_value=None), \
+                mock.patch.object(_MODULE.repo_schema, "fetch",
+                                  return_value=schema or fixture.loaded()), \
+                contextlib.redirect_stderr(stderr or io.StringIO()), \
                 contextlib.redirect_stdout(io.StringIO()) as stdout:
             self.assertEqual(_MODULE.main(["o/r"]), 0)
         return json.loads(stdout.getvalue())
+
+    def test_a_sound_tracker_md_is_reported_with_no_warnings(self):
+        stderr = io.StringIO()
+        payload = self._orient([], stderr=stderr)
+        self.assertEqual(payload["tracker_schema"],
+                         {"source": "o/r@main:TRACKER.md", "readable": True,
+                          "warnings": 0})
+        self.assertEqual(stderr.getvalue(), "")
+
+    def test_a_missing_or_broken_tracker_md_warns_and_never_fails(self):
+        document = fixture.document()
+        document["issue_kinds"] = "task"
+        for schema, readable in ((fixture.missing(), False),
+                                 (fixture.loaded(document), True)):
+            with self.subTest(readable=readable):
+                stderr = io.StringIO()
+                payload = self._orient([], schema=schema, stderr=stderr)
+                self.assertEqual(payload["tracker_schema"]["readable"], readable)
+                self.assertEqual(payload["tracker_schema"]["warnings"], 1)
+                self.assertTrue(stderr.getvalue().startswith(
+                    "warning: o/r@main:TRACKER.md: "))
 
     def test_stock_board_verdict_names_the_specific_gaps(self):
         # A typical unprovisioned board: stock Status options, no Last Triaged.
