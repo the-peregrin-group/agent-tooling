@@ -73,3 +73,7 @@ canonical set shows in review as rows added or removed.
 - The canonical rule set allows `bdw reopen` in the same tier as
   `bdw close`, though reopening is meant to need a higher permission tier
   than closing (`agent-tooling-2e4x`).
+- The canonical rule set grants `bdw set-state` and `bdw update --status`,
+  the two writes that record an open Issue State, though the Tracker Schema
+  says that on Beads an open state is written nowhere
+  (`agent-tooling-u9n.24`).
