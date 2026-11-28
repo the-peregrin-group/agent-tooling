@@ -33,44 +33,52 @@ default leaves open where the state is recorded: the owner designates it
 in the copy (a label axis for status is the default's suggestion), and the
 plan creates whatever labels that takes.
 
+The board follows the Tracker Schema on the default branch: its `Status`
+options are exactly the copy's Issue States and its `Priority` options
+exactly its Issue Priorities, in the copy's order and colours, beside
+`Size` and `Last Triaged`. `ghw-board-sync` takes no file, so merge
+`TRACKER.md` first, as for the labels. To change the board's states or
+priorities later, change `TRACKER.md`, merge it, and sync again.
+
 **No board yet.** Create and provision one in a single call:
 
 ```bash
 ghw-board-sync <owner/repo> new
 ```
 
-It creates the board, links it to the repo, and provisions `Priority`
-(P0 to P3), `Status`, `Size`, and `Last Triaged`. It refuses if the repo
-already has a linked open board.
+It creates the board, links it to the repo, and provisions every field.
+It refuses if the repo already has a linked open board, and before
+creating anything if the copy's states or priorities cannot be read.
 
 **A board already exists.** Ask for its project number (the `2` in
-`https://github.com/users/<owner>/projects/2`), then:
+`https://github.com/users/<owner>/projects/2`), then preview, show the
+owner, and on approval apply:
 
 ```bash
-ghw-board-sync <owner/repo> <project-number>
+ghw-board-sync <owner/repo> plan <project-number>
+ghw-board-sync <owner/repo> apply <project-number>
 ```
 
-It checks that the board is linked to this repo and refuses if not. On an
-existing board it creates only the missing fields and reports drift
-on existing ones rather than editing them, since replacing a live
-single-select's options can orphan values already set; that stays the
-owner's call. A missing `Size` is reported, not created.
+It checks that the board is linked to this repo and refuses if not.
+`apply` creates missing fields (a missing `Size` is reported, not
+created) and adds, reorders, and recolours options, and removes nothing,
+so no issue loses a value. Options the copy does not declare stay, and
+the plan lists each with the issues on it and where each would move.
+Removing them is `migrate`, which moves every issue first and is refused
+while any has nowhere to go; the plan names those, and a `--move <field>
+<option> <to>` gives one a target. That is the owner's call:
 
-`Status` carries eight options, with this exact casing: `Needs Triage`,
-`Needs Scope`, `Needs Eng Design`, `Needs Impl`, `In progress`,
-`In review`, `Done`, `Rejected`. Match the open options to the open
-states of the repo's Issue State Diagram; the default's are the first six.
-Done and Rejected stay, because ghw and the triage scripts work to them,
-and read as the closed state with that Close Reason. Missing options
-reported under `conformance.gaps` are added by the owner by hand, in the
-board's Project settings. Options under `conformance.extra_options` are the owner's own;
-leave them.
+```bash
+ghw-board-sync <owner/repo> plan <project-number> --move Priority P5 P4
+ghw-board-sync <owner/repo> migrate <project-number> --move Priority P5 P4
+```
 
 Then, either way:
 
 - Run `ghw-orient <owner/repo>` and confirm its `conformance` verdict has
   no `gaps`. A missing `Size` on an older board shows under
-  `tolerated_gaps` and needs nothing.
+  `tolerated_gaps` and needs nothing. Options the copy does not declare
+  are gaps until they are migrated off.
 - Ask the owner to turn on the board's "Auto-add to project" workflow
   (Project settings, Workflows); the CLI cannot.
 
@@ -85,11 +93,6 @@ its colour from the copy. GitHub refuses a description over 100
 characters, so `ghw-label-sync` shortens a longer meaning to fit. A label
 name must not hold a comma or start with `-`, since `gh` cannot pass
 such a name whole; the sync warns about one and leaves it alone.
-
-A board's `Priority` options are `P0` to `P3` whatever the copy says,
-until the board Verbs follow the Tracker Schema. So with a board, keep the
-copy's priority levels to those four, or say in the plan that they cannot
-be applied here yet.
 
 `ghw-label-sync` makes the repo's labels exactly what the Tracker Schema
 on the default branch declares; it takes no file. So `TRACKER.md` is
@@ -135,12 +138,14 @@ the issue to the board if it is not there yet, and an unset `Status` hides
 an issue from the board's grouped views:
 
 ```bash
-ghw-board-set <owner/repo> Priority <P0-P3> <issue#>
-ghw-board-set <owner/repo> Status "Needs Triage" <issue#>
+ghw-board-set <owner/repo> Priority <priority> <issue#>
+ghw-board-set <owner/repo> Status "<Entry State>" <issue#>
 ```
 
-Use the state the plan gives where it is later than `Needs Triage`. Closed
-history, if added to the board, gets `Done`.
+Use the state the plan gives where it is later than the Entry State.
+Closed history, if added to the board, gets the copy's closed state
+(`Closed` in the default). `ghw-board-set` refuses a value the copy does
+not declare.
 
 ## Retiring sources the repo owns
 
@@ -188,6 +193,9 @@ the counts: labels, open and closed issues filed, and board items.
 ## Recurring triage
 
 A board from `ghw-board-sync` already has every field triage reads. The
+triage scripts still write `Done` and `Rejected`, though, so they do not
+work on a board whose `Status` follows a copy without those states, the
+default included; say so in the plan if the owner wants triage. The
 rest is `triage-issues`' own setup: its "Standing up triage in a repo"
 section, and section 6 of `reference/DEPLOYMENT.md` in that skill's
 directory for the `TRIAGE.md` profile and the digest issue. The opaque IDs

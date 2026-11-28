@@ -24,7 +24,7 @@ so the one rigid invocation form is what makes allowlisting work.
 The wrappers exist because raw `gh` can't encode scope in an allowlistable
 way: they pin everything blast-radius-relevant (repo, subverb, base branch,
 merge strategy, field name) in fixed positional order, enforce the ecosystem's
-contracts (the repo's Tracker Schema, the canonical board schema) programmatically, and resolve
+contracts (the repo's Tracker Schema, and the labels and board it asks for) programmatically, and resolve
 GraphQL name→ID mappings internally so IDs never appear in your commands.
 
 Shared conventions:
@@ -36,7 +36,7 @@ Shared conventions:
   argument-parse time, before any network call, such as `squash`), `3` not
   found, `4` refused: a policy refusal past parse time, the call well formed
   but violating policy against live state (the label contract, a merge gate, an unlinked board, a missing
-  branch, `ghw-label-sync apply-delete` while the repo's `TRACKER.md` is missing or has a problem in a part the labels come from), `5` auth or deployment failure, such as a `gh` below `ghw-issue-link`'s version floor (abort and flag it), `6` network failure (the one retryable class; on create and comment Verbs and `ghw-board-sync new` a timeout or reset exits `1`, since the write may have landed, and `ghw-issue-close` exits `1` on any network failure during the close, since the comment is posted first). Write wrappers print a JSON
+  branch, `ghw-label-sync apply-delete` or `ghw-board-sync migrate` while the repo's `TRACKER.md` is missing or has a problem in a part they derive from), `5` auth or deployment failure, such as a `gh` below `ghw-issue-link`'s version floor (abort and flag it), `6` network failure (the one retryable class; on create and comment Verbs and `ghw-board-sync new` a timeout or reset exits `1`, since the write may have landed, and `ghw-issue-close` exits `1` on any network failure during the close, since the comment is posted first). Write wrappers print a JSON
   plan with `"action": "plan"` or `"applied"`.
 - **On exit 2, read the message and fix the call. On exit 4, never retry
   unchanged:** read the message; fix the call or the state it names (push
@@ -75,24 +75,27 @@ label names, board numbers, or field options:
 - `labels` — the live label registry.
 - `tracker_schema` — the repo's Tracker Schema, read from `TRACKER.md` on
   its default branch: which file, whether it could be read, and how many
-  warnings it gave. The warnings themselves are on stderr. The label Verbs
-  read the same file, so a problem it reports also limits what they check
-  and what `ghw-label-sync` may delete.
+  warnings it gave. The warnings themselves are on stderr. The label and
+  board Verbs read the same file, so a problem it reports also limits what
+  they check and what `ghw-label-sync` and `ghw-board-sync` may remove.
 - `boards` — every open linked project board, each with its field and option
-  maps and a `conformance` verdict against the canonical board schema:
-  `conforms` is driven by `gaps` (missing canonical fields/options);
+  maps and a `conformance` verdict against the board the Tracker Schema
+  asks for: `Status` options exactly its Issue States and `Priority`
+  options exactly its Issue Priorities, in its order. `conforms` is driven
+  by `gaps` (a missing field, an option the schema declares and the board
+  lacks or the reverse, options out of order), and is null where
+  `unchecked` says a field's options could not be judged;
   `tolerated_gaps` (a missing `Size` field on a pre-existing board) is
   expected and not actionable — it's why triage grandfathers `Size`-less
-  boards; `extra_options` lists user-authored extras (advisory — leave them
-  alone).
+  boards; `extra_options` and `color_drift` are advisory.
 - `canonical_board` / `canonical_rule` — which board writes will target, and
   why. Multiple boards with no `TRIAGE.md` to disambiguate is an error you'll
   see at write time; `ghw-board-set --project <number>` overrides explicitly.
 - `priority_regime` — `"board-field"` (priority lives on the board; don't
   create or apply priority labels), `"p-labels"` (priority is an issue
   label, and there is no status beyond open/closed), or `"unknown"` (boards
-  exist but none resolved as canonical, or the canonical board's `Priority`
-  field is missing or non-conforming). On `"unknown"`, don't guess a regime:
+  exist but none resolved as canonical, or the canonical board has no
+  single-select `Priority` field). On `"unknown"`, don't guess a regime:
   fix the board with `ghw-board-sync` (see `github.md` in the
   `setup-issue-tracker` skill's directory), disambiguate with
   `ghw-board-set --project`, or ask the user — then re-orient.
@@ -157,9 +160,10 @@ effectively lost. Set both as part of filing, not later.
 attached at filing (Step 3), there is no board to write to, and this step is
 skipped entirely.
 
-The board's `Priority` options are `P0` to `P3`; what each level means is
-the repo's `TRACKER.md` (its Issue Priorities), which `create-issue` reads
-when choosing one.
+The board's `Priority` options are the repo's Issue Priorities and its
+`Status` options its Issue States, both from `TRACKER.md`, which
+`create-issue` reads when choosing them. The wrapper refuses a value the
+schema does not declare (exit 2).
 
 ```bash
 ghw-board-set <owner/repo> <field-name> <option-name> <issue#> [--project <number>]
@@ -173,12 +177,13 @@ ghw-board-set acme/rocket-sled Priority P2 41
 ghw-board-set acme/rocket-sled Status "Needs Triage" 41
 ```
 
-New issues start at `Needs Triage` by default (`create-issue` says when one
-may be filed at a later state) — setting that on a freshly filed issue
-is safe **provided the board actually has the option**: check the board's
-`conformance` verdict from Step 1, since a board with `gaps` may lack
-canonical states and the wrapper will refuse an option the field doesn't
-have. A later Status move is `work-issue`'s: it is judged against the
+New issues start at the schema's Entry State (`Needs Triage` on the
+shipped default; `create-issue` says when one may be filed at a later
+state). Setting that on a freshly filed issue is safe **provided the
+board actually has the option**: check the board's `conformance` verdict
+from Step 1, since a board with `gaps` may lack declared states, and the
+wrapper refuses an option the field doesn't have and names the
+`ghw-board-sync` call that adds it. A later Status move is `work-issue`'s: it is judged against the
 repo's Issue State Diagram. Until the repo has one, make only the moves
 your own work causes (claimed, released, finished) and leave every other
 move to a triage pass.

@@ -67,9 +67,11 @@ shows the nearest, so the file holds one form for every platform. The
 shipped default's colours are the ones the labels of repos already set
 up with ghw carry, where such a label exists, and
 for the states hex values chosen to read as the board colours ghw gives
-those states today, so that the first sync from the schema need change
-little; what "nearest" means is the board Verb's to define
-(`agent-tooling-u9n.21`). Rejected, with ADR 0027: a colour
+those states before the board followed the schema, so that the first sync
+from the schema need change little; what "nearest" means is the board
+Verb's to define, and the ghw design states its rule
+([Colours](../ghw/design.md#schema-sync-bootstrap-grade-declarative)).
+Rejected, with ADR 0027: a colour
 rule in the Wrappers, and colours set on creation only; both make colour a
 special case unlike every other part of the schema.
 

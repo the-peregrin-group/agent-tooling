@@ -51,13 +51,10 @@ is tracked in `agent-tooling-84n3` (bdw), `agent-tooling-fyxo` (ghw),
 
 ### Known gaps
 
-- Only ghw's label Verbs and `ghw-orient` read a repo's `TRACKER.md`;
-  every other Verb neither follows its schema nor warns about its
-  defects as [the design](design.md#how-a-wrapper-uses-the-schema) says;
-  the lines below are the parts (`agent-tooling-u9n`).
-- ghw's board Status and Priority options and their colours are fixed
-  constants, not the repo's Issue States and Issue Priorities
-  (`agent-tooling-u9n.21`).
+- Only ghw's label Verbs, its board Verbs, and `ghw-orient` read a repo's
+  `TRACKER.md`; every other Verb neither follows its schema nor warns
+  about its defects as [the design](design.md#how-a-wrapper-uses-the-schema)
+  says; the lines below are the parts (`agent-tooling-u9n`).
 - ghw filing sets no priority or Entry State, and ghw closing carries no
   Close Reason (`agent-tooling-u9n.22`).
 - Nothing checks that a repo's Beads holds the kinds, priorities, and
@@ -74,12 +71,13 @@ is tracked in `agent-tooling-84n3` (bdw), `agent-tooling-fyxo` (ghw),
   registered Beads type, and some imported Issues still carry GitHub type
   labels the schema does not declare (`agent-tooling-aio.7`).
 - The default leaves open where an Issue State is recorded on a forge with
-  no status mechanism (`agent-tooling-vb2v`), and neither Beads statuses
-  (`agent-tooling-c86`) nor a GitHub board field (`agent-tooling-u9n.12`)
-  holds the default's states today.
+  no status mechanism (`agent-tooling-vb2v`), and Beads statuses do not
+  hold the default's states today (`agent-tooling-c86`).
 - The `triage-issues` Skill is generic, but its GitHub scripts still read
-  the `TRIAGE.md` profile and work to eight board `Status` options, not the
-  repo's Tracker Schema (`agent-tooling-u9n.12`).
+  the `TRIAGE.md` profile and work to the eight `Status` options boards
+  carried before the board followed the Tracker Schema, so they do not
+  work on a board whose options follow the default's states
+  (`agent-tooling-u9n.12`, `agent-tooling-2340.3`).
 - An unattended GitHub pass cannot put a finding on the affected issue with
   the `human` label, so it lists findings in its digest instead
   (`agent-tooling-u9n.13`); and it cannot read an issue's body, its

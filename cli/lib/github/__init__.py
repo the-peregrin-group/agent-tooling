@@ -9,6 +9,7 @@ Modules:
   labels       -- the label attachment contract
   label_schema -- ghw-label-sync's desired labels, from the Tracker Schema,
                   and their diff against the live ones
-  board_schema -- the canonical board schema: conformance and provisioning
+  board_schema -- the board the Tracker Schema asks for: colours,
+                  conformance, and option and migration plans
   pulls        -- pure PR-merge gate checks
 """
