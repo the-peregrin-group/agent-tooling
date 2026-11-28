@@ -3,19 +3,28 @@
 
 Replaces the multi-call Step-1 dance of the use-github skill: repo identity,
 the live label registry, every open linked ProjectV2 board with its field and
-option name-to-ID maps, which board is canonical (and by which rule), and
-which priority regime the repo is in ("board-field" vs "p-labels").
+option name-to-ID maps (and each option's colour and description), which
+board is canonical (and by which rule), and which priority regime the repo
+is in ("board-field" when the canonical board has a single-select Priority
+field, "p-labels" when no board is linked, "unknown" otherwise).
 
-Each board also carries a "conformance" verdict against the canonical board
-schema, naming the specific gaps (missing Status states, an absent Last
-Triaged field, and so on). The verdict is advisory: orient reports, and
-ghw-board-sync is what acts.
-
-It also reads the repo's Tracker Schema, TRACKER.md on its default branch,
+It reads the repo's Tracker Schema, TRACKER.md on its default branch,
 prints every problem in it as a warning on stderr, and reports under
 "tracker_schema" which file it read, whether it could be read at all, and
 how many warnings it gave. A missing or broken TRACKER.md never fails
 orientation.
+
+Each board carries a "conformance" verdict against that schema: its Status
+options should be exactly the Issue States and its Priority options
+exactly the Issue Priorities, in the schema's order, beside the fixed Size
+and Last Triaged fields. The verdict names every difference (a missing or
+undeclared option, a name held by more than one option, options out of
+order, an absent field), lists options
+whose colour differs from the schema's, and says which fields it could not
+check because a section of the schema cannot be read. It is advisory:
+orient reports, and ghw-board-sync is what acts. "priority_labels_present"
+lists which of the schema's Issue Priorities exist as labels, or is null
+when the priorities cannot be read.
 
 IDs are resolved live on every call; there is no on-disk cache.
 
@@ -30,7 +39,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from lib import arguments, plan
+from lib import arguments, plan, tracker_schema
 from lib.github import board_schema, boards, gh, repo_schema
 
 _USAGE = "ghw-orient <owner/repo>"
@@ -58,8 +67,10 @@ def main(argv: list[str]) -> int:
     canonical, rule, note = boards.resolve_canonical_board(
         repository, orientation["boards"], triage_profile
     )
+    fields = board_schema.desired_fields(loaded)
     for board in orientation["boards"]:
-        board["conformance"] = board_schema.evaluate_conformance(board)
+        board["conformance"] = board_schema.evaluate_conformance(board, fields)
+    priorities = loaded.section(tracker_schema.ISSUE_PRIORITIES)
 
     plan.emit({
         **orientation,
@@ -70,7 +81,8 @@ def main(argv: list[str]) -> int:
             canonical, orientation["boards"]
         ),
         "priority_labels_present": boards.priority_labels_present(
-            orientation["labels"]
+            orientation["labels"],
+            None if priorities is None else [p.name for p in priorities],
         ),
         "tracker_schema": loaded.summary(),
     })

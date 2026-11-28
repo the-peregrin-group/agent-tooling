@@ -42,7 +42,7 @@ resolution) before the write itself.
    reason.
 4. **The Wrapper enforces the contracts.** The three GitHub Skills form one
    ecosystem, and every Verb enforces its shared contracts (the repo's
-   Tracker Schema, the priority regime, the canonical board schema) in code
+   Tracker Schema, the priority regime, the board the schema asks for) in code
    rather than trusting the caller.
 5. **Idempotency is a contract** for every `-sync` and `-set` Verb, and for
    `ghw-issue-edit`, `ghw-issue-close`, and `ghw-issue-link`: declarative
@@ -114,14 +114,19 @@ resolution) before the write itself.
   board with its field and option name-to-ID maps, which board is canonical
   and by which rule (see Board disambiguation), a `canonical_note`, the
   priority regime (`board-field`, `p-labels`, or `unknown` when boards exist
-  but none is canonical or the Priority field is missing or nonconforming),
-  and `priority_labels_present`. Each board carries a conformance verdict
-  against the canonical board schema: `conforms` is false on any gap (an
-  absent field, a field of the wrong data type, a missing canonical option).
-  A missing `Size` is the one tolerated gap, reported separately, and extra
-  user-authored options are advisory `extra_options`. Extras cannot break a
-  Verb, which only writes canonical options; a missing state breaks
-  `ghw-board-set` outright. The canonical-board choice is advisory: every
+  but none is canonical or it has no single-select `Priority` field), and
+  `priority_labels_present` (which of the schema's Issue Priorities exist
+  as labels, or null when they cannot be read). Each board carries a
+  conformance verdict against the board the Tracker Schema asks for (see
+  Following the Tracker Schema): `conforms` is false on any gap (an absent
+  field, a field of the wrong data type, an option the schema declares and
+  the board lacks or the reverse, options out of the schema's order), and
+  null when a field's options cannot be judged because its section cannot
+  be read, which `unchecked` names. A missing `Size` is the one tolerated
+  gap, reported separately; options on `Size` beyond `XS` to `XL` are
+  `extra_options`, and colours that differ from the schema's are
+  `color_drift`, both advisory. A missing state breaks `ghw-board-set`
+  outright. The canonical-board choice is advisory: every
   board ships its full map, and write-side choice belongs to
   `ghw-board-set --project`. It also reads the repo's Tracker Schema,
   prints its warnings, and reports under `tracker_schema` which file it
@@ -214,10 +219,16 @@ resolution) before the write itself.
   rule for colours ([Format](../use-issues/design.md#format)). Whether
   priority is carried as labels is the priority regime, judged from the
   boards linked on GitHub alone, with no local file read: on `p-labels`
-  (no board) the priorities are desired labels, on `board-field` they are
-  not (so live priority labels are deletion candidates), and on `unknown`
-  (several boards, or one whose `Priority` field does not conform) they are
-  neither created nor deleted, with a warning. `ghw-orient` can resolve
+  (no board) the priorities are desired labels, and on `unknown` (several
+  boards, or one with no single-select `Priority` field) they are neither
+  created nor deleted, with a warning. On `board-field` they are not
+  desired, but live priority labels are deletion candidates only when the
+  board's `Priority` field holds every Issue Priority the schema declares,
+  since only then has priority verifiably moved onto the board; otherwise
+  they are neither created nor deleted, with a warning naming the
+  priorities the field lacks. Which options the field holds does not
+  decide the regime, so `ghw-orient` and the sync report the same one.
+  `ghw-orient` can resolve
   several boards from a `TRIAGE.md` in the working directory; the sync does
   not, so which directory it runs from never decides a deletion. A label
   named for an Issue State is declared by that state, as the schema's text
@@ -249,19 +260,43 @@ resolution) before the write itself.
   plan), because `plan` is exactly where a human decides whether to grant
   deletion. Case-only mismatches are reported; creates run before deletes;
   a partial failure lists the writes that landed.
-- `ghw-board-sync <repo> <project#|new>`: one canonical board schema:
-  `Priority` (P0 to P3), `Status` (the eight canonical triage states),
-  `Size`, `Last Triaged`. Given a project number, it creates missing fields
-  and **reports, never edits**, drift on existing ones: mutating a live
-  single-select's options can orphan assigned values. On an existing board a
-  missing `Size` is reported, not created, matching triage's tolerance of an
-  unused `Size`. Given `new`, it refuses if an open board is already linked;
-  otherwise it creates a ProjectV2 titled after the repo, links it, and
-  provisions the schema. The one Status edit it ever makes is replacing the
-  stock options on that freshly created board. If provisioning fails midway,
-  the error names the half-built project and says not to re-run `new`.
-  Creating boards is setup's job by convention (`setup-issue-tracker`'s
-  GitHub steps), so every bootstrapped repo is triage-ready from birth.
+- `ghw-board-sync <repo> new` and `ghw-board-sync <repo>
+  <plan|apply|migrate> <project#> [--move <field> <option> <to> ...]`:
+  takes no file. The board is what the repo's Tracker Schema asks for: a
+  `Status` field whose options are exactly the Issue States and a
+  `Priority` field whose options are exactly the Issue Priorities, each in
+  the schema's order and coloured from it (see Colours), beside two fields
+  the schema does not describe, `Size` (`XS` to `XL`) and `Last Triaged` (a
+  date). The field names are fixed. To change a board's states or
+  priorities, a person changes `TRACKER.md` on the default branch and
+  syncs. The mode is positional, since what a grant allows is the mode:
+  - `new` refuses if an open board is already linked; otherwise it creates
+    a ProjectV2 titled after the repo, links it, replaces the stock
+    `Status` options with the Issue States (the board has no items, so
+    nothing is lost), and creates the other fields, `Size` included. It is
+    refused before creating anything when the Issue States or Issue
+    Priorities cannot be read, since the board would start with options
+    the schema did not give. If provisioning fails after the project
+    exists, the error names it and says to finish with `apply` on its
+    number, not to re-run `new`. Creating boards is setup's job by
+    convention (`setup-issue-tracker`'s GitHub steps).
+  - `plan` is a pure read. It prints the fields to create, each field's
+    options to add, recolour, or reorder, every live option the schema
+    does not declare, and, for each such option, the items on it and where
+    each would move.
+  - `apply` is additive. It creates missing fields (not `Size` on an
+    existing board: a missing `Size` is reported, matching triage's
+    tolerance of an unused `Size`) and sends each schema field's options as
+    the declared ones in the schema's order, followed by every live option
+    the schema does not declare, every live option with its id. It removes
+    nothing, and no item loses a value.
+  - `migrate` is `apply`, then the destructive part: it moves every item
+    off each option the schema does not declare, and only then removes
+    those options. See Migrating a board.
+
+  Given a project number, the board must already be linked to `<repo>`.
+  Size's options are reported when missing and never changed on an
+  existing board.
 
 **Colours.** Every label and board option colour comes from the repo's
 Tracker Schema, which gives each kind, priority, label, and state a colour
@@ -275,20 +310,103 @@ use-issues design's Format. A label takes the hex value as it is. A board option
 and `updateProjectV2Field` take each option's `color` as
 `ProjectV2SingleSelectFieldOptionColor`, a required enum of eight names
 (`GRAY`, `BLUE`, `GREEN`, `YELLOW`, `ORANGE`, `RED`, `PINK`, `PURPLE`;
-GitHub's GraphQL reference, Projects), and `board_schema.py`'s
-`_OPTION_COLORS` uses those names today. So the board Verb maps each
-state's and priority's hex colour to the nearest of the eight, and
-defining what "nearest" means is part of that Verb's Issue
-(`agent-tooling-u9n.21`). The shipped default's state and priority colours
-were chosen with that mapping in mind, to read as the names today's
-open-state and priority options carry; its `Closed` state has no option on
-today's boards. `ghw-label-sync` takes every label colour from the schema;
-`ghw-board-sync` still uses `schema.py`'s constants, and the Known gaps in
-[index.md](index.md) say so.
+GitHub's GraphQL reference, Projects). So `ghw-board-sync` maps each
+state's and priority's hex colour to one of them by this rule
+(`board_schema.named_color`):
+
+- a colour whose chroma (the largest of its red, green, and blue channels
+  less the smallest) is below 15 percent of full scale is `GRAY`;
+- any other is the name whose reference hue is nearest its own hue around
+  the colour wheel: `RED` 350, `ORANGE` 30, `YELLOW` 52, `GREEN` 125,
+  `BLUE` 220, `PURPLE` 268, `PINK` 330 degrees, the earlier in that list
+  on a tie.
+
+Hue, because GitHub publishes no hex value for the names and draws each in
+different shades by theme, so hue is what a name means; chroma, because
+gray is the one name that means no hue. Lightness is not judged on its
+own, but chroma is the absolute channel spread, not a fraction of the
+colour's brightness, so a very pale or very dark tint is `GRAY` whatever
+its hue: `ffdddd` and `c2e0c6` are `GRAY`, while `e99695` is `RED`. A
+schema that wants a pale option coloured should use a stronger tint. The
+rule lands the shipped default on the colours
+the board options carried before the board followed the schema: `Needs
+Triage` `RED`, `Needs Scope` `ORANGE`, `Needs Eng Design` `YELLOW`, `Needs
+Impl` `BLUE`, `In progress` `PURPLE`, `In review` `PINK`, and `P0` to `P3`
+`RED`, `ORANGE`, `YELLOW`, `GREEN`; its `Closed` is `GRAY`, the colour the
+old `Rejected` option had. An option the sync has to create where the
+schema gives no usable colour gets `GRAY`; a live option keeps its colour
+then.
+
+Rejected for the colour rule: nearest by distance in RGB to a hex value
+per name, since GitHub publishes none, and every set of reference values
+tried put one of the default's colours on the wrong side of a boundary
+(the default's `d93f0b` reads `RED` against CSS's orange, for one).
+
+**Migrating a board.** `updateProjectV2Field` replaces a single-select's
+whole option list. An option sent with its `id` keeps its identity, so the
+items holding it keep their value; one sent without an `id` is created; one
+left out is removed, and every item that held it loses its value (GitHub's
+GraphQL reference, `ProjectV2SingleSelectFieldOptionInput`). So adding,
+recolouring, and reordering options is additive as long as every live
+option goes back with its id, and removing one is destructive until no
+item holds it. `apply` sends only the additive list. After every option
+write the sync re-reads the board and fails (exit `1`) if an option it
+sent with an id is gone, since GitHub would then have dropped values.
+
+Live options are matched to declared ones by id, never collapsed by name.
+A declared option takes the live option of the same name, or failing
+that one that differs only in case or surrounding whitespace, which
+`apply` renames in place, keeping its id and so its items' values. Each
+live option is claimed once: a second live option of a declared name is
+undeclared, so `apply` keeps it by id, `ghw-orient` reports the duplicate
+as a gap, and `migrate` empties it like any other option it removes
+(its items move to the declared option of that name by default).
+
+`migrate` does the destructive part in an order that never strands a
+value:
+
+1. It plans a target for every item, archived ones included, on every
+   option it would remove. A `--move <field> <option> <to>` names the
+   target for every item on that option. A `--move` naming an option the
+   field no longer holds is already done, so it is accepted and listed
+   under `moves_already_done`, which lets the same command converge on a
+   retry. Otherwise, on `Status` only, an
+   item moves to the one declared Issue State whose open flag matches its
+   issue's or pull request's own state, when exactly one does: with the
+   shipped default, a closed issue on `Done` or `Rejected` moves to
+   `Closed`. Anything else (a draft, an open issue on a removed state, any
+   item on a removed priority) needs a named move.
+2. While any item has no target, it is refused (exit `4`) before any
+   write, naming each item with its URL and the `--move` that would place
+   it.
+3. It runs `apply`, then sets each item to its target.
+4. It re-reads the board and its items, and is refused (exit `4`), still
+   before any removal, if an item holds a removed option again or the
+   field has gained an option the plan did not cover.
+5. It sends the declared options only, with their ids, and re-reads to
+   check the ids were kept.
+
+A failure at any step leaves every item holding a value it held before or
+its target, and the error lists the writes that landed; a re-run plans
+from the board as it now is, so it converges. The rule for targets is
+general, not a list of the old states: it follows whatever states the
+schema declares.
+
+What could not be verified without a live board: that GitHub keeps items'
+values for an option sent with its id (the reference says so, and the
+sync's re-read checks the ids, but not every item's value), that a
+reorder through the same mutation takes the order sent, and the window
+between the last item re-read and the removal, one request in which a
+person could set an item onto a removed option and lose it. A similar
+window lies between reading an item's issue state and moving it: an issue
+reopened in between still moves by the open-flag rule as it was read
+(with the shipped default, to `Closed`). The live API
+has never run against these Verbs at all (`agent-tooling-2ul`, in
+[index.md](index.md)'s Known gaps).
 
 ### Following the Tracker Schema
 
-The label Verbs and `ghw-orient` read the repo's Tracker Schema from
+The label Verbs, the board Verbs, and `ghw-orient` read the repo's Tracker Schema from
 `TRACKER.md` on the default branch, through `lib/github/repo_schema.py`,
 and print every warning the reader gives, even when nothing is blocked.
 When the file is missing, cannot be fetched, or a section cannot be used,
@@ -305,13 +423,18 @@ is complete.
 | `ghw-label-sync` `apply-delete` | refused, exit `4` (`5` or `6` for a failed fetch) | refused, exit `4` | refused, exit `4` |
 | `ghw-issue-create`, `ghw-issue-edit add-label` | registry check only | only what needs that section is let through (see below) | checks run on what was read |
 | `ghw-issue-edit remove-label` | goes ahead | axes unusable: no axis is held as required | checks run on what was read |
-| `ghw-orient` | reports it under `tracker_schema` | reports it | reports it |
+| `ghw-board-sync` `plan`, `apply` | no option is added, removed, or judged; only a missing `Last Triaged` is created | that field's options are left as they are and reported unchecked | adds what was read; `migrate_refused` says why |
+| `ghw-board-sync` `migrate` | refused, exit `4` (`5` or `6` for a failed fetch) | refused, exit `4` | refused, exit `4` |
+| `ghw-board-sync` `new` | refused before creating anything, exit `4` (`5` or `6` for a failed fetch) | refused when the states or priorities are unusable | creates the board with what was read |
+| `ghw-board-set` (`Status`, `Priority`) | the board's own option check only | the board's own check, for the field whose section is unusable | a value is refused (exit `2`) unless what was read declares it |
+| `ghw-orient` | reports it under `tracker_schema`; options unchecked, `priority_labels_present` null | reports it; that field's options unchecked | reports it; judges against what was read |
 | Every other Verb | does not read the schema | | |
 
 The label-declaring sections are the Issue Kinds, the Issue Priorities, the
 label axes, the labels on no axis, and the Issue States (a label named for
-a state). For `ghw-label-sync` the Issue Priorities count only where the
-priority regime is not `board-field`. An unusable section switches off only
+a state). For `ghw-label-sync` the Issue Priorities count in every
+regime, since on `board-field` they decide whether the priority labels may
+go. An unusable section switches off only
 the checks that need it: the kind is checked whenever the kinds can be
 read; a label carrying a usable axis's prefix can belong only to that axis,
 so the axis alone decides it; and any other label is refused as undeclared
@@ -321,6 +444,20 @@ use what is usable rather than what is complete, so a label lost from a
 usable section is refused as undeclared, and the warning for that section
 says why. `remove-label` is an edit to one issue, not a write derived from
 the schema, so a check it cannot run is skipped rather than refused.
+
+The board Verbs derive from two sections only, the Issue States for
+`Status` and the Issue Priorities for `Priority`; a problem elsewhere in
+the schema is a warning to them and nothing more. A board conforms when
+each of those fields holds exactly the declared options in the schema's
+order and every other field is present with its type; a missing or extra
+option, a name held by more than one option, or the wrong order, is a gap
+that names the options, and a
+colour that differs from the mapped one is reported as drift beside the
+verdict, not as a gap. `ghw-board-set` refuses a `Status` or `Priority`
+value the schema does not declare with exit `2`, before reading the
+board, since the call itself is wrong whatever the board holds; a declared
+value the board lacks is exit `4`, and the message names the `apply`
+that adds it.
 
 Rejected:
 - a local schema file or fallback for `ghw-label-sync`, since the labels
@@ -334,7 +471,21 @@ Rejected:
 - letting `ghw-label-sync` pick among several boards from a `TRIAGE.md`
   in the working directory, as `ghw-orient` does, since no local file is an
   input to a Verb and the directory a sync ran from would then decide
-  whether priority labels are deleted.
+  whether priority labels are deleted;
+- a migration that maps the old fixed states by name (`Done` and
+  `Rejected` to `Closed`), since it would break for any repo whose states
+  differ; the open-flag rule covers that case and every other one;
+- letting `apply` remove an option that no item holds, since whether any
+  item holds it is exactly what a reader could get wrong, and keeping
+  every removal in one mode keeps the grant that allows removal simple;
+- treating a board whose options differ from the schema as an `unknown`
+  priority regime, since the regime is where priority lives, and a
+  board-field board still carries it there; the difference is a
+  conformance gap, which only holds back the deletion of priority labels;
+- deleting priority labels on any `board-field` repo, whatever its
+  `Priority` field holds, since a hand-made field (`High`, `Low`) would
+  then let `apply-delete` strip the only record of priority from open
+  issues.
 
 ### Board disambiguation
 
@@ -424,11 +575,9 @@ writes to this repo, and the flag only narrows which board is touched.
 ## Shared library
 
 - `cli/lib/` (forge-neutral, shared with the other Wrappers): `schema.py`
-  holds the constants the board Verbs still use: P0 to P3 as board options,
-  canonical field names, the eight Status states with their exact casing
-  (title case like `Needs Triage` beside sentence case like `In progress`),
-  the terminal-state set, and Size XS to XL. It holds no labels: those come
-  from the repo's Tracker Schema. Also
+  holds the board's GitHub bindings: the field names, their data types,
+  and `Size`'s options `XS` to `XL`. It holds no labels, states, or
+  priorities: those come from the repo's Tracker Schema. Also
   `staging.py` (invariant 9), `plan.py` (JSON plan and exit codes),
   `arguments.py` (repo charset check, issue-number parsing), and
   `paths.py` (each tool's subdirectory of the Machine Config Directory and
@@ -445,7 +594,9 @@ writes to this repo, and the flag only narrows which board is touched.
   the default branch, reads it with `tracker_schema.py`, and prints its
   warnings), `labels.py` (the label attachment contract, from the schema),
   `label_schema.py` (`ghw-label-sync`'s desired labels and their diff
-  against the live ones), `board_schema.py` (conformance and provisioning),
+  against the live ones), `board_schema.py` (the board the schema asks
+  for, the colour rule, conformance, and each field's option and
+  migration plan),
   and `pulls.py` (merge gates) sit on it.
 - Name-to-ID resolution is live on every call, with no on-disk cache (see
   Rejected alternatives).
@@ -468,8 +619,9 @@ terminal-state set. The planned rebase is
   steps are the bundled `github.md`, read on demand. They bootstrap labels
   by merging the repo's `TRACKER.md` and then running `ghw-label-sync`, and
   the board with `ghw-board-sync <repo> new`, so the
-  full canonical schema, `Size` included, exists from day one; boards that
-  predate `Size` are tolerated by board-sync's report-only behavior. They
+  board the schema asks for, `Size` included, exists from day one; boards
+  that predate `Size` are tolerated, since the sync only reports a missing
+  `Size` on an existing board. They
   point to `use-github` as the canonical GitHub layer, and to
   `triage-issues` for the optional `TRIAGE.md` and ledger-issue bootstrap,
   which is per-repo policy rather than board schema.
@@ -554,9 +706,11 @@ reasons for them.
   profile's lists, a date, or free text confined to the one ledger issue.
 
 The scripts predate the Tracker Schema and still work to the `TRIAGE.md`
-profile and eight board `Status` options; the Skill's GitHub section says
-exactly what they assume, and [index.md](index.md)'s Known gaps name what
-is not yet true.
+profile and the eight `Status` options boards carried before the board
+followed the schema, `Done` and `Rejected` among them, so they do not work
+on a board migrated to states without those. The Skill's GitHub section
+says exactly what they assume, and [index.md](index.md)'s Known gaps name
+what is not yet true.
 
 ## Unattended triage
 

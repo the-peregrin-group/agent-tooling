@@ -14,7 +14,10 @@ description, and colour taken from it:
 A label named for an Issue State is declared by that state, so it is never
 a deletion candidate, but the sync does not create one: where a forge with
 no board records an Issue's state is still open (agent-tooling-vb2v). The
-same holds for the priorities when the priority regime is unknown. A
+same holds for the priorities when the priority regime is unknown, and
+when it is board-field but the board's Priority field does not hold every
+declared priority, since only then is it verified that priority lives on
+the board and not in the labels. A
 declared name that gh cannot pass whole (labels.uncarriable_reason) is
 neither created nor deleted, with a warning, and so is a live label with
 such a name.
@@ -71,26 +74,47 @@ class DesiredLabels:
     notes: List[str] = field(default_factory=list)
 
 
-def desired_labels(loaded: RepoSchema, priority_regime: str) -> DesiredLabels:
+def desired_labels(loaded: RepoSchema, priority_regime: str,
+                   board_priorities: Optional[Iterable[str]] = None
+                   ) -> DesiredLabels:
     """The labels `loaded`'s schema declares for a repo in `priority_regime`
-    ("board-field", "p-labels", or "unknown")."""
+    ("board-field", "p-labels", or "unknown").
+
+    `board_priorities` are the option names of the canonical board's
+    `Priority` field, for "board-field". The priority labels are deletion
+    candidates there only on verified ground: when that field holds every
+    Issue Priority the schema declares. A board whose `Priority` field
+    lacks some (a hand-made High, Medium, Low, say, or None given) keeps
+    them, neither created nor deleted, with a warning naming the
+    mismatch. The Issue Priorities are always among the sections a
+    deletion derives from, so a deletion also needs them complete."""
     desired = DesiredLabels()
-    sections = [tracker_schema.ISSUE_KINDS]
+    sections = [tracker_schema.ISSUE_KINDS, tracker_schema.ISSUE_PRIORITIES]
     groups = [(tracker_schema.ISSUE_KINDS, loaded.section(tracker_schema.ISSUE_KINDS))]
-    if priority_regime != BOARD_FIELD:
-        sections.append(tracker_schema.ISSUE_PRIORITIES)
-        priorities = loaded.section(tracker_schema.ISSUE_PRIORITIES)
-        if priority_regime == P_LABELS:
-            groups.append((tracker_schema.ISSUE_PRIORITIES, priorities))
-        elif priorities:
-            # Whether the repo carries priority as labels is unknown, so its
-            # priority labels are neither created nor deleted.
+    priorities = loaded.section(tracker_schema.ISSUE_PRIORITIES)
+    if priority_regime == P_LABELS:
+        groups.append((tracker_schema.ISSUE_PRIORITIES, priorities))
+    elif priority_regime == BOARD_FIELD:
+        held = set(board_priorities or ())
+        lacking = [p.name for p in priorities or () if p.name not in held]
+        if lacking:
             desired.keep.update(priority.name for priority in priorities)
+            holds = ", ".join(board_priorities or ()) or "nothing"
             desired.notes.append(
-                "warning: the priority regime is unknown (see ghw-orient's "
-                "priority_regime), so priority labels are neither created "
-                "nor deleted: " + ", ".join(p.name for p in priorities)
+                "warning: the board's Priority field lacks the Issue "
+                f"Priorities {', '.join(lacking)} (it holds: {holds}), so "
+                "priority labels are neither created nor deleted: "
+                + ", ".join(p.name for p in priorities)
             )
+    elif priorities:
+        # Whether the repo carries priority as labels is unknown, so its
+        # priority labels are neither created nor deleted.
+        desired.keep.update(priority.name for priority in priorities)
+        desired.notes.append(
+            "warning: the priority regime is unknown (see ghw-orient's "
+            "priority_regime), so priority labels are neither created "
+            "nor deleted: " + ", ".join(p.name for p in priorities)
+        )
     sections += [tracker_schema.LABEL_AXES, tracker_schema.UNAXED_LABELS]
     axes = loaded.section(tracker_schema.LABEL_AXES)
     groups.append((tracker_schema.LABEL_AXES,

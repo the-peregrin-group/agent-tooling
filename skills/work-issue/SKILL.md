@@ -169,9 +169,9 @@ bd's own statuses, which `bdw statuses` lists.
   `bdw reopen <id>`. bd has no file form for a reopen reason.
 
 **GitHub Issues** (`ghw-*`). Help: each Verb's `--help`. `use-github` holds
-the arguments until that help does. The states today are the options of the
-board's Status field, which `ghw-orient <owner/repo>` reports; today they
-are the eight options `triage-issues` lists in its GitHub section. Until the repo has a Tracker
+the arguments until that help does. The states are the options of the
+board's Status field, which `ghw-orient <owner/repo>` reports, and which
+`ghw-board-sync` makes the repo's Issue States. Until the repo has a Tracker
 Schema, make only the moves your own work causes (claimed, released,
 finished) and leave every other move to a triage pass. A repo with no board
 has no state beyond open and closed.

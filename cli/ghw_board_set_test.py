@@ -2,7 +2,9 @@
 
 Argument tests run the script as a subprocess with arguments that fail before
 any network I/O. Behavior tests load the script as a module and mock the lib
-boards seam. Either way, no `gh` calls are made.
+boards seam and the Tracker Schema fetch, which serves
+tracker_schema_test_support's fixture (Issue Priorities P0, P1, P4). Either
+way, no `gh` calls are made.
 
 Run from the cli/ directory:
     python3 -m unittest discover -s . -p '*_test.py'
@@ -20,6 +22,7 @@ from pathlib import Path
 from unittest import mock
 
 import ghw_test_support
+import tracker_schema_test_support as fixture
 
 _SCRIPT = Path(__file__).resolve().parent / "ghw-board-set"
 
@@ -39,7 +42,7 @@ def _linked_board() -> dict:
     single-select Priority field."""
     return {"number": 3, "title": "Roadmap", "node_id": "PVT_1",
             "fields": {"Priority": {"id": "F1", "data_type": "SINGLE_SELECT",
-                                    "options": {"P1": "opt_p1", "P2": "opt_p2"}}}}
+                                    "options": {"P1": "opt_p1", "P4": "opt_p4"}}}}
 
 
 class GhwBoardSetArgumentsTest(unittest.TestCase):
@@ -78,6 +81,12 @@ class GhwBoardSetArgumentsTest(unittest.TestCase):
 
 
 class GhwBoardSetBehaviorTest(unittest.TestCase):
+    def setUp(self):
+        patcher = mock.patch.object(_MODULE.repo_schema, "fetch",
+                                    return_value=fixture.loaded())
+        self.schema_fetch = patcher.start()
+        self.addCleanup(patcher.stop)
+
     def test_converged_value_is_a_no_op(self):
         # Idempotency contract: field already holds the option -> no writes,
         # exit 0, changed: false.
@@ -112,14 +121,64 @@ class GhwBoardSetBehaviorTest(unittest.TestCase):
         self.assertTrue(payload["changed"])
         self.assertTrue(payload["added_to_board"])
 
-    def test_unknown_option_is_a_policy_refusal_listing_the_options(self):
+    def test_a_value_the_schema_does_not_declare_is_refused_before_any_read(self):
+        with mock.patch.object(_MODULE.boards, "fetch_boards") as fetch, \
+                contextlib.redirect_stderr(io.StringIO()) as stderr:
+            with self.assertRaises(SystemExit) as caught:
+                _MODULE.main(["o/r", "Priority", "P2", "7"])
+        self.assertEqual(caught.exception.code, 2)
+        fetch.assert_not_called()
+        self.assertIn("not one of the repo's Issue Priorities", stderr.getvalue())
+        self.assertIn("Declared: P0, P1, P4", stderr.getvalue())
+
+    def test_a_declared_value_the_board_lacks_is_refused_with_the_fix(self):
+        with mock.patch.object(_MODULE.boards, "fetch_boards",
+                               return_value=[_linked_board()]), \
+                contextlib.redirect_stderr(io.StringIO()) as stderr:
+            with self.assertRaises(SystemExit) as caught:
+                _MODULE.main(["o/r", "Priority", "P0", "7"])
+        self.assertEqual(caught.exception.code, 4)
+        self.assertIn("Options: P1, P4", stderr.getvalue())
+        self.assertIn("ghw-board-sync o/r apply 3", stderr.getvalue())
+
+    def test_an_unreadable_schema_leaves_the_boards_check_alone(self):
+        # The write rests on the board's own check; the loader warns.
+        self.schema_fetch.return_value = fixture.missing()
+        state = {"issue_node_id": "I_1", "items": {}}
+        with mock.patch.object(_MODULE.boards, "fetch_boards",
+                               return_value=[_linked_board()]), \
+                mock.patch.object(_MODULE.boards, "fetch_issue_item_state",
+                                  return_value=state), \
+                mock.patch.object(_MODULE.boards, "add_item_to_board",
+                                  return_value="IT_new"), \
+                mock.patch.object(_MODULE.boards, "set_single_select_value"), \
+                contextlib.redirect_stdout(io.StringIO()) as stdout, \
+                contextlib.redirect_stderr(io.StringIO()) as stderr:
+            self.assertEqual(_MODULE.main(["o/r", "Priority", "P1", "7"]), 0)
+        self.assertIn("warning:", stderr.getvalue())
+        self.assertFalse(json.loads(stdout.getvalue())["tracker_schema"]["readable"])
         with mock.patch.object(_MODULE.boards, "fetch_boards",
                                return_value=[_linked_board()]), \
                 contextlib.redirect_stderr(io.StringIO()) as stderr:
             with self.assertRaises(SystemExit) as caught:
                 _MODULE.main(["o/r", "Priority", "P9", "7"])
         self.assertEqual(caught.exception.code, 4)
-        self.assertIn("P1", stderr.getvalue())
+        self.assertNotIn("ghw-board-sync", stderr.getvalue())
+
+    def test_a_field_the_schema_does_not_decide_never_reads_it(self):
+        board = _linked_board()
+        board["fields"]["Size"] = {"id": "F3", "data_type": "SINGLE_SELECT",
+                                   "options": {"S": "opt_s"}}
+        state = {"issue_node_id": "I_1",
+                 "items": {"PVT_1": {"item_id": "IT_1", "option_id": "opt_s"}}}
+        with mock.patch.object(_MODULE.boards, "fetch_boards",
+                               return_value=[board]), \
+                mock.patch.object(_MODULE.boards, "fetch_issue_item_state",
+                                  return_value=state), \
+                contextlib.redirect_stdout(io.StringIO()) as stdout:
+            self.assertEqual(_MODULE.main(["o/r", "Size", "S", "7"]), 0)
+        self.schema_fetch.assert_not_called()
+        self.assertNotIn("tracker_schema", json.loads(stdout.getvalue()))
 
     def _refusal(self, argv: list, boards: list) -> tuple:
         """Run main against `boards` with no TRIAGE.md, expecting a refusal
@@ -137,7 +196,7 @@ class GhwBoardSetBehaviorTest(unittest.TestCase):
         return caught.exception.code, stderr.getvalue()
 
     def test_unknown_field_is_a_policy_refusal_listing_the_fields(self):
-        code, stderr = self._refusal(["o/r", "Status", "Done", "7"],
+        code, stderr = self._refusal(["o/r", "Status", "Closed", "7"],
                                      [_linked_board()])
         self.assertEqual(code, 4)
         self.assertIn("Priority", stderr)

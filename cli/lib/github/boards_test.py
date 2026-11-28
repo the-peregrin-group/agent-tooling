@@ -127,10 +127,17 @@ class DeterminePriorityRegimeTest(unittest.TestCase):
         self.assertEqual(
             boards.determine_priority_regime(canonical, [canonical]), "unknown")
 
-    def test_priority_field_missing_canonical_options_is_not_board_field(self):
-        canonical = _board(1, fields={"Priority": _priority_field(options=("P0", "P1"))})
-        self.assertEqual(
-            boards.determine_priority_regime(canonical, [canonical]), "unknown")
+    def test_priority_options_do_not_decide_the_regime(self):
+        # Options that differ from the repo's Issue Priorities are a
+        # conformance gap the board's verdict names, not a sign that
+        # priority lives elsewhere; so the regime needs no schema at all.
+        for options in (("P0", "P1"), ("High", "Low"), ()):
+            with self.subTest(options=options):
+                canonical = _board(
+                    1, fields={"Priority": _priority_field(options=options)})
+                self.assertEqual(
+                    boards.determine_priority_regime(canonical, [canonical]),
+                    "board-field")
 
     def test_no_boards_at_all(self):
         self.assertEqual(boards.determine_priority_regime(None, []), "p-labels")
@@ -140,10 +147,29 @@ class DeterminePriorityRegimeTest(unittest.TestCase):
             boards.determine_priority_regime(None, [_board(1), _board(2)]), "unknown")
 
 
+class PriorityOptionsTest(unittest.TestCase):
+    def test_no_canonical_board_has_no_options(self):
+        self.assertIsNone(boards.priority_options(None))
+
+    def test_a_board_without_a_single_select_priority_has_no_options(self):
+        for fields in ({}, {"Priority": _priority_field(data_type="TEXT")}):
+            with self.subTest(fields=fields):
+                self.assertIsNone(boards.priority_options(_board(1, fields=fields)))
+
+    def test_a_single_select_priority_gives_its_option_names(self):
+        canonical = _board(1, fields={"Priority": _priority_field(options=("P0", "P4"))})
+        self.assertEqual(boards.priority_options(canonical), ["P0", "P4"])
+
+
 class PriorityLabelsPresentTest(unittest.TestCase):
-    def test_reports_only_priority_labels_in_order(self):
-        labels = [{"name": "P3"}, {"name": "bug"}, {"name": "P0"}]
-        self.assertEqual(boards.priority_labels_present(labels), ["P0", "P3"])
+    def test_reports_the_declared_priorities_present_in_schema_order(self):
+        labels = [{"name": "P4"}, {"name": "bug"}, {"name": "P0"}, {"name": "P3"}]
+        self.assertEqual(
+            boards.priority_labels_present(labels, ["P0", "P1", "P4"]),
+            ["P0", "P4"])
+
+    def test_unreadable_priorities_give_none(self):
+        self.assertIsNone(boards.priority_labels_present([{"name": "P0"}], None))
 
 
 class BuildBoardTest(unittest.TestCase):
@@ -158,7 +184,8 @@ class BuildBoardTest(unittest.TestCase):
     def test_reshapes_graphql_node(self):
         node = self._node([
             {"id": "F1", "name": "Status", "dataType": "SINGLE_SELECT",
-             "options": [{"id": "o1", "name": "Needs Triage"}]},
+             "options": [{"id": "o1", "name": "Needs Triage", "color": "RED",
+                          "description": "new"}]},
             {"id": "F2", "name": "Last Triaged", "dataType": "DATE"},
             {},  # Defensive: should not occur (see _build_board).
         ])
@@ -166,6 +193,10 @@ class BuildBoardTest(unittest.TestCase):
         self.assertEqual(board["number"], 7)
         self.assertEqual(board["node_id"], "PVT_x")
         self.assertEqual(board["fields"]["Status"]["options"], {"Needs Triage": "o1"})
+        self.assertEqual(board["fields"]["Status"]["option_details"],
+                         [{"id": "o1", "name": "Needs Triage", "color": "RED",
+                           "description": "new"}])
+        self.assertEqual(board["fields"]["Last Triaged"]["option_details"], [])
         self.assertEqual(board["fields"]["Last Triaged"]["data_type"], "DATE")
         self.assertNotIn("", board["fields"])
 
@@ -177,9 +208,27 @@ class BuildBoardTest(unittest.TestCase):
 
 class OptionsLiteralTest(unittest.TestCase):
     """Single-select options are inlined into the mutation document because
-    gh's `-f` variables carry scalars only; they are baked-in constants, never
-    caller input, and the color enum is checked rather than interpolated
-    blind."""
+    gh's `-f` variables carry scalars only. The names come from the repo's
+    Tracker Schema, so every string is escaped, and the color enum is
+    checked rather than interpolated blind."""
+
+    def test_an_option_kept_by_id_carries_its_id_first(self):
+        literal = boards._options_literal(
+            [{"id": "abc", "name": "P0", "color": "RED", "description": ""},
+             {"name": "P4", "color": "GRAY", "description": ""}]
+        )
+        self.assertEqual(
+            literal,
+            '[{id: "abc", name: "P0", color: RED, description: ""}, '
+            '{name: "P4", color: GRAY, description: ""}]'
+        )
+
+    def test_a_name_cannot_break_out_of_its_string(self):
+        literal = boards._options_literal(
+            [{"name": 'x"}, {name: "y', "color": "GRAY", "description": "\n"}]
+        )
+        self.assertIn(r'name: "x\"}, {name: \"y"', literal)
+        self.assertIn(r'description: "\n"', literal)
 
     def test_renders_names_and_descriptions_as_graphql_strings(self):
         literal = boards._options_literal(
@@ -269,6 +318,83 @@ class FetchOpenIssuesWithLabelTest(unittest.TestCase):
         result = boards.fetch_open_issues_with_label("o/r", "wontfix")
         self.assertEqual(result["total"], 250)
         self.assertEqual(len(result["issues"]), 1)
+
+
+def _item_node(item_id, content, values=(), has_next_page=False, archived=False):
+    return {
+        "id": item_id, "isArchived": archived, "content": content,
+        "fieldValues": {
+            "pageInfo": {"hasNextPage": has_next_page},
+            "nodes": [{"optionId": option, "field": {"id": field}}
+                      for field, option in values] + [{}],
+        },
+    }
+
+
+class FetchBoardItemsTest(unittest.TestCase):
+    @staticmethod
+    def _page(nodes, cursor=None):
+        return {"node": {"items": {
+            "pageInfo": {"hasNextPage": cursor is not None, "endCursor": cursor},
+            "nodes": nodes,
+        }}}
+
+    @mock.patch("lib.github.boards.gh.graphql")
+    def test_reshapes_items_and_follows_pages(self, graphql):
+        graphql.side_effect = [
+            self._page([_item_node(
+                "I_1", {"__typename": "Issue", "number": 4, "title": "t",
+                        "url": "u", "state": "CLOSED"},
+                [("F_status", "o_done")], archived=True)], cursor="c1"),
+            self._page([_item_node("I_2", {"__typename": "DraftIssue",
+                                           "title": "d"})]),
+        ]
+        items = boards.fetch_board_items("PVT_1")
+        self.assertEqual(graphql.call_args_list[1].args[1]["cursor"], "c1")
+        self.assertEqual(items[0], {
+            "item_id": "I_1", "archived": True,
+            "content": {"type": "Issue", "number": 4, "title": "t",
+                        "url": "u", "state": "CLOSED"},
+            "values": {"F_status": "o_done"},
+        })
+        self.assertEqual(items[1]["content"]["type"], "DraftIssue")
+        self.assertIsNone(items[1]["content"]["state"])
+        self.assertEqual(items[1]["values"], {})
+
+    @mock.patch("lib.github.boards.gh.graphql")
+    def test_archived_items_are_asked_for(self, graphql):
+        # The connection leaves archived items out by default, and removing
+        # an option clears it on them too, so the query must ask.
+        graphql.return_value = self._page([])
+        boards.fetch_board_items("PVT_1")
+        self.assertIn("archivedStates: [ARCHIVED, NOT_ARCHIVED]",
+                      graphql.call_args.args[0])
+
+    @mock.patch("lib.github.boards.gh.graphql")
+    def test_a_truncated_value_page_fails_loudly(self, graphql):
+        graphql.return_value = self._page(
+            [_item_node("I_1", None, has_next_page=True)])
+        with self.assertRaisesRegex(gh.GhError, "partial map"):
+            boards.fetch_board_items("PVT_1")
+
+    @mock.patch("lib.github.boards.gh.graphql")
+    def test_an_item_the_token_cannot_see_has_no_content(self, graphql):
+        graphql.return_value = self._page([_item_node("I_1", None)])
+        self.assertIsNone(boards.fetch_board_items("PVT_1")[0]["content"]["type"])
+
+
+class UpdateSingleSelectOptionsTest(unittest.TestCase):
+    @mock.patch("lib.github.boards.gh.graphql")
+    def test_sends_the_whole_list_with_ids(self, graphql):
+        graphql.return_value = {}
+        boards.update_single_select_options("F_1", [
+            {"id": "o1", "name": "Closed", "color": "GRAY", "description": "d"},
+        ])
+        query, variables = graphql.call_args.args
+        self.assertIn("updateProjectV2Field", query)
+        self.assertIn('{id: "o1", name: "Closed", color: GRAY, description: "d"}',
+                      query)
+        self.assertEqual(variables, {"fieldId": "F_1"})
 
 
 class CreateFieldTest(unittest.TestCase):

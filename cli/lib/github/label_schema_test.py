@@ -18,14 +18,15 @@ import tracker_schema_test_support as fixture
 from lib import tracker_schema
 from lib.github import label_schema
 
-_ALL_BUT_PRIORITIES = ("issue_kinds", "issue_label_schema.axes",
-                       "issue_label_schema.labels", "issue_states")
+_ALL_SECTIONS = ("issue_kinds", "issue_priorities", "issue_label_schema.axes",
+                 "issue_label_schema.labels", "issue_states")
 _STATES = {"Needs Triage", "In progress", "Closed"}
 
 
-def _desired(document=None, regime="board-field"):
+def _desired(document=None, regime="board-field",
+             board_priorities=("P0", "P1", "P4")):
     loaded = fixture.loaded(document) if document is not False else fixture.missing()
-    return label_schema.desired_labels(loaded, regime)
+    return label_schema.desired_labels(loaded, regime, board_priorities)
 
 
 class DesiredLabelsTest(unittest.TestCase):
@@ -39,7 +40,7 @@ class DesiredLabelsTest(unittest.TestCase):
         self.assertEqual(desired.labels["site:a"],
                          {"color": "c5def5",
                           "description": "The Site A deployment"})
-        self.assertEqual(desired.sections, _ALL_BUT_PRIORITIES)
+        self.assertEqual(desired.sections, _ALL_SECTIONS)
         self.assertEqual(desired.keep, _STATES)
         self.assertEqual(desired.notes, [])
 
@@ -56,10 +57,25 @@ class DesiredLabelsTest(unittest.TestCase):
         self.assertIn(tracker_schema.ISSUE_PRIORITIES, desired.sections)
         self.assertIn("priority regime is unknown", desired.notes[0])
 
+    def test_a_board_field_lacking_a_priority_keeps_the_priority_labels(self):
+        for held in (("High", "Medium", "Low"), ("P0", "P1"), None):
+            with self.subTest(held=held):
+                desired = _desired(board_priorities=held)
+                self.assertNotIn("P0", desired.labels)
+                self.assertEqual(desired.keep, {"P0", "P1", "P4"} | _STATES)
+                self.assertIn("Priority field lacks the Issue Priorities",
+                              desired.notes[0])
+                self.assertIn("P4", desired.notes[0])
+
+    def test_a_board_field_holding_every_priority_keeps_none(self):
+        desired = _desired(board_priorities=("P4", "P1", "P0", "P9"))
+        self.assertEqual(desired.keep, _STATES)
+        self.assertEqual(desired.notes, [])
+
     def test_no_schema_declares_nothing_but_still_names_its_sections(self):
         desired = _desired(False)
         self.assertEqual(desired.labels, {})
-        self.assertEqual(desired.sections, _ALL_BUT_PRIORITIES)
+        self.assertEqual(desired.sections, _ALL_SECTIONS)
 
     def test_an_unusable_section_contributes_nothing(self):
         document = fixture.document()
