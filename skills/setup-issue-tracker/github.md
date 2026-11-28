@@ -28,7 +28,7 @@ register nothing.
 
 Ask the owner whether to link a project board. With a board, the Issue
 Priority and the Issue State are board fields (`Priority` and `Status`).
-Without one, priority is a label, one of `P0` to `P3` per Issue, and the
+Without one, priority is a label, one Issue Priority per Issue, and the
 default leaves open where the state is recorded: the owner designates it
 in the copy (a label axis for status is the default's suggestion), and the
 plan creates whatever labels that takes.
@@ -76,63 +76,52 @@ Then, either way:
 
 ## Labels
 
-`ghw-label-sync` manages labels declaratively. The five kind labels
-(`feature`, `improvement`, `bug`, `debt`, `meta`), the `human` label, and
-the four priority labels are the Wrapper's own constants, never declared
-in the schema file: it refuses a kind or priority label there and ignores
-a `scope` entry named `human` with a note. A board's `Priority` options
-are the same `P0` to `P3`. So on GitHub the kinds are those five and the
-priority levels those four until the Wrapper changes. Do not swap in GitHub's issue
-types; a Tracker Schema that proposes other kinds or levels cannot be
-applied here yet, so say so in the plan.
+On GitHub an Issue's kind is its Kind Label, a label named for one of the
+copy's Issue Kinds; do not swap in GitHub's issue types. Without a board,
+each Issue Priority is a label named for it too. Everything else is a
+label the copy declares on an axis (the Area Labels, say) or on no axis
+(`human`, say). Every label takes its description from its meaning and
+its colour from the copy. GitHub refuses a description over 100
+characters, so `ghw-label-sync` shortens a longer meaning to fit. A label
+name must not hold a comma or start with `-`, since `gh` cannot pass
+such a name whole; the sync warns about one and leaves it alone.
 
-A schema file supplies only the repo's own families. Write it to
-`/tmp/claude/` with a unique name; the Wrapper accepts only staging paths:
+A board's `Priority` options are `P0` to `P3` whatever the copy says,
+until the board Verbs follow the Tracker Schema. So with a board, keep the
+copy's priority levels to those four, or say in the plan that they cannot
+be applied here yet.
 
-```json
-{
-  "priority_labels": false,
-  "area": [
-    {"name": "api", "description": "API routes and middleware"},
-    {"name": "frontend", "description": "Web client"}
-  ],
-  "scope": [
-    {"name": "site-a", "description": "The Site A deployment"}
-  ]
-}
-```
-
-- `priority_labels` is `true` only when no board is linked; it opts the
-  `P0` to `P3` labels in.
-- `area` names are bare; the Wrapper adds the `area:` prefix and the
-  family's color.
-- `description` is required on every label; `color` is optional.
-- `scope` labels are unprefixed, for a project that spans sites,
-  environments, or deployment targets, and only where the distinction is
-  clear and meaningful. Omit the key if there are none.
-
-Preview, show the owner, and on approval apply:
+`ghw-label-sync` makes the repo's labels exactly what the Tracker Schema
+on the default branch declares; it takes no file. So `TRACKER.md` is
+merged first, then the labels follow. Preview, show the owner, and on
+approval apply:
 
 ```bash
-ghw-label-sync <owner/repo> plan /tmp/claude/label_schema_<unique>.json
-ghw-label-sync <owner/repo> apply-delete /tmp/claude/label_schema_<unique>.json
+ghw-label-sync <owner/repo> plan
+ghw-label-sync <owner/repo> apply-delete
 ```
 
-Every label the file does not declare is a deletion candidate, which is
-how GitHub's stock labels go (stock `bug` matches the kind label and is
+Every label the schema does not declare is a deletion candidate, which is
+how GitHub's stock labels go (stock `bug` matches the default's kind and is
 updated, not deleted). The plan warns about deletions still attached to
 open issues. `apply` creates and fixes drift but deletes nothing; setup
-normally wants `apply-delete`. A re-run converges to no change. To change
-labels later, rebuild the whole file from `ghw-orient`'s live `labels`
-plus the change: a partial file makes every omitted label a deletion
-candidate.
+normally wants `apply-delete`. Where a part of `TRACKER.md` the labels come
+from has a problem, the warnings name it, the plan lists no deletes and
+says why under `delete_refused`, and `apply-delete` is refused (exit 4)
+until it is fixed. A plan with nothing to create and a `delete_refused`
+saying `TRACKER.md` is not found means it has not been merged to the
+default branch yet: merge it first, then sync. A re-run converges to no
+change. To change labels later, change `TRACKER.md`, merge it, and sync
+again.
 
 ## Filing the backlog
 
 Write each body to a file under `/tmp/claude/` with a unique name, then
 file with `ghw-issue-create` (its arguments are in `use-github`). It takes
-exactly one kind label and at least one `area:` label, checked against the
-labels just synced; without a board, the priority label goes with them.
+exactly one Kind Label, only labels the Tracker Schema declares, and a
+label from every axis the schema says every Issue carries, all checked
+against the labels just synced; without a board, the priority label goes
+with them.
 Relationships go in with `ghw-issue-link` once both ends exist.
 
 Work the backlog plan marks as already done, if the owner wants it as
@@ -179,7 +168,8 @@ issue, before writing a `TODO` comment, and before opening a PR.**
 ```
 
 Without a board, the priority sentence becomes: "Priority is an issue
-label (`P0` to `P3`), exactly one per issue."
+label, one of the Issue Priorities in `TRACKER.md`, exactly one per
+issue."
 
 ## Verify
 
@@ -190,7 +180,8 @@ gh project item-list <number> --owner <owner> --limit 200
 ```
 
 `ghw-orient` shows the labels, the linked board, and its conformance in
-one read. The last line applies only with a board. If TODO comments were
+one read; its `tracker_schema` should show `readable: true` and no
+warnings. The last line applies only with a board. If TODO comments were
 converted, search the tree for any left without an issue number. Report
 the counts: labels, open and closed issues filed, and board items.
 

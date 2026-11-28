@@ -17,8 +17,8 @@ through the Verbs; the discipline of filing is the generic `create-issue`
 Skill and that of working and changing an issue is `work-issue`
 ([use-issues](../use-issues/index.md)), and `use-github` keeps GitHub's
 mechanics for them. The generic `setup-issue-tracker` Skill
-([use-issues](../use-issues/index.md)) bootstraps a repo's label schema and
-board through its bundled GitHub steps. The generic `triage-issues` Skill
+([use-issues](../use-issues/index.md)) bootstraps a repo's labels and board
+through its bundled GitHub steps. The generic `triage-issues` Skill
 ([use-issues](../use-issues/index.md)) has its GitHub mechanics here: six
 `triage-*` scripts, the only writes an unattended pass is granted.
 
@@ -28,13 +28,13 @@ How and why it works: [design.md](design.md).
 
 | Capability | State | Where |
 |---|---|---|
-| Orientation: repo identity, labels, linked boards, priority regime, board conformance | shipped | `ghw-orient` |
-| Issue filing under the label contract | shipped | `ghw-issue-create` |
+| Orientation: repo identity, labels, linked boards, priority regime, board conformance, Tracker Schema warnings | shipped | `ghw-orient` |
+| Issue filing under the label attachment contract, from the repo's Tracker Schema | shipped | `ghw-issue-create` |
 | Issue comment, label edit, retitle, body rewrite | shipped | `ghw-issue-comment`, `ghw-issue-edit` |
 | Issue close with a mandatory reason | shipped | `ghw-issue-close` |
 | Issue relationships: sub-issues and blocked-by | shipped | `ghw-issue-link` |
 | Board field writes (Priority, Status, other single-selects) | shipped | `ghw-board-set` |
-| Label schema sync, with deletion as a separate grantable mode | shipped | `ghw-label-sync` |
+| Label sync to the repo's Tracker Schema, with deletion as a separate grantable mode | shipped | `ghw-label-sync` |
 | Board schema sync and new-board creation | shipped | `ghw-board-sync` |
 | PR create, comment, and gated merge | shipped | `ghw-pr-create`, `ghw-pr-comment`, `ghw-pr-merge` |
 | Day-to-day issue and PR conventions | shipped | `use-github` |
@@ -91,15 +91,16 @@ How and why it works: [design.md](design.md).
 - `triage-timeline` reads only the first 100 timeline events of an issue, so
   without `--since` a busy issue reports activity that is not its latest
   (`agent-tooling-oj8w`).
-- A repo's labels cannot follow its Tracker Schema on GitHub: the five
-  kind labels, the four priority levels, and the label colours are ghw
-  constants, and `ghw-label-sync` takes a local label schema file rather
+- A repo's board cannot follow its Tracker Schema on GitHub:
+  `ghw-board-sync` provisions fixed `Status` and `Priority` options with
+  fixed colours, the priority regime is judged against P0 to P3, and
+  `ghw-orient`'s `priority_labels_present` reports only P0 to P3, rather
   than reading the repo's `TRACKER.md` from its default branch, as the
   [use-issues design](../use-issues/design.md#how-a-wrapper-uses-the-schema)
-  says it should (`agent-tooling-xgzm`). `ghw-board-sync` likewise
-  provisions fixed `Status` and `Priority` options with fixed colours
-  (`agent-tooling-u9n.21`).
-- `ghw-issue-create` and `ghw-issue-edit add-label` match label names
-  exactly, so a live `Human` refuses `human`, and the schema file's
-  redeclaration and duplicate checks ignore case-only twins, though GitHub
-  and `ghw-label-sync` treat them as one label (`agent-tooling-uln8`).
+  says it should (`agent-tooling-u9n.21`).
+- `ghw-label-sync` keeps a label named for an Issue State but never creates
+  one, because where a repo with no board records an Issue's state is not
+  decided (`agent-tooling-vb2v`).
+- `ghw-issue-create` and `ghw-issue-edit` match label names exactly, so a
+  live `Human` refuses `human`, though GitHub and `ghw-label-sync` treat
+  them as one label (`agent-tooling-uln8`).

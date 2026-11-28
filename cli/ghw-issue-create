@@ -1,21 +1,28 @@
 #!/usr/bin/python3
-"""ghw-issue-create <repo> <type-label> <title> <body-file> [label ...] -- file a new issue.
+"""ghw-issue-create <repo> <kind-label> <title> <body-file> [label ...] -- file a new issue.
 
-Validates the label attachment contract before writing: exactly one canonical
-type label (feature|improvement|bug|debt|meta), at least one 'area:' label
-among the extra labels, and every label already present in the repo's live
-label registry (ghw-label-sync is the sole label-creation path). The label
-tail takes no flags: a label beginning with '-' is a usage error, refused
-before any network call. The body
-comes from a staged file under /tmp/claude/ or ~/.claude/jobs/<job-id>/tmp/
-(never inline text). Deliberately non-idempotent: search for duplicates before
-filing, per skill-text guidance.
+Validates the label attachment contract against the repo's Tracker Schema,
+read from TRACKER.md on its default branch, before writing: <kind-label> is
+one of the schema's Issue Kinds and no second kind is among the labels,
+every label is one the schema declares, every axis the schema marks as
+carried by every Issue has a label among them, and every label already
+exists in the repo's live label registry (ghw-label-sync is the sole
+label-creation path). Every problem in TRACKER.md is printed as a warning
+on stderr. Filing is an additive write: a rule whose part of the schema is
+missing or unusable is skipped with a warning, and the Verb goes ahead on
+what can still be checked, at least that every label exists.
 
-Exit codes: 0 success, 1 unclassified gh/API failure, 2 usage error (including
-a type label outside the canonical five), 3 not found, 4 refused: the label set
-violates the attachment contract (a second or repeated type label, no 'area:'
-label, a label missing from the registry), 5 auth failure, 6 network failure
-(retryable). A failure whose request may
+The label tail takes no flags: a label beginning with '-' is a usage error,
+refused before any network call. The body comes from a staged file under
+/tmp/claude/ or ~/.claude/jobs/<job-id>/tmp/ (never inline text).
+Deliberately non-idempotent: search for duplicates before filing, per
+skill-text guidance.
+
+Exit codes: 0 success, 1 unclassified gh/API failure, 2 usage error, 3 not
+found, 4 refused: the label set violates the attachment contract (a kind
+the schema does not declare, a second or repeated kind, an undeclared
+label, no label from a required axis, a label missing from the registry),
+5 auth failure, 6 network failure (retryable). A failure whose request may
 already have landed (a timeout or reset) exits 1 instead of 6 on the
 non-idempotent write Verbs, so a retry cannot duplicate it.
 """
@@ -28,10 +35,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from lib import arguments, plan, staging
-from lib.github import boards, gh, labels
-from lib.schema import TYPE_LABELS
+from lib.github import boards, gh, labels, repo_schema
 
-_USAGE = "ghw-issue-create <owner/repo> <type-label> <title> <body-file> [label ...]"
+_USAGE = "ghw-issue-create <owner/repo> <kind-label> <title> <body-file> [label ...]"
 
 
 def main(argv: list[str]) -> int:
@@ -42,15 +48,12 @@ def main(argv: list[str]) -> int:
         return plan.EXIT_OK
     if len(argv) < 4:
         plan.usage_die("expected at least four arguments", _USAGE)
-    repository, type_label, title, body_path = argv[:4]
+    repository, kind_label, title, body_path = argv[:4]
     extra_labels = list(argv[4:])
     if not arguments.is_valid_repository(repository):
         plan.usage_die(f"repo must be 'owner/name', got {repository!r}", _USAGE)
-    if type_label not in TYPE_LABELS:
-        plan.usage_die(
-            f"type label must be one of {'|'.join(TYPE_LABELS)}, got {type_label!r}",
-            _USAGE,
-        )
+    if not kind_label.strip():
+        plan.usage_die("kind label must not be empty", _USAGE)
     if not title.strip():
         plan.usage_die("title must not be empty", _USAGE)
     for label in extra_labels:
@@ -60,17 +63,20 @@ def main(argv: list[str]) -> int:
             )
     body = staging.read_staged_body(body_path)
 
+    rules = labels.LabelRules(repo_schema.load(repository))
+    for line in rules.unchecked():
+        print(line, file=sys.stderr)
     try:
         registry = {label["name"] for label in boards.fetch_labels(repository)}
     except gh.GhError as error:
         gh.die(str(error), error.exit_code)
 
     try:
-        labels.validate_creation_labels(type_label, extra_labels, registry)
+        labels.validate_creation_labels(kind_label, extra_labels, registry, rules)
     except labels.LabelContractError as error:
         gh.die(str(error), plan.EXIT_REFUSED)
 
-    all_labels = [type_label, *extra_labels]
+    all_labels = [kind_label, *extra_labels]
     try:
         url = gh.issue_create(repository, title, body, all_labels)
     except gh.GhError as error:

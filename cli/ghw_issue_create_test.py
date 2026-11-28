@@ -21,6 +21,11 @@ from pathlib import Path
 from unittest import mock
 
 import ghw_test_support
+import tracker_schema_test_support as fixture
+
+# The fixture's labels, all live, plus one live label it does not declare.
+_REGISTRY = ("task", "bug", "chore", "P0", "area:core", "area:docs",
+             "site:a", "human", "perf", "wontfix")
 
 _SCRIPT = Path(__file__).resolve().parent / "ghw-issue-create"
 _MODULE = ghw_test_support.load_wrapper_module(_SCRIPT)
@@ -51,10 +56,10 @@ class GhwIssueCreateArgumentsTest(unittest.TestCase):
         self.assertEqual(result.returncode, 2)
         self.assertIn("owner/name", result.stderr)
 
-    def test_unknown_type_label_is_refused(self):
-        result = _run("o/r", "task", "Title", _MISSING_BODY)
+    def test_empty_kind_label_is_usage_error(self):
+        result = _run("o/r", " ", "Title", _MISSING_BODY)
         self.assertEqual(result.returncode, 2)
-        self.assertIn("feature|improvement|bug|debt|meta", result.stderr)
+        self.assertIn("kind label", result.stderr)
 
     def test_empty_title_is_usage_error(self):
         result = _run("o/r", "bug", "   ", _MISSING_BODY)
@@ -87,8 +92,9 @@ class GhwIssueCreateArgumentContractTest(
 
 class GhwIssueCreateLabelTailTest(unittest.TestCase):
     """The variadic label tail consumes every element: a surplus positional
-    is one more label, held to the live registry, and a flag-shaped one is
-    refused before the registry is fetched. The `gh` seams are mocked."""
+    is one more label, held to the repo's Tracker Schema and the live
+    registry, and a flag-shaped one is refused before anything is fetched.
+    The schema fetch and the `gh` seams are mocked."""
 
     def setUp(self):
         os.makedirs("/tmp/claude", exist_ok=True)
@@ -100,61 +106,88 @@ class GhwIssueCreateLabelTailTest(unittest.TestCase):
         self.addCleanup(os.unlink, handle.name)
         self.body = handle.name
 
-    def _main_expecting_exit(self, *labels: str):
-        registry = [{"name": "bug"}, {"name": "area:cli"}]
-        stderr = io.StringIO()
-        with mock.patch.object(_MODULE.boards, "fetch_labels",
-                               return_value=registry) as fetch, \
-                mock.patch.object(_MODULE.gh, "issue_create") as create, \
-                contextlib.redirect_stderr(stderr), \
-                self.assertRaises(SystemExit) as raised:
-            _MODULE.main(["o/r", "bug", "Title", self.body, *labels])
-        create.assert_not_called()
-        return raised.exception.code, fetch, stderr.getvalue()
+    def _seams(self, schema=None, registry=_REGISTRY):
+        """The schema fetch, the registry, and the create, mocked."""
+        stack = contextlib.ExitStack()
+        fetch_schema = stack.enter_context(mock.patch.object(
+            _MODULE.repo_schema, "fetch",
+            return_value=schema or fixture.loaded()))
+        fetch = stack.enter_context(mock.patch.object(
+            _MODULE.boards, "fetch_labels",
+            return_value=[{"name": name} for name in registry]))
+        create = stack.enter_context(mock.patch.object(
+            _MODULE.gh, "issue_create",
+            return_value="https://github.com/o/r/issues/7"))
+        stderr = stack.enter_context(contextlib.redirect_stderr(io.StringIO()))
+        stack.enter_context(contextlib.redirect_stdout(io.StringIO()))
+        return stack, {"fetch_schema": fetch_schema, "fetch": fetch,
+                       "create": create, "stderr": stderr}
 
-    def test_surplus_label_outside_the_registry_is_a_policy_refusal(self):
-        code, _, stderr = self._main_expecting_exit("area:cli", "surplus")
+    def _main_expecting_exit(self, *labels: str, kind="bug", schema=None):
+        stack, seam = self._seams(schema)
+        with stack, self.assertRaises(SystemExit) as raised:
+            _MODULE.main(["o/r", kind, "Title", self.body, *labels])
+        seam["create"].assert_not_called()
+        return raised.exception.code, seam["fetch"], seam["stderr"].getvalue()
+
+    def _main_filing(self, *labels: str, kind="bug", schema=None):
+        stack, seam = self._seams(schema)
+        with stack:
+            self.assertEqual(
+                _MODULE.main(["o/r", kind, "Title", self.body, *labels]), 0)
+        return seam["create"].call_args[0][3], seam["stderr"].getvalue()
+
+    def test_surplus_label_outside_the_schema_is_a_policy_refusal(self):
+        code, _, stderr = self._main_expecting_exit("area:core", "surplus")
         self.assertEqual(code, 4)
         self.assertIn("'surplus'", stderr)
 
     def test_label_contract_violations_are_policy_refusals(self):
         # Each passes argument parsing and is refused by the label attachment
-        # contract after the registry fetch: exit 4, never 2.
+        # contract after the schema and registry fetches: exit 4, never 2.
         cases = (
-            (("area:cli", "feature"), "second type label"),
-            (("area:cli", "bug"), "duplicates the type label"),
-            ((), "'area:' label is required"),
+            ("feature", ("area:core",), "not an Issue Kind"),
+            ("bug", ("area:core", "chore"), "second Kind Label"),
+            ("bug", ("area:core", "x,bug"), "contains a comma"),
+            ("bug", ("area:core", "bug"), "duplicates the Kind Label"),
+            ("bug", ("area:core", "wontfix"), "not declared"),
+            ("bug", (), "'area:' label"),
+            ("bug", ("human",), "'area:' label"),
         )
-        for labels, message in cases:
-            with self.subTest(labels=labels):
-                code, _, stderr = self._main_expecting_exit(*labels)
+        for kind, labels, message in cases:
+            with self.subTest(kind=kind, labels=labels):
+                code, _, stderr = self._main_expecting_exit(*labels, kind=kind)
                 self.assertEqual(code, 4)
                 self.assertIn(message, stderr)
 
-    def test_flag_shaped_label_is_refused_before_the_registry_fetch(self):
-        code, fetch, stderr = self._main_expecting_exit("area:cli", "--bogus")
+    def test_flag_shaped_label_is_refused_before_any_fetch(self):
+        code, fetch, stderr = self._main_expecting_exit("area:core", "--bogus")
         self.assertEqual(code, 2)
         self.assertIn("takes no flags", stderr)
         fetch.assert_not_called()
 
-    def test_the_human_label_rides_the_tail_as_an_ordinary_label(self):
-        # 'human' is a shipped label but neither a type nor an area label: it
-        # counts as neither a second type label nor the required area label.
-        registry = [{"name": "bug"}, {"name": "area:cli"}, {"name": "human"}]
-        with mock.patch.object(_MODULE.boards, "fetch_labels",
-                               return_value=registry), \
-                mock.patch.object(_MODULE.gh, "issue_create",
-                                  return_value="https://github.com/o/r/issues/7"
-                                  ) as create, \
-                contextlib.redirect_stdout(io.StringIO()):
-            self.assertEqual(_MODULE.main(
-                ["o/r", "bug", "Title", self.body, "area:cli", "human"]), 0)
-        self.assertEqual(create.call_args[0][3], ["bug", "area:cli", "human"])
+    def test_a_kind_and_labels_the_schema_declares_are_filed(self):
+        filed, stderr = self._main_filing("area:core", "human", "P0",
+                                          kind="chore")
+        self.assertEqual(filed, ["chore", "area:core", "human", "P0"])
+        self.assertEqual(stderr, "")
 
-    def test_the_human_label_does_not_stand_in_for_an_area_label(self):
-        code, _, stderr = self._main_expecting_exit("human")
+    def test_without_tracker_md_filing_goes_ahead_on_the_registry_alone(self):
+        filed, stderr = self._main_filing("wontfix", kind="bug",
+                                          schema=fixture.missing())
+        self.assertEqual(filed, ["bug", "wontfix"])
+        self.assertIn("warning: o/r@main:TRACKER.md: not found", stderr)
+        self.assertIn("checked only against the live registry", stderr)
+        code, _, _ = self._main_expecting_exit("ghost", schema=fixture.missing())
         self.assertEqual(code, 4)
-        self.assertIn("'area:' label is required", stderr)
+
+    def test_an_unusable_axes_section_requires_no_axis_and_warns(self):
+        document = fixture.document()
+        document["issue_label_schema"]["axes"] = {}
+        filed, stderr = self._main_filing("perf",
+                                          schema=fixture.loaded(document))
+        self.assertEqual(filed, ["bug", "perf"])
+        self.assertIn("no axis is required", stderr)
 
 
 class GhwIssueCreateWriteFailureTest(unittest.TestCase):
@@ -162,6 +195,8 @@ class GhwIssueCreateWriteFailureTest(unittest.TestCase):
         ghw_test_support.assert_write_failure_codes(
             self, _MODULE, ["o/r", "bug", "a title", _MISSING_BODY], "issue_create",
             extra_patches=(
+                (_MODULE.repo_schema, "fetch",
+                 {"return_value": fixture.loaded()}),
                 (_MODULE.boards, "fetch_labels",
                  {"return_value": [{"name": "bug"}]}),
                 (_MODULE.labels, "validate_creation_labels", {"return_value": None}),

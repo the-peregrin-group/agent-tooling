@@ -130,7 +130,9 @@ change any part of it; revise and present it again until they approve.
 
 Carry out what was approved, in the order the plan gives, and nothing
 else. `TRACKER.md` and every other file change go through the repo's
-normal review. Anything denied, or found different from what the plan
+normal review. On a forge the Wrapper reads `TRACKER.md` from the default
+branch, so the tracker's structure built from it (its labels, say) waits
+until that merge. Anything denied, or found different from what the plan
 assumed, is put to the owner, not worked around.
 
 ## 5. Verify and report

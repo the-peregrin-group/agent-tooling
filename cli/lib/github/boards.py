@@ -526,7 +526,8 @@ def determine_priority_regime(canonical_board: dict | None, boards: list[dict]) 
     Returns "board-field" when the canonical board carries a single-select
     Priority field with all of P0-P3 among its options (a field merely *named*
     Priority is not enough -- a write against it would fail), "p-labels" when
-    no board is linked at all (priority lives in P0-P3 issue labels), and
+    no board is linked at all (priority lives in issue labels, one per Issue
+    Priority the repo's Tracker Schema declares), and
     "unknown" when boards exist but none resolved as canonical or the
     canonical one's Priority field is absent or non-conforming.
     """
@@ -545,7 +546,10 @@ def determine_priority_regime(canonical_board: dict | None, boards: list[dict]) 
 
 
 def priority_labels_present(labels: list[dict]) -> list[str]:
-    """Return which of the P0-P3 labels exist in the repo's label registry."""
+    """Return which of the P0-P3 labels exist in the repo's label registry.
+
+    This still checks the fixed P0-P3, not the repo's Tracker Schema's
+    Issue Priorities (agent-tooling-u9n.21)."""
     names = {label["name"] for label in labels}
     return [option for option in PRIORITY_OPTIONS if option in names]
 

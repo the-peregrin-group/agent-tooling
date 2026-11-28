@@ -51,12 +51,10 @@ is tracked in `agent-tooling-84n3` (bdw), `agent-tooling-fyxo` (ghw),
 
 ### Known gaps
 
-- No Wrapper reads a repo's `TRACKER.md` yet, so none follows its schema
-  or warns about its defects as [the design](design.md#how-a-wrapper-uses-the-schema)
-  says; the lines below are the parts (`agent-tooling-u9n`).
-- ghw's labels follow fixed kind and priority labels, fixed colours, and a
-  local label schema file, not the repo's Tracker Schema
-  (`agent-tooling-xgzm`).
+- Only ghw's label Verbs and `ghw-orient` read a repo's `TRACKER.md`;
+  every other Verb neither follows its schema nor warns about its
+  defects as [the design](design.md#how-a-wrapper-uses-the-schema) says;
+  the lines below are the parts (`agent-tooling-u9n`).
 - ghw's board Status and Priority options and their colours are fixed
   constants, not the repo's Issue States and Issue Priorities
   (`agent-tooling-u9n.21`).

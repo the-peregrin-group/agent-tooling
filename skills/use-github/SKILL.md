@@ -24,7 +24,7 @@ so the one rigid invocation form is what makes allowlisting work.
 The wrappers exist because raw `gh` can't encode scope in an allowlistable
 way: they pin everything blast-radius-relevant (repo, subverb, base branch,
 merge strategy, field name) in fixed positional order, enforce the ecosystem's
-contracts (label schema, canonical board schema) programmatically, and resolve
+contracts (the repo's Tracker Schema, the canonical board schema) programmatically, and resolve
 GraphQL name→ID mappings internally so IDs never appear in your commands.
 
 Shared conventions:
@@ -36,7 +36,7 @@ Shared conventions:
   argument-parse time, before any network call, such as `squash`), `3` not
   found, `4` refused: a policy refusal past parse time, the call well formed
   but violating policy against live state (the label contract, a merge gate, an unlinked board, a missing
-  branch), `5` auth or deployment failure, such as a `gh` below `ghw-issue-link`'s version floor (abort and flag it), `6` network failure (the one retryable class; on create and comment Verbs and `ghw-board-sync new` a timeout or reset exits `1`, since the write may have landed, and `ghw-issue-close` exits `1` on any network failure during the close, since the comment is posted first). Write wrappers print a JSON
+  branch, `ghw-label-sync apply-delete` while the repo's `TRACKER.md` is missing or has a problem in a part the labels come from), `5` auth or deployment failure, such as a `gh` below `ghw-issue-link`'s version floor (abort and flag it), `6` network failure (the one retryable class; on create and comment Verbs and `ghw-board-sync new` a timeout or reset exits `1`, since the write may have landed, and `ghw-issue-close` exits `1` on any network failure during the close, since the comment is posted first). Write wrappers print a JSON
   plan with `"action": "plan"` or `"applied"`.
 - **On exit 2, read the message and fix the call. On exit 4, never retry
   unchanged:** read the message; fix the call or the state it names (push
@@ -72,8 +72,12 @@ ghw-orient <owner/repo>
 One JSON blob replaces the old multi-call dance. Read from it — never guess
 label names, board numbers, or field options:
 
-- `labels` — the live label registry (type labels, the `human` label,
-  `area:` labels, any scope labels).
+- `labels` — the live label registry.
+- `tracker_schema` — the repo's Tracker Schema, read from `TRACKER.md` on
+  its default branch: which file, whether it could be read, and how many
+  warnings it gave. The warnings themselves are on stderr. The label Verbs
+  read the same file, so a problem it reports also limits what they check
+  and what `ghw-label-sync` may delete.
 - `boards` — every open linked project board, each with its field and option
   maps and a `conformance` verdict against the canonical board schema:
   `conforms` is driven by `gaps` (missing canonical fields/options);
@@ -85,7 +89,7 @@ label names, board numbers, or field options:
   why. Multiple boards with no `TRIAGE.md` to disambiguate is an error you'll
   see at write time; `ghw-board-set --project <number>` overrides explicitly.
 - `priority_regime` — `"board-field"` (priority lives on the board; don't
-  create or apply `P0`–`P3` labels), `"p-labels"` (priority is an issue
+  create or apply priority labels), `"p-labels"` (priority is an issue
   label, and there is no status beyond open/closed), or `"unknown"` (boards
   exist but none resolved as canonical, or the canonical board's `Priority`
   field is missing or non-conforming). On `"unknown"`, don't guess a regime:
@@ -110,32 +114,27 @@ gh issue list --repo <owner/repo> --search "<keywords>" --state all --limit 20
 
 ## Step 3: File the Issue
 
-**Every issue gets exactly one type label plus one or more `area:` labels.**
-Area labels are repo-specific and come from orient's label registry. Every
-label you attach must already exist in the registry — propose a schema
-addition rather than inventing a label ad hoc (via `ghw-label-sync`, see
-`github.md` in the `setup-issue-tracker` skill's directory; note it syncs
-the *whole* registry declaratively, so its schema file must restate every
-repo-specific label, not just the new one). The `human` label ships with
-the type labels; attach it like any other label.
-
-| Type | Use for |
-|------|---------|
-| `feature` | New feature, system, or capability |
-| `improvement` | Enhancement or refinement of what exists, including its quality, structure, and docs |
-| `bug` | Something is broken or performs incorrectly |
-| `debt` | Work skipped or done poorly earlier: stale docs, test gaps, expedient hacks, dead code |
-| `meta` | Design documents, planning artifacts, and non-code project work |
+**Labels come from the repo's Tracker Schema, `TRACKER.md`.** Every issue
+gets exactly one Kind Label, named for one of the schema's Issue Kinds,
+and at least one label from every axis the schema says every Issue
+carries (on the shipped default, an Area Label). Any other label must be
+one the schema declares: a priority, a label on an axis or on no axis
+(`human`, say), or a label named for an Issue State. A label that
+exists on GitHub but not in the schema is refused: an unknown label is a
+mistake to fix, not a new label. To add a label, change `TRACKER.md`,
+merge it, and run `ghw-label-sync` (see `github.md` in the
+`setup-issue-tracker` skill's directory); every label must also exist in
+the live registry before it can be attached.
 
 Write the body to a staging file (see The Wrapper Layer), then:
 
 ```bash
-ghw-issue-create <owner/repo> <type-label> "<title>" <body-file> [label ...]
+ghw-issue-create <owner/repo> <kind-label> "<title>" <body-file> [label ...]
 ```
 
-The wrapper enforces exactly one type label (the positional) and at least one
-`area:` label among the trailing labels. In the `p-labels` regime, include
-the priority label too:
+The wrapper enforces exactly one Kind Label (the positional), only declared
+labels, and a label from each axis every Issue carries. In the `p-labels`
+regime, include the priority label too:
 
 ```bash
 # Board-field regime (priority set on the board in Step 4):
@@ -158,12 +157,9 @@ effectively lost. Set both as part of filing, not later.
 attached at filing (Step 3), there is no board to write to, and this step is
 skipped entirely.
 
-| Priority | Meaning |
-|----------|---------|
-| `P0` | Drop-everything and address now |
-| `P1` | Most important non-emergency work |
-| `P2` | Standard backlog work |
-| `P3` | Nice-to-have; opportunistic |
+The board's `Priority` options are `P0` to `P3`; what each level means is
+the repo's `TRACKER.md` (its Issue Priorities), which `create-issue` reads
+when choosing one.
 
 ```bash
 ghw-board-set <owner/repo> <field-name> <option-name> <issue#> [--project <number>]
@@ -197,11 +193,14 @@ session ends); this section is only GitHub's mechanics for it.
 
 - **Comment:** `ghw-issue-comment <owner/repo> <issue#> <body-file>`
 - **Edit:** `ghw-issue-edit <owner/repo> <add-label|remove-label|retitle|set-body> <issue#> <value>`
-    - `add-label` validates against the live registry and refuses a second
-      type label, naming the incumbent (unlike filing, it doesn't demand an
-      `area:` label — the issue already carries its labels). Reclassifying an
-      issue is deliberately two calls: `remove-label` the old type, then
+    - `add-label` refuses a label the Tracker Schema does not declare or
+      the live registry lacks, and a second Kind Label, naming the
+      incumbent (unlike filing, it doesn't demand a label from each
+      required axis — the issue already carries its labels). Reclassifying
+      an issue is deliberately two calls: `remove-label` the old kind, then
       `add-label` the new one.
+    - `remove-label` refuses to remove an issue's last label on an axis
+      every Issue carries; add its replacement first.
     - `set-body` takes a body **file** path (staging rule applies), never
       inline text.
 - **Close:** `ghw-issue-close <owner/repo> <issue#> <comment-file>` — the comment
@@ -291,5 +290,5 @@ path an unattended run is granted; an attended pass uses the `ghw-*` Verbs
 as this skill teaches them. Use it for "run triage" or a grooming pass, not
 for filing one issue.
 
-Setting a repo's tracking up, including the label schema and board this
+Setting a repo's tracking up, including the Tracker Schema, labels, and board this
 skill assumes, is the `setup-issue-tracker` skill's one-time procedure.

@@ -97,14 +97,14 @@ class ValidateStagingPathTest(unittest.TestCase):
         self._refuses(stray, "outside the staging directories")
 
     def test_description_names_the_argument_in_refusals(self):
-        # ghw-label-sync reads a schema file under the same policy; only the
+        # A comment or message file is read under the same policy; only the
         # wording changes.
         outsider = self.scratch / "outside.md"
         outsider.write_text("nope")
-        with self.assertRaisesRegex(StagingPathError, "refusing schema file"):
+        with self.assertRaisesRegex(StagingPathError, "refusing comment file"):
             validate_staging_path(
                 str(outsider),
-                description="schema file",
+                description="comment file",
                 tmp_root_for_testing=self.tmp_root,
                 jobs_root_for_testing=self.jobs_root,
             )

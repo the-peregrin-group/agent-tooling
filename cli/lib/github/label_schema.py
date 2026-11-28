@@ -1,164 +1,153 @@
-"""ghw-label-sync's desired-state model: schema-file parsing and the label diff.
+"""ghw-label-sync's desired-state model: the labels a repo's Tracker Schema
+declares, and their diff against the repo's live labels.
 
-The canonical type labels, the `human` label (and, for repos in the P0-P3
-label regime, the priority labels) come from lib.schema and are never
-redeclared in a schema file. The file supplies only the two repo-specific
-families setup-issue-tracker defines: the prefixed `area:` family and the
-unprefixed multi-site scope family.
+The desired set is exactly what the schema declares, each label's name,
+description, and colour taken from it:
 
-File shape (JSON, never YAML -- the wrappers are stdlib-only):
+  - every Issue Kind, as its Kind Label, since GitHub has no kind field
+    ghw uses;
+  - every Issue Priority, where the repo carries priority as labels (the
+    `p-labels` priority regime, which ghw-orient reports from the board);
+  - every label on every axis, its name written in full with the prefix;
+  - every label on no axis.
 
-    {
-      "priority_labels": false,
-      "area": [
-        {"name": "core", "description": "Core engine and runtime"},
-        {"name": "docs", "description": "Documentation"}
-      ],
-      "scope": [
-        {"name": "site-a", "description": "The Site A deployment",
-         "color": "c5def5"}
-      ]
-    }
+A label named for an Issue State is declared by that state, so it is never
+a deletion candidate, but the sync does not create one: where a forge with
+no board records an Issue's state is still open (agent-tooling-vb2v). The
+same holds for the priorities when the priority regime is unknown. A
+declared name that gh cannot pass whole (labels.uncarriable_reason) is
+neither created nor deleted, with a warning, and so is a live label with
+such a name.
 
-  - `area` names are written bare; the wrapper adds the `area:` prefix, so a
-    name that already carries it is a usage error rather than a silent
-    `area:area:core`.
-  - `color` is optional per entry (family defaults apply) and is 6 hex digits,
-    with or without a leading `#`.
-  - `description` is required: a label whose meaning is not written down stops
-    being a shared contract.
-  - `priority_labels` selects the P0-P3 label regime for repos with no linked
-    board. It defaults to false, and it exists because the desired state is
-    authoritative for deletion: without it, apply-delete on a label-regime repo
-    would strip the very P0-P3 labels that repo tracks priority with.
-  - A `scope` entry named `human` is dropped, not refused like a type or
-    priority label: `scope` is the one family that takes an unprefixed name,
-    so a file built from the live labels tends to list it there, and a
-    refusal would stop that repo's sync. The shipped color and description
-    win, and the wrapper notes the redundant entry.
+A section the reader could not use contributes nothing, and a label it
+would have declared is not created. A section that is usable but
+incomplete contributes what it has. Deletion is the one place either
+matters: every live label the desired set lacks is a deletion candidate,
+so a deletion is trusted only when every section the set derives from is
+complete (`DesiredLabels.sections`, for RepoSchema.require_complete).
 
-Everything the file does not declare is a deletion candidate, which is what
-makes the sync declarative -- including eight of GitHub's nine stock labels
-(stock `bug` is a canonical type label and is kept).
+Where the schema's meaning or colour for a label is missing or bad, the
+live value is left as it is, and a label that has to be created gets an
+empty description or NEUTRAL_COLOR. GitHub refuses a label description over
+DESCRIPTION_LIMIT characters, so a longer meaning is shortened to fit, the
+same way on every run, so the sync still converges.
 """
 
 from __future__ import annotations
 
-import json
-import re
-from typing import Iterable
+from dataclasses import dataclass, field
+from typing import Dict, Iterable, List, Optional, Tuple
 
-from lib.schema import (
-    AREA_LABEL_COLOR,
-    AREA_LABEL_PREFIX,
-    HUMAN_LABEL,
-    HUMAN_LABEL_COLOR,
-    HUMAN_LABEL_DESCRIPTION,
-    PRIORITY_LABELS,
-    SCOPE_LABEL_COLOR,
-    TYPE_LABELS,
-)
+from lib import tracker_schema
+from lib.github import labels as label_contract
+from lib.github.repo_schema import RepoSchema
 
-_COLOR_PATTERN = re.compile(r"^#?[0-9A-Fa-f]{6}$")
-_FAMILY_KEYS = ("area", "scope")
-_TOP_LEVEL_KEYS = (*_FAMILY_KEYS, "priority_labels")
-_ENTRY_KEYS = ("name", "description", "color")
+# The priority regime that keeps priority on the board, not on labels.
+BOARD_FIELD = "board-field"
+# The regime that carries priority as labels.
+P_LABELS = "p-labels"
+
+# GitHub's own default label colour, for a label created without one.
+NEUTRAL_COLOR = "ededed"
+# The longest description GitHub accepts on a label.
+DESCRIPTION_LIMIT = 100
+_ELLIPSIS = "..."
 
 
-class SchemaFileError(Exception):
-    """Raised when a schema file is unparseable or violates the file shape."""
+@dataclass
+class DesiredLabels:
+    """The labels a sync makes exist, and what a deletion must trust.
+
+    `labels` maps each name to {"color", "description"}, either None where
+    the schema's value is missing or bad. `keep` holds names that are
+    neither synced nor ever deleted (a label named for an Issue State, a
+    declared priority when the regime is unknown, a declared name gh cannot
+    pass whole). `sections` are the schema sections the set derives from.
+    `notes` are warnings for stderr."""
+
+    labels: Dict[str, Dict[str, Optional[str]]] = field(default_factory=dict)
+    keep: set = field(default_factory=set)
+    sections: Tuple[str, ...] = ()
+    notes: List[str] = field(default_factory=list)
 
 
-def parse_schema(text: str) -> dict:
-    """Parse a schema file's text into
-    {"priority_labels", "area", "scope", "redundant"}.
+def desired_labels(loaded: RepoSchema, priority_regime: str) -> DesiredLabels:
+    """The labels `loaded`'s schema declares for a repo in `priority_regime`
+    ("board-field", "p-labels", or "unknown")."""
+    desired = DesiredLabels()
+    sections = [tracker_schema.ISSUE_KINDS]
+    groups = [(tracker_schema.ISSUE_KINDS, loaded.section(tracker_schema.ISSUE_KINDS))]
+    if priority_regime != BOARD_FIELD:
+        sections.append(tracker_schema.ISSUE_PRIORITIES)
+        priorities = loaded.section(tracker_schema.ISSUE_PRIORITIES)
+        if priority_regime == P_LABELS:
+            groups.append((tracker_schema.ISSUE_PRIORITIES, priorities))
+        elif priorities:
+            # Whether the repo carries priority as labels is unknown, so its
+            # priority labels are neither created nor deleted.
+            desired.keep.update(priority.name for priority in priorities)
+            desired.notes.append(
+                "warning: the priority regime is unknown (see ghw-orient's "
+                "priority_regime), so priority labels are neither created "
+                "nor deleted: " + ", ".join(p.name for p in priorities)
+            )
+    sections += [tracker_schema.LABEL_AXES, tracker_schema.UNAXED_LABELS]
+    axes = loaded.section(tracker_schema.LABEL_AXES)
+    groups.append((tracker_schema.LABEL_AXES,
+                   None if axes is None else
+                   tuple(label for axis in axes for label in axis.labels)))
+    groups.append((tracker_schema.UNAXED_LABELS,
+                   loaded.section(tracker_schema.UNAXED_LABELS)))
+    # A label named for an Issue State is declared by it, so it is kept.
+    sections.append(tracker_schema.ISSUE_STATES)
+    states = loaded.section(tracker_schema.ISSUE_STATES)
+    desired.keep.update(state.name for state in states or ())
+    desired.sections = tuple(sections)
 
-    Both families come back as lists of {"name", "description", "color"} with
-    colors normalized and defaults filled in; `name` is still the bare,
-    unprefixed name. `redundant` lists the `scope` entries dropped because the
-    shipped set already provides them (only `human`, matched without regard
-    to case), so the caller can say so. Raises SchemaFileError, with a message
-    an agent can self-correct from, for anything that is not the documented
-    shape.
-    """
-    try:
-        document = json.loads(text)
-    except json.JSONDecodeError as error:
-        # Position only, never the offending text: a schema file's content is
-        # published to GitHub, so error output stays content-free by habit.
-        raise SchemaFileError(
-            f"schema file is not valid JSON (line {error.lineno}, column "
-            f"{error.colno}): {error.msg}"
-        )
-    if not isinstance(document, dict):
-        raise SchemaFileError(
-            "schema file must be a JSON object with 'area' and optional "
-            "'scope' / 'priority_labels' keys"
-        )
-    unknown = sorted(set(document) - set(_TOP_LEVEL_KEYS))
-    if unknown:
-        raise SchemaFileError(
-            f"unknown top-level key(s): {', '.join(unknown)}. Allowed: "
-            f"{', '.join(_TOP_LEVEL_KEYS)}"
-        )
-    priority_labels = document.get("priority_labels", False)
-    if not isinstance(priority_labels, bool):
-        raise SchemaFileError("'priority_labels' must be true or false")
-
-    schema = {"priority_labels": priority_labels}
-    for family in _FAMILY_KEYS:
-        default_color = AREA_LABEL_COLOR if family == "area" else SCOPE_LABEL_COLOR
-        schema[family] = _parse_family(document.get(family, []), family, default_color)
-    if not schema["area"]:
-        raise SchemaFileError(
-            "'area' must declare at least one label: every issue carries an "
-            "'area:' label, so a repo with none cannot pass ghw-issue-create"
-        )
-    _refuse_duplicate_names(schema)
-    schema["redundant"] = [entry["name"] for entry in schema["scope"]
-                           if entry["name"].lower() == HUMAN_LABEL]
-    schema["scope"] = [entry for entry in schema["scope"]
-                       if entry["name"].lower() != HUMAN_LABEL]
-    return schema
-
-
-def desired_labels(schema: dict) -> dict[str, dict[str, str]]:
-    """The full desired label registry: {name: {"color", "description"}}.
-
-    Merges the shared canonical labels (type labels and `human` always,
-    priority labels when the schema selects the label regime) with the schema
-    file's `area:` and scope families.
-    """
-    desired: dict[str, dict[str, str]] = {}
-    for name, attributes in TYPE_LABELS.items():
-        desired[name] = dict(attributes)
-    desired[HUMAN_LABEL] = {
-        "color": HUMAN_LABEL_COLOR, "description": HUMAN_LABEL_DESCRIPTION,
-    }
-    if schema["priority_labels"]:
-        for name, attributes in PRIORITY_LABELS.items():
-            desired[name] = dict(attributes)
-    for entry in schema["area"]:
-        desired[AREA_LABEL_PREFIX + entry["name"]] = {
-            "color": entry["color"], "description": entry["description"],
-        }
-    for entry in schema["scope"]:
-        desired[entry["name"]] = {
-            "color": entry["color"], "description": entry["description"],
-        }
+    folded: Dict[str, Tuple[str, str]] = {}
+    for section, entries in groups:
+        for entry in entries or ():
+            reason = label_contract.uncarriable_reason(entry.name)
+            if reason is not None:
+                desired.keep.add(entry.name)
+                desired.notes.append(
+                    f"warning: {section} declares {entry.name!r}, which "
+                    f"{reason}, so it cannot be carried on GitHub and is "
+                    "neither created nor deleted"
+                )
+                continue
+            key = entry.name.lower()
+            if key in folded:
+                # GitHub matches label names without regard to case, so two
+                # entries that fold together are one label; the first wins.
+                first, where = folded[key]
+                desired.notes.append(
+                    f"warning: {section} declares {entry.name!r}, which is "
+                    f"the same GitHub label as {first!r} in {where}; the "
+                    f"first is synced"
+                )
+                continue
+            folded[key] = (entry.name, section)
+            desired.labels[entry.name] = {
+                "color": entry.color,
+                "description": _fitted(entry.meaning),
+            }
     return desired
 
 
-def diff_labels(desired: dict[str, dict[str, str]],
-                existing: Iterable[dict]) -> dict[str, list]:
-    """Compare the desired registry against the repo's live one.
+def diff_labels(desired: DesiredLabels,
+                existing: Iterable[dict]) -> Dict[str, list]:
+    """Compare the desired labels against the repo's live ones.
 
     `existing` is lib.boards.fetch_labels() output. Returns
     {"create": [{"name", "color", "description"}],
      "update": [{"name", "color", "description", "from": {"color", "description"}}],
      "delete": [name, ...], "unchanged": [name, ...],
-     "case_mismatch": [{"live", "desired"}]}, each list sorted by name. A
-    converged repo yields empty create/update/delete lists.
+     "case_mismatch": [{"live", "desired"}], "uncarriable": [name, ...]},
+    each list sorted by name. A converged repo yields empty
+    create/update/delete lists. `uncarriable` holds the live labels the
+    schema does not declare but gh cannot pass whole as a name, so they are
+    left for a person to delete by hand.
 
     Names match case-insensitively, because GitHub's label namespace is: a
     live `Bug` against a desired `bug` is the same label, and matching it
@@ -166,7 +155,8 @@ def diff_labels(desired: dict[str, dict[str, str]],
     an unrecoverable failure on every run. Such a pair is reported under
     `case_mismatch` and otherwise treated as matched; renaming it is a human
     act (this wrapper never renames). Updates carry the *live* spelling in
-    `name`, since that is what a `gh label edit` has to target.
+    `name`, since that is what a `gh label edit` has to target. A live label
+    in `desired.keep` is never a deletion candidate.
     """
     live = {
         label["name"].lower(): {
@@ -177,34 +167,46 @@ def diff_labels(desired: dict[str, dict[str, str]],
         for label in existing
     }
     create, update, unchanged, case_mismatch = [], [], [], []
-    for name in sorted(desired):
-        wanted = {
-            "color": normalize_color(desired[name]["color"]),
-            "description": desired[name].get("description") or "",
-        }
+    for name in sorted(desired.labels):
+        attributes = desired.labels[name]
         current = live.get(name.lower())
         if current is None:
-            create.append({"name": name, **wanted})
+            create.append({
+                "name": name,
+                "color": normalize_color(attributes["color"] or NEUTRAL_COLOR),
+                "description": attributes["description"] or "",
+            })
             continue
         if current["name"] != name:
             case_mismatch.append({"live": current["name"], "desired": name})
-        attributes = {"color": current["color"],
-                      "description": current["description"]}
-        if attributes == wanted:
+        now = {"color": current["color"], "description": current["description"]}
+        wanted = {
+            "color": (normalize_color(attributes["color"])
+                      if attributes["color"] is not None else now["color"]),
+            "description": (attributes["description"]
+                            if attributes["description"] is not None
+                            else now["description"]),
+        }
+        if wanted == now:
             unchanged.append(current["name"])
         else:
-            update.append({"name": current["name"], **wanted, "from": attributes})
-    undeclared = set(live) - {name.lower() for name in desired}
+            update.append({"name": current["name"], **wanted, "from": now})
+    declared = {name.lower() for name in desired.labels}
+    declared |= {name.lower() for name in desired.keep}
+    candidates = sorted(live[key]["name"] for key in set(live) - declared)
     return {
         "create": create,
         "update": update,
-        "delete": sorted(live[key]["name"] for key in undeclared),
+        "delete": [name for name in candidates
+                   if label_contract.uncarriable_reason(name) is None],
         "unchanged": unchanged,
         "case_mismatch": case_mismatch,
+        "uncarriable": [name for name in candidates
+                        if label_contract.uncarriable_reason(name) is not None],
     }
 
 
-def normalize_color(color: str | None) -> str:
+def normalize_color(color: Optional[str]) -> str:
     """A label color as 6 lowercase hex digits, with any leading '#' dropped.
 
     GitHub accepts '#a2eeef' and 'A2EEEF' on input and reports 'a2eeef', so
@@ -213,95 +215,13 @@ def normalize_color(color: str | None) -> str:
     return (color or "").lstrip("#").lower()
 
 
-def _parse_family(value: object, family: str, default_color: str) -> list[dict]:
-    """Validate and normalize one label family from the parsed document."""
-    if not isinstance(value, list):
-        raise SchemaFileError(
-            f"'{family}' must be a list of "
-            '{"name": ..., "description": ...} objects'
-        )
-    entries = []
-    for position, raw in enumerate(value, start=1):
-        entries.append(_parse_entry(raw, family, position, default_color))
-    return entries
-
-
-def _parse_entry(raw: object, family: str, position: int,
-                 default_color: str) -> dict:
-    """Validate and normalize one label entry; `position` names it in errors
-    when its own name is unusable."""
-    where = f"'{family}' entry {position}"
-    if not isinstance(raw, dict):
-        raise SchemaFileError(f'{where} must be an object, e.g. {{"name": '
-                              '"core", "description": "Core engine"}')
-    unknown = sorted(set(raw) - set(_ENTRY_KEYS))
-    if unknown:
-        raise SchemaFileError(
-            f"{where} has unknown key(s): {', '.join(unknown)}. Allowed: "
-            f"{', '.join(_ENTRY_KEYS)}"
-        )
-    name = raw.get("name")
-    if not isinstance(name, str) or not name or name != name.strip():
-        raise SchemaFileError(
-            f"{where}: 'name' must be a non-empty string with no surrounding "
-            "whitespace"
-        )
-    if "," in name:
-        raise SchemaFileError(
-            f"{where}: label names cannot contain a comma ({name!r}). "
-            "ghw-issue-create and ghw-issue-edit attach labels through gh "
-            "flags that split on commas, so this label could never be "
-            "attached."
-        )
-    if name.startswith("-"):
-        raise SchemaFileError(
-            f"{where}: label names cannot start with '-' ({name!r}); it "
-            "reaches gh as a flag-looking argument and fails confusingly"
-        )
-    if name.startswith(AREA_LABEL_PREFIX):
-        bare = name[len(AREA_LABEL_PREFIX):]
-        if family == "area":
-            raise SchemaFileError(
-                f"{where}: write the bare name ({bare!r}); ghw-label-sync adds "
-                f"the {AREA_LABEL_PREFIX!r} prefix to 'area' entries"
-            )
-        raise SchemaFileError(
-            f"{where}: scope labels carry no prefix; {name!r} belongs in the "
-            f"'area' family as {bare!r}"
-        )
-    if name in TYPE_LABELS or name in PRIORITY_LABELS:
-        raise SchemaFileError(
-            f"{where}: {name!r} is a canonical label owned by the shared schema; "
-            "remove it from the file (type labels are always synced, and "
-            "P0-P3 come from \"priority_labels\": true)"
-        )
-    description = raw.get("description")
-    if not isinstance(description, str) or not description.strip():
-        raise SchemaFileError(f"{where} ({name}): 'description' is required")
-    color = raw.get("color", default_color)
-    if not isinstance(color, str) or not _COLOR_PATTERN.match(color):
-        raise SchemaFileError(
-            f"{where} ({name}): 'color' must be 6 hex digits, e.g. "
-            f"{default_color!r}"
-        )
-    return {
-        "name": name,
-        "description": description,
-        "color": normalize_color(color),
-    }
-
-
-def _refuse_duplicate_names(schema: dict) -> None:
-    """Refuse a file that declares the same final label name twice, within a
-    family or across the two."""
-    seen: dict[str, str] = {}
-    for family in _FAMILY_KEYS:
-        prefix = AREA_LABEL_PREFIX if family == "area" else ""
-        for entry in schema[family]:
-            final = prefix + entry["name"]
-            if final in seen:
-                raise SchemaFileError(
-                    f"label {final!r} is declared twice (in '{seen[final]}' and "
-                    f"'{family}')"
-                )
-            seen[final] = family
+def _fitted(meaning: Optional[str]) -> Optional[str]:
+    """A meaning as a GitHub label description: unchanged when it fits,
+    otherwise cut at a word boundary and ended with an ellipsis."""
+    if meaning is None or len(meaning) <= DESCRIPTION_LIMIT:
+        return meaning
+    room = DESCRIPTION_LIMIT - len(_ELLIPSIS)
+    cut = meaning[:room]
+    if " " in cut and not meaning[room].isspace():
+        cut = cut[:cut.rindex(" ")]
+    return cut.rstrip(" ,;:") + _ELLIPSIS
