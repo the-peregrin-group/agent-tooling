@@ -59,6 +59,9 @@ How and why it works: [design.md](design.md).
 - `ghw-board-sync`'s write path, including `new` and `migrate`, has never
   run against the live GitHub API; it is verified by schema introspection
   and unit tests only (`agent-tooling-2ul`).
+- The live project boards, this repo's included, still carry the options
+  they were set up with, not their repos' Tracker Schemas, until
+  `ghw-board-sync` migrates them (`agent-tooling-u9n.26`).
 - `triage-timeline` reports only the pull requests GitHub links as closing
   an issue; a PR that names it only by a `Lands:` or `Advances:` trailer is
   not reported (`agent-tooling-m1sl`).
@@ -78,7 +81,10 @@ How and why it works: [design.md](design.md).
   default Issue State Diagram has six open states and one closed one:
   `triage-apply-sync` writes Done or Rejected to a closed issue and sends a
   reopened one to Needs Scope whatever the diagram says
-  (`agent-tooling-u9n.12`).
+  (`agent-tooling-u9n.12`). So the scripts do not work on a board whose
+  `Status` options follow a schema without Done and Rejected: one made by
+  `ghw-board-sync new`, or one `migrate` has brought to the shipped
+  default (`agent-tooling-2340.3`).
 - No `triage-*` script comments on an issue or adds the `human` label, so
   an unattended pass lists its findings in the ledger instead of putting
   each on the affected issue (`agent-tooling-u9n.13`).
@@ -91,11 +97,6 @@ How and why it works: [design.md](design.md).
 - `triage-timeline` reads only the first 100 timeline events of an issue, so
   without `--since` a busy issue reports activity that is not its latest
   (`agent-tooling-oj8w`).
-- `triage-apply-sync` writes `Done` or `Rejected` to a closed issue's
-  `Status`, so the triage scripts do not work on a board whose `Status`
-  options follow a schema without those states: one made by
-  `ghw-board-sync new`, or one `migrate` has brought to the shipped
-  default (`agent-tooling-2340.3`).
 - `ghw-label-sync` keeps a label named for an Issue State but never creates
   one, because where a repo with no board records an Issue's state is not
   decided (`agent-tooling-vb2v`).

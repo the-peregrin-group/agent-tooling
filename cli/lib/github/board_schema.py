@@ -10,8 +10,8 @@ fails for a name it has not seen: every state and priority name comes
 from the repo's `TRACKER.md` at run time.
 
 A board option takes one of GitHub's eight named colours, not a hex value,
-so `named_color` maps each schema colour to the nearest of them (the rule
-is in its docstring and in docs/projects/ghw/design.md, "Colours").
+so `named_color` maps each schema colour to one of them by hue and
+chroma (the rule is in its docstring and in docs/projects/ghw/design.md, "Colours").
 
 Where a section the options come from cannot be read, that field's options
 are unknown: conformance reports them unchecked, and no plan adds or
@@ -85,7 +85,7 @@ _SIZE_COLORS = {"XS": "GRAY", "S": "BLUE", "M": "GREEN", "L": "YELLOW",
 
 
 def named_color(hex_color: Optional[str]) -> Optional[str]:
-    """The named board colour nearest a six-hex-digit colour, or None when
+    """The named board colour a six-hex-digit colour maps to, or None when
     there is no colour to map.
 
     The rule: a colour whose chroma is below 15 percent of full scale is
@@ -94,8 +94,12 @@ def named_color(hex_color: Optional[str]) -> Optional[str]:
     220, PURPLE 268, PINK 330 degrees), the earlier in that list on a tie.
     Hue, because GitHub publishes no hex value for the names and draws each
     in different shades by theme, so the hue is what a name means; chroma,
-    because gray is the one name that means no hue. Lightness plays no
-    part, so a pale red reads RED, not PINK."""
+    because gray is the one name that means no hue. Lightness is not
+    judged on its own, but chroma here is the absolute channel spread, not
+    a fraction of the colour's brightness, so a very pale or very dark
+    tint is GRAY whatever its hue (ffdddd and c2e0c6 are GRAY; e99695 is
+    RED). The result is the nearest name by hue alone, not the name a
+    person would call nearest."""
     if hex_color is None or not _HEX.fullmatch(hex_color):
         return None
     red, green, blue = (int(hex_color[index:index + 2], 16) / 255

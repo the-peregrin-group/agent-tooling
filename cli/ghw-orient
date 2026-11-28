@@ -18,7 +18,8 @@ Each board carries a "conformance" verdict against that schema: its Status
 options should be exactly the Issue States and its Priority options
 exactly the Issue Priorities, in the schema's order, beside the fixed Size
 and Last Triaged fields. The verdict names every difference (a missing or
-undeclared option, options out of order, an absent field), lists options
+undeclared option, a name held by more than one option, options out of
+order, an absent field), lists options
 whose colour differs from the schema's, and says which fields it could not
 check because a section of the schema cannot be read. It is advisory:
 orient reports, and ghw-board-sync is what acts. "priority_labels_present"

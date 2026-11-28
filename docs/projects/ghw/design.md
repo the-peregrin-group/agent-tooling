@@ -219,11 +219,16 @@ resolution) before the write itself.
   rule for colours ([Format](../use-issues/design.md#format)). Whether
   priority is carried as labels is the priority regime, judged from the
   boards linked on GitHub alone, with no local file read: on `p-labels`
-  (no board) the priorities are desired labels, on `board-field` they are
-  not (so live priority labels are deletion candidates), and on `unknown`
-  (several boards, or one with no single-select `Priority` field) they are
-  neither created nor deleted, with a warning. Which options the
-  `Priority` field holds does not decide the regime. `ghw-orient` can resolve
+  (no board) the priorities are desired labels, and on `unknown` (several
+  boards, or one with no single-select `Priority` field) they are neither
+  created nor deleted, with a warning. On `board-field` they are not
+  desired, but live priority labels are deletion candidates only when the
+  board's `Priority` field holds every Issue Priority the schema declares,
+  since only then has priority verifiably moved onto the board; otherwise
+  they are neither created nor deleted, with a warning naming the
+  priorities the field lacks. Which options the field holds does not
+  decide the regime, so `ghw-orient` and the sync report the same one.
+  `ghw-orient` can resolve
   several boards from a `TRIAGE.md` in the working directory; the sync does
   not, so which directory it runs from never decides a deletion. A label
   named for an Issue State is declared by that state, as the schema's text
@@ -318,8 +323,12 @@ state's and priority's hex colour to one of them by this rule
 
 Hue, because GitHub publishes no hex value for the names and draws each in
 different shades by theme, so hue is what a name means; chroma, because
-gray is the one name that means no hue. Lightness plays no part, so a pale
-red is `RED`, not `PINK`. The rule lands the shipped default on the colours
+gray is the one name that means no hue. Lightness is not judged on its
+own, but chroma is the absolute channel spread, not a fraction of the
+colour's brightness, so a very pale or very dark tint is `GRAY` whatever
+its hue: `ffdddd` and `c2e0c6` are `GRAY`, while `e99695` is `RED`. A
+schema that wants a pale option coloured should use a stronger tint. The
+rule lands the shipped default on the colours
 the board options carried before the board followed the schema: `Needs
 Triage` `RED`, `Needs Scope` `ORANGE`, `Needs Eng Design` `YELLOW`, `Needs
 Impl` `BLUE`, `In progress` `PURPLE`, `In review` `PINK`, and `P0` to `P3`
@@ -344,12 +353,24 @@ item holds it. `apply` sends only the additive list. After every option
 write the sync re-reads the board and fails (exit `1`) if an option it
 sent with an id is gone, since GitHub would then have dropped values.
 
+Live options are matched to declared ones by id, never collapsed by name.
+A declared option takes the live option of the same name, or failing
+that one that differs only in case or surrounding whitespace, which
+`apply` renames in place, keeping its id and so its items' values. Each
+live option is claimed once: a second live option of a declared name is
+undeclared, so `apply` keeps it by id, `ghw-orient` reports the duplicate
+as a gap, and `migrate` empties it like any other option it removes
+(its items move to the declared option of that name by default).
+
 `migrate` does the destructive part in an order that never strands a
 value:
 
 1. It plans a target for every item, archived ones included, on every
    option it would remove. A `--move <field> <option> <to>` names the
-   target for every item on that option. Otherwise, on `Status` only, an
+   target for every item on that option. A `--move` naming an option the
+   field no longer holds is already done, so it is accepted and listed
+   under `moves_already_done`, which lets the same command converge on a
+   retry. Otherwise, on `Status` only, an
    item moves to the one declared Issue State whose open flag matches its
    issue's or pull request's own state, when exactly one does: with the
    shipped default, a closed issue on `Done` or `Rejected` moves to
@@ -376,7 +397,10 @@ values for an option sent with its id (the reference says so, and the
 sync's re-read checks the ids, but not every item's value), that a
 reorder through the same mutation takes the order sent, and the window
 between the last item re-read and the removal, one request in which a
-person could set an item onto a removed option and lose it. The live API
+person could set an item onto a removed option and lose it. A similar
+window lies between reading an item's issue state and moving it: an issue
+reopened in between still moves by the open-flag rule as it was read
+(with the shipped default, to `Closed`). The live API
 has never run against these Verbs at all (`agent-tooling-2ul`, in
 [index.md](index.md)'s Known gaps).
 
@@ -408,8 +432,9 @@ is complete.
 
 The label-declaring sections are the Issue Kinds, the Issue Priorities, the
 label axes, the labels on no axis, and the Issue States (a label named for
-a state). For `ghw-label-sync` the Issue Priorities count only where the
-priority regime is not `board-field`. An unusable section switches off only
+a state). For `ghw-label-sync` the Issue Priorities count in every
+regime, since on `board-field` they decide whether the priority labels may
+go. An unusable section switches off only
 the checks that need it: the kind is checked whenever the kinds can be
 read; a label carrying a usable axis's prefix can belong only to that axis,
 so the axis alone decides it; and any other label is refused as undeclared
@@ -425,7 +450,8 @@ The board Verbs derive from two sections only, the Issue States for
 the schema is a warning to them and nothing more. A board conforms when
 each of those fields holds exactly the declared options in the schema's
 order and every other field is present with its type; a missing or extra
-option, or the wrong order, is a gap that names the options, and a
+option, a name held by more than one option, or the wrong order, is a gap
+that names the options, and a
 colour that differs from the mapped one is reported as drift beside the
 verdict, not as a gap. `ghw-board-set` refuses a `Status` or `Priority`
 value the schema does not declare with exit `2`, before reading the
@@ -455,7 +481,11 @@ Rejected:
 - treating a board whose options differ from the schema as an `unknown`
   priority regime, since the regime is where priority lives, and a
   board-field board still carries it there; the difference is a
-  conformance gap.
+  conformance gap, which only holds back the deletion of priority labels;
+- deleting priority labels on any `board-field` repo, whatever its
+  `Priority` field holds, since a hand-made field (`High`, `Low`) would
+  then let `apply-delete` strip the only record of priority from open
+  issues.
 
 ### Board disambiguation
 

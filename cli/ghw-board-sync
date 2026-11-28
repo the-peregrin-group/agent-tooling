@@ -5,8 +5,8 @@ The board a repo's Tracker Schema asks for, read from TRACKER.md on its
 default branch: a `Status` field whose options are exactly the repo's
 Issue States, and a `Priority` field whose options are exactly its Issue
 Priorities, each in the schema's order and in the named board colour
-nearest the schema's colour, beside the fixed `Size` (XS to XL) and `Last
-Triaged` (a date) fields. To change a board's states or priorities, change
+the schema's colour maps to (by hue, with low chroma GRAY), beside the
+fixed `Size` (XS to XL) and `Last Triaged` (a date) fields. To change a board's states or priorities, change
 TRACKER.md and merge it to the default branch, then sync.
 
 Modes are positional, because what a grant allows is the mode:

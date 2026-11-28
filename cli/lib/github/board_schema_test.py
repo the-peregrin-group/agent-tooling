@@ -93,6 +93,16 @@ class NamedColorTest(unittest.TestCase):
             with self.subTest(color=color):
                 self.assertEqual(board_schema.named_color(color), "GRAY")
 
+    def test_very_pale_and_very_dark_tints_are_gray(self):
+        # Chroma is the absolute channel spread, so a tint near white or
+        # black has too little of it to name, whatever its hue.
+        for color, name in {"ffdddd": "GRAY", "ddffdd": "GRAY",
+                            "e0e0ff": "GRAY", "c2e0c6": "GRAY",
+                            "1a0000": "GRAY", "e99695": "RED",
+                            "330000": "RED"}.items():
+            with self.subTest(color=color):
+                self.assertEqual(board_schema.named_color(color), name)
+
     def test_hue_picks_the_nearest_name_around_the_wheel(self):
         cases = {"ff0000": "RED", "ff1a00": "RED", "ff00e6": "PINK",
                  "ffa500": "ORANGE", "ffff00": "YELLOW", "00ff00": "GREEN",
