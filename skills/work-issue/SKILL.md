@@ -192,7 +192,7 @@ has no state beyond open and closed.
   comment.
 - Close: `ghw-issue-close`, whose comment file is the reason. Where the
   repo has a board, then set its Status field to the closed option that
-  matches the reason (`ghw-board-set`).
+  matches the Close Reason (`ghw-board-set`).
 - Reopen: `ghw` has no Verb for it yet.
 
 **Forgejo issues.** `fjw` has no issue Verbs yet.

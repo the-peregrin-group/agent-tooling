@@ -1,6 +1,6 @@
 ---
 date: 2026-11-13
-status: current
+status: amended
 ---
 
 # The Tracker Schema is a Markdown file with one JSON block for what tooling reads, each fact in exactly one place
@@ -26,3 +26,7 @@ status: current
 
 **Description:** The whole schema, state meanings and transition conditions included, is one JSON file.
 **Rejection rationale:** Multi-paragraph mini-prompts in JSON strings are poor to write and review.
+
+## Amended by
+
+- [ADR 0027](0027-the-tracker-schema-block-holds-state-order-entry-state-close-reasons-and-colours.md): the block also holds the states' order, the entry state, the close reasons, and a colour on every kind, priority, label, and state.

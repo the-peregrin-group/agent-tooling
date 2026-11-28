@@ -46,7 +46,7 @@ How and why it works: [design.md](design.md).
 
 ### Known gaps
 
-- `ghw-issue-close` cannot carry GitHub's close reason (completed or not
+- `ghw-issue-close` cannot carry GitHub's `state_reason` (completed or not
   planned), which `triage-apply-sync` reads to choose Done or Rejected
   (`agent-tooling-0fm`).
 - Unattended triage cannot run in a repo whose project or local settings
@@ -92,12 +92,12 @@ How and why it works: [design.md](design.md).
   without `--since` a busy issue reports activity that is not its latest
   (`agent-tooling-oj8w`).
 - A repo's labels cannot follow its Tracker Schema on GitHub: the five
-  kind labels and the four priority levels are ghw constants, and
-  `ghw-label-sync` takes a local label schema file rather than reading the
-  repo's `TRACKER.md` from its default branch, as the
+  kind labels, the four priority levels, and the label colours are ghw
+  constants, and `ghw-label-sync` takes a local label schema file rather
+  than reading the repo's `TRACKER.md` from its default branch, as the
   [use-issues design](../use-issues/design.md#how-a-wrapper-uses-the-schema)
   says it should (`agent-tooling-xgzm`). `ghw-board-sync` likewise
-  provisions fixed `Status` and `Priority` options
+  provisions fixed `Status` and `Priority` options with fixed colours
   (`agent-tooling-u9n.21`).
 - `ghw-issue-create` and `ghw-issue-edit add-label` match label names
   exactly, so a live `Human` refuses `human`, and the schema file's

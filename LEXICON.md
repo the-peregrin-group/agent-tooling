@@ -303,10 +303,12 @@ tracker that has no native field for kind.
   beside one
 
 **Issue State Diagram**: The part of the Tracker Schema that declares the
-Issue States and the Issue Transitions between them, in natural language, so
-that whoever moves an Issue judges the move against it.
-- _Invariants_: every Issue State is marked open or closed; the one place
-  state meanings and transition conditions are written
+Issue States, their order, the Entry State, the Close Reasons, and the Issue
+Transitions between the states, so that whoever moves an Issue judges the
+move against it.
+- _Invariants_: every Issue State is marked open or closed; exactly one Issue
+  State is the Entry State; the one place state meanings and transition
+  conditions are written
 - _Avoid_: workflow, lifecycle
 
 **Issue State**: One state an Issue can be in, declared in the Issue State
@@ -316,11 +318,21 @@ Diagram with what it means: what kind of attention the Issue needs next.
   place the Tracker Schema designates; whether an Issue is open or closed
   follows from its Issue State
 
+**Entry State**: The Issue State an Issue is filed in when its right state is
+not known.
+- _Invariants_: exactly one per Issue State Diagram; an open Issue State
+- _Avoid_: default state, initial state
+
 **Issue Transition**: A move from one Issue State to another, declared in the
 Issue State Diagram together with the condition under which it is taken.
 - _Invariants_: taken only when its condition holds, judged by whoever moves
   the Issue; a move back to an earlier Issue State is a transition like any
   other
+
+**Close Reason**: Why an Issue was closed (e.g., done, rejected, duplicate),
+drawn from the set the Issue State Diagram declares.
+- _Invariants_: every closed Issue has exactly one, recorded when it is closed
+- _Avoid_: resolution
 
 ### Documents
 
@@ -395,6 +407,9 @@ discarded as already captured or outdated.
   and one or more Issue Labels, at least one of them an Area Label.
 - An Issue State Diagram has one or more Issue States and, between any two,
   zero or more Issue Transitions.
+- An Issue State Diagram has exactly one Entry State and one or more Close
+  Reasons.
+- A closed Issue has exactly one Close Reason.
 - A Branch Issue has zero or more child Issues; a Leaf Issue has none.
 - A Line of Inquiry contains zero or more finer Lines of Inquiry.
 - A document as a whole is either a State doc or a Stream doc, never both.

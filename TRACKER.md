@@ -10,10 +10,13 @@ needed to judge a move is written here.
 Each fact lives in exactly one place in this file:
 
 - The JSON block below holds the Issue Kinds, the Issue Priorities with
-  their staleness thresholds, the Issue Label Schema, each Issue State's
-  name with its open or closed flag, and the provenance.
+  their staleness thresholds, the Issue Label Schema, the Issue States in
+  order with each one's open or closed flag and which one is the Entry
+  State, the Close Reasons, a colour for every kind, priority, label, and
+  state, and the provenance.
 - The prose after it holds the state meanings and the transition
-  conditions, keyed by state name.
+  conditions, keyed by state name, and when each Close Reason may be
+  given, keyed by the reason's name.
 
 The file is the repo owner's to change. It is a tracked file, changed
 through the repo's normal review. It was copied from a shipped default, and
@@ -29,60 +32,71 @@ an action on its own, only with a human's approval, or never).
 {
   "provenance": {
     "source_repo": "the-peregrin-group/agent-tooling",
-    "source_commit": "4f8a8408682241ee5ee9aa53232cf98aabd90eee",
+    "source_commit": "28c6c3acace71d4ef7757c49028c855ba9edb4f9",
     "default_path": "skills/setup-issue-tracker/TRACKER.default.md"
   },
   "issue_kinds": [
     {
       "name": "task",
-      "meaning": "A unit of work that fits no other kind"
+      "meaning": "A unit of work that fits no other kind",
+      "color": "c5def5"
     },
     {
       "name": "bug",
-      "meaning": "Something is broken or performs incorrectly"
+      "meaning": "Something is broken or performs incorrectly",
+      "color": "d73a4a"
     },
     {
       "name": "feature",
-      "meaning": "New feature, system, or capability, or an enhancement or refinement of what exists"
+      "meaning": "New feature, system, or capability, or an enhancement or refinement of what exists",
+      "color": "a2eeef"
     },
     {
       "name": "chore",
-      "meaning": "Maintenance and housekeeping, including work skipped or done poorly earlier: stale docs, test gaps, expedient hacks, dead code"
+      "meaning": "Maintenance and housekeeping, including work skipped or done poorly earlier: stale docs, test gaps, expedient hacks, dead code",
+      "color": "fbca04"
     },
     {
       "name": "decision",
-      "meaning": "A decision to make and record"
+      "meaning": "A decision to make and record",
+      "color": "7057ff"
     },
     {
       "name": "epic",
-      "meaning": "The kind designated to hold children: a Branch Issue is filed as, or retyped to, an epic"
+      "meaning": "The kind designated to hold children: a Branch Issue is filed as, or retyped to, an epic",
+      "color": "3e4b9e"
     }
   ],
   "issue_priorities": [
     {
       "name": "P0",
       "meaning": "Drop everything",
-      "stale_after_days": 1
+      "stale_after_days": 1,
+      "color": "b60205"
     },
     {
       "name": "P1",
       "meaning": "Most important non-emergency",
-      "stale_after_days": 7
+      "stale_after_days": 7,
+      "color": "d93f0b"
     },
     {
       "name": "P2",
       "meaning": "Standard backlog",
-      "stale_after_days": 14
+      "stale_after_days": 14,
+      "color": "fbca04"
     },
     {
       "name": "P3",
       "meaning": "Opportunistic",
-      "stale_after_days": 28
+      "stale_after_days": 28,
+      "color": "0e8a16"
     },
     {
       "name": "P4",
       "meaning": "Not planned, kept so it is not lost",
-      "stale_after_days": 56
+      "stale_after_days": 56,
+      "color": "cfd3d7"
     }
   ],
   "issue_label_schema": {
@@ -95,19 +109,23 @@ an action on its own, only with a human's approval, or never).
         "labels": [
           {
             "name": "area:dev-x",
-            "meaning": "Repo-internal developer experience: conventions, licensing, test support, tooling"
+            "meaning": "Repo-internal developer experience: conventions, licensing, test support, tooling",
+            "color": "bfdadc"
           },
           {
             "name": "area:installer",
-            "meaning": "The Installer (tooling-install) and the Install Manifest (install.json)"
+            "meaning": "The Installer (tooling-install) and the Install Manifest (install.json)",
+            "color": "bfdadc"
           },
           {
             "name": "area:skills",
-            "meaning": "Shipped skill and agent text"
+            "meaning": "Shipped skill and agent text",
+            "color": "bfdadc"
           },
           {
             "name": "area:wrappers",
-            "meaning": "The Wrappers and their shared library"
+            "meaning": "The Wrappers and their shared library",
+            "color": "bfdadc"
           }
         ]
       }
@@ -115,38 +133,65 @@ an action on its own, only with a human's approval, or never).
     "labels": [
       {
         "name": "human",
-        "meaning": "Waiting on a person"
+        "meaning": "Waiting on a person",
+        "color": "d876e3"
       }
     ]
   },
   "issue_states": [
     {
       "name": "Needs Triage",
-      "open": true
+      "open": true,
+      "entry": true,
+      "color": "d73a4a"
     },
     {
       "name": "Needs Scope",
-      "open": true
+      "open": true,
+      "color": "d93f0b"
     },
     {
       "name": "Needs Eng Design",
-      "open": true
+      "open": true,
+      "color": "fbca04"
     },
     {
       "name": "Needs Impl",
-      "open": true
+      "open": true,
+      "color": "0075ca"
     },
     {
       "name": "In progress",
-      "open": true
+      "open": true,
+      "color": "7057ff"
     },
     {
       "name": "In review",
-      "open": true
+      "open": true,
+      "color": "db61a2"
     },
     {
       "name": "Closed",
-      "open": false
+      "open": false,
+      "color": "6a737d"
+    }
+  ],
+  "close_reasons": [
+    {
+      "name": "done",
+      "meaning": "The work it asked for is finished"
+    },
+    {
+      "name": "rejected",
+      "meaning": "It was decided not to do it"
+    },
+    {
+      "name": "duplicate",
+      "meaning": "Another Issue is the same work"
+    },
+    {
+      "name": "superseded",
+      "meaning": "Other work has replaced what it asked for"
     }
   ]
 }
@@ -187,9 +232,9 @@ block you add to this file outside the markers.
   three are `null`, because it is the original and not a copy; in a repo's
   copy all three are set, and a copy in which any is `null` has lost its
   provenance.
-- `issue_kinds`: the Issue Kinds, each with its `name` and its `meaning`.
-  Every Issue has exactly one, recorded once, in the tracker's own
-  mechanism for kind. In this repo that is the Issue's type in Beads, and
+- `issue_kinds`: the Issue Kinds, each with its `name`, its `meaning`, and
+  its `color`. Every Issue has exactly one, recorded once, in the tracker's
+  own mechanism for kind. In this repo that is the Issue's type in Beads, and
   the kinds listed are the Beads types this repo files Issues as. A gate
   (type `gate`) is Beads' record of a wait, not an Issue, and has no kind.
   A kind for design
@@ -198,31 +243,47 @@ block you add to this file outside the markers.
   the imported type labels and add a custom meta type); until it is, such
   work takes the listed kind that fits it best.
 - `issue_priorities`: the Issue Priorities, listed from highest to lowest,
-  each with its `name`, its `meaning`, and its staleness threshold,
-  `stale_after_days`. Priority answers "what do I work on next?". Every
-  Issue has one from filing on, set as best the filer can and adjusted
-  later. Staleness is judged from exact timestamps compared with the
-  current time, against the threshold each priority level declares, in
+  each with its `name`, its `meaning`, its staleness threshold,
+  `stale_after_days`, and its `color`. Priority answers "what do I work on
+  next?". Every Issue has one from filing on, set as best the filer can and
+  adjusted later. Staleness is judged from exact timestamps compared with
+  the current time, against the threshold each priority level declares, in
   days.
 - `issue_label_schema`: the allowed Issue Labels, their meanings, and the
   axes they classify along. `axes` lists each axis with its `name`, the
   `prefix` every label on it begins with, its `meaning`, whether every
   Issue carries at least one label from it, and its `labels`, each written
-  in full, as it appears on an Issue, with its `meaning`. `labels` lists
-  the labels that belong to no axis. An unknown label is a mistake to fix,
-  not a new label. Where the tracker has no field for an Issue's kind,
-  priority, or state, a label named for it carries it; that label is
-  declared by the kind, priority, or state it names and is not an unknown
-  label. The labels on the area axis are the repo's own, since the parts of
-  a project are that project's, and the repo owner fills them in. While the
-  axis lists none, no Issue's labels can conform, so no Issue can be in a
-  state later than Needs Triage.
-- `issue_states`: the Issue States, each with its `name` and its `open`
-  flag, `true` for an open state and `false` for a closed one. That flag is
-  the only structure a state has. Every Issue is in exactly one state, and
-  whether an Issue is open or closed follows from its Issue State. The
-  order of this list carries no meaning; the Issue State Diagram below
-  gives the order.
+  in full, as it appears on an Issue, with its `meaning` and its `color`.
+  `labels` lists the labels that belong to no axis, with the same keys; a
+  repo's own labels that take no prefix go there. An unknown label is a
+  mistake to fix, not a new label. Where the tracker has no field for an
+  Issue's kind, priority, or state, a label named for it carries it; that
+  label is declared by the kind, priority, or state it names, takes its
+  colour, and is not an unknown label. The labels on the area axis are the
+  repo's own, since the parts of a project are that project's, and the
+  repo owner fills them in. While the axis lists none, no Issue's labels
+  can conform, so no Issue can be in a state later than Needs Triage.
+- `issue_states`: the Issue States, listed in the order an Issue normally
+  moves through them, which is the order of the Issue State Diagram below:
+  "earlier" and "later" there mean earlier and later in this list. Each
+  has its `name`, its `open` flag, `true` for an open state and `false`
+  for a closed one, and its `color`. Exactly one open state also has
+  `"entry": true`: it is the Entry State, where an Issue is filed when its
+  right state is not known; the other states need no `entry` key. The
+  order and those two flags are the only structure the states have. Every
+  Issue is in exactly one state, and whether an Issue is open or closed
+  follows from its Issue State.
+- `close_reasons`: the Close Reasons an Issue is closed with, each with its
+  `name` and its `meaning`. When each may be given is under "Into Closed"
+  below, keyed by its name.
+
+A `color`, wherever one appears, is six hex digits with no leading `#`
+(`d73a4a`, say), and it is declared like a meaning: where the Issue
+Tracker shows the thing (as a label, or as an option on a board), it shows
+it in that colour, and bringing the tracker in line with this file brings
+the colour too. A tracker with no colours ignores them, and one that
+offers only a few named colours shows the nearest. This repo's Issue
+Tracker, Beads, has none.
 
 Tools use whatever in the block is valid and warn about the rest: a key
 they do not know is ignored, and a mistake in one part leaves the other
@@ -246,13 +307,13 @@ agent advances an Issue at a time; a release gives the claim up.
 
 ### What each state means
 
-The states are listed in the order an Issue normally moves through them.
-"Earlier" and "later" below mean earlier and later in this list.
+The states are described in the order the block lists them, the order an
+Issue normally moves through them, and "earlier" and "later" below mean
+earlier and later in that order.
 
 #### Needs Triage
 
-The default entry state: an Issue is filed here when its right state is not
-known, and returned here when it is found lacking and where it belongs is
+An Issue is returned here when it is found lacking and where it belongs is
 not known. It needs screening, someone to check that it is a real Issue,
 classified, with enough in it for scoping to start. A filer who knows the
 Issue already meets every bar up to a later state files it there: a small
@@ -294,8 +355,8 @@ waiting on.
 
 #### Closed
 
-It needs no attention. "Done" and "Rejected" are not attention states; they
-are closed plus a reason.
+It needs no attention. Done and rejected are not attention states; they
+are Closed plus a Close Reason.
 
 #### A Branch Issue in these states
 
@@ -333,7 +394,7 @@ To Needs Scope, when all of these hold:
 
 - The universal bar is met: a title that states the outcome; a body that says
   what is known and what is not, with no placeholder text; and an Issue
-  Kind, an Issue Priority, and the entry Issue State, each set as best the
+  Kind, an Issue Priority, and an Issue State, each set as best the
   filer can.
 - Its labels conform to the Issue Label Schema.
 - It carries a pointer: a code location, an observable behavior.
@@ -389,22 +450,23 @@ To Closed, as "Into Closed" says.
 
 #### Into Closed, from any open state
 
-Every close carries its reason, which says done, rejected, duplicate, or
-superseded; forge auto-close on PR merge is the one exception:
+Every close carries its Close Reason, one of those the block declares;
+forge auto-close on PR merge is the one exception. A Close Reason is
+given only when its meaning holds and so does its condition here:
 
-- Done: a Leaf Issue's acceptance criteria hold, or a Branch Issue's
+- `done`: a Leaf Issue's acceptance criteria hold, or a Branch Issue's
   success criteria have been checked against the outcome by the pass that
   verifies it, and everything that describes the Issue agrees with the
   change. A Branch Issue is never closed merely because its children
   closed.
-- Rejected: it was decided not to do it.
-- Duplicate: another Issue is the same work; any missing context goes to
-  that Issue first.
-- Superseded: other work has replaced what this Issue asked for.
+- `rejected`: nothing beyond its meaning.
+- `duplicate`: any context this Issue holds that the other lacks has gone
+  to the other Issue first.
+- `superseded`: nothing beyond its meaning.
 
 #### Out of Closed
 
-To an open state, when the reason it was closed no longer holds (the work
+To an open state, when its Close Reason no longer holds (the work
 regressed, say, or it was closed unfinished). Every reopen carries its
 reason. The Issue returns to the state the rule for a regression, below,
 gives.

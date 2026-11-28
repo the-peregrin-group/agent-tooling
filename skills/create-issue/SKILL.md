@@ -60,15 +60,15 @@ The filing bar is the same on every tracker, and it is a minimum:
 
 - a title that states the outcome;
 - a body that says what is known and what is not, with no placeholder text;
-- an Issue Kind, an Issue Priority, and the entry Issue State, each set as
-  best the filer can.
+- an Issue Kind, an Issue Priority, and an Issue State, each set as best
+  the filer can.
 
 The title states the outcome; the body says what and why, and what done
 looks like as far as it is known, so someone outside the conversation can
 pick it up.
 
-An Issue with a title and one honest sentence is correctly in the default
-entry state. A more complete Issue is welcome, so long as it states what is known
+An Issue with a title and one honest sentence is correctly in the Entry
+State. A more complete Issue is welcome, so long as it states what is known
 rather than presuming what is not: technical design and implementation
 choices are not the filer's to settle at filing, least of all when filing
 into a project whose context the filer lacks. Everything beyond the minimum
@@ -89,8 +89,8 @@ declare.
   answer "what do I work on next?" Set it as best you can: where the tracker
   fills in a default, that default is the tool's guess, not the filer's. A
   wrong priority costs nothing, since the batch pass reconciles it.
-- **Entry state.** A new Issue goes in the default entry Issue State the
-  repo's Issue State Diagram declares when its right state is not known. A
+- **Entry State.** A new Issue goes in the Entry State the repo's
+  Tracker Schema declares when its right state is not known. A
   filer who knows the Issue already meets every bar up to a later state
   files it there, judging that against the diagram as for any move.
 - **Labels.** Labels are drawn from the Issue Label Schema; an unknown label
@@ -144,7 +144,7 @@ file yet states its scheme in `.beads/PRIME.md`, which `bdw prime` prints.
   --labels=<labels> --body-file=<path>`.
 - Kind is the type field (`--type`; `bdw types` lists the kinds), never a
   label. bd defaults the priority and the status on every Issue, so the
-  default entry state needs no call and the priority still needs yours.
+  Entry State needs no call and the priority still needs yours.
 - Labels: `bdw label list-all` lists the ones in use.
 - A dependency: `bdw dep add <blocked> <blocker> --type=blocks`. Always pass
   `--type` to `dep add`: bare, it creates a blocking edge. Any other link is

@@ -20,7 +20,10 @@ in the [proposal](2026-11-13-proposal.md); the decisions are ADRs 0017 to
 which amends ADR 0009 (Branch Issues are worked in passes) so that a pass
 reorganizes children, not only adds them, and
 [ADR 0025](../../adr/0025-the-tracker-schema-is-one-markdown-file-with-one-json-block.md)
-(the Tracker Schema is one Markdown file with one JSON block). The work is
+(the Tracker Schema is one Markdown file with one JSON block), amended by
+[ADR 0027](../../adr/0027-the-tracker-schema-block-holds-state-order-entry-state-close-reasons-and-colours.md)
+(the block also holds the state order, the Entry State, the Close Reasons,
+and every colour). The work is
 tracked under `agent-tooling-u9n` (split the Issue
 Tracker skills into a generic layer and platform layers); the Wrapper work
 is tracked in `agent-tooling-84n3` (bdw), `agent-tooling-fyxo` (ghw),
@@ -51,14 +54,14 @@ is tracked in `agent-tooling-84n3` (bdw), `agent-tooling-fyxo` (ghw),
 - No Wrapper reads a repo's `TRACKER.md` yet, so none follows its schema
   or warns about its defects as [the design](design.md#how-a-wrapper-uses-the-schema)
   says; the lines below are the parts (`agent-tooling-u9n`).
-- The JSON block lacks the entry state, the state order, and the close
-  reasons the Verbs need (`agent-tooling-u9n.20`).
-- ghw's labels follow fixed kind and priority labels and a local label
-  schema file, not the repo's Tracker Schema (`agent-tooling-xgzm`).
-- ghw's board Status and Priority options are fixed constants, not the
-  repo's Issue States and Issue Priorities (`agent-tooling-u9n.21`).
-- ghw filing sets no priority or entry state, and ghw closing carries no
-  close reason (`agent-tooling-u9n.22`).
+- ghw's labels follow fixed kind and priority labels, fixed colours, and a
+  local label schema file, not the repo's Tracker Schema
+  (`agent-tooling-xgzm`).
+- ghw's board Status and Priority options and their colours are fixed
+  constants, not the repo's Issue States and Issue Priorities
+  (`agent-tooling-u9n.21`).
+- ghw filing sets no priority or Entry State, and ghw closing carries no
+  Close Reason (`agent-tooling-u9n.22`).
 - Nothing checks that a repo's Beads holds the kinds, priorities, and
   labels its Tracker Schema declares (`agent-tooling-u9n.23`).
 - fjw's issue-Verbs design plans labels that ignore the Tracker Schema
