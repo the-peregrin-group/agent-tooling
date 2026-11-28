@@ -37,7 +37,11 @@ same way, so a plan with nothing to create and a delete_refused saying the
 file is not found means TRACKER.md has not been merged yet. When the
 schema could not be fetched for a network or auth failure, apply-delete
 exits with that failure's code (6 or 5) instead. With the priority regime
-unknown, the schema's priority labels are neither created nor deleted.
+unknown, the schema's priority labels are neither created nor deleted, and
+the same holds on board-field when the board's Priority field does not
+hold every declared priority, with a warning naming the mismatch: only a
+board that holds them all shows that priority lives there and not in the
+labels.
 
 Whenever a deletion candidate is attached to open issues, every mode prints
 those issues to stderr -- plan is exactly where a human decides whether to
@@ -83,8 +87,8 @@ def main(argv: list[str]) -> int:
     loaded = repo_schema.load(repository)
     done: list[str] = []
     try:
-        regime = _priority_regime(repository)
-        desired = label_schema.desired_labels(loaded, regime)
+        regime, board_priorities = _priority_regime(repository)
+        desired = label_schema.desired_labels(loaded, regime, board_priorities)
         for note in desired.notes:
             print(note, file=sys.stderr)
         delete_refused = _deletion_refusal(loaded, desired)
@@ -133,8 +137,9 @@ def main(argv: list[str]) -> int:
     return plan.EXIT_OK
 
 
-def _priority_regime(repository: str) -> str:
-    """The repo's priority regime, judged from its linked boards on the
+def _priority_regime(repository: str) -> tuple:
+    """(the repo's priority regime, the option names of the canonical
+    board's Priority field or None), judged from its linked boards on the
     forge alone. No local file is an input: a TRIAGE.md in the working
     directory, which ghw-orient uses to pick among several boards, plays no
     part, so with several boards linked the regime is unknown and the
@@ -143,7 +148,8 @@ def _priority_regime(repository: str) -> str:
     canonical, _rule, _note = boards.resolve_canonical_board(
         repository, linked, None
     )
-    return boards.determine_priority_regime(canonical, linked)
+    return (boards.determine_priority_regime(canonical, linked),
+            boards.priority_options(canonical))
 
 
 def _deletion_refusal(loaded: repo_schema.RepoSchema,

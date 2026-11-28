@@ -55,12 +55,13 @@ _ISSUE = {"number": 12, "title": "Old thing",
           "url": "https://github.com/o/r/issues/12"}
 
 
-def _board(number: int) -> dict:
-    """A linked board whose Priority field conforms."""
+def _board(number: int, priorities=("P0", "P1", "P4")) -> dict:
+    """A linked board whose Priority field holds `priorities` (by default
+    every Issue Priority the fixture declares)."""
     return {"number": number, "title": f"Board {number}", "node_id": f"PVT_{number}",
             "fields": {"Priority": {
                 "id": "F", "data_type": "SINGLE_SELECT",
-                "options": {name: f"o{name}" for name in ("P0", "P1", "P2", "P3")},
+                "options": {name: f"o{name}" for name in priorities},
             }}}
 
 
@@ -68,7 +69,9 @@ def _board(number: int) -> dict:
 # _priority_regime: one conforming board, none, or two with nothing on the
 # forge to choose between them.
 _LINKED = {"board-field": [_board(1)], "p-labels": [],
-           "unknown": [_board(1), _board(2)]}
+           "unknown": [_board(1), _board(2)],
+           # board-field, but a hand-made Priority field
+           "hand-made": [_board(1, ("High", "Medium", "Low"))]}
 
 
 def _without(name: str) -> list:
@@ -368,7 +371,8 @@ class GhwLabelSyncPriorityTest(_SyncSeam, unittest.TestCase):
             with self.subTest(regime=regime), \
                     mock.patch.object(_MODULE.boards, "fetch_boards",
                                       return_value=linked) as fetch:
-                self.assertEqual(_MODULE._priority_regime("o/r"), regime)
+                self.assertEqual(_MODULE._priority_regime("o/r")[0],
+                                 "board-field" if regime == "hand-made" else regime)
             fetch.assert_called_once_with("o/r")
 
     def test_no_local_triage_md_decides_among_several_boards(self):
@@ -379,7 +383,7 @@ class GhwLabelSyncPriorityTest(_SyncSeam, unittest.TestCase):
                                return_value=_LINKED["unknown"]), \
                 mock.patch.object(_MODULE.boards, "find_triage_profile",
                                   return_value=profile) as find:
-            self.assertEqual(_MODULE._priority_regime("o/r"), "unknown")
+            self.assertEqual(_MODULE._priority_regime("o/r"), ("unknown", None))
         find.assert_not_called()
 
     def test_several_boards_keep_the_priority_labels(self):
@@ -401,6 +405,18 @@ class GhwLabelSyncPriorityTest(_SyncSeam, unittest.TestCase):
         self.assertEqual(sorted(call.args[1] for call in
                                 seam["delete"].call_args_list),
                          ["P0", "P1", "P4"])
+
+    def test_a_priority_field_lacking_the_schemas_priorities_keeps_the_labels(self):
+        code, seam = self._main({"registry": [*_CONVERGED, *_PRIORITIES],
+                                 "regime": "hand-made"}, "apply-delete")
+        self.assertEqual(code, 0)
+        seam["create"].assert_not_called()
+        seam["delete"].assert_not_called()
+        warning = seam["stderr"].getvalue()
+        self.assertIn("lacks the Issue Priorities P0, P1, P4", warning)
+        self.assertIn("High, Medium, Low", warning)
+        self.assertEqual(json.loads(seam["stdout"].getvalue())["priority_regime"],
+                         "board-field")
 
     def test_unknown_regime_neither_creates_nor_deletes_priority_labels(self):
         code, seam = self._main({"registry": [*_CONVERGED, _PRIORITIES[0]],

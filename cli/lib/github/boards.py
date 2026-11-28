@@ -650,6 +650,19 @@ def determine_priority_regime(canonical_board: dict | None, boards: list[dict]) 
     return "unknown"
 
 
+def priority_options(canonical_board: dict | None) -> list[str] | None:
+    """The option names of the canonical board's single-select Priority
+    field, or None when there is no such field. ghw-label-sync holds them
+    against the repo's Issue Priorities before it treats priority labels
+    as deletion candidates."""
+    if canonical_board is None:
+        return None
+    priority = canonical_board["fields"].get(FIELD_PRIORITY)
+    if priority is None or priority["data_type"] != SINGLE_SELECT:
+        return None
+    return list(priority["options"])
+
+
 def priority_labels_present(labels: list[dict],
                             priorities: list[str] | None) -> list[str] | None:
     """Which of the repo's Issue Priorities exist as labels, in the

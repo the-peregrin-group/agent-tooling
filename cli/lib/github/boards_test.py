@@ -147,6 +147,20 @@ class DeterminePriorityRegimeTest(unittest.TestCase):
             boards.determine_priority_regime(None, [_board(1), _board(2)]), "unknown")
 
 
+class PriorityOptionsTest(unittest.TestCase):
+    def test_no_canonical_board_has_no_options(self):
+        self.assertIsNone(boards.priority_options(None))
+
+    def test_a_board_without_a_single_select_priority_has_no_options(self):
+        for fields in ({}, {"Priority": _priority_field(data_type="TEXT")}):
+            with self.subTest(fields=fields):
+                self.assertIsNone(boards.priority_options(_board(1, fields=fields)))
+
+    def test_a_single_select_priority_gives_its_option_names(self):
+        canonical = _board(1, fields={"Priority": _priority_field(options=("P0", "P4"))})
+        self.assertEqual(boards.priority_options(canonical), ["P0", "P4"])
+
+
 class PriorityLabelsPresentTest(unittest.TestCase):
     def test_reports_the_declared_priorities_present_in_schema_order(self):
         labels = [{"name": "P4"}, {"name": "bug"}, {"name": "P0"}, {"name": "P3"}]
