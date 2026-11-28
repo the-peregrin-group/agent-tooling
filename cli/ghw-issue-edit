@@ -3,15 +3,24 @@
 
 The subverb sits at position 2 so an allowlist grant can include label edits
 while withholding set-body. For set-body, <value> is a body *file* path from
-the staging directories, never inline text. add-label enforces
-the attachment contract: the label must exist in the repo's live registry, and
-a second type label is refused naming the incumbent -- reclassifying an issue
-is two visible calls, remove-label then add-label.
+the staging directories, never inline text.
+
+add-label and remove-label enforce the attachment contract against the
+repo's Tracker Schema, read from TRACKER.md on its default branch, and print
+every problem in it as a warning on stderr. add-label refuses a label the
+schema does not declare or the live registry lacks, and a second kind
+label, naming the incumbent -- reclassifying an issue is two visible calls,
+remove-label then add-label. remove-label refuses to remove an issue's last
+label on an axis the schema marks as carried by every Issue. A rule whose
+part of the schema is missing or unusable is skipped with a warning, and
+the edit goes ahead on what can still be checked. retitle and set-body need
+nothing from the schema and do not read it.
 
 Exit codes: 0 success (including a converged no-op), 1 unclassified gh/API
-failure, 2 usage error, 3 not found, 4 refused: add-label violates the
-attachment contract (a label missing from the registry, a second type label),
-5 auth failure, 6 network failure (retryable).
+failure, 2 usage error, 3 not found, 4 refused: a label edit violates the
+attachment contract (an undeclared label, a label missing from the
+registry, a second kind label, the last label of a required axis), 5 auth
+failure, 6 network failure (retryable).
 """
 
 from __future__ import annotations
@@ -22,7 +31,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from lib import arguments, plan, staging
-from lib.github import boards, gh, labels
+from lib.github import boards, gh, labels, repo_schema
 
 _USAGE = (
     "ghw-issue-edit <owner/repo> <add-label|remove-label|retitle|set-body> "
@@ -58,9 +67,9 @@ def main(argv: list[str]) -> int:
 
     try:
         if subverb == "add-label":
-            changed = _add_label(repository, number, value)
+            changed = _add_label(repository, number, value, _rules(repository))
         elif subverb == "remove-label":
-            changed = _remove_label(repository, number, value)
+            changed = _remove_label(repository, number, value, _rules(repository))
         elif subverb == "retitle":
             changed = _retitle(repository, number, value)
         else:
@@ -87,24 +96,38 @@ def _current_label_names(repository: str, number: int) -> list[str]:
     return [label["name"] for label in issue["labels"]]
 
 
-def _add_label(repository: str, number: int, label: str) -> bool:
+def _rules(repository: str) -> labels.LabelRules:
+    """The repo's label rules, its schema's warnings and the rules it
+    cannot back already printed on stderr."""
+    rules = labels.LabelRules(repo_schema.load(repository))
+    for line in rules.unchecked():
+        print(line, file=sys.stderr)
+    return rules
+
+
+def _add_label(repository: str, number: int, label: str,
+               rules: labels.LabelRules) -> bool:
     """Attach `label` under the attachment contract; True when a write
-    happened, False on the converged no-op. Raises LabelContractError on a
-    registry miss or a second type label."""
+    happened, False on the converged no-op. Raises LabelContractError on an
+    undeclared label, a registry miss, or a second kind label."""
     registry = {entry["name"] for entry in boards.fetch_labels(repository)}
     current = _current_label_names(repository, number)
-    labels.validate_label_addition(label, current, registry)
+    labels.validate_label_addition(label, current, registry, rules)
     if label in current:
         return False
     gh.issue_edit_labels(repository, number, add=[label], remove=[])
     return True
 
 
-def _remove_label(repository: str, number: int, label: str) -> bool:
+def _remove_label(repository: str, number: int, label: str,
+                  rules: labels.LabelRules) -> bool:
     """Detach `label`; True when a write happened, False on the converged
-    no-op (the label was already absent)."""
-    if label not in _current_label_names(repository, number):
+    no-op (the label was already absent). Raises LabelContractError when it
+    is the issue's last label on a required axis."""
+    current = _current_label_names(repository, number)
+    if label not in current:
         return False
+    labels.validate_label_removal(label, current, rules)
     gh.issue_edit_labels(repository, number, add=[], remove=[label])
     return True
 
