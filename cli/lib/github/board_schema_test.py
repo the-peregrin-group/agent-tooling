@@ -213,6 +213,17 @@ class ConformanceTest(unittest.TestCase):
         self.assertIs(self._verdict(board)["conforms"], True)
 
 
+class DuplicateConformanceTest(unittest.TestCase):
+    def test_two_options_of_one_name_are_a_gap(self):
+        board = _board()
+        board["fields"]["Status"]["option_details"].append(
+            {"id": "o_dup", "name": "Closed", "color": "GRAY", "description": ""})
+        verdict = board_schema.evaluate_conformance(board, _fields())
+        self.assertFalse(verdict["conforms"])
+        self.assertIn("more than one option named: Closed",
+                      " ".join(verdict["gaps"]))
+
+
 class FieldsToCreateTest(unittest.TestCase):
     def test_existing_board_leaves_size_to_a_person(self):
         board = _board(priority=None, size=None, last_triaged=False)
@@ -297,6 +308,37 @@ class PlanFieldTest(unittest.TestCase):
         self.assertEqual(plan.recolor, [])
         self.assertIsNone(plan.additive)
 
+    def test_a_second_option_of_a_declared_name_is_kept_by_id_and_removed_last(self):
+        live = _field(STATES)
+        live["option_details"].append({"id": "o_dup", "name": "Closed",
+                                       "color": "GRAY", "description": ""})
+        plan = self._plan(live)
+        self.assertEqual(plan.removed, [{"id": "o_dup", "name": "Closed"}])
+        self.assertEqual({entry["id"] for entry in plan.final},
+                         {"o_Needs Triage", "o_In progress", "o_Closed"})
+        # The additive list holds both copies, each by its own id.
+        self.assertEqual([entry["id"] for entry in plan.additive][-2:],
+                         ["o_Closed", "o_dup"])
+        self.assertTrue(plan.destructive)
+
+    def test_a_case_or_whitespace_variant_is_renamed_in_place(self):
+        live = _field(("needs triage", "In progress", "Closed "))
+        plan = self._plan(live)
+        self.assertEqual(plan.add, [])
+        self.assertEqual(plan.remove, [])
+        self.assertEqual(plan.rename, [{"from": "needs triage", "to": "Needs Triage"},
+                                       {"from": "Closed ", "to": "Closed"}])
+        self.assertEqual([(entry["id"], entry["name"]) for entry in plan.additive],
+                         [("o_needs triage", "Needs Triage"),
+                          ("o_In progress", "In progress"),
+                          ("o_Closed ", "Closed")])
+
+    def test_an_exact_name_wins_over_a_variant(self):
+        live = _field(("closed", "Needs Triage", "In progress", "Closed"))
+        plan = self._plan(live)
+        self.assertEqual(plan.rename, [])
+        self.assertEqual(plan.remove, ["closed"])
+
     def test_nothing_is_planned_without_known_options_or_a_field(self):
         live = _board()["fields"]["Status"]
         loaded = fixture.missing()
@@ -378,7 +420,23 @@ class PlanMovesTest(unittest.TestCase):
     def test_items_on_kept_options_or_no_option_are_not_moved(self):
         result = self._moves([_item("I_1", "o_Closed"), _item("I_2", None),
                               _item("I_3", "o_Done", field_id="F_other")])
-        self.assertEqual(result, [{"option": "Done", "items": []}])
+        self.assertEqual(result, [{"option": "Done", "option_id": "o_Done",
+                                   "items": []}])
+
+    def test_items_on_a_second_option_of_a_declared_name_move_to_it(self):
+        live = _field(PRIORITIES, field_id="F_priority")
+        live["option_details"].append({"id": "o_dup", "name": "P1",
+                                       "color": "GRAY", "description": ""})
+        plan = board_schema.plan_field(_spec("Priority"), live)
+        result = board_schema.plan_moves(
+            plan, live, [_item("I_1", "o_dup", field_id="F_priority"),
+                         _item("I_2", "o_P1", field_id="F_priority")], {},
+            self.states)
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0]["option_id"], "o_dup")
+        self.assertEqual([(item["item_id"], item["to"], item["by"])
+                          for item in result[0]["items"]],
+                         [("I_1", "P1", "same name")])
 
     def test_priority_has_no_issue_state_rule(self):
         live = _field((*PRIORITIES, "P2"), field_id="F_priority")

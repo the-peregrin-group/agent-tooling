@@ -315,7 +315,7 @@ class GhwBoardSyncPlanTest(unittest.TestCase):
     def test_a_move_must_name_an_option_being_removed_and_a_declared_target(self):
         board = FakeBoard(_legacy_fields())
         code, _, stderr = _main(
-            ["o/r", "plan", "1", "--move", "Status", "Closed", "Needs Triage"],
+            ["o/r", "plan", "1", "--move", "Status", "In progress", "Needs Triage"],
             board)
         self.assertEqual(code, 2)
         self.assertIn("would not remove", stderr)
@@ -528,6 +528,71 @@ class GhwBoardSyncMigrateTest(unittest.TestCase):
         self.assertEqual(board.cleared, [])
         self.assertEqual(board.option_names("Priority"), list(PRIORITIES))
 
+    def test_a_retry_of_the_same_command_after_a_partial_removal_converges(self):
+        # Two additive updates, then Priority's removal lands and Status's
+        # fails: the retry names a --move whose option is already gone.
+        board = self._legacy()
+        board.fail = {"update_single_select_options": 4}
+        argv = ["o/r", "migrate", "1", *self._MOVES]
+        code, _, _ = _main(argv, board)
+        self.assertEqual(code, 6)
+        self.assertEqual(board.option_names("Priority"), list(PRIORITIES))
+        self.assertIn("Done", board.option_names("Status"))
+        board.fail = {}
+        code, payload, _ = _main(argv, board)
+        self.assertEqual(code, 0, payload)
+        self.assertEqual(board.cleared, [])
+        self.assertEqual(board.option_names("Status"), list(STATES))
+        self.assertEqual(payload["moves_already_done"], [
+            {"field": "Priority", "option": "P2", "to": "P1"},
+            {"field": "Priority", "option": "P3", "to": "P4"}])
+        self.assertTrue(payload["conformance"]["conforms"])
+        board.log.clear()
+        code, payload, _ = _main(argv, board)
+        self.assertEqual(code, 0)
+        self.assertEqual(board.log, [])
+
+    def test_a_second_option_of_a_declared_name_is_emptied_then_removed(self):
+        board = FakeBoard(_converged_fields(), [
+            ("I_dup", "CLOSED", {"Status": "Closed"}),
+            ("I_kept", "OPEN", {"Status": "In progress"}),
+        ])
+        status = board.fields["Status"]
+        status["options"].append({"id": "o_dup", "name": "Closed",
+                                  "color": "GRAY", "description": ""})
+        board.items[0]["values"][status["id"]] = "o_dup"
+        kept_closed = next(o["id"] for o in status["options"]
+                           if o["name"] == "Closed")
+        code, payload, _ = _main(["o/r", "apply", "1"], board)
+        self.assertEqual(code, 0)
+        self.assertEqual(board.cleared, [])
+        self.assertIn("o_dup", {o["id"] for o in status["options"]})
+        self.assertFalse(payload["conformance"]["conforms"])
+        self.assertIn("more than one option named: Closed",
+                      " ".join(payload["conformance"]["gaps"]))
+        code, payload, _ = _main(["o/r", "migrate", "1"], board)
+        self.assertEqual(code, 0, payload)
+        self.assertEqual(board.cleared, [])
+        self.assertEqual(board.option_names("Status"), list(STATES))
+        self.assertEqual(board.items[0]["values"][status["id"]], kept_closed)
+        self.assertTrue(payload["conformance"]["conforms"])
+
+    def test_apply_renames_a_case_variant_in_place(self):
+        fields = _converged_fields()
+        fields["Status"] = _single([("needs triage", "RED"),
+                                    ("In progress", "PURPLE"), ("Closed", "GRAY")])
+        board = FakeBoard(fields, [("I_1", "OPEN", {"Status": "needs triage"})])
+        code, payload, _ = _main(["o/r", "apply", "1"], board)
+        self.assertEqual(code, 0)
+        self.assertEqual(board.option_names("Status"), list(STATES))
+        self.assertEqual(board.value("I_1", "Status"), "Needs Triage")
+        self.assertEqual(board.cleared, [])
+        status = next(entry for entry in payload["options"]
+                      if entry["field"] == "Status")
+        self.assertEqual(status["rename"],
+                         [{"from": "needs triage", "to": "Needs Triage"}])
+        self.assertTrue(payload["conformance"]["conforms"])
+
     def test_an_item_set_back_onto_a_removed_option_stops_the_removal(self):
         board = self._legacy()
         real = board.fetch_board_items
@@ -689,6 +754,15 @@ class GhwBoardSyncCreateTest(unittest.TestCase):
                 self.assertIn("#7", stderr)
                 self.assertIn("projects/7", stderr)
                 self.assertIn("ghw-board-sync o/r apply 7", stderr)
+                self.assertIn("link it to o/r by hand", stderr)
+
+    def test_a_failure_after_linking_says_to_finish_with_apply(self):
+        board, patches = self._fakes()
+        board.fail = {"update_single_select_options": 1}
+        code, _, stderr = self._main(board, patches)
+        self.assertEqual(code, 1)
+        self.assertIn("finish it with `ghw-board-sync o/r apply 7`", stderr)
+        self.assertNotIn("by hand (the", stderr)
 
     def test_a_failure_provisioning_fields_names_what_landed(self):
         board, patches = self._fakes()

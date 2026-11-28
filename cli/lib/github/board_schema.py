@@ -159,8 +159,9 @@ def evaluate_conformance(board: dict,
          "extra_options": [...], "color_drift": [...]}
 
     `gaps` are the differences: an absent field, a field of the wrong data
-    type, a declared option the board lacks, an option the schema does not
-    declare, and options out of the schema's order. A missing `Size` is
+    type, two options of one name, a declared option the board lacks, an
+    option the schema does not declare, and options out of the schema's
+    order. A missing `Size` is
     the one tolerated gap. `unchecked` names a field whose options could
     not be judged because the schema section they come from cannot be
     read. `extra_options` lists options beyond Size's fixed set, which are
@@ -190,7 +191,12 @@ def evaluate_conformance(board: dict,
             )
             continue
         declared = [option.name for option in spec.options]
-        present = list(live["options"])
+        present = live_names(live)
+        doubled = sorted({name for name in present if present.count(name) > 1})
+        if doubled:
+            gaps.append(f"field {spec.name!r} holds more than one option "
+                        f"named: {', '.join(doubled)}")
+        present = list(dict.fromkeys(present))
         missing = [name for name in declared if name not in present]
         if missing:
             gaps.append(f"field {spec.name!r} is missing options: "
@@ -256,20 +262,26 @@ class FieldPlan:
     """What it takes to bring one schema-backed field's options to the
     schema.
 
-    `add` are declared options the board lacks; `remove` live options the
-    schema does not declare; `recolor` [{"option", "from", "to"}];
-    `reorder` whether the declared options are out of order. `additive` is
-    the option list for the write that adds, recolours, and reorders while
-    removing nothing (every live option, with its id), or None when that
-    write would change nothing. `final` is the list with the removals made,
-    the declared options only. Every entry is {"name", "color",
-    "description"}, with "id" for a live option."""
+    `add` are declared options the board lacks; `rename` [{"from", "to"}]
+    live options that differ from a declared one only in case or
+    surrounding whitespace, renamed in place by id; `remove` the names of
+    the live options no declared option claims (a second option of a
+    declared name included), and `removed` the same as [{"id", "name"}];
+    `recolor` [{"option", "from", "to"}]; `reorder` whether the declared
+    options are out of order. `additive` is the option list for the write
+    that adds, renames, recolours, and reorders while removing nothing
+    (every live option, with its id), or None when that write would change
+    nothing. `final` is the list with the removals made, the declared
+    options only. Every entry is {"name", "color", "description"}, with
+    "id" for a live option."""
 
     field: str
     field_id: str
     section: str
     add: List[str] = field(default_factory=list)
+    rename: List[dict] = field(default_factory=list)
     remove: List[str] = field(default_factory=list)
+    removed: List[dict] = field(default_factory=list)
     recolor: List[dict] = field(default_factory=list)
     reorder: bool = False
     additive: Optional[List[dict]] = None
@@ -277,12 +289,12 @@ class FieldPlan:
 
     @property
     def destructive(self) -> bool:
-        return bool(self.remove)
+        return bool(self.removed)
 
     def summary(self) -> dict:
         return {"field": self.field, "add": list(self.add),
-                "remove": list(self.remove), "recolor": list(self.recolor),
-                "reorder": self.reorder}
+                "rename": list(self.rename), "remove": list(self.remove),
+                "recolor": list(self.recolor), "reorder": self.reorder}
 
 
 def plan_field(spec: DesiredField, live: Optional[dict]) -> Optional[FieldPlan]:
@@ -294,34 +306,59 @@ def plan_field(spec: DesiredField, live: Optional[dict]) -> Optional[FieldPlan]:
     `live` is the board dict's entry for the field, with its
     `option_details` [{"id", "name", "color", "description"}] in board
     order. A declared option keeps its live colour where the schema gives
-    none, and every live option keeps its description."""
+    none, and every live option keeps its description.
+
+    Live options are matched to declared ones by id, never collapsed by
+    name: each declared option claims the first unclaimed live option of
+    its exact name, then, failing that, the first whose name differs only
+    in case or surrounding whitespace (renamed in place, so no value
+    moves). Every live option left unclaimed, a second option of a
+    declared name included, stays in `additive` with its id and is to be
+    emptied and removed by a migration like any other."""
     if (spec.section is None or spec.options is None or live is None
             or live["data_type"] != SINGLE_SELECT):
         return None
     details = list(live.get("option_details") or ())
-    by_name = {entry["name"]: entry for entry in details}
-    declared = {option.name for option in spec.options}
     plan = FieldPlan(spec.name, live["id"], spec.section)
+    claims: Dict[str, dict] = {}
+    for loose in (False, True):
+        for option in spec.options:
+            if option.name in claims:
+                continue
+            taken = {entry["id"] for entry in claims.values()}
+            current = next(
+                (entry for entry in details if entry["id"] not in taken
+                 and (_fold(entry["name"]) == _fold(option.name) if loose
+                      else entry["name"] == option.name)),
+                None)
+            if current is not None:
+                claims[option.name] = current
     kept = []
     for option in spec.options:
-        current = by_name.get(option.name)
+        current = claims.get(option.name)
         if current is None:
             plan.add.append(option.name)
             kept.append({"name": option.name,
                          "color": option.color or NEUTRAL_COLOR,
                          "description": ""})
             continue
+        if current["name"] != option.name:
+            plan.rename.append({"from": current["name"], "to": option.name})
         color = option.color or current["color"]
         if color != current["color"]:
             plan.recolor.append({"option": option.name,
                                  "from": current["color"], "to": color})
         kept.append({"id": current["id"], "name": option.name, "color": color,
                      "description": current.get("description") or ""})
-    undeclared = [entry for entry in details if entry["name"] not in declared]
+    claimed = {entry["id"] for entry in claims.values()}
+    undeclared = [entry for entry in details if entry["id"] not in claimed]
     plan.remove = [entry["name"] for entry in undeclared]
-    live_order = [entry["name"] for entry in details if entry["name"] in declared]
-    plan.reorder = live_order != [option.name for option in spec.options
-                                  if option.name in by_name]
+    plan.removed = [{"id": entry["id"], "name": entry["name"]}
+                    for entry in undeclared]
+    live_order = [entry["id"] for entry in details if entry["id"] in claimed]
+    plan.reorder = live_order != [claims[option.name]["id"]
+                                  for option in spec.options
+                                  if option.name in claims]
     plan.final = kept
     additive = kept + [
         {"id": entry["id"], "name": entry["name"], "color": entry["color"],
@@ -340,32 +377,38 @@ def plan_moves(plan: FieldPlan, live: dict, items: Sequence[dict],
 
     `items` is lib.github.boards.fetch_board_items output; `moves` maps an
     option being removed to the declared option its items move to, as the
-    caller named it. Without a named move, an item on a removed `Status`
-    option moves to the one declared state whose open flag matches its
-    issue or pull request (open, or closed or merged), when exactly one
-    does; `states` are the declared Issue States. With the default schema
-    that sends a closed issue on `Done` or `Rejected` to its one closed
-    state, `Closed`. Anything else has no target and needs a named move.
+    caller named it. Without a named move, an item on a second option of a
+    declared name moves to the declared one ("same name"); otherwise an
+    item on a removed `Status` option moves to the one declared state
+    whose open flag matches its issue or pull request (open, or closed or
+    merged), when exactly one does; `states` are the declared Issue
+    States. With the default schema that sends a closed issue on `Done` or
+    `Rejected` to its one closed state, `Closed`. Anything else has no
+    target and needs a named move.
 
-    Returns, per removed option in board order, {"option", "items":
-    [{"item_id", "type", "number", "title", "url", "state", "archived",
-    "to", "by"}]}, where `to` is the target option or None and `by` says
-    which rule chose it ("named" or "issue state", or None)."""
-    option_ids = live["options"]
+    Returns, per removed option in board order, {"option", "option_id",
+    "items": [{"item_id", "type", "number", "title", "url", "state",
+    "archived", "to", "by"}]}, where `to` is the target option or None and
+    `by` says which rule chose it ("named", "same name", or "issue
+    state", or None)."""
+    declared = {_fold(entry["name"]): entry["name"] for entry in plan.final}
     result = []
-    for name in plan.remove:
-        option_id = option_ids.get(name)
+    for removed in plan.removed:
+        name = removed["name"]
         moved = []
         for item in items:
-            if item["values"].get(plan.field_id) != option_id:
+            if item["values"].get(plan.field_id) != removed["id"]:
                 continue
             target, by = moves.get(name), "named"
+            if target is None:
+                target, by = declared.get(_fold(name)), "same name"
             if target is None:
                 target = (_state_for(item, states)
                           if plan.field == FIELD_STATUS else None)
                 by = "issue state" if target is not None else None
             moved.append({**_item_summary(item), "to": target, "by": by})
-        result.append({"option": name, "items": moved})
+        result.append({"option": name, "option_id": removed["id"],
+                       "items": moved})
     return result
 
 
@@ -401,6 +444,36 @@ def _options(entries) -> Optional[Tuple[DesiredOption, ...]]:
         return None
     return tuple(DesiredOption(entry.name, named_color(entry.color))
                  for entry in entries)
+
+
+def _fold(name: str) -> str:
+    """A name as compared for a rename: case and surrounding whitespace
+    ignored."""
+    return name.strip().casefold()
+
+
+def live_names(live: Optional[dict]) -> List[str]:
+    """Every live option's name on a field in board order, a repeated name
+    repeated, or [] for no field. The name-to-id map would collapse two
+    options of one name, so the detailed list is read where the board dict
+    has it."""
+    if live is None:
+        return []
+    details = live.get("option_details")
+    if details is not None:
+        return [entry["name"] for entry in details]
+    return list(live["options"])
+
+
+def live_option_ids(live: Optional[dict]) -> set:
+    """Every live option id on a field, read from the detailed list where
+    the board dict has it, so two options of one name both count."""
+    if live is None:
+        return set()
+    details = live.get("option_details")
+    if details is not None:
+        return {entry["id"] for entry in details}
+    return set(live.get("options", {}).values())
 
 
 def _live_colors(live: dict) -> Dict[str, str]:

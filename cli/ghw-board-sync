@@ -23,8 +23,10 @@ Modes are positional, because what a grant allows is the mode:
              each would move.
     apply    additive: creates missing fields (not `Size` on an existing
              board, which is reported instead) and adds, recolours, and
-             reorders options, keeping every live option and every value
-             items hold. Removes nothing.
+             reorders options, and renames in place one that differs from
+             a declared option only in case or surrounding whitespace,
+             keeping every live option by id and every value items hold.
+             Removes nothing.
     migrate  apply, then the destructive part: moves every item off each
              option the schema does not declare, and only then removes
              those options.
@@ -33,17 +35,21 @@ Given a project number, the board must already be linked to <repo> (a scope
 claim the Verb verifies rather than trusts).
 
 Removing an option from a single-select clears it on every item that held
-it, so migrate moves the items first. An item on a removed `Status` option
+it, so migrate moves the items first. Options are matched by id, so a
+second option of a declared name is one more option to empty and remove;
+its items move to the declared one. An item on a removed `Status` option
 moves to the one declared Issue State whose open flag matches its issue or
 pull request, when exactly one does (with the default schema, a closed
 issue on Done or Rejected moves to Closed). Any other item needs a named
 move, `--move <field> <option> <to>`, which sends every item on <option>
 in <field> (Status or Priority) to the declared option <to>; plan takes
-the same moves to preview them. migrate is refused (exit 4) before any
-write while an item has no target, naming each. It re-reads the board
-after moving and is refused, still before any removal, if an item holds a
-removed option again or the board has gained an option the plan did not
-cover. A re-run after any failure converges.
+the same moves to preview them. A move whose option the board no longer
+has is already done, and is reported under "moves_already_done". migrate
+is refused (exit 4) before any write while an item has no target, naming
+each. It re-reads the board after moving and is refused, still before any
+removal, if an item holds a removed option again or the board has gained
+an option the plan did not cover. A re-run after any failure, with the
+same arguments, converges.
 
 Every problem in TRACKER.md prints as a warning on stderr. Where the Issue
 States or Issue Priorities cannot be read, that field's options are
@@ -190,7 +196,7 @@ def _sync_board(repository: str, mode: str, number: int, moves: dict,
             "the default branch; apply, which removes nothing, still works.",
             loaded.refusal_exit_code(),
         )
-    _check_moves(moves, plans, fields)
+    moves, done_moves = _check_moves(moves, board, plans, fields)
     states = _states(loaded)
     migration = _migration(board, plans, moves, states)
     create = [spec.name
@@ -201,6 +207,7 @@ def _sync_board(repository: str, mode: str, number: int, moves: dict,
         "create_fields": create,
         "options": [field_plan.summary() for field_plan in plans],
         "migration": migration,
+        "moves_already_done": done_moves,
         "migrate_refused": refused,
     }
     if mode == "plan":
@@ -232,27 +239,44 @@ def _plans(board: dict, fields: tuple) -> list:
             if field_plan is not None]
 
 
-def _check_moves(moves: dict, plans: list, fields: tuple) -> None:
-    """A --move must name an option the plan removes and a declared target."""
+def _check_moves(moves: dict, board: dict, plans: list,
+                 fields: tuple) -> tuple:
+    """A --move must send an option the plan removes to a declared target.
+
+    A move whose option the board no longer has is already done (an
+    earlier run moved its items and removed it), so a retry of the same
+    command converges: it is returned apart, for the JSON to report, not
+    refused. A move naming an option the board holds and the plan keeps
+    contradicts the schema, and is a usage error.
+
+    Returns (the moves still to make, [{"field", "option", "to"}] done)."""
     by_field = {field_plan.field: field_plan for field_plan in plans}
     declared = {spec.name: [option.name for option in spec.options or ()]
                 for spec in fields}
+    pending, done = {}, []
     for (field_name, option), target in moves.items():
         if declared[field_name] == []:
             continue  # options unknown: nothing is removed, so nothing to judge
-        field_plan = by_field.get(field_name)
-        if field_plan is None or option not in field_plan.remove:
-            removed = ", ".join(field_plan.remove) if field_plan else "none"
-            plan.usage_die(
-                f"--move names {field_name} {option!r}, which this sync would "
-                f"not remove. Options it removes from {field_name}: {removed}",
-                _USAGE)
         if target not in declared[field_name]:
             plan.usage_die(
                 f"--move sends {field_name} {option!r} to {target!r}, which "
                 f"the Tracker Schema does not declare. Declared: "
                 f"{', '.join(declared[field_name])}",
                 _USAGE)
+        live = board["fields"].get(field_name)
+        if option not in board_schema.live_names(live):
+            done.append({"field": field_name, "option": option, "to": target})
+            continue
+        field_plan = by_field.get(field_name)
+        if field_plan is None or option not in field_plan.remove:
+            removed = ", ".join(field_plan.remove) if field_plan else "none"
+            plan.usage_die(
+                f"--move names {field_name} {option!r}, which this sync would "
+                f"not remove. Options it removes from {field_name}: "
+                f"{removed or 'none'}",
+                _USAGE)
+        pending[(field_name, option)] = target
+    return pending, done
 
 
 def _migrate_refusal(loaded: repo_schema.RepoSchema) -> str | None:
@@ -336,12 +360,19 @@ def _apply_additive(board: dict, fields: tuple, plans: list,
 
 def _migrate(board: dict, fields: tuple, planned: list, migration: dict,
              writes: list) -> dict:
-    """Move the items, re-read, then remove the options no item holds."""
+    """Move the items, re-read, then remove the options no item holds.
+
+    `board` is the board as re-read after the additive write. A target is
+    the id of the declared option its plan keeps, never looked up by name
+    alone, since a removed second option may share the name."""
+    targets = {field_plan.field: {entry["name"]: entry.get("id")
+                                  for entry in field_plan.final}
+               for field_plan in _plans(board, fields)}
     for field_name, entries in migration.items():
         field = board["fields"][field_name]
         for entry in entries:
             for item in entry["items"]:
-                target = field["options"].get(item["to"])
+                target = targets.get(field_name, {}).get(item["to"])
                 if target is None:
                     raise gh.GhError(
                         f"field {field_name!r} has no option {item['to']!r} "
@@ -359,22 +390,23 @@ def _migrate(board: dict, fields: tuple, planned: list, migration: dict,
     removing = [field_plan for field_plan in plans if field_plan.destructive]
     if not removing:
         return board
-    expected = {field_plan.field: set(field_plan.remove) for field_plan in planned}
+    expected = {field_plan.field: {entry["id"] for entry in field_plan.removed}
+                for field_plan in planned}
     for field_plan in removing:
-        surprise = set(field_plan.remove) - expected.get(field_plan.field, set())
+        surprise = [entry["name"] for entry in field_plan.removed
+                    if entry["id"] not in expected.get(field_plan.field, set())]
         if surprise:
             gh.die(
                 f"migrate stopped before removing anything: field "
                 f"{field_plan.field!r} gained options since the plan "
-                f"({', '.join(sorted(surprise))}). Items moved so far keep "
+                f"({', '.join(surprise)}). Items moved so far keep "
                 "their new values; run migrate again to plan afresh.\n"
                 f"Writes that had already landed: {'; '.join(writes)}",
                 plan.EXIT_REFUSED,
             )
     items = boards.fetch_board_items(board["node_id"])
     for field_plan in removing:
-        live = board["fields"][field_plan.field]
-        doomed = {live["options"][name] for name in field_plan.remove}
+        doomed = {entry["id"] for entry in field_plan.removed}
         holding = [item for item in items
                    if item["values"].get(field_plan.field_id) in doomed]
         if holding:
@@ -400,7 +432,7 @@ def _verify_kept(board: dict, field_name: str, sent: list) -> None:
     """Fail loudly unless every live option the write kept by id is still
     on the field: GitHub's reference says an id keeps an option's identity,
     and this is where that is checked rather than trusted."""
-    live = set((board["fields"].get(field_name) or {}).get("options", {}).values())
+    live = board_schema.live_option_ids(board["fields"].get(field_name))
     lost = [option["name"] for option in sent
             if option.get("id") and option["id"] not in live]
     if lost:
@@ -460,6 +492,7 @@ def _create_board(repository: str, loaded: repo_schema.RepoSchema,
     writes: list[str] = []
     try:
         boards.link_project_to_repository(project["node_id"], identity["node_id"])
+        writes.append(f"linked the project to {repository}")
         board = boards.fetch_board_by_node_id(project["node_id"])
         status = board["fields"].get(FIELD_STATUS)
         spec = next(spec for spec in fields if spec.name == FIELD_STATUS)
@@ -476,11 +509,17 @@ def _create_board(repository: str, loaded: repo_schema.RepoSchema,
         fresh = boards.fetch_board_by_node_id(project["node_id"])
     except gh.GhError as error:
         landed = f"; done: {'; '.join(writes)}" if writes else ""
+        # apply syncs only a linked board, so until the link lands the
+        # project has to be linked (or deleted) by hand first.
+        finish = (f"finish it with `ghw-board-sync {repository} apply "
+                  f"{project['number']}`" if writes else
+                  f"link it to {repository} by hand (the project's settings, "
+                  f"or the repo's Projects tab), then run `ghw-board-sync "
+                  f"{repository} apply {project['number']}`")
         raise gh.GhError(
             f"{error}\nProject #{project['number']} WAS created "
             f"({project['url']}) and is half-provisioned{landed}. Do not re-run "
-            f"with 'new' -- finish it with `ghw-board-sync {repository} apply "
-            f"{project['number']}`, or delete the project by hand.",
+            f"with 'new' -- {finish}, or delete the project by hand.",
             # Never the error's own code: 6 invites a retry of 'new' (a second
             # orphan project) and 3 reads as an answer, yet the board is
             # half-provisioned. 1 means stop and report.
