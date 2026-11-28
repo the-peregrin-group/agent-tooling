@@ -147,8 +147,9 @@ class GhwIssueCreateLabelTailTest(unittest.TestCase):
         # contract after the schema and registry fetches: exit 4, never 2.
         cases = (
             ("feature", ("area:core",), "not an Issue Kind"),
-            ("bug", ("area:core", "chore"), "second kind label"),
-            ("bug", ("area:core", "bug"), "duplicates the kind label"),
+            ("bug", ("area:core", "chore"), "second Kind Label"),
+            ("bug", ("area:core", "x,bug"), "contains a comma"),
+            ("bug", ("area:core", "bug"), "duplicates the Kind Label"),
             ("bug", ("area:core", "wontfix"), "not declared"),
             ("bug", (), "'area:' label"),
             ("bug", ("human",), "'area:' label"),

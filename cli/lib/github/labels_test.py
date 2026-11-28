@@ -30,6 +30,8 @@ def _rules_without(*sections) -> labels.LabelRules:
     for section in sections:
         if section == "axes":
             document["issue_label_schema"]["axes"] = {}
+        elif section == "unaxed":
+            document["issue_label_schema"]["labels"] = {}
         else:
             document[section] = {}
     return labels.LabelRules(fixture.loaded(document))
@@ -44,28 +46,84 @@ def _refused(test, call, *arguments, fragment=None):
 
 
 class LabelRulesTest(unittest.TestCase):
+    _DECLARED = ("task", "bug", "chore", "P0", "P1", "P4", "area:core",
+                 "area:docs", "site:a", "human", "perf", "Needs Triage",
+                 "In progress", "Closed")
+
     def test_reads_the_kinds_the_declared_labels_and_the_required_axes(self):
         self.assertEqual(_RULES.kinds, {"task", "bug", "chore"})
-        self.assertEqual(
-            _RULES.declared,
-            {"task", "bug", "chore", "P0", "P1", "P4", "area:core",
-             "area:docs", "site:a", "human", "perf"},
-        )
+        for name in self._DECLARED:
+            with self.subTest(name=name):
+                self.assertIs(_RULES.is_declared(name), True)
+        self.assertIs(_RULES.is_declared("wontfix"), False)
         self.assertEqual([axis.name for axis in _RULES.required_axes], ["area"])
         self.assertEqual(_RULES.unchecked(), [])
 
     def test_no_schema_checks_nothing_and_says_so(self):
         rules = labels.LabelRules(fixture.missing())
         self.assertIsNone(rules.kinds)
-        self.assertIsNone(rules.declared)
+        self.assertIsNone(rules.is_declared("wontfix"))
         self.assertIsNone(rules.required_axes)
         self.assertEqual(len(rules.unchecked()), 3)
 
-    def test_one_unusable_label_section_leaves_labels_unverified(self):
+    def test_one_unusable_section_leaves_only_unplaceable_names_unverified(self):
         rules = _rules_without("issue_priorities")
-        self.assertIsNone(rules.declared)
         self.assertEqual(rules.kinds, {"task", "bug", "chore"})
+        # A name with a usable axis's prefix is judged on that axis alone.
+        self.assertIs(rules.is_declared("area:bogus"), False)
+        self.assertIs(rules.is_declared("area:core"), True)
+        # A bare name might be a priority, which cannot be read.
+        self.assertIsNone(rules.is_declared("stray"))
         self.assertEqual(len(rules.unchecked()), 1)
+        self.assertIn("issue_priorities", rules.unchecked()[0])
+
+    def test_unusable_unaxed_labels_do_not_admit_a_bad_axis_label(self):
+        rules = _rules_without("unaxed")
+        _refused(self, labels.validate_creation_labels, "bug", ["area:bogus"],
+                 _REGISTRY | {"area:bogus"}, rules, fragment="'area:bogus'")
+
+    def test_a_label_named_for_an_issue_state_is_declared(self):
+        labels.validate_label_addition("Needs Triage", ["bug", "area:core"],
+                                       _REGISTRY | {"Needs Triage"}, _RULES)
+
+    def test_a_kind_is_checked_whenever_the_kinds_can_be_read(self):
+        rules = _rules_without("axes", "issue_priorities")
+        _refused(self, labels.validate_creation_labels, "feature", [],
+                 _REGISTRY | {"feature"}, rules, fragment="not an Issue Kind")
+
+
+class UncarriableNameTest(unittest.TestCase):
+    """gh splits label lists on commas and reads a leading '-' as an option,
+    so such a name never reaches a gh argument, declared or not."""
+
+    def _declaring(self, name):
+        document = fixture.document()
+        document["issue_label_schema"]["labels"].append(
+            {"name": name, "meaning": "Odd", "color": "ededed"})
+        return labels.LabelRules(fixture.loaded(document))
+
+    def test_reasons(self):
+        self.assertIn("comma", labels.uncarriable_reason("x,bug"))
+        self.assertIn("'-'", labels.uncarriable_reason("-x"))
+        self.assertIsNone(labels.uncarriable_reason("area:core"))
+
+    def test_a_declared_comma_name_cannot_smuggle_a_second_kind(self):
+        rules = self._declaring("x,bug")
+        registry = _REGISTRY | {"x,bug"}
+        _refused(self, labels.validate_label_addition, "x,bug",
+                 ["task", "area:core"], registry, rules, fragment="comma")
+        _refused(self, labels.validate_creation_labels, "task",
+                 ["area:core", "x,bug"], registry, rules, fragment="comma")
+
+    def test_a_leading_dash_is_refused_on_every_path(self):
+        rules = self._declaring("-x")
+        registry = _REGISTRY | {"-x"}
+        _refused(self, labels.validate_label_addition, "-x", ["bug"],
+                 registry, rules, fragment="'-'")
+        _refused(self, labels.validate_label_removal, "-x", ["bug", "-x"],
+                 rules, fragment="'-'")
+        _refused(self, labels.validate_creation_labels, "-x", ["area:core"],
+                 registry, labels.LabelRules(fixture.missing()), fragment="'-'")
 
 
 class ValidateCreationLabelsTest(unittest.TestCase):
@@ -83,7 +141,7 @@ class ValidateCreationLabelsTest(unittest.TestCase):
 
     def test_kind_duplicated_among_extras_gets_a_clear_message(self):
         _refused(self, self._validate, "bug", ["area:core", "bug"],
-                 fragment="duplicates the kind label")
+                 fragment="duplicates the Kind Label")
 
     def test_second_kind_among_extras_is_refused(self):
         message = _refused(self, self._validate, "bug", ["area:core", "chore"])
