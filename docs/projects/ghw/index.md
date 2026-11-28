@@ -46,7 +46,7 @@ How and why it works: [design.md](design.md).
 
 ### Known gaps
 
-- `ghw-issue-close` cannot carry GitHub's close reason (completed or not
+- `ghw-issue-close` cannot carry GitHub's `state_reason` (completed or not
   planned), which `triage-apply-sync` reads to choose Done or Rejected
   (`agent-tooling-0fm`).
 - Unattended triage cannot run in a repo whose project or local settings

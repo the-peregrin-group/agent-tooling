@@ -241,9 +241,9 @@ What today's scripts assume, which the text above does not:
   or the shipped default's where the repo has none.
 - Boards carry eight `Status` options: Needs Triage, Needs Scope, Needs
   Eng Design, Needs Impl, In progress, In review, Done, and Rejected. The
-  shipped default diagram has the first six and one closed state whose
-  reason says why. On a board, read Done and Rejected as closed with that
-  reason.
+  shipped default diagram has the first six and one closed state, where
+  an Issue's Close Reason says why. On a board, read Done and Rejected as closed with
+  that Close Reason.
 - `triage-apply-sync` only makes open-or-closed and `Status` agree. For a
   closed issue it writes Done, or Rejected when the issue was closed as
   not planned. For an open issue whose `Status` is Done or Rejected it

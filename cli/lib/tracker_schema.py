@@ -4,10 +4,10 @@ A Tracker Schema is a Markdown file (`TRACKER.md` at a repo's root, copied
 from `skills/setup-issue-tracker/TRACKER.default.md`) whose one JSON block
 holds what tooling reads: the Issue Kinds, the Issue Priorities, the Issue
 Label Schema, the Issue States in the Issue State Diagram's order with each
-one's open flag and which one is the entry state, the close reasons, a
+one's open flag and which one is the Entry State, the Close Reasons, a
 colour for every kind, priority, label, and state, and the provenance. The
 prose around it holds the state meanings and transition conditions, and
-when each close reason may be given, which are for agents and people, so
+when each Close Reason may be given, which are for agents and people, so
 this module reads none of it.
 
 The file itself is the contract this module implements: the rule under its
@@ -24,8 +24,8 @@ a caller from using the parts that are sound:
     a marker in the prose, a fence spelled another way, a stray line beside
     the fence) is read anyway, with a Problem.
   - Otherwise `parse` always returns a TrackerSchema. Each section
-    (provenance, kinds, priorities, label axes, unaxed labels, states, close
-    reasons) is read on its own. A section with nothing safe to read is unusable, and
+    (provenance, kinds, priorities, label axes, unaxed labels, states, Close
+    Reasons) is read on its own. A section with nothing safe to read is unusable, and
     asking for it raises UnusableSectionError for that section alone; a
     caller that never asks is unaffected.
   - Within a section, a bad entry is left out and the rest kept, and so is
@@ -38,7 +38,7 @@ a caller from using the parts that are sound:
     entry flag, or no state or several flagged, keeps every state and makes
     `entry_state` None. Those problems are not lossy, since no state is
     lost, so the states can still be complete and only a caller that needs
-    the entry state is stopped.
+    the Entry State is stopped.
   - A key the reader does not know, at any level, is ignored. A key it
     needs and does not find makes that field or section absent. So a copy
     written for a newer reader, and one written for an older reader, both
@@ -283,7 +283,7 @@ class IssueLabelSchema:
 @dataclass(frozen=True)
 class IssueState:
     """An Issue State. A state whose open flag is bad is left out, so `open`
-    is always a real bool. Which state is the entry state is
+    is always a real bool. Which state is the Entry State is
     `TrackerSchema.entry_state`, not a field here, since it can be unknown
     while every state is still sound."""
 
@@ -294,8 +294,8 @@ class IssueState:
 
 @dataclass(frozen=True)
 class CloseReason:
-    """A reason an Issue is closed with. When it may be given is in the
-    file's prose, keyed by this name."""
+    """A Close Reason. When it may be given is in the file's prose, keyed
+    by this name."""
 
     name: str
     meaning: Optional[str]
@@ -403,8 +403,8 @@ class TrackerSchema:
 
     @property
     def entry_state(self) -> Optional[IssueState]:
-        """The state an Issue is filed in when its right state is not known,
-        or None when the file does not name exactly one open state as it
+        """The Entry State, the state an Issue is filed in when its right
+        state is not known, or None when the file does not name exactly one open state as it
         (`problems_in(ISSUE_STATES)` says why). That None is the only
         signal: the problem behind it is not lossy, so `complete` on the
         states does not reflect it. Raises UnusableSectionError when the
@@ -728,7 +728,7 @@ class _Reader:
 
     def unusable_if_empty(self, items: list, section: str):
         """An empty section reads as unusable rather than as "none declared":
-        no kind, priority, state, or close reason at all would make every
+        no kind, priority, state, or Close Reason at all would make every
         Issue, or every close, nonconforming, which is a broken file, not a
         repo's choice."""
         if not items:
@@ -841,7 +841,7 @@ class _Reader:
         if entries is None:
             return None
         states = []
-        # The names flagged as the entry state, those of states later left
+        # The names flagged as the Entry State, those of states later left
         # out included, and whether any entry flag could not be read.
         flagged: List[Optional[str]] = []
         doubted = False
@@ -898,7 +898,7 @@ class _Reader:
         """A state's entry flag: False when it is absent, as on every state
         but one, and None, with a Problem, when it cannot be read."""
         at = f"{where}.entry"
-        unknown = "; the entry state is unknown"
+        unknown = "; the Entry State is unknown"
         if "entry" not in raw:
             if "entry" in getattr(raw, "duplicate_keys", ()):
                 # Not lossy, like every entry-flag problem: no state is
@@ -915,15 +915,15 @@ class _Reader:
 
     def the_entry_state(self, kept: list,
                         flagged: List[Optional[str]]) -> Optional[str]:
-        """The name of the one open state flagged as the entry state, or
+        """The name of the one open state flagged as the Entry State, or
         None, with a Problem, when that is not plain. Every state is kept
-        either way: only the entry state is unknown, so the Problem is not
+        either way: only the Entry State is unknown, so the Problem is not
         lossy and the states can still be complete; `entry_state` being
         None is what tells a caller that needs it."""
 
         def unknown(message: str) -> None:
             self.problem(ISSUE_STATES, ISSUE_STATES,
-                         f"{message}; the entry state is unknown", lossy=False)
+                         f"{message}; the Entry State is unknown", lossy=False)
 
         if not flagged:
             unknown("no state is flagged \"entry\": true")
@@ -964,7 +964,7 @@ class _Reader:
                 raw, "meaning", CLOSE_REASONS, where, _ABSENT
             )))
         return self.unusable_if_empty(
-            self.one_of_each(reasons, CLOSE_REASONS, "close reason"),
+            self.one_of_each(reasons, CLOSE_REASONS, "Close Reason"),
             CLOSE_REASONS,
         )
 

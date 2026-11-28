@@ -398,7 +398,7 @@ class DegradationTest(_Checks):
                       "issue_priorities[1].stale_after_days: missing")
 
     def test_a_copy_from_before_entry_order_close_reasons_and_colours(self):
-        # The block as it was before the entry flag, the close reasons, and
+        # The block as it was before the entry flag, the Close Reasons, and
         # the colours: every older section stays usable, with warnings.
         document = copy.deepcopy(_DOCUMENT)
         del document["close_reasons"]
@@ -416,7 +416,7 @@ class DegradationTest(_Checks):
         self.assertIsNone(schema.kind("bug").color)
         self.assertIsNone(schema.entry_state)
         self._problem(schema, tracker_schema.ISSUE_STATES,
-                      "no state is flagged \"entry\": true; the entry state "
+                      "no state is flagged \"entry\": true; the Entry State "
                       "is unknown", lossy=False)
         self._problem(schema, tracker_schema.ISSUE_KINDS,
                       "issue_kinds[0].color: missing; read as absent")
@@ -682,14 +682,14 @@ class DegradationTest(_Checks):
         self._problem(opposite, tracker_schema.ISSUE_STATES,
                       "flagged both open and closed")
 
-    # -- the entry state ------------------------------------------------------
+    # -- the Entry State ------------------------------------------------------
     #
     # Whatever is wrong with the entry flags, every state is kept and only
-    # the entry state is unknown, so only a caller that needs it stops.
+    # the Entry State is unknown, so only a caller that needs it stops.
 
     def _entry_unknown(self, states, fragment: str,
                        state_lost: bool = False) -> None:
-        """The entry state is unknown, with a problem that is not lossy, so
+        """The Entry State is unknown, with a problem that is not lossy, so
         the states stay complete unless a state was itself left out."""
         schema = _read(_with(issue_states=states), fill=False)
         self.assertIsNone(schema.entry_state)
@@ -720,7 +720,7 @@ class DegradationTest(_Checks):
                 states = copy.deepcopy(_DOCUMENT["issue_states"])
                 states[1]["entry"] = flag
                 self._entry_unknown(states, "issue_states[1].entry: must be "
-                                    "true or false; the entry state is unknown")
+                                    "true or false; the Entry State is unknown")
 
     def test_an_entry_flag_written_twice_leaves_it_unknown(self):
         block = _fenced(_DOCUMENT).replace('"entry": true',
@@ -802,7 +802,7 @@ class DegradationTest(_Checks):
                               tracker_schema.UNAXED_LABELS,
                               tracker_schema.ISSUE_STATES)
 
-    # -- close reasons --------------------------------------------------------
+    # -- Close Reasons --------------------------------------------------------
 
     def test_close_reasons_degrade_like_kinds(self):
         reasons = [{"name": "done", "meaning": "Finished"}, {"meaning": "x"},
@@ -815,7 +815,7 @@ class DegradationTest(_Checks):
         self._problem(schema, tracker_schema.CLOSE_REASONS,
                       "close_reasons[1].name: missing; the entry is left out")
         self._problem(schema, tracker_schema.CLOSE_REASONS,
-                      "the close reason 'done' is declared 2 times")
+                      "the Close Reason 'done' is declared 2 times")
 
     def test_close_reasons_unusable_alone(self):
         for reasons in ([], "done", [{"meaning": "x"}]):
@@ -1062,7 +1062,7 @@ def _sections(text: str, parent: str):
 
 
 def _close_reason_conditions(text: str):
-    """The close reasons the prose keys a condition by: each bullet under
+    """The Close Reasons the prose keys a condition by: each bullet under
     the "Into Closed" heading that begins with a name in backticks."""
     names, inside = [], False
     for line in text.split("\n"):
@@ -1078,11 +1078,11 @@ def _close_reason_conditions(text: str):
 class ShippedSchemaValidityTest(unittest.TestCase):
     """The shipped default and this repo's own copy read with no Problem at
     all (no stray from the delimiting rule, no unknown key, no entry left
-    out, every section complete, so exactly one entry state and a colour on
+    out, every section complete, so exactly one Entry State and a colour on
     everything that takes one), and in each the block and the prose agree:
     the prose's state sections are the block's states in the block's order,
-    and its close-reason conditions are keyed by the block's close
-    reasons."""
+    and its Close Reason conditions are keyed by the block's Close
+    Reasons."""
 
     def _check(self, path: Path) -> tracker_schema.TrackerSchema:
         text = path.read_text(encoding="utf-8")
@@ -1117,7 +1117,7 @@ class ShippedSchemaValidityTest(unittest.TestCase):
         self.assertEqual(
             [reason.name for reason in schema.close_reasons],
             _close_reason_conditions(text),
-            f"{path.name}: the block's close reasons and those the 'Into "
+            f"{path.name}: the block's Close Reasons and those the 'Into "
             "Closed' prose keys a condition by differ",
         )
         return schema

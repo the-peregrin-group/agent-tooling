@@ -22,7 +22,7 @@ reorganizes children, not only adds them, and
 [ADR 0025](../../adr/0025-the-tracker-schema-is-one-markdown-file-with-one-json-block.md)
 (the Tracker Schema is one Markdown file with one JSON block), amended by
 [ADR 0027](../../adr/0027-the-tracker-schema-block-holds-state-order-entry-state-close-reasons-and-colours.md)
-(the block also holds the state order, the entry state, the close reasons,
+(the block also holds the state order, the Entry State, the Close Reasons,
 and every colour). The work is
 tracked under `agent-tooling-u9n` (split the Issue
 Tracker skills into a generic layer and platform layers); the Wrapper work
@@ -60,8 +60,8 @@ is tracked in `agent-tooling-84n3` (bdw), `agent-tooling-fyxo` (ghw),
 - ghw's board Status and Priority options and their colours are fixed
   constants, not the repo's Issue States and Issue Priorities
   (`agent-tooling-u9n.21`).
-- ghw filing sets no priority or entry state, and ghw closing carries no
-  close reason (`agent-tooling-u9n.22`).
+- ghw filing sets no priority or Entry State, and ghw closing carries no
+  Close Reason (`agent-tooling-u9n.22`).
 - Nothing checks that a repo's Beads holds the kinds, priorities, and
   labels its Tracker Schema declares (`agent-tooling-u9n.23`).
 - fjw's issue-Verbs design plans labels that ignore the Tracker Schema

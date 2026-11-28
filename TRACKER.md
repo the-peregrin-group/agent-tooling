@@ -11,11 +11,11 @@ Each fact lives in exactly one place in this file:
 
 - The JSON block below holds the Issue Kinds, the Issue Priorities with
   their staleness thresholds, the Issue Label Schema, the Issue States in
-  order with each one's open or closed flag and which one is the entry
-  state, the close reasons, a colour for every kind, priority, label, and
+  order with each one's open or closed flag and which one is the Entry
+  State, the Close Reasons, a colour for every kind, priority, label, and
   state, and the provenance.
 - The prose after it holds the state meanings and the transition
-  conditions, keyed by state name, and when each close reason may be
+  conditions, keyed by state name, and when each Close Reason may be
   given, keyed by the reason's name.
 
 The file is the repo owner's to change. It is a tracked file, changed
@@ -268,12 +268,12 @@ block you add to this file outside the markers.
   "earlier" and "later" there mean earlier and later in this list. Each
   has its `name`, its `open` flag, `true` for an open state and `false`
   for a closed one, and its `color`. Exactly one open state also has
-  `"entry": true`: it is the entry state, where an Issue is filed when its
+  `"entry": true`: it is the Entry State, where an Issue is filed when its
   right state is not known; the other states need no `entry` key. The
   order and those two flags are the only structure the states have. Every
   Issue is in exactly one state, and whether an Issue is open or closed
   follows from its Issue State.
-- `close_reasons`: the reasons an Issue is closed with, each with its
+- `close_reasons`: the Close Reasons an Issue is closed with, each with its
   `name` and its `meaning`. When each may be given is under "Into Closed"
   below, keyed by its name.
 
@@ -356,7 +356,7 @@ waiting on.
 #### Closed
 
 It needs no attention. Done and rejected are not attention states; they
-are Closed plus a close reason.
+are Closed plus a Close Reason.
 
 #### A Branch Issue in these states
 
@@ -394,7 +394,7 @@ To Needs Scope, when all of these hold:
 
 - The universal bar is met: a title that states the outcome; a body that says
   what is known and what is not, with no placeholder text; and an Issue
-  Kind, an Issue Priority, and the entry Issue State, each set as best the
+  Kind, an Issue Priority, and an Issue State, each set as best the
   filer can.
 - Its labels conform to the Issue Label Schema.
 - It carries a pointer: a code location, an observable behavior.
@@ -450,8 +450,8 @@ To Closed, as "Into Closed" says.
 
 #### Into Closed, from any open state
 
-Every close carries its reason, one of the close reasons the block
-declares; forge auto-close on PR merge is the one exception. A reason is
+Every close carries its Close Reason, one of those the block declares;
+forge auto-close on PR merge is the one exception. A Close Reason is
 given only when its meaning holds and so does its condition here:
 
 - `done`: a Leaf Issue's acceptance criteria hold, or a Branch Issue's
@@ -466,7 +466,7 @@ given only when its meaning holds and so does its condition here:
 
 #### Out of Closed
 
-To an open state, when the reason it was closed no longer holds (the work
+To an open state, when its Close Reason no longer holds (the work
 regressed, say, or it was closed unfinished). Every reopen carries its
 reason. The Issue returns to the state the rule for a regression, below,
 gives.

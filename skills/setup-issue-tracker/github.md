@@ -61,9 +61,9 @@ owner's call. A missing `Size` is reported, not created.
 `In review`, `Done`, `Rejected`. Match the open options to the open
 states of the repo's Issue State Diagram; the default's are the first six.
 Done and Rejected stay, because ghw and the triage scripts work to them,
-and read as the closed state with that reason. Missing options reported under
-`conformance.gaps` are added by the owner by hand, in the board's Project
-settings. Options under `conformance.extra_options` are the owner's own;
+and read as the closed state with that Close Reason. Missing options
+reported under `conformance.gaps` are added by the owner by hand, in the
+board's Project settings. Options under `conformance.extra_options` are the owner's own;
 leave them.
 
 Then, either way:

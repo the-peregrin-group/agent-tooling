@@ -4,8 +4,8 @@ description: >
   How this ecosystem tracks work. Each Issue has exactly one writable home.
   The filing bar is a minimum: a title that states the outcome; a body that
   says what is known and what is not, with no placeholder text; and an Issue
-  Kind, an Issue Priority, and the entry Issue State, each set as best the
-  filer can. A Leaf Issue is one focused task sized for one session; anything
+  Kind, an Issue Priority, and an Issue State, each set as best the filer
+  can. A Leaf Issue is one focused task sized for one session; anything
   bigger is a project, tracked by a Branch Issue, whose work is management:
   scoping, setting success criteria, breaking down, and verifying completion.
   One person or agent advances an Issue at a time. Judge every move against
@@ -117,7 +117,7 @@ living document).
 - The filing bar is the same on every tracker, and it is a
   minimum: a title that states the outcome; a body that says what is known
   and what is not, with no placeholder text; and an Issue Kind, an Issue
-  Priority, and the entry Issue State, each set as best the filer can. A
+  Priority, and an Issue State, each set as best the filer can. A
   more complete Issue is welcome, so long as it states what is known rather
   than presuming what is not: technical design and implementation choices
   are not the filer's to settle at filing, least of all when filing into a

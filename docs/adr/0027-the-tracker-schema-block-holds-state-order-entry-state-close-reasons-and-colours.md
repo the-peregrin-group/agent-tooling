@@ -3,17 +3,17 @@ date: 2026-11-25
 status: current
 ---
 
-# The Tracker Schema's JSON block also holds the state order, the entry state, the close reasons, and every colour
+# The Tracker Schema's JSON block also holds the state order, the Entry State, the Close Reasons, and every colour
 
-**Context:** [ADR 0025](0025-the-tracker-schema-is-one-markdown-file-with-one-json-block.md) (the Tracker Schema is a Markdown file with one JSON block for what tooling reads) lists what the block holds, and the Wrappers, which must now follow each repo's Tracker Schema, need facts it lacked: which Issue State an Issue is filed in, the order of the states, the close reasons, and the label and board colours ghw hard-codes. The block said its state list's order carried no meaning, and the entry state and close reasons were prose only. The file as built is described in the [use-issues design](../projects/use-issues/design.md).
+**Context:** [ADR 0025](0025-the-tracker-schema-is-one-markdown-file-with-one-json-block.md) (the Tracker Schema is a Markdown file with one JSON block for what tooling reads) lists what the block holds, and the Wrappers, which must now follow each repo's Tracker Schema, need facts it lacked: which Issue State is the Entry State, the order of the states, the Close Reasons, and the label and board colours ghw hard-codes. The block said its state list's order carried no meaning, and the Entry State and Close Reasons were prose only. The file as built is described in the [use-issues design](../projects/use-issues/design.md).
 
-**Decision:** The block lists the Issue States in Issue State Diagram order with exactly one open state flagged as the entry state, holds the close reasons by name and meaning in a list of their own, and gives every Issue Kind, Issue Priority, Issue Label, and Issue State a colour that bringing the tracker in line with the file applies just as it applies a description.
+**Decision:** The block lists the Issue States in Issue State Diagram order with exactly one open state flagged as the Entry State, holds the Close Reasons by name and meaning in a list of their own, and gives every Issue Kind, Issue Priority, Issue Label, and Issue State a colour that bringing the tracker in line with the file applies just as it applies a description.
 
 **Rationale:** Each is a fact tooling acts on, so it lives once, in the block, and a colour is declared data like a description rather than a special case for the Wrappers.
 
 ## Consequences
 
-- The prose keeps only meanings and conditions keyed by name: it no longer names the entry state or holds the order, and each close reason's condition stays under "Into Closed".
+- The prose keeps only meanings and conditions keyed by name: it no longer names the Entry State or holds the order, and each Close Reason's condition stays under "Into Closed".
 - ghw's colour constants become a copy the label and board Verbs retire when they read the schema.
 
 ## Alternatives Considered
