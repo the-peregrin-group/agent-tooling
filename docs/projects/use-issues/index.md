@@ -52,7 +52,7 @@ is tracked in `agent-tooling-84n3` (bdw), `agent-tooling-fyxo` (ghw),
 ### Known gaps
 
 - Only ghw's label Verbs and `ghw-orient` read a repo's `TRACKER.md`;
-  every other Wrapper neither follows its schema nor warns about its
+  every other Verb neither follows its schema nor warns about its
   defects as [the design](design.md#how-a-wrapper-uses-the-schema) says;
   the lines below are the parts (`agent-tooling-u9n`).
 - ghw's board Status and Priority options and their colours are fixed

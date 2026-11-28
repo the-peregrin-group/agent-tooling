@@ -36,7 +36,7 @@ Shared conventions:
   argument-parse time, before any network call, such as `squash`), `3` not
   found, `4` refused: a policy refusal past parse time, the call well formed
   but violating policy against live state (the label contract, a merge gate, an unlinked board, a missing
-  branch), `5` auth or deployment failure, such as a `gh` below `ghw-issue-link`'s version floor (abort and flag it), `6` network failure (the one retryable class; on create and comment Verbs and `ghw-board-sync new` a timeout or reset exits `1`, since the write may have landed, and `ghw-issue-close` exits `1` on any network failure during the close, since the comment is posted first). Write wrappers print a JSON
+  branch, `ghw-label-sync apply-delete` while the repo's `TRACKER.md` is missing or has a problem in a part the labels come from), `5` auth or deployment failure, such as a `gh` below `ghw-issue-link`'s version floor (abort and flag it), `6` network failure (the one retryable class; on create and comment Verbs and `ghw-board-sync new` a timeout or reset exits `1`, since the write may have landed, and `ghw-issue-close` exits `1` on any network failure during the close, since the comment is posted first). Write wrappers print a JSON
   plan with `"action": "plan"` or `"applied"`.
 - **On exit 2, read the message and fix the call. On exit 4, never retry
   unchanged:** read the message; fix the call or the state it names (push
@@ -115,10 +115,11 @@ gh issue list --repo <owner/repo> --search "<keywords>" --state all --limit 20
 ## Step 3: File the Issue
 
 **Labels come from the repo's Tracker Schema, `TRACKER.md`.** Every issue
-gets exactly one Kind Label, one per Issue Kind the schema declares, and at
-least one label from every axis the schema says every Issue carries (on
-the shipped default, the `area:` labels). Any other label must be one the
-schema declares, on an axis or on no axis (`human`, say). A label that
+gets exactly one Kind Label, named for one of the schema's Issue Kinds,
+and at least one label from every axis the schema says every Issue
+carries (on the shipped default, an Area Label). Any other label must be
+one the schema declares: a priority, a label on an axis or on no axis
+(`human`, say), or a label named for an Issue State. A label that
 exists on GitHub but not in the schema is refused: an unknown label is a
 mistake to fix, not a new label. To add a label, change `TRACKER.md`,
 merge it, and run `ghw-label-sync` (see `github.md` in the
@@ -156,12 +157,9 @@ effectively lost. Set both as part of filing, not later.
 attached at filing (Step 3), there is no board to write to, and this step is
 skipped entirely.
 
-| Priority | Meaning |
-|----------|---------|
-| `P0` | Drop-everything and address now |
-| `P1` | Most important non-emergency work |
-| `P2` | Standard backlog work |
-| `P3` | Nice-to-have; opportunistic |
+The board's `Priority` options are `P0` to `P3`; what each level means is
+the repo's `TRACKER.md` (its Issue Priorities), which `create-issue` reads
+when choosing one.
 
 ```bash
 ghw-board-set <owner/repo> <field-name> <option-name> <issue#> [--project <number>]

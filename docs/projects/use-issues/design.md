@@ -64,8 +64,8 @@ colour as it is, and gives a neutral default only to a label or option it
 must create. Where a tracker offers only a few named colours (a GitHub
 project board's options take one of eight), the Wrapper that writes there
 shows the nearest, so the file holds one form for every platform. The
-shipped default's colours are the ones ghw's labels had before ghw read
-the schema, where one existed, and
+shipped default's colours are the ones the labels of repos already set
+up with ghw carry, where such a label exists, and
 for the states hex values chosen to read as the board colours ghw gives
 those states today, so that the first sync from the schema need change
 little; what "nearest" means is the board Verb's to define

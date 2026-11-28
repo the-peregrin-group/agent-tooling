@@ -93,10 +93,14 @@ How and why it works: [design.md](design.md).
   (`agent-tooling-oj8w`).
 - A repo's board cannot follow its Tracker Schema on GitHub:
   `ghw-board-sync` provisions fixed `Status` and `Priority` options with
-  fixed colours, and the priority regime is judged against P0 to P3,
-  rather than reading the repo's `TRACKER.md` from its default branch, as
-  the [use-issues design](../use-issues/design.md#how-a-wrapper-uses-the-schema)
+  fixed colours, the priority regime is judged against P0 to P3, and
+  `ghw-orient`'s `priority_labels_present` reports only P0 to P3, rather
+  than reading the repo's `TRACKER.md` from its default branch, as the
+  [use-issues design](../use-issues/design.md#how-a-wrapper-uses-the-schema)
   says it should (`agent-tooling-u9n.21`).
+- `ghw-label-sync` keeps a label named for an Issue State but never creates
+  one, because where a repo with no board records an Issue's state is not
+  decided (`agent-tooling-vb2v`).
 - `ghw-issue-create` and `ghw-issue-edit` match label names exactly, so a
   live `Human` refuses `human`, though GitHub and `ghw-label-sync` treat
   them as one label (`agent-tooling-uln8`).

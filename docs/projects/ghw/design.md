@@ -134,22 +134,29 @@ resolution) before the write itself.
   holds the labels to the label attachment contract, which comes from the
   repo's Tracker Schema: `<kind-label>` is one of its Issue Kinds and no
   second kind is among the labels; every label is one the schema declares
-  (a kind, a priority, an axis's label, or a label on no axis), so a label
-  that exists on GitHub but not in the schema is refused; and every axis
-  the schema marks as carried by every Issue has a label among them. Every
-  label must also exist in the live registry, since `ghw-label-sync` is the
-  only way labels get created. `TRIAGE.md` plays no part in label
-  validation.
+  (a kind, a priority, an axis's label, a label on no axis, or a label
+  named for an Issue State), so a label that exists on GitHub but not in
+  the schema is refused; and every axis the schema marks as carried by
+  every Issue has a label among them. Every label must also exist in the
+  live registry, since `ghw-label-sync` is the only way labels get
+  created, and its name must be one `gh` can pass whole: `gh` splits a
+  label list on commas, so `x,bug` would attach a second kind, and reads a
+  leading `-` as an option, so such a name is refused even where the
+  schema declares it. A priority counts as declared whatever the priority
+  regime, so on a `board-field` repo a priority label is accepted while it
+  still exists on GitHub, though `ghw-label-sync` treats it as a deletion
+  candidate there. `TRIAGE.md` plays no part in label validation.
 - `ghw-issue-comment <repo> <issue#> <body-file>`.
 - `ghw-issue-edit <repo> <add-label|remove-label|retitle|set-body> <issue#>
   <value>`: the subverb at position 2 lets a grant include label edits while
   withholding `set-body`, since an arbitrary body rewrite is a write a repo
   may want to withhold. `set-body` takes a staged file, never inline text.
-  `add-label` applies the attachment contract and refuses a second kind
-  label, naming the incumbent; reclassifying takes two visible calls.
-  `remove-label` refuses to remove an issue's last label on an axis the
-  schema marks as carried by every Issue. Each subverb converges to a no-op
-  when already satisfied.
+  `add-label` applies the attachment contract and refuses a second Kind
+  Label, naming the incumbent; reclassifying takes two visible calls, and
+  removing the Kind Label, the first of them, is allowed. `remove-label`
+  refuses to remove an issue's last label on an axis the schema marks as
+  carried by every Issue. Each subverb converges to a no-op when already
+  satisfied.
 - `ghw-issue-close <repo> <issue#> <comment-file>`: its own Verb, never a flag
   on edit, so closing is independently grantable. The comment is mandatory (a
   missing or blank one is exit 2): it is the audit record of why the issue was
@@ -200,26 +207,44 @@ resolution) before the write itself.
   desired labels are exactly what the repo's Tracker Schema declares: every
   Issue Kind as its Kind Label, every Issue Priority where the repo carries
   priority as labels, every axis's labels, and every label on no axis, each
-  with the schema's name, meaning as its description, and colour. Whether
-  priority is carried as labels is the priority regime `ghw-orient` reports
-  from the board: on `p-labels` the priorities are desired labels, on
-  `board-field` they are not (so live priority labels are deletion
-  candidates), and on `unknown` they are neither created nor deleted, with a
-  warning. A meaning longer than GitHub's 100-character limit for a label
-  description is cut at a word boundary and ends in `...`. Two declared
-  names that GitHub would treat as one label (they differ only in case) are
-  kept once, the first declared, with a warning. Anything else in the repo
-  is a deletion candidate, which clears GitHub's stock labels at bootstrap
-  unless the schema declares one (the shipped default declares `bug`).
-  `plan` is a pure read printing the full diff, and the JSON names the
-  schema it read (`tracker_schema`) and the priority regime. `apply` creates
+  with the schema's name, meaning as its description, and colour. Where the
+  schema's meaning or colour for a label is missing or bad, the live value
+  is left as it is, and a label that has to be created gets an empty
+  description or GitHub's default `ededed`, per the use-issues design's
+  rule for colours ([Format](../use-issues/design.md#format)). Whether
+  priority is carried as labels is the priority regime, judged from the
+  boards linked on GitHub alone, with no local file read: on `p-labels`
+  (no board) the priorities are desired labels, on `board-field` they are
+  not (so live priority labels are deletion candidates), and on `unknown`
+  (several boards, or one whose `Priority` field does not conform) they are
+  neither created nor deleted, with a warning. `ghw-orient` can resolve
+  several boards from a `TRIAGE.md` in the working directory; the sync does
+  not, so which directory it runs from never decides a deletion. A label
+  named for an Issue State is declared by that state, as the schema's text
+  says, so it is never a deletion candidate; the sync does not create one,
+  because where a forge with no board records an Issue's state is still
+  open (`agent-tooling-vb2v`). GitHub refuses a label description over 100
+  characters, so the sync cuts a longer meaning at a word boundary and ends
+  it in `...`, the same way on every run. A declared name `gh` cannot pass
+  whole (a comma, or a leading `-`) is neither created nor deleted, with a
+  warning, and a live label with such a name that the schema does not
+  declare is left for a person to delete. Two declared names that GitHub
+  would treat as one label (they differ only in case) are kept once, the
+  first declared, with a warning. Anything else in the repo is a deletion
+  candidate, which clears GitHub's stock labels at bootstrap unless the
+  schema declares one (the shipped default declares `bug`). `plan` is a
+  pure read printing the full diff, and the JSON carries the same
+  `tracker_schema` object `ghw-orient` reports, and the priority regime.
+  `apply` creates
   and fixes colour and description drift, and prints deletes without
   executing them. `apply-delete` also executes the deletes, open issues
   included; deletion authority is granted by granting that mode. Deletion
   derives from every section that declares labels, so when one of them is
   not complete (see Following the Tracker Schema), `plan` and `apply` show
   no deletes and say why under `delete_refused`, and `apply-delete` is
-  refused with exit `4` before any write. In every mode, deletion
+  refused with exit `4` before any write; when the schema could not be
+  fetched for a network or auth failure, it exits with that failure's code
+  (`6` or `5`) instead, so a caller can retry or flag it. In every mode, deletion
   candidates attached to open issues are listed on stderr (and in the JSON
   plan), because `plan` is exactly where a human decides whether to grant
   deletion. Case-only mismatches are reported; creates run before deletes;
@@ -270,26 +295,32 @@ When the file is missing, cannot be fetched, or a section cannot be used,
 each Verb follows the use-issues design's three-way split
 ([How a Wrapper uses the schema](../use-issues/design.md#how-a-wrapper-uses-the-schema)): reads and writes that need
 nothing from the schema always work, additive writes go ahead on what can
-be verified, and a destructive write is refused (exit `4`, naming the part)
-unless every section it derives from is complete.
+be verified, and a destructive write is refused (exit `4`, naming the part,
+or the fetch failure's own `5` or `6`) unless every section it derives from
+is complete.
 
 | Verb | No readable schema | A section is unusable | A section is incomplete |
 |---|---|---|---|
 | `ghw-label-sync` `plan`, `apply` | nothing to create; no deletes, `delete_refused` says why | that section adds no labels; no deletes | adds what was read; no deletes |
-| `ghw-label-sync` `apply-delete` | refused, exit `4` | refused, exit `4` | refused, exit `4` |
-| `ghw-issue-create`, `ghw-issue-edit add-label` | registry check only | its checks are skipped; the declared-label check needs every label-declaring section usable | checks run on what was read |
+| `ghw-label-sync` `apply-delete` | refused, exit `4` (`5` or `6` for a failed fetch) | refused, exit `4` | refused, exit `4` |
+| `ghw-issue-create`, `ghw-issue-edit add-label` | registry check only | only what needs that section is let through (see below) | checks run on what was read |
 | `ghw-issue-edit remove-label` | goes ahead | axes unusable: no axis is held as required | checks run on what was read |
 | `ghw-orient` | reports it under `tracker_schema` | reports it | reports it |
 | Every other Verb | does not read the schema | | |
 
 The label-declaring sections are the Issue Kinds, the Issue Priorities, the
-label axes, and the labels on no axis; for `ghw-label-sync` the Issue
-Priorities count only where the priority regime is not `board-field`.
-Additive checks use what is usable rather than what is complete, so a label
-lost from a usable section is refused as undeclared, and the warning for
-that section says why. `remove-label` is an edit to one issue, not a write
-derived from the schema, so a check it cannot run is skipped rather than
-refused.
+label axes, the labels on no axis, and the Issue States (a label named for
+a state). For `ghw-label-sync` the Issue Priorities count only where the
+priority regime is not `board-field`. An unusable section switches off only
+the checks that need it: the kind is checked whenever the kinds can be
+read; a label carrying a usable axis's prefix can belong only to that axis,
+so the axis alone decides it; and any other label is refused as undeclared
+only when every section it could belong to can be read, and let through,
+with the warning, when it might belong to one that cannot. Additive checks
+use what is usable rather than what is complete, so a label lost from a
+usable section is refused as undeclared, and the warning for that section
+says why. `remove-label` is an edit to one issue, not a write derived from
+the schema, so a check it cannot run is skipped rather than refused.
 
 Rejected:
 - a local schema file or fallback for `ghw-label-sync`, since the labels
@@ -299,7 +330,11 @@ Rejected:
   Issue on a forge that is reachable but whose `TRACKER.md` is broken would
   then stop all work;
 - deriving `ghw-label-sync`'s deletions from a usable but incomplete
-  section, since an entry the reader lost would read as a label to delete.
+  section, since an entry the reader lost would read as a label to delete;
+- letting `ghw-label-sync` pick among several boards from a `TRIAGE.md`
+  in the working directory, as `ghw-orient` does, since no local file is an
+  input to a Verb and the directory a sync ran from would then decide
+  whether priority labels are deleted.
 
 ### Board disambiguation
 

@@ -76,12 +76,15 @@ Then, either way:
 
 ## Labels
 
-On GitHub an Issue's kind is its Kind Label, one label per Issue Kind
-named for it; do not swap in GitHub's issue types. Without a board, each
-Issue Priority is a label named for it too. Everything else is a label
-the copy declares on an axis (the `area:` labels, say) or on no axis
-(`human`, say). Every label takes its description from its meaning,
-which GitHub cuts at 100 characters, and its colour from the copy.
+On GitHub an Issue's kind is its Kind Label, a label named for one of the
+copy's Issue Kinds; do not swap in GitHub's issue types. Without a board,
+each Issue Priority is a label named for it too. Everything else is a
+label the copy declares on an axis (the Area Labels, say) or on no axis
+(`human`, say). Every label takes its description from its meaning and
+its colour from the copy. GitHub refuses a description over 100
+characters, so `ghw-label-sync` shortens a longer meaning to fit. A label
+name must not hold a comma or start with `-`, since `gh` cannot pass
+such a name whole; the sync warns about one and leaves it alone.
 
 A board's `Priority` options are `P0` to `P3` whatever the copy says,
 until the board Verbs follow the Tracker Schema. So with a board, keep the
@@ -103,8 +106,11 @@ how GitHub's stock labels go (stock `bug` matches the default's kind and is
 updated, not deleted). The plan warns about deletions still attached to
 open issues. `apply` creates and fixes drift but deletes nothing; setup
 normally wants `apply-delete`. Where a part of `TRACKER.md` the labels come
-from has a problem, the warnings name it, the plan deletes nothing, and
-`apply-delete` is refused until it is fixed. A re-run converges to no
+from has a problem, the warnings name it, the plan lists no deletes and
+says why under `delete_refused`, and `apply-delete` is refused (exit 4)
+until it is fixed. A plan with nothing to create and a `delete_refused`
+saying `TRACKER.md` is not found means it has not been merged to the
+default branch yet: merge it first, then sync. A re-run converges to no
 change. To change labels later, change `TRACKER.md`, merge it, and sync
 again.
 
@@ -174,7 +180,8 @@ gh project item-list <number> --owner <owner> --limit 200
 ```
 
 `ghw-orient` shows the labels, the linked board, and its conformance in
-one read. The last line applies only with a board. If TODO comments were
+one read; its `tracker_schema` should show `readable: true` and no
+warnings. The last line applies only with a board. If TODO comments were
 converted, search the tree for any left without an issue number. Report
 the counts: labels, open and closed issues filed, and board items.
 
