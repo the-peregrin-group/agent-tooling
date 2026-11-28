@@ -160,11 +160,12 @@ file yet states its scheme in `.beads/PRIME.md`, which `bdw prime` prints.
 
 **GitHub Issues** (`ghw-*`). Help: each Verb's `--help`. `use-github` holds
 the arguments, the label contract, and the board mechanics until that help
-does; the repo's scheme today is what `ghw-orient <owner/repo>` reports.
+does; the kinds and labels are the repo's `TRACKER.md`, and its live labels
+and board are what `ghw-orient <owner/repo>` reports.
 
 - Search: `gh issue list --repo <owner/repo> --search "<keywords>" --state
   all --limit 20`.
-- File: `ghw-issue-create`. Kind is its type label, a Kind Label.
+- File: `ghw-issue-create`. Kind is its Kind Label.
 - Priority and the state filed in: `ghw-board-set`, where priority is a board
   field; otherwise the priority is a label attached at filing.
 - A dependency or a parent: `ghw-issue-link` (`add-blocked-by`, `add-sub`).

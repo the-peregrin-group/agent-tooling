@@ -41,9 +41,9 @@ resolution) before the write itself.
    [argument contract](../../index.md#argument-contract) states it and its
    reason.
 4. **The Wrapper enforces the contracts.** The three GitHub Skills form one
-   ecosystem, and every Verb enforces its shared contracts (label schema,
-   priority regime, canonical board schema) in code rather than trusting the
-   caller.
+   ecosystem, and every Verb enforces its shared contracts (the repo's
+   Tracker Schema, the priority regime, the canonical board schema) in code
+   rather than trusting the caller.
 5. **Idempotency is a contract** for every `-sync` and `-set` Verb, and for
    `ghw-issue-edit`, `ghw-issue-close`, and `ghw-issue-link`: declarative
    desired state, re-runs are converged no-ops. Deliberate exception:
@@ -66,9 +66,8 @@ resolution) before the write itself.
    Verb's own validation is the only guard, which obligates airtight
    validation in every write Verb.
 9. **File arguments come only from the agent's staging directories.** Every
-   Verb that reads a file (`<body-file>`, `<comment-file>`, and
-   `ghw-label-sync`'s `<schema-file>`, whose names and descriptions get
-   published) resolves symlinks and accepts only paths under `/tmp/claude/` or
+   Verb that reads a file (`<body-file>`, `<comment-file>`) resolves
+   symlinks and accepts only paths under `/tmp/claude/` or
    `~/.claude/jobs/<job-id>/tmp/`, UTF-8 only; anything else is exit 2 with a
    self-correction hint. The check lives once, in `cli/lib/staging.py`.
    Rationale: a granted write Verb that reads an arbitrary path is a
@@ -98,8 +97,8 @@ resolution) before the write itself.
   lockfile a bare command name could express, so any third-party dependency
   would be an unmanaged machine-local install; stdlib-only removes
   supply-chain risk and cross-machine skew at no cost, since `gh` does the API
-  work and the Python only orchestrates. Corollary: the `ghw-label-sync`
-  schema file is JSON, never YAML.
+  work and the Python only orchestrates. Corollary: the part of a repo's
+  `TRACKER.md` the Verbs read is a JSON block, never YAML.
 - Positional parsing is hand-rolled (see Rejected alternatives).
 - Permission rules approve command strings, not binaries: whatever a name
   resolves to on PATH is what runs, so anything earlier on PATH shadows it.
@@ -124,26 +123,33 @@ resolution) before the write itself.
   Verb, which only writes canonical options; a missing state breaks
   `ghw-board-set` outright. The canonical-board choice is advisory: every
   board ships its full map, and write-side choice belongs to
-  `ghw-board-set --project`. IDs resolve live on every call.
+  `ghw-board-set --project`. It also reads the repo's Tracker Schema,
+  prints its warnings, and reports under `tracker_schema` which file it
+  read, whether it could be read, and how many warnings it gave. IDs
+  resolve live on every call.
 
 ### Day-to-day writes
 
-- `ghw-issue-create <repo> <type-label> <title> <body-file> [label ...]`:
-  requires exactly one canonical type label (`feature`, `improvement`, `bug`,
-  `debt`, `meta`) and at least one `area:` label; otherwise accepts any label
-  in the repo's live registry that is not a second type label (which admits
-  `human` and the unprefixed scope labels setup defines for multi-site
-  repos). The registry is the attachment authority, and `ghw-label-sync` is
-  the only way labels get created. `TRIAGE.md` plays no part in label
+- `ghw-issue-create <repo> <kind-label> <title> <body-file> [label ...]`:
+  holds the labels to the label attachment contract, which comes from the
+  repo's Tracker Schema: `<kind-label>` is one of its Issue Kinds and no
+  second kind is among the labels; every label is one the schema declares
+  (a kind, a priority, an axis's label, or a label on no axis), so a label
+  that exists on GitHub but not in the schema is refused; and every axis
+  the schema marks as carried by every Issue has a label among them. Every
+  label must also exist in the live registry, since `ghw-label-sync` is the
+  only way labels get created. `TRIAGE.md` plays no part in label
   validation.
 - `ghw-issue-comment <repo> <issue#> <body-file>`.
 - `ghw-issue-edit <repo> <add-label|remove-label|retitle|set-body> <issue#>
   <value>`: the subverb at position 2 lets a grant include label edits while
   withholding `set-body`, since an arbitrary body rewrite is a write a repo
   may want to withhold. `set-body` takes a staged file, never inline text.
-  `add-label` applies the attachment contract and refuses a second type
-  label, naming the incumbent; reclassifying takes two visible calls. Each
-  subverb converges to a no-op when already satisfied.
+  `add-label` applies the attachment contract and refuses a second kind
+  label, naming the incumbent; reclassifying takes two visible calls.
+  `remove-label` refuses to remove an issue's last label on an axis the
+  schema marks as carried by every Issue. Each subverb converges to a no-op
+  when already satisfied.
 - `ghw-issue-close <repo> <issue#> <comment-file>`: its own Verb, never a flag
   on edit, so closing is independently grantable. The comment is mandatory (a
   missing or blank one is exit 2): it is the audit record of why the issue was
@@ -190,28 +196,34 @@ resolution) before the write itself.
 
 ### Schema sync (bootstrap-grade, declarative)
 
-- `ghw-label-sync <repo> <plan|apply|apply-delete> <schema-file>`: the five
-  canonical type labels and the `human` label, with their colors, come from
-  the shared constants; the JSON schema file supplies only the repo's
-  families:
-  `{"priority_labels": <bool>, "area": [{name, description, color?}…],
-  "scope": […]}`. `area` names are written bare and the Verb adds the
-  prefix; `priority_labels: true` adds P0 to P3 to the desired set, so on a
-  label-regime repo `apply-delete` cannot delete the repo's own priority
-  labels. Anything else in the repo is a deletion candidate, which clears
-  eight of GitHub's nine stock labels at bootstrap (stock `bug` is a
-  canonical type label). `plan` is a pure read printing the full diff.
-  `apply` creates and fixes color and description drift, and prints deletes
-  without executing them. `apply-delete` also executes the deletes, open
-  issues included; deletion authority is granted by granting that mode. In
-  every mode, deletion candidates attached to open issues are listed on
-  stderr (and in the JSON plan), because `plan` is exactly where a human
-  decides whether to grant deletion. Case-only mismatches are reported;
-  creates run before deletes; a partial failure lists the writes that landed.
-  A file redeclaring a type or priority label is refused, but a `scope`
-  entry named `human` is dropped with a note on stderr: `scope` is the one
-  family that takes an unprefixed name, so a file built from the live labels
-  tends to list it there, and a refusal would stop that repo's sync.
+- `ghw-label-sync <repo> <plan|apply|apply-delete>`: takes no file. The
+  desired labels are exactly what the repo's Tracker Schema declares: every
+  Issue Kind as its Kind Label, every Issue Priority where the repo carries
+  priority as labels, every axis's labels, and every label on no axis, each
+  with the schema's name, meaning as its description, and colour. Whether
+  priority is carried as labels is the priority regime `ghw-orient` reports
+  from the board: on `p-labels` the priorities are desired labels, on
+  `board-field` they are not (so live priority labels are deletion
+  candidates), and on `unknown` they are neither created nor deleted, with a
+  warning. A meaning longer than GitHub's 100-character limit for a label
+  description is cut at a word boundary and ends in `...`. Two declared
+  names that GitHub would treat as one label (they differ only in case) are
+  kept once, the first declared, with a warning. Anything else in the repo
+  is a deletion candidate, which clears GitHub's stock labels at bootstrap
+  unless the schema declares one (the shipped default declares `bug`).
+  `plan` is a pure read printing the full diff, and the JSON names the
+  schema it read (`tracker_schema`) and the priority regime. `apply` creates
+  and fixes colour and description drift, and prints deletes without
+  executing them. `apply-delete` also executes the deletes, open issues
+  included; deletion authority is granted by granting that mode. Deletion
+  derives from every section that declares labels, so when one of them is
+  not complete (see Following the Tracker Schema), `plan` and `apply` show
+  no deletes and say why under `delete_refused`, and `apply-delete` is
+  refused with exit `4` before any write. In every mode, deletion
+  candidates attached to open issues are listed on stderr (and in the JSON
+  plan), because `plan` is exactly where a human decides whether to grant
+  deletion. Case-only mismatches are reported; creates run before deletes;
+  a partial failure lists the writes that landed.
 - `ghw-board-sync <repo> <project#|new>`: one canonical board schema:
   `Priority` (P0 to P3), `Status` (the eight canonical triage states),
   `Size`, `Last Triaged`. Given a project number, it creates missing fields
@@ -242,13 +254,52 @@ GitHub's GraphQL reference, Projects), and `board_schema.py`'s
 `_OPTION_COLORS` uses those names today. So the board Verb maps each
 state's and priority's hex colour to the nearest of the eight, and
 defining what "nearest" means is part of that Verb's Issue
-(`agent-tooling-u9n.21`); the label Verb takes label colours from the
-schema instead of `schema.py`'s constants (`agent-tooling-xgzm`). The
-shipped default's state and priority colours were chosen with that
-mapping in mind, to read as the names today's open-state and priority
-options carry; its `Closed` state has no option on today's boards. Both
-Verbs still use the constants; the Known gaps in [index.md](index.md) say
-so.
+(`agent-tooling-u9n.21`). The shipped default's state and priority colours
+were chosen with that mapping in mind, to read as the names today's
+open-state and priority options carry; its `Closed` state has no option on
+today's boards. `ghw-label-sync` takes every label colour from the schema;
+`ghw-board-sync` still uses `schema.py`'s constants, and the Known gaps in
+[index.md](index.md) say so.
+
+### Following the Tracker Schema
+
+The label Verbs and `ghw-orient` read the repo's Tracker Schema from
+`TRACKER.md` on the default branch, through `lib/github/repo_schema.py`,
+and print every warning the reader gives, even when nothing is blocked.
+When the file is missing, cannot be fetched, or a section cannot be used,
+each Verb follows the use-issues design's three-way split
+([How a Wrapper uses the schema](../use-issues/design.md#how-a-wrapper-uses-the-schema)): reads and writes that need
+nothing from the schema always work, additive writes go ahead on what can
+be verified, and a destructive write is refused (exit `4`, naming the part)
+unless every section it derives from is complete.
+
+| Verb | No readable schema | A section is unusable | A section is incomplete |
+|---|---|---|---|
+| `ghw-label-sync` `plan`, `apply` | nothing to create; no deletes, `delete_refused` says why | that section adds no labels; no deletes | adds what was read; no deletes |
+| `ghw-label-sync` `apply-delete` | refused, exit `4` | refused, exit `4` | refused, exit `4` |
+| `ghw-issue-create`, `ghw-issue-edit add-label` | registry check only | its checks are skipped; the declared-label check needs every label-declaring section usable | checks run on what was read |
+| `ghw-issue-edit remove-label` | goes ahead | axes unusable: no axis is held as required | checks run on what was read |
+| `ghw-orient` | reports it under `tracker_schema` | reports it | reports it |
+| Every other Verb | does not read the schema | | |
+
+The label-declaring sections are the Issue Kinds, the Issue Priorities, the
+label axes, and the labels on no axis; for `ghw-label-sync` the Issue
+Priorities count only where the priority regime is not `board-field`.
+Additive checks use what is usable rather than what is complete, so a label
+lost from a usable section is refused as undeclared, and the warning for
+that section says why. `remove-label` is an edit to one issue, not a write
+derived from the schema, so a check it cannot run is skipped rather than
+refused.
+
+Rejected:
+- a local schema file or fallback for `ghw-label-sync`, since the labels
+  would then follow whichever file a caller passed rather than the schema
+  every other Verb reads;
+- refusing every write when the schema cannot be read, since filing an
+  Issue on a forge that is reachable but whose `TRACKER.md` is broken would
+  then stop all work;
+- deriving `ghw-label-sync`'s deletions from a usable but incomplete
+  section, since an entry the reader lost would read as a label to delete.
 
 ### Board disambiguation
 
@@ -337,11 +388,12 @@ writes to this repo, and the flag only narrows which board is touched.
 
 ## Shared library
 
-- `cli/lib/` (forge-neutral, shared with the other Wrappers): `schema.py` is
-  the single home for the type labels and colors, the `human` label, P0 to
-  P3, area and scope colors, canonical field names, the eight Status states
-  with their exact casing (title case like `Needs Triage` beside sentence
-  case like `In progress`), the terminal-state set, and Size XS to XL. Also
+- `cli/lib/` (forge-neutral, shared with the other Wrappers): `schema.py`
+  holds the constants the board Verbs still use: P0 to P3 as board options,
+  canonical field names, the eight Status states with their exact casing
+  (title case like `Needs Triage` beside sentence case like `In progress`),
+  the terminal-state set, and Size XS to XL. It holds no labels: those come
+  from the repo's Tracker Schema. Also
   `staging.py` (invariant 9), `plan.py` (JSON plan and exit codes),
   `arguments.py` (repo charset check, issue-number parsing), and
   `paths.py` (each tool's subdirectory of the Machine Config Directory and
@@ -354,9 +406,12 @@ writes to this repo, and the flag only narrows which board is touched.
   subcommand or stalled connection fails loudly instead of hanging an
   unattended run; non-JSON or dataless responses raise `GhError` rather than
   escaping as tracebacks. `boards.py` (orientation, disambiguation, `TRIAGE.md`
-  discovery, board mutations), `labels.py` (attachment contract),
-  `label_schema.py`, `board_schema.py` (conformance and provisioning), and
-  `pulls.py` (merge gates) sit on it.
+  discovery, board mutations), `repo_schema.py` (fetches `TRACKER.md` from
+  the default branch, reads it with `tracker_schema.py`, and prints its
+  warnings), `labels.py` (the label attachment contract, from the schema),
+  `label_schema.py` (`ghw-label-sync`'s desired labels and their diff
+  against the live ones), `board_schema.py` (conformance and provisioning),
+  and `pulls.py` (merge gates) sit on it.
 - Name-to-ID resolution is live on every call, with no on-disk cache (see
   Rejected alternatives).
 
@@ -376,8 +431,8 @@ terminal-state set. The planned rebase is
 - **setup-issue-tracker** is generic
   ([use-issues](../use-issues/design.md#setup-issue-tracker)); its GitHub
   steps are the bundled `github.md`, read on demand. They bootstrap labels
-  with `ghw-label-sync` (its JSON schema file declaring the `area:` and
-  scope families) and the board with `ghw-board-sync <repo> new`, so the
+  by merging the repo's `TRACKER.md` and then running `ghw-label-sync`, and
+  the board with `ghw-board-sync <repo> new`, so the
   full canonical schema, `Size` included, exists from day one; boards that
   predate `Size` are tolerated by board-sync's report-only behavior. They
   point to `use-github` as the canonical GitHub layer, and to

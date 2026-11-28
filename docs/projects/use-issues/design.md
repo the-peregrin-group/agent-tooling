@@ -56,7 +56,7 @@ and a pure JSON file (multi-paragraph mini-prompts in JSON strings are poor
 to write and review).
 
 A colour is six hex digits with no leading `#`, the form labels take on
-GitHub, Forgejo, and in ghw's constants, and it is declared like a
+GitHub and Forgejo, and it is declared like a
 description: a sync makes the tracker's colour match the file's, and a
 repo that wants other colours changes its `TRACKER.md`. Where the file's
 colour for an entry is missing or bad, a Wrapper warns, leaves a live
@@ -64,7 +64,8 @@ colour as it is, and gives a neutral default only to a label or option it
 must create. Where a tracker offers only a few named colours (a GitHub
 project board's options take one of eight), the Wrapper that writes there
 shows the nearest, so the file holds one form for every platform. The
-shipped default's colours are ghw's label constants where one exists, and
+shipped default's colours are the ones ghw's labels had before ghw read
+the schema, where one existed, and
 for the states hex values chosen to read as the board colours ghw gives
 those states today, so that the first sync from the schema need change
 little; what "nearest" means is the board Verb's to define
