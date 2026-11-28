@@ -19,7 +19,8 @@ from lib import tracker_schema
 from lib.github import label_schema
 
 _ALL_BUT_PRIORITIES = ("issue_kinds", "issue_label_schema.axes",
-                       "issue_label_schema.labels")
+                       "issue_label_schema.labels", "issue_states")
+_STATES = {"Needs Triage", "In progress", "Closed"}
 
 
 def _desired(document=None, regime="board-field"):
@@ -39,6 +40,7 @@ class DesiredLabelsTest(unittest.TestCase):
                          {"color": "c5def5",
                           "description": "The Site A deployment"})
         self.assertEqual(desired.sections, _ALL_BUT_PRIORITIES)
+        self.assertEqual(desired.keep, _STATES)
         self.assertEqual(desired.notes, [])
 
     def test_priorities_are_labels_only_in_the_p_labels_regime(self):
@@ -50,7 +52,7 @@ class DesiredLabelsTest(unittest.TestCase):
     def test_an_unknown_regime_keeps_priority_labels_without_syncing_them(self):
         desired = _desired(regime="unknown")
         self.assertNotIn("P0", desired.labels)
-        self.assertEqual(desired.keep, {"P0", "P1", "P4"})
+        self.assertEqual(desired.keep, {"P0", "P1", "P4"} | _STATES)
         self.assertIn(tracker_schema.ISSUE_PRIORITIES, desired.sections)
         self.assertIn("priority regime is unknown", desired.notes[0])
 

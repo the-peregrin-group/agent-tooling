@@ -72,11 +72,7 @@ def main(argv: list[str]) -> int:
         "priority_labels_present": boards.priority_labels_present(
             orientation["labels"]
         ),
-        "tracker_schema": {
-            "source": loaded.source,
-            "readable": loaded.schema is not None,
-            "warnings": len(loaded.warning_lines()),
-        },
+        "tracker_schema": loaded.summary(),
     })
     return plan.EXIT_OK
 

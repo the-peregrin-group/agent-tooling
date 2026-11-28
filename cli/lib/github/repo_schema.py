@@ -80,12 +80,17 @@ class RepoSchema:
     `schema` is the reader's result, or None when there is none to read;
     `failure` then says why (a missing file, an unreadable block, a failed
     fetch). `branch` is the default branch's name, or None when it could not
-    be learned."""
+    be learned. `fetch_exit_code` is a failed fetch's exit code class
+    (lib.plan's EXIT_NETWORK, EXIT_AUTH, and so on), or None when nothing
+    failed in the fetch itself, so that a Verb refusing a destructive write
+    for want of the schema can exit with a transient fault's own code
+    rather than as a refusal."""
 
     repository: str
     branch: Optional[str]
     schema: Optional[tracker_schema.TrackerSchema]
     failure: Optional[tracker_schema.TrackerSchemaError] = None
+    fetch_exit_code: Optional[int] = None
 
     @property
     def source(self) -> str:
@@ -96,6 +101,16 @@ class RepoSchema:
         """One stderr line per problem, in the reader's words."""
         result = self.schema if self.schema is not None else self.failure
         return tracker_schema.warning_lines(result, self.source)
+
+    def summary(self) -> dict:
+        """The `tracker_schema` value a Verb's JSON output carries: which
+        file it read, whether it could be read at all, and how many
+        warnings it gave."""
+        return {
+            "source": self.source,
+            "readable": self.schema is not None,
+            "warnings": len(self.warning_lines()),
+        }
 
     def usable(self, section: str) -> bool:
         return self.schema is not None and self.schema.usable(section)
@@ -131,7 +146,11 @@ def fetch(repository: str) -> RepoSchema:
     try:
         data = gh.graphql(_QUERY, {"owner": owner, "name": name, "path": PATH})
     except gh.GhError as error:
-        return _without(repository, None, f"could not be fetched ({_first_line(error)})")
+        return RepoSchema(
+            repository, None, None,
+            tracker_schema.TrackerSchemaError(
+                f"could not be fetched ({_first_line(error)})"),
+            error.exit_code)
     ref = ((data.get("repository") or {}).get("defaultBranchRef")) or None
     if ref is None:
         return _without(repository, None, "not found: the repo has no default branch")
@@ -156,7 +175,8 @@ def fetch(repository: str) -> RepoSchema:
 
 def load(repository: str, stream: Optional[TextIO] = None) -> RepoSchema:
     """`fetch`, then print every warning line on `stream` (stderr by
-    default), whether or not the caller needs the part at fault."""
+    default), whether or not the caller needs the part at fault. It prints
+    on every call, so a Verb loads once."""
     result = fetch(repository)
     stream = stream if stream is not None else sys.stderr
     for line in result.warning_lines():

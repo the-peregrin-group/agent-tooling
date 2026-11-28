@@ -83,6 +83,19 @@ class FetchTest(unittest.TestCase):
             "warning: o/r@default-branch:TRACKER.md: could not be fetched "
             "(dial tcp: no such host)",
         ))
+        self.assertEqual(result.fetch_exit_code, 6)
+
+    def test_only_a_failed_fetch_carries_an_exit_code(self):
+        for response in (fixture.graphql_response(None),
+                         fixture.graphql_response(fixture.text())):
+            with self.subTest(readable=response is not None):
+                result, _ = _fetch(response)
+                self.assertIsNone(result.fetch_exit_code)
+
+    def test_summary_is_the_json_shape_every_verb_reports(self):
+        result, _ = _fetch(fixture.graphql_response(None))
+        self.assertEqual(result.summary(), {
+            "source": "o/r@main:TRACKER.md", "readable": False, "warnings": 1})
 
     def test_every_reader_problem_is_a_warning_line(self):
         document = fixture.document()

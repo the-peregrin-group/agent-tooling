@@ -2,8 +2,8 @@
 
 Argument tests run the script as a subprocess with arguments that fail before
 any network I/O. Behavior tests load the script as a module and mock the lib
-gh/boards seams, the Tracker Schema fetch, and the priority regime, so no
-`gh` calls are made. The schema is tracker_schema_test_support's fixture.
+gh/boards seams (the linked boards included, so the real priority-regime
+judgement runs) and the Tracker Schema fetch, so no `gh` calls are made. The schema is tracker_schema_test_support's fixture.
 
 Run from the cli/ directory:
     python3 -m unittest discover -s . -p '*_test.py'
@@ -53,6 +53,22 @@ _PRIORITIES = [_label(p) for p in fixture.DOCUMENT["issue_priorities"]]
 _STRAY = {"name": "wontfix", "color": "ffffff", "description": ""}
 _ISSUE = {"number": 12, "title": "Old thing",
           "url": "https://github.com/o/r/issues/12"}
+
+
+def _board(number: int) -> dict:
+    """A linked board whose Priority field conforms."""
+    return {"number": number, "title": f"Board {number}", "node_id": f"PVT_{number}",
+            "fields": {"Priority": {
+                "id": "F", "data_type": "SINGLE_SELECT",
+                "options": {name: f"o{name}" for name in ("P0", "P1", "P2", "P3")},
+            }}}
+
+
+# The linked boards that give each priority regime, through the real
+# _priority_regime: one conforming board, none, or two with nothing on the
+# forge to choose between them.
+_LINKED = {"board-field": [_board(1)], "p-labels": [],
+           "unknown": [_board(1), _board(2)]}
 
 
 def _without(name: str) -> list:
@@ -110,8 +126,8 @@ class _SyncSeam:
 
         with mock.patch.object(_MODULE.repo_schema, "fetch",
                                return_value=schema or fixture.loaded()), \
-                mock.patch.object(_MODULE, "_priority_regime",
-                                  return_value=regime), \
+                mock.patch.object(_MODULE.boards, "fetch_boards",
+                                  return_value=_LINKED[regime]), \
                 mock.patch.object(_MODULE.boards, "fetch_labels",
                                   return_value=list(registry)), \
                 mock.patch.object(_MODULE.boards, "fetch_open_issues_with_label",
@@ -148,7 +164,9 @@ class GhwLabelSyncBehaviorTest(_SyncSeam, unittest.TestCase):
         payload = json.loads(seam["stdout"].getvalue())
         self.assertEqual(payload["action"], "plan")
         self.assertFalse(payload["changed"])
-        self.assertEqual(payload["tracker_schema"], "o/r@main:TRACKER.md")
+        self.assertEqual(payload["tracker_schema"],
+                         {"source": "o/r@main:TRACKER.md", "readable": True,
+                          "warnings": 0})
         self.assertEqual(
             sorted(label["name"] for label in payload["create"]),
             sorted(entry["name"] for entry in _CONVERGED),
@@ -345,11 +363,30 @@ class GhwLabelSyncBehaviorTest(_SyncSeam, unittest.TestCase):
 class GhwLabelSyncPriorityTest(_SyncSeam, unittest.TestCase):
     """Priorities are labels only in the p-labels regime."""
 
-    def test_the_regime_is_judged_from_the_linked_boards_as_orient_does(self):
+    def test_the_regime_is_judged_from_the_linked_boards_alone(self):
+        for regime, linked in _LINKED.items():
+            with self.subTest(regime=regime), \
+                    mock.patch.object(_MODULE.boards, "fetch_boards",
+                                      return_value=linked) as fetch:
+                self.assertEqual(_MODULE._priority_regime("o/r"), regime)
+            fetch.assert_called_once_with("o/r")
+
+    def test_no_local_triage_md_decides_among_several_boards(self):
+        # A TRIAGE.md in the working directory would pick board 1 for
+        # ghw-orient; the sync never looks, so the regime stays unknown.
+        profile = {"repo": "o/r", "project_number": 1, "path": "TRIAGE.md"}
         with mock.patch.object(_MODULE.boards, "fetch_boards",
-                               return_value=[]) as fetch:
-            self.assertEqual(_MODULE._priority_regime("o/r"), "p-labels")
-        fetch.assert_called_once_with("o/r")
+                               return_value=_LINKED["unknown"]), \
+                mock.patch.object(_MODULE.boards, "find_triage_profile",
+                                  return_value=profile) as find:
+            self.assertEqual(_MODULE._priority_regime("o/r"), "unknown")
+        find.assert_not_called()
+
+    def test_several_boards_keep_the_priority_labels(self):
+        code, seam = self._main({"registry": [*_CONVERGED, *_PRIORITIES],
+                                 "regime": "unknown"}, "apply-delete")
+        self.assertEqual(code, 0)
+        seam["delete"].assert_not_called()
 
     def test_p_labels_regime_syncs_every_declared_priority(self):
         code, seam = self._main({"registry": _CONVERGED,
@@ -374,8 +411,83 @@ class GhwLabelSyncPriorityTest(_SyncSeam, unittest.TestCase):
         self.assertIn("priority regime is unknown", seam["stderr"].getvalue())
 
 
+class GhwLabelSyncStateAndNameTest(_SyncSeam, unittest.TestCase):
+    """Labels named for an Issue State, and names gh cannot pass whole."""
+
+    def test_a_label_named_for_an_issue_state_is_kept_but_not_created(self):
+        state = {"name": "Needs Triage", "color": "d73a4a", "description": ""}
+        for regime in ("p-labels", "board-field", "unknown"):
+            with self.subTest(regime=regime):
+                code, seam = self._main({"registry": [*_CONVERGED, state],
+                                         "regime": regime}, "apply-delete")
+                self.assertEqual(code, 0)
+                seam["delete"].assert_not_called()
+                code, seam = self._main({"registry": _CONVERGED,
+                                         "regime": regime}, "apply")
+                created = [call.args[1] for call in seam["create"].call_args_list]
+                self.assertNotIn("Needs Triage", created)
+
+    def test_incomplete_states_block_deletion(self):
+        document = fixture.document()
+        document["issue_states"][1]["name"] = 7  # In progress is lost
+        code, seam = self._main({"registry": [*_CONVERGED, _STRAY],
+                                 "schema": fixture.loaded(document)},
+                                "apply-delete")
+        self.assertEqual(code, 4)
+        self.assertIn("issue_states", seam["stderr"].getvalue())
+
+    def test_a_declared_name_gh_would_split_never_reaches_gh(self):
+        document = fixture.document()
+        document["issue_label_schema"]["labels"] += [
+            {"name": "x,bug", "meaning": "Odd", "color": "ededed"},
+            {"name": "-x", "meaning": "Odd", "color": "ededed"},
+        ]
+        live = [{"name": name, "color": "ededed", "description": ""}
+                for name in ("x,bug", "-x")]
+        code, seam = self._main({"registry": [*_CONVERGED, *live],
+                                 "schema": fixture.loaded(document)},
+                                "apply-delete")
+        self.assertEqual(code, 0)
+        for verb in ("create", "edit", "delete"):
+            seam[verb].assert_not_called()
+        stderr = seam["stderr"].getvalue()
+        self.assertIn("'x,bug', which contains a comma", stderr)
+        self.assertIn("'-x', which starts with '-'", stderr)
+        code, seam = self._main({"registry": _CONVERGED,
+                                 "schema": fixture.loaded(document)}, "apply")
+        seam["create"].assert_not_called()
+
+    def test_an_undeclared_live_name_gh_would_misread_is_left_with_a_warning(self):
+        live = {"name": "-old", "color": "ededed", "description": ""}
+        code, seam = self._main({"registry": [*_CONVERGED, live, _STRAY]},
+                                "apply-delete")
+        self.assertEqual(code, 0)
+        self.assertEqual([call.args[1] for call in seam["delete"].call_args_list],
+                         ["wontfix"])
+        self.assertIn("delete them by hand: '-old'", seam["stderr"].getvalue())
+
+
 class GhwLabelSyncDegradedSchemaTest(_SyncSeam, unittest.TestCase):
     """What sync does when TRACKER.md is missing or partly unusable."""
+
+    def test_a_transient_fetch_failure_keeps_its_exit_code_under_apply_delete(self):
+        for code_class in (5, 6):
+            with self.subTest(code=code_class):
+                failed = _MODULE.repo_schema.RepoSchema(
+                    "o/r", None, None,
+                    fixture.tracker_schema.TrackerSchemaError(
+                        "could not be fetched (boom)"), code_class)
+                code, seam = self._main({"registry": [_STRAY],
+                                         "schema": failed}, "apply-delete")
+                self.assertEqual(code, code_class)
+                seam["delete"].assert_not_called()
+        # A fetch that failed for any other reason is a refusal.
+        failed = _MODULE.repo_schema.RepoSchema(
+            "o/r", None, None,
+            fixture.tracker_schema.TrackerSchemaError("could not be fetched"), 1)
+        code, _ = self._main({"registry": [_STRAY], "schema": failed},
+                             "apply-delete")
+        self.assertEqual(code, 4)
 
     def test_no_tracker_md_plans_nothing_and_refuses_apply_delete(self):
         for mode in ("plan", "apply"):

@@ -4,13 +4,21 @@
 Declarative and idempotent. The desired labels are exactly what the repo's
 Tracker Schema declares, read from TRACKER.md on its default branch: a Kind
 Label for every Issue Kind, every Issue Priority where the repo carries
-priority as labels (the "p-labels" priority regime, judged from the linked
-board as ghw-orient judges it), every axis's labels, and every label on no
-axis, each with the schema's description and colour. A label's description
-or colour that differs from the schema's is drift, fixed by apply. Anything
-in the repo and not in that set is a deletion candidate, which is how
-GitHub's stock labels get cleared at bootstrap. To change a repo's labels,
-change its TRACKER.md and merge it to the default branch, then sync.
+priority as labels (the "p-labels" priority regime, judged from the boards
+linked on GitHub alone: no local file, TRIAGE.md included, is read), every
+axis's labels, and every label on no axis, each with the schema's
+description and colour. A label's description or colour that differs from
+the schema's is drift, fixed by apply. Anything in the repo and not in that
+set is a deletion candidate, which is how GitHub's stock labels get cleared
+at bootstrap, except a label named for an Issue State, which that state
+declares (the sync keeps it but does not create it). To change a repo's
+labels, change its TRACKER.md and merge it to the default branch, then
+sync.
+
+A name gh cannot pass whole (one holding a comma, or starting with '-') is
+never passed to gh: declared, it is neither created nor deleted; live and
+undeclared, it is left for a person to delete. Either way a warning names
+it.
 
 Modes are positional because deletion authority is granted by allowlisting a
 mode, never by a trailing flag:
@@ -25,8 +33,11 @@ rest. Deletion is trusted only when every section the desired set comes
 from is complete: otherwise plan and apply list no deletion candidates and
 say why under "delete_refused", and apply-delete is refused (exit 4) before
 any write, naming the section. A repo with no TRACKER.md is treated the
-same way. With the priority regime unknown, the schema's priority labels
-are neither created nor deleted.
+same way, so a plan with nothing to create and a delete_refused saying the
+file is not found means TRACKER.md has not been merged yet. When the
+schema could not be fetched for a network or auth failure, apply-delete
+exits with that failure's code (6 or 5) instead. With the priority regime
+unknown, the schema's priority labels are neither created nor deleted.
 
 Whenever a deletion candidate is attached to open issues, every mode prints
 those issues to stderr -- plan is exactly where a human decides whether to
@@ -36,7 +47,7 @@ issues ride the JSON plan on stdout.
 Exit codes: 0 success (including a converged no-op), 1 unclassified gh/API
 failure, 2 usage error, 3 not found, 4 refused: apply-delete when the
 schema cannot back a deletion, 5 auth failure, 6 network failure
-(retryable).
+(retryable), including a failure fetching TRACKER.md under apply-delete.
 """
 
 from __future__ import annotations
@@ -83,13 +94,19 @@ def main(argv: list[str]) -> int:
                 f"the desired set comes from to be complete, and {delete_refused}. "
                 "Fix TRACKER.md on the default branch, or run apply, which "
                 "deletes nothing.",
-                plan.EXIT_REFUSED,
+                _refusal_exit_code(loaded),
             )
         difference = label_schema.diff_labels(
             desired, boards.fetch_labels(repository)
         )
         if delete_refused is not None:
             difference["delete"] = []
+        if difference["uncarriable"]:
+            print("warning: these labels are not in the Tracker Schema, but "
+                  "gh cannot pass their names whole, so ghw-label-sync does "
+                  "not delete them; delete them by hand: "
+                  + ", ".join(repr(name) for name in difference["uncarriable"]),
+                  file=sys.stderr)
         deletions = _deletion_report(repository, difference["delete"])
         # Always before _apply: in apply-delete the warning is the only record
         # of what a delete detached, and it must survive a mid-loop failure.
@@ -102,7 +119,7 @@ def main(argv: list[str]) -> int:
         "plan" if mode == "plan" else "applied",
         repository=repository,
         mode=mode,
-        tracker_schema=loaded.source,
+        tracker_schema=loaded.summary(),
         priority_regime=regime,
         create=difference["create"],
         update=difference["update"],
@@ -117,13 +134,25 @@ def main(argv: list[str]) -> int:
 
 
 def _priority_regime(repository: str) -> str:
-    """The repo's priority regime, judged from its linked boards exactly as
-    ghw-orient judges it, so the two never disagree."""
+    """The repo's priority regime, judged from its linked boards on the
+    forge alone. No local file is an input: a TRIAGE.md in the working
+    directory, which ghw-orient uses to pick among several boards, plays no
+    part, so with several boards linked the regime is unknown and the
+    priority labels are neither created nor deleted."""
     linked = boards.fetch_boards(repository)
     canonical, _rule, _note = boards.resolve_canonical_board(
-        repository, linked, boards.find_triage_profile(Path.cwd())
+        repository, linked, None
     )
     return boards.determine_priority_regime(canonical, linked)
+
+
+def _refusal_exit_code(loaded: repo_schema.RepoSchema) -> int:
+    """The exit code for a deletion the schema cannot back: a transient
+    fetch fault (network, auth) keeps its own class, so a caller can retry
+    or flag it; anything else about the schema is a refusal."""
+    if loaded.fetch_exit_code in (plan.EXIT_NETWORK, plan.EXIT_AUTH):
+        return loaded.fetch_exit_code
+    return plan.EXIT_REFUSED
 
 
 def _deletion_refusal(loaded: repo_schema.RepoSchema,

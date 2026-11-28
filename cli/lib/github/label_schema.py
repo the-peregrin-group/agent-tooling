@@ -11,6 +11,14 @@ description, and colour taken from it:
   - every label on every axis, its name written in full with the prefix;
   - every label on no axis.
 
+A label named for an Issue State is declared by that state, so it is never
+a deletion candidate, but the sync does not create one: where a forge with
+no board records an Issue's state is still open (agent-tooling-vb2v). The
+same holds for the priorities when the priority regime is unknown. A
+declared name that gh cannot pass whole (labels.uncarriable_reason) is
+neither created nor deleted, with a warning, and so is a live label with
+such a name.
+
 A section the reader could not use contributes nothing, and a label it
 would have declared is not created. A section that is usable but
 incomplete contributes what it has. Deletion is the one place either
@@ -31,6 +39,7 @@ from dataclasses import dataclass, field
 from typing import Dict, Iterable, List, Optional, Tuple
 
 from lib import tracker_schema
+from lib.github import labels as label_contract
 from lib.github.repo_schema import RepoSchema
 
 # The priority regime that keeps priority on the board, not on labels.
@@ -51,8 +60,9 @@ class DesiredLabels:
 
     `labels` maps each name to {"color", "description"}, either None where
     the schema's value is missing or bad. `keep` holds names that are
-    neither synced nor ever deleted (a declared priority when the regime is
-    unknown). `sections` are the schema sections the set derives from.
+    neither synced nor ever deleted (a label named for an Issue State, a
+    declared priority when the regime is unknown, a declared name gh cannot
+    pass whole). `sections` are the schema sections the set derives from.
     `notes` are warnings for stderr."""
 
     labels: Dict[str, Dict[str, Optional[str]]] = field(default_factory=dict)
@@ -88,11 +98,24 @@ def desired_labels(loaded: RepoSchema, priority_regime: str) -> DesiredLabels:
                    tuple(label for axis in axes for label in axis.labels)))
     groups.append((tracker_schema.UNAXED_LABELS,
                    loaded.section(tracker_schema.UNAXED_LABELS)))
+    # A label named for an Issue State is declared by it, so it is kept.
+    sections.append(tracker_schema.ISSUE_STATES)
+    states = loaded.section(tracker_schema.ISSUE_STATES)
+    desired.keep.update(state.name for state in states or ())
     desired.sections = tuple(sections)
 
     folded: Dict[str, Tuple[str, str]] = {}
     for section, entries in groups:
         for entry in entries or ():
+            reason = label_contract.uncarriable_reason(entry.name)
+            if reason is not None:
+                desired.keep.add(entry.name)
+                desired.notes.append(
+                    f"warning: {section} declares {entry.name!r}, which "
+                    f"{reason}, so it cannot be carried on GitHub and is "
+                    "neither created nor deleted"
+                )
+                continue
             key = entry.name.lower()
             if key in folded:
                 # GitHub matches label names without regard to case, so two
@@ -120,8 +143,11 @@ def diff_labels(desired: DesiredLabels,
     {"create": [{"name", "color", "description"}],
      "update": [{"name", "color", "description", "from": {"color", "description"}}],
      "delete": [name, ...], "unchanged": [name, ...],
-     "case_mismatch": [{"live", "desired"}]}, each list sorted by name. A
-    converged repo yields empty create/update/delete lists.
+     "case_mismatch": [{"live", "desired"}], "uncarriable": [name, ...]},
+    each list sorted by name. A converged repo yields empty
+    create/update/delete lists. `uncarriable` holds the live labels the
+    schema does not declare but gh cannot pass whole as a name, so they are
+    left for a person to delete by hand.
 
     Names match case-insensitively, because GitHub's label namespace is: a
     live `Bug` against a desired `bug` is the same label, and matching it
@@ -167,12 +193,16 @@ def diff_labels(desired: DesiredLabels,
             update.append({"name": current["name"], **wanted, "from": now})
     declared = {name.lower() for name in desired.labels}
     declared |= {name.lower() for name in desired.keep}
+    candidates = sorted(live[key]["name"] for key in set(live) - declared)
     return {
         "create": create,
         "update": update,
-        "delete": sorted(live[key]["name"] for key in set(live) - declared),
+        "delete": [name for name in candidates
+                   if label_contract.uncarriable_reason(name) is None],
         "unchanged": unchanged,
         "case_mismatch": case_mismatch,
+        "uncarriable": [name for name in candidates
+                        if label_contract.uncarriable_reason(name) is not None],
     }
 
 
