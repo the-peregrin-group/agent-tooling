@@ -1,4 +1,5 @@
-"""Unit tests for label_schema.py (ghw-label-sync's desired state and diff).
+"""Unit tests for label_schema.py (ghw-label-sync's desired state and diff),
+against tracker_schema_test_support's fixture.
 
 Run from the cli/ directory:
     python3 -m unittest discover -s . -p '*_test.py'
@@ -6,212 +7,103 @@ Run from the cli/ directory:
 
 from __future__ import annotations
 
-import json
 import sys
 import unittest
 from pathlib import Path
 
-if __package__ in (None, ""):  # direct invocation: python3 lib/label_schema_test.py
-    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+if __package__ in (None, ""):  # direct invocation
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
+import tracker_schema_test_support as fixture
+from lib import tracker_schema
 from lib.github import label_schema
-from lib.schema import (
-    AREA_LABEL_COLOR,
-    HUMAN_LABEL,
-    HUMAN_LABEL_COLOR,
-    HUMAN_LABEL_DESCRIPTION,
-    SCOPE_LABEL_COLOR,
-    TYPE_LABELS,
-)
 
-_MINIMAL = {"area": [{"name": "core", "description": "Core engine"}]}
+_ALL_BUT_PRIORITIES = ("issue_kinds", "issue_label_schema.axes",
+                       "issue_label_schema.labels")
 
 
-def _parse(document: dict) -> dict:
-    return label_schema.parse_schema(json.dumps(document))
-
-
-def _refuses(test: unittest.TestCase, document: dict, why_fragment: str):
-    with test.assertRaises(label_schema.SchemaFileError) as caught:
-        _parse(document)
-    test.assertIn(why_fragment, str(caught.exception))
-
-
-class ParseSchemaTest(unittest.TestCase):
-    def test_minimal_file_fills_in_defaults(self):
-        schema = _parse(_MINIMAL)
-        self.assertFalse(schema["priority_labels"])
-        self.assertEqual(schema["scope"], [])
-        self.assertEqual(schema["area"][0]["color"], AREA_LABEL_COLOR)
-
-    def test_scope_family_defaults_to_its_own_color(self):
-        schema = _parse({**_MINIMAL,
-                         "scope": [{"name": "site-a", "description": "Site A"}]})
-        self.assertEqual(schema["scope"][0]["color"], SCOPE_LABEL_COLOR)
-
-    def test_explicit_color_is_normalized(self):
-        schema = _parse({"area": [{"name": "core", "description": "Core",
-                                   "color": "#A2EEEF"}]})
-        self.assertEqual(schema["area"][0]["color"], "a2eeef")
-
-    def test_invalid_json_reports_position_without_echoing_content(self):
-        with self.assertRaises(label_schema.SchemaFileError) as caught:
-            label_schema.parse_schema('{"area": [ "secret-token",,')
-        message = str(caught.exception)
-        self.assertIn("not valid JSON", message)
-        self.assertNotIn("secret-token", message)
-
-    def test_non_object_document_is_refused(self):
-        with self.assertRaises(label_schema.SchemaFileError):
-            label_schema.parse_schema("[]")
-
-    def test_unknown_top_level_key_is_refused_listing_the_allowed_ones(self):
-        _refuses(self, {**_MINIMAL, "areas": []}, "unknown top-level key")
-
-    def test_unknown_entry_key_is_refused(self):
-        _refuses(self, {"area": [{"name": "core", "description": "C",
-                                  "colour": "bfdadc"}]}, "unknown key")
-
-    def test_area_family_is_required_and_non_empty(self):
-        _refuses(self, {"scope": [{"name": "site-a", "description": "A"}]},
-                 "at least one")
-
-    def test_prefixed_area_name_is_refused_with_the_bare_name(self):
-        _refuses(self, {"area": [{"name": "area:core", "description": "C"}]},
-                 "'core'")
-
-    def test_canonical_type_label_in_a_family_is_refused(self):
-        _refuses(self, {**_MINIMAL,
-                        "scope": [{"name": "bug", "description": "no"}]},
-                 "canonical label")
-
-    def test_priority_label_in_a_family_points_at_the_flag(self):
-        _refuses(self, {**_MINIMAL,
-                        "scope": [{"name": "P0", "description": "no"}]},
-                 "priority_labels")
-
-    def test_missing_description_is_refused(self):
-        _refuses(self, {"area": [{"name": "core"}]}, "'description' is required")
-
-    def test_blank_description_is_refused(self):
-        _refuses(self, {"area": [{"name": "core", "description": "  "}]},
-                 "'description' is required")
-
-    def test_bad_color_is_refused_with_an_example(self):
-        _refuses(self, {"area": [{"name": "core", "description": "C",
-                                  "color": "red"}]}, "6 hex digits")
-
-    def test_name_with_surrounding_whitespace_is_refused(self):
-        _refuses(self, {"area": [{"name": " core ", "description": "C"}]},
-                 "whitespace")
-
-    def test_comma_in_a_name_is_refused(self):
-        # gh's --label/--add-label flags split on commas, so a comma label
-        # could never be attached by ghw-issue-create or ghw-issue-edit.
-        _refuses(self, {"area": [{"name": "core, extra", "description": "C"}]},
-                 "comma")
-
-    def test_leading_dash_in_a_name_is_refused(self):
-        # It reaches `gh label create` as a flag-looking positional.
-        _refuses(self, {"area": [{"name": "-core", "description": "C"}]},
-                 "start with '-'")
-
-    def test_entry_that_is_not_an_object_is_refused_by_position(self):
-        _refuses(self, {"area": ["core"]}, "entry 1")
-
-    def test_family_that_is_not_a_list_is_refused(self):
-        _refuses(self, {"area": {"core": "Core"}}, "must be a list")
-
-    def test_non_boolean_priority_flag_is_refused(self):
-        _refuses(self, {**_MINIMAL, "priority_labels": "yes"}, "true or false")
-
-    def test_duplicate_name_within_a_family_is_refused(self):
-        _refuses(self, {"area": [{"name": "core", "description": "C"},
-                                 {"name": "core", "description": "C again"}]},
-                 "declared twice")
-
-    def test_area_and_scope_cannot_collide_after_prefixing(self):
-        # 'area:core' vs a scope label literally named 'area:core' -- the
-        # prefixed form is what lands on the repo, so the clash is real.
-        _refuses(self, {"area": [{"name": "core", "description": "C"}],
-                        "scope": [{"name": "area:core", "description": "C"}]},
-                 "prefix")
-
-    def test_a_file_without_human_has_nothing_redundant(self):
-        self.assertEqual(_parse(_MINIMAL)["redundant"], [])
-
-    def test_human_declared_under_scope_is_dropped_and_reported(self):
-        # The old setup workaround: such a file must keep syncing, so the
-        # entry is tolerated, not refused like a type label.
-        schema = _parse({**_MINIMAL, "scope": [
-            {"name": "human", "description": "Waiting on a person"},
-            {"name": "site-a", "description": "Site A"},
-        ]})
-        self.assertEqual(schema["redundant"], ["human"])
-        self.assertEqual([entry["name"] for entry in schema["scope"]], ["site-a"])
-
-    def test_human_under_scope_matches_without_regard_to_case(self):
-        # GitHub's label namespace is case-insensitive, so 'Human' is the
-        # same label as the shipped 'human'.
-        schema = _parse({**_MINIMAL, "scope": [
-            {"name": "Human", "description": "Waiting on a person"}]})
-        self.assertEqual(schema["redundant"], ["Human"])
-        self.assertEqual(schema["scope"], [])
-
-    def test_an_area_named_human_is_an_ordinary_area_label(self):
-        schema = _parse({"area": [{"name": "human", "description": "People"}]})
-        self.assertEqual(schema["redundant"], [])
-        self.assertIn("area:human", label_schema.desired_labels(schema))
+def _desired(document=None, regime="board-field"):
+    loaded = fixture.loaded(document) if document is not False else fixture.missing()
+    return label_schema.desired_labels(loaded, regime)
 
 
 class DesiredLabelsTest(unittest.TestCase):
-    def test_type_labels_are_always_present_from_the_shared_constants(self):
-        desired = label_schema.desired_labels(_parse(_MINIMAL))
-        for name, attributes in TYPE_LABELS.items():
-            self.assertEqual(desired[name]["color"], attributes["color"])
-
-    def test_the_human_label_is_always_present_from_the_shared_constants(self):
-        desired = label_schema.desired_labels(_parse(_MINIMAL))
-        self.assertEqual(desired[HUMAN_LABEL], {
-            "color": HUMAN_LABEL_COLOR, "description": HUMAN_LABEL_DESCRIPTION,
-        })
-
-    def test_the_shipped_human_label_wins_over_a_scope_declaration(self):
-        desired = label_schema.desired_labels(_parse({**_MINIMAL, "scope": [
-            {"name": "human", "description": "Mine", "color": "000000"}]}))
-        self.assertEqual(desired[HUMAN_LABEL]["color"], HUMAN_LABEL_COLOR)
-        self.assertEqual(desired[HUMAN_LABEL]["description"],
-                         HUMAN_LABEL_DESCRIPTION)
-
-    def test_the_human_label_fits_githubs_description_limit(self):
-        # GitHub refuses a label description over 100 characters.
-        self.assertLessEqual(len(HUMAN_LABEL_DESCRIPTION), 100)
-
-    def test_area_names_are_prefixed_and_scope_names_are_not(self):
-        desired = label_schema.desired_labels(_parse(
-            {**_MINIMAL, "scope": [{"name": "site-a", "description": "Site A"}]}
-        ))
-        self.assertIn("area:core", desired)
-        self.assertIn("site-a", desired)
-        self.assertNotIn("core", desired)
-
-    def test_priority_labels_are_omitted_by_default(self):
-        self.assertNotIn("P0", label_schema.desired_labels(_parse(_MINIMAL)))
-
-    def test_priority_labels_flag_adds_the_canonical_four(self):
-        desired = label_schema.desired_labels(
-            _parse({**_MINIMAL, "priority_labels": True})
+    def test_kinds_axis_labels_and_unaxed_labels_with_their_values(self):
+        desired = _desired()
+        self.assertEqual(
+            list(desired.labels),
+            ["task", "bug", "chore", "area:core", "area:docs", "site:a",
+             "human", "perf"],
         )
-        for name in ("P0", "P1", "P2", "P3"):
-            self.assertIn(name, desired)
+        self.assertEqual(desired.labels["site:a"],
+                         {"color": "c5def5",
+                          "description": "The Site A deployment"})
+        self.assertEqual(desired.sections, _ALL_BUT_PRIORITIES)
+        self.assertEqual(desired.notes, [])
+
+    def test_priorities_are_labels_only_in_the_p_labels_regime(self):
+        self.assertIn("P4", _desired(regime="p-labels").labels)
+        self.assertIn(tracker_schema.ISSUE_PRIORITIES,
+                      _desired(regime="p-labels").sections)
+        self.assertNotIn("P4", _desired(regime="board-field").labels)
+
+    def test_an_unknown_regime_keeps_priority_labels_without_syncing_them(self):
+        desired = _desired(regime="unknown")
+        self.assertNotIn("P0", desired.labels)
+        self.assertEqual(desired.keep, {"P0", "P1", "P4"})
+        self.assertIn(tracker_schema.ISSUE_PRIORITIES, desired.sections)
+        self.assertIn("priority regime is unknown", desired.notes[0])
+
+    def test_no_schema_declares_nothing_but_still_names_its_sections(self):
+        desired = _desired(False)
+        self.assertEqual(desired.labels, {})
+        self.assertEqual(desired.sections, _ALL_BUT_PRIORITIES)
+
+    def test_an_unusable_section_contributes_nothing(self):
+        document = fixture.document()
+        document["issue_label_schema"]["axes"] = {}
+        desired = _desired(document)
+        self.assertEqual(list(desired.labels),
+                         ["task", "bug", "chore", "human", "perf"])
+
+    def test_a_missing_meaning_or_colour_reads_as_none(self):
+        document = fixture.document()
+        del document["issue_kinds"][0]["meaning"]
+        del document["issue_kinds"][1]["color"]
+        desired = _desired(document)
+        self.assertIsNone(desired.labels["task"]["description"])
+        self.assertIsNone(desired.labels["bug"]["color"])
+
+    def test_one_name_in_two_sections_is_synced_once_with_a_warning(self):
+        document = fixture.document()
+        document["issue_label_schema"]["labels"].append(
+            {"name": "Bug", "meaning": "Another bug", "color": "000000"})
+        desired = _desired(document)
+        self.assertEqual(desired.labels["bug"]["description"],
+                         "Something is broken")
+        self.assertNotIn("Bug", desired.labels)
+        self.assertIn("same GitHub label", desired.notes[0])
+
+    def test_a_long_meaning_is_shortened_to_githubs_limit_at_a_word(self):
+        meaning = " ".join(["meaningful"] * 20)
+        fitted = label_schema._fitted(meaning)
+        self.assertLessEqual(len(fitted), label_schema.DESCRIPTION_LIMIT)
+        self.assertTrue(fitted.endswith("meaningful..."))
+        self.assertEqual(label_schema._fitted("short"), "short")
+        exact = "x" * label_schema.DESCRIPTION_LIMIT
+        self.assertEqual(label_schema._fitted(exact), exact)
+
+
+def _wanted(**labels) -> label_schema.DesiredLabels:
+    return label_schema.DesiredLabels(labels=dict(labels))
 
 
 class DiffLabelsTest(unittest.TestCase):
     def setUp(self):
-        self.desired = {
+        self.desired = label_schema.DesiredLabels(labels={
             "bug": {"color": "d73a4a", "description": "Broken"},
             "area:core": {"color": "bfdadc", "description": "Core engine"},
-        }
+        })
 
     def test_converged_registry_yields_an_empty_diff(self):
         existing = [{"name": "bug", "color": "d73a4a", "description": "Broken"},
@@ -249,9 +141,22 @@ class DiffLabelsTest(unittest.TestCase):
         )
 
     def test_null_description_compares_as_empty(self):
-        desired = {"x": {"color": "ffffff", "description": ""}}
+        desired = _wanted(x={"color": "ffffff", "description": ""})
         existing = [{"name": "x", "color": "ffffff", "description": None}]
         self.assertEqual(label_schema.diff_labels(desired, existing)["update"], [])
+
+    def test_an_absent_value_keeps_the_live_one(self):
+        desired = _wanted(x={"color": None, "description": None})
+        existing = [{"name": "x", "color": "123456", "description": "live"}]
+        difference = label_schema.diff_labels(desired, existing)
+        self.assertEqual(difference["update"], [])
+        self.assertEqual(difference["unchanged"], ["x"])
+
+    def test_an_absent_value_on_a_create_takes_the_neutral_default(self):
+        desired = _wanted(x={"color": None, "description": None})
+        self.assertEqual(label_schema.diff_labels(desired, [])["create"],
+                         [{"name": "x", "color": label_schema.NEUTRAL_COLOR,
+                           "description": ""}])
 
     def test_undeclared_labels_are_deletion_candidates(self):
         existing = [{"name": "wontfix", "color": "ffffff", "description": ""},
@@ -261,28 +166,34 @@ class DiffLabelsTest(unittest.TestCase):
             ["duplicate", "wontfix"],
         )
 
+    def test_a_kept_label_is_never_a_deletion_candidate(self):
+        self.desired.keep = {"p0"}
+        existing = [{"name": "P0", "color": "b60205", "description": ""}]
+        self.assertEqual(
+            label_schema.diff_labels(self.desired, existing)["delete"], [])
+
     def test_case_only_difference_is_never_create_plus_delete(self):
         # GitHub's label namespace is case-insensitive, so planning a create
         # for 'bug' against a live 'Bug' would 422 as already-existing on
         # every single run.
         existing = [{"name": "Bug", "color": "d73a4a", "description": "Broken"}]
-        difference = label_schema.diff_labels({"bug": self.desired["bug"]},
-                                              existing)
+        difference = label_schema.diff_labels(
+            _wanted(bug=self.desired.labels["bug"]), existing)
         self.assertEqual(difference["create"], [])
         self.assertEqual(difference["delete"], [])
         self.assertEqual(difference["unchanged"], ["Bug"])
 
     def test_case_only_difference_is_reported(self):
         existing = [{"name": "Bug", "color": "d73a4a", "description": "Broken"}]
-        difference = label_schema.diff_labels({"bug": self.desired["bug"]},
-                                              existing)
+        difference = label_schema.diff_labels(
+            _wanted(bug=self.desired.labels["bug"]), existing)
         self.assertEqual(difference["case_mismatch"],
                          [{"live": "Bug", "desired": "bug"}])
 
     def test_matching_names_exactly_report_no_case_mismatch(self):
         existing = [{"name": "bug", "color": "d73a4a", "description": "Broken"}]
         self.assertEqual(
-            label_schema.diff_labels({"bug": self.desired["bug"]},
+            label_schema.diff_labels(_wanted(bug=self.desired.labels["bug"]),
                                      existing)["case_mismatch"],
             [],
         )
@@ -290,8 +201,8 @@ class DiffLabelsTest(unittest.TestCase):
     def test_update_targets_the_live_spelling(self):
         # `gh label edit` has to name the label as it actually exists.
         existing = [{"name": "Bug", "color": "000000", "description": "Broken"}]
-        update = label_schema.diff_labels({"bug": self.desired["bug"]},
-                                          existing)["update"][0]
+        update = label_schema.diff_labels(
+            _wanted(bug=self.desired.labels["bug"]), existing)["update"][0]
         self.assertEqual(update["name"], "Bug")
         self.assertEqual(update["color"], "d73a4a")
 
